@@ -3,8 +3,11 @@
 // Endpoint: POST /api/infinitepay-checkout
 
 module.exports = async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers — restringe ao domínio da Drope
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://lojadrope.netlify.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
