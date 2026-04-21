@@ -32,6 +32,24 @@ function isDuplicate(msgId) {
   return false;
 }
 
+// Cooldown por telefone — impede resposta duplicada em sequência
+const phoneCooldown = new Map();
+const COOLDOWN_MS = 5000; // 5 segundos
+
+function isOnCooldown(phone) {
+  const now = Date.now();
+  const last = phoneCooldown.get(phone);
+  if (last && now - last < COOLDOWN_MS) return true;
+  phoneCooldown.set(phone, now);
+  // Limpa antigas
+  if (phoneCooldown.size > 500) {
+    for (const [k, v] of phoneCooldown) {
+      if (now - v > COOLDOWN_MS * 2) phoneCooldown.delete(k);
+    }
+  }
+  return false;
+}
+
 // Rate limiting simples (por phone, em memória)
 const rateLimits = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minuto
@@ -768,6 +786,12 @@ module.exports = async function handler(req, res) {
     }
 
     console.log("PHONE:", phone.substring(0, 6) + "***", "TYPE:", msg.type || "text");
+
+    // Cooldown — impede resposta dupla em sequência (5s)
+    if (isOnCooldown(phone)) {
+      console.log("COOLDOWN:", phone.substring(0, 6) + "***");
+      return res.status(200).send("cooldown");
+    }
 
     // Rate limiting
     if (isRateLimited(phone)) {
