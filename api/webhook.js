@@ -1,7 +1,7 @@
 // Drope WhatsApp AI Agent — Vercel Serverless Function v2
 // 3 modos: atendimento cliente | entrada/cadastro (Lucas) | baixa estoque (caixa)
 // Claude Vision + Grok API (imagem + vídeo) + Supabase estoque
- 
+
 // ============ CONFIG ============
 const UAZAPI_SERVER = process.env.UAZAPI_SERVER || "https://dropepod.uazapi.com";
 const UAZAPI_TOKEN = process.env.UAZAPI_TOKEN || "";
@@ -9,15 +9,15 @@ const CLAUDE_KEY = process.env.CLAUDE_KEY || "";
 const XAI_API_KEY = process.env.XAI_API_KEY || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://udsjnhbkapjwpdolvtri.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
- 
+
 // Números admin (só esses acessam modo estoque)
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
 const ADMIN_CAIXA = process.env.ADMIN_CAIXA || "";
- 
+
 // Deduplicação de mensagens (Uazapi envia webhook duplicado)
 const processedMessages = new Map();
 const DEDUP_TTL = 30 * 1000; // 30 segundos
- 
+
 function isDuplicate(msgId) {
   if (!msgId) return false;
   const now = Date.now();
@@ -31,12 +31,12 @@ function isDuplicate(msgId) {
   processedMessages.set(msgId, now);
   return false;
 }
- 
+
 // Rate limiting simples (por phone, em memória)
 const rateLimits = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minuto
 const RATE_LIMIT_MAX = 10; // max 10 msgs por minuto
- 
+
 function isRateLimited(phone) {
   const now = Date.now();
   const entry = rateLimits.get(phone);
@@ -48,7 +48,7 @@ function isRateLimited(phone) {
   if (entry.count > RATE_LIMIT_MAX) return true;
   return false;
 }
- 
+
 // Validação de webhook — verifica se veio do Uazapi
 function isValidWebhook(body) {
   // Verifica se tem estrutura esperada da Uazapi
@@ -58,12 +58,12 @@ function isValidWebhook(body) {
   if (body.token && body.token !== UAZAPI_TOKEN) return false;
   return true;
 }
- 
+
 // ============ HISTÓRICO DE CONVERSAS ============
 const conversations = new Map();
 const HISTORY_LIMIT = 10;
 const HISTORY_TTL = 30 * 60 * 1000;
- 
+
 function getConvo(phone) {
   let entry = conversations.get(phone);
   if (!entry || Date.now() - entry.lastActivity > HISTORY_TTL) {
@@ -72,7 +72,7 @@ function getConvo(phone) {
   }
   return entry;
 }
- 
+
 function addMsg(phone, role, content) {
   const entry = getConvo(phone);
   entry.messages.push({ role, content: typeof content === 'string' ? content : JSON.stringify(content) });
@@ -86,7 +86,7 @@ function addMsg(phone, role, content) {
     }
   }
 }
- 
+
 // ============ SUPABASE HELPERS ============
 function sbHeaders() {
   return {
@@ -96,14 +96,14 @@ function sbHeaders() {
     'Prefer': 'return=representation'
   };
 }
- 
+
 async function sbGet(table, filter = '') {
   const url = `${SUPABASE_URL}/rest/v1/${table}${filter ? '?' + filter : ''}`;
   const r = await fetch(url, { headers: sbHeaders() });
   if (!r.ok) { console.error(`[SB] GET ${table} error:`, r.status); return []; }
   return r.json();
 }
- 
+
 async function sbUpsert(table, data) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
   const headers = { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=representation' };
@@ -111,18 +111,18 @@ async function sbUpsert(table, data) {
   if (!r.ok) { console.error(`[SB] UPSERT ${table} error:`, r.status, await r.text()); return null; }
   return r.json();
 }
- 
+
 async function sbUpdate(table, filter, data) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${filter}`;
   const r = await fetch(url, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(data) });
   if (!r.ok) { console.error(`[SB] UPDATE ${table} error:`, r.status, await r.text()); return null; }
   return r.json();
 }
- 
+
 async function getProducts() {
   return sbGet('products', 'select=*&order=name');
 }
- 
+
 async function findProductByName(searchName) {
   const products = await getProducts();
   const lower = searchName.toLowerCase();
@@ -132,7 +132,7 @@ async function findProductByName(searchName) {
     p.brand?.toLowerCase().includes(lower)
   );
 }
- 
+
 async function updateStock(productId, delta) {
   const products = await sbGet('products', `id=eq.${productId}&select=id,name,stock`);
   if (!products.length) return null;
@@ -141,7 +141,7 @@ async function updateStock(productId, delta) {
   await sbUpdate('products', `id=eq.${productId}`, { stock: newStock });
   return { ...products[0], oldStock: current, newStock };
 }
- 
+
 async function createProduct(data) {
   const id = 'p' + Date.now().toString(36);
   const product = {
@@ -160,7 +160,7 @@ async function createProduct(data) {
   const result = await sbUpsert('products', product);
   return result ? product : null;
 }
- 
+
 // ============ CLAUDE VISION ============
 async function callClaude(messages, systemPrompt, maxTokens = 400) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -181,7 +181,7 @@ async function callClaude(messages, systemPrompt, maxTokens = 400) {
   console.log("[Claude] status:", r.status);
   return data.content?.[0]?.text || null;
 }
- 
+
 async function analyzeProductImage(imageUrl) {
   const systemPrompt = `Voce e um especialista em pods/vapes descartaveis. Analise a foto e extraia:
 - marca (brand)
@@ -190,14 +190,14 @@ async function analyzeProductImage(imageUrl) {
 - puffs (numero)
 - cor do device (device_color) em ingles
 - elementos visuais do sabor (flavor_elements) em ingles pra usar num prompt de arte (ex: "watermelon, kiwi and pineapple")
- 
+
 Responda SOMENTE em JSON valido, sem markdown:
 {"brand":"","model":"","flavor_en":"","flavor_pt":"","puffs":"","device_color":"","flavor_elements":"","suggested_price":0,"copy":""}
- 
+
 Para copy use o formato: "perfil curto ✦ notas do sabor" (ex: "tropical ✦ melancia + kiwi + manga")
 Para suggested_price, estime baseado em puffs: 5k=R$80, 15k=R$60, 23k=R$75, 30k=R$85-90, 40k=R$85-100, 45k+=R$110
 Se nao conseguir identificar algo, coloque string vazia.`;
- 
+
   const messages = [{
     role: "user",
     content: [
@@ -205,10 +205,10 @@ Se nao conseguir identificar algo, coloque string vazia.`;
       { type: "text", text: "Identifique este pod/vape. Responda SOMENTE o JSON." }
     ]
   }];
- 
+
   const result = await callClaude(messages, systemPrompt, 500);
   if (!result) return null;
- 
+
   try {
     // Limpa possíveis artefatos de markdown
     const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -218,20 +218,20 @@ Se nao conseguir identificar algo, coloque string vazia.`;
     return null;
   }
 }
- 
+
 async function identifyProductForStock(imageUrl, products) {
   const productList = products.map(p => `${p.id}: ${p.name} (${p.brand} ${p.flavor})`).join('\n');
- 
+
   const systemPrompt = `Voce e um especialista em pods/vapes. Olhe a foto e identifique qual produto da lista abaixo corresponde.
- 
+
 PRODUTOS CADASTRADOS:
 ${productList}
- 
+
 Responda SOMENTE em JSON valido, sem markdown:
 {"product_id":"","product_name":"","confidence":"high|medium|low"}
- 
+
 Se nao encontrar correspondencia, coloque product_id vazio e confidence "low".`;
- 
+
   const messages = [{
     role: "user",
     content: [
@@ -239,10 +239,10 @@ Se nao encontrar correspondencia, coloque product_id vazio e confidence "low".`;
       { type: "text", text: "Qual produto da lista é esse? Responda SOMENTE o JSON." }
     ]
   }];
- 
+
   const result = await callClaude(messages, systemPrompt, 300);
   if (!result) return null;
- 
+
   try {
     const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(clean);
@@ -251,11 +251,11 @@ Se nao encontrar correspondencia, coloque product_id vazio e confidence "low".`;
     return null;
   }
 }
- 
+
 // ============ GROK API (xAI) — IMAGEM + VÍDEO ============
 async function generateProductImage(deviceColor, flavorElements) {
   const prompt = `Product photo of a ${deviceColor} rectangular vape pod device standing upright on a matte black reflective surface. Deep dark purple-black background. Floating slices of ${flavorElements} around the device with frost and small ice shards. Dramatic neon lighting: hot pink light from the left side and acid lime green light from the right side, both creating colorful reflections on the device and on the wet fruit surfaces. Soft vapor mist drifting upward with pink and green tints. Water droplets on the device catching the neon glow. No text, no logos, no words. Editorial product photography style, ultra premium, dark moody, sharp focus, photorealistic. Square format, 1024x1024 pixels.`;
- 
+
   console.log("[Grok] Generating image...");
   const r = await fetch("https://api.x.ai/v1/images/generations", {
     method: "POST",
@@ -269,19 +269,19 @@ async function generateProductImage(deviceColor, flavorElements) {
       n: 1
     })
   });
- 
+
   const data = await r.json();
   console.log("[Grok] Image status:", r.status);
- 
+
   if (data.data?.[0]?.url) return data.data[0].url;
   if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
   console.error("[Grok] Image error:", JSON.stringify(data).substring(0, 300));
   return null;
 }
- 
+
 async function generateProductVideo(imageUrl) {
   const prompt = "Slow cinematic camera movement around the product, vapor slowly rising with pink and green tints, subtle neon light reflections shifting on the wet surfaces, ice crystals glistening, smooth dolly zoom, ultra premium product showcase, 4 seconds";
- 
+
   console.log("[Grok] Generating video...");
   const r = await fetch("https://api.x.ai/v1/videos/generations", {
     method: "POST",
@@ -295,16 +295,16 @@ async function generateProductVideo(imageUrl) {
       image_url: imageUrl
     })
   });
- 
+
   const data = await r.json();
   console.log("[Grok] Video status:", r.status, JSON.stringify(data).substring(0, 200));
- 
+
   // Video generation is async — returns a request ID to poll
   if (data.id) return { requestId: data.id, status: "processing" };
   if (data.data?.[0]?.url) return { url: data.data[0].url, status: "done" };
   return null;
 }
- 
+
 // ============ UAZAPI SEND HELPERS ============
 async function sendText(phone, text, body = {}) {
   const serverUrl = body.BaseUrl || UAZAPI_SERVER;
@@ -317,7 +317,7 @@ async function sendText(phone, text, body = {}) {
   console.log("[Send] text to", phone, "status:", r.status);
   return r;
 }
- 
+
 async function sendImage(phone, imageUrl, caption, body = {}) {
   const serverUrl = body.BaseUrl || UAZAPI_SERVER;
   const token = body.token || UAZAPI_TOKEN;
@@ -329,7 +329,7 @@ async function sendImage(phone, imageUrl, caption, body = {}) {
   console.log("[Send] image to", phone, "status:", r.status);
   return r;
 }
- 
+
 async function sendVideo(phone, videoUrl, caption, body = {}) {
   const serverUrl = body.BaseUrl || UAZAPI_SERVER;
   const token = body.token || UAZAPI_TOKEN;
@@ -341,14 +341,14 @@ async function sendVideo(phone, videoUrl, caption, body = {}) {
   console.log("[Send] video to", phone, "status:", r.status);
   return r;
 }
- 
+
 // ============ MEDIA DOWNLOAD ============
 async function getMediaUrl(msg, body) {
   // Uazapi pode enviar media como URL, base64 ou via endpoint de download
   if (msg.mediaUrl) return msg.mediaUrl;
   if (msg.media?.url) return msg.media.url;
   if (msg.image?.url) return msg.image.url;
- 
+
   // Tenta baixar via endpoint do Uazapi
   if (msg.id || msg.messageId) {
     const serverUrl = body.BaseUrl || UAZAPI_SERVER;
@@ -367,16 +367,16 @@ async function getMediaUrl(msg, body) {
       console.error("[Media] download error:", e.message);
     }
   }
- 
+
   // Base64 direto no payload
   if (msg.base64) return `data:${msg.mimetype || 'image/jpeg'};base64,${msg.base64}`;
   if (msg.body && msg.mimetype?.startsWith('image/')) {
     return `data:${msg.mimetype};base64,${msg.body}`;
   }
- 
+
   return null;
 }
- 
+
 function isImageMessage(msg) {
   return msg.type === 'image' ||
          msg.messageType === 'image' ||
@@ -384,11 +384,11 @@ function isImageMessage(msg) {
          !!msg.mediaUrl ||
          !!msg.image;
 }
- 
+
 // ============ CATÁLOGO (pro atendimento ao cliente) ============
 const CATALOGO = `
 CATALOGO DROPE - Pods Descartáveis (61 produtos):
- 
+
 BLACK SHEEP (55k puffs, R$110): Blueberry, Miami Mint, Cool Mint, Aloe Grape
 ELF BAR BC PRO (45k puffs, R$110): Mango Magic
 ELF BAR ICE KING (40k puffs, R$95): Green Apple, Miami Mint, Double Apple, Summer Splash
@@ -396,71 +396,85 @@ ELF BAR TRIO (40k puffs, R$85): Peach Twist, Blue Razz, Sour Apple, Sakura Grape
 ELF BAR TE 30K (30k puffs, R$90): Green Apple, Strawberry
 ELF BAR GH 23K (23k puffs, R$75): Blue Razz, Blueberry Pear, Baja Splash, Strawberry Banana [DESCONTINUADO]
 ELF BAR BC 15K (15k puffs, R$60): Pear Watermelon, Pineapple, Peach Mango, Sour Apple, Strawberry Cream, Elf Love
- 
+
 IGNITE V250 (25k puffs, R$95): Strawberry Ice, Strawberry Banana, Green Apple, Banana Ice, Menthol
 IGNITE V300 (30k puffs, R$100): Banana Coconut, Menthol, Dragonfruit Watermelon, Pineapple
 IGNITE V155 (15k puffs, R$60): Icy Mint, Pineapple, Grape Ice, Watermelon Dragonfruit, Menthol, Blueberry
 IGNITE V55 (5k puffs, R$80): Strawberry Banana, Aloe Grape, Minty Melon
 IGNITE BOOST (40k puffs, R$100): Pineapple Kiwi
- 
+
 DOJO (40k puffs, R$80): Fresh Splash, Hawaii Dream, Fresh Berry Orange, Frosty Banana Taffy
- 
+
 LOST MARY (30k puffs, R$85): Blue Razz, Miami Chill, Aloe Grape Sour Apple, Banana Cherry
- 
+
 GEEK BAR (35k puffs, R$80): Frozen Strawberry, White Peach Raspberry, Stone Freeze
- 
+
 ADALYA AD5000 (5k puffs, R$80): Fruity Smoothie, Pineapple Slice, Passion Guava Kiwi
- 
+
 VANTHER (30k puffs, R$75): Cool Mint, Mixed Berries
- 
+
 TABACARIA:
 Seda King (R$8), Isqueiro (R$12), Essência Hortelã 50g (R$25), Carvão Coco 250g (R$18)
- 
+
 Entrega: delivery ou retirada em SP. Pagamento: Pix antecipado (delivery) ou Pix/cartão (retirada). App: https://drope-app.vercel.app
 `;
- 
-const SYSTEM_CUSTOMER = `Voce e o assistente virtual da Drope, loja de pods descartaveis em Sao Paulo.
- 
-=== COMO ATENDER ===
- 
-PRIMEIRA MENSAGEM do cliente (oi, ola, eae, bom dia, etc):
-Responda com uma saudacao acolhedora e natural, se apresente como assistente da Drope, e diga no que pode ajudar. Exemplo de tom:
-"e ai! aqui e a Drope 🔥 tamo junto pra te ajudar com pods, precos, pedidos, entrega... manda a duvida que a gente resolve"
- 
-NAO use menu numerado. NAO liste opcoes 1, 2, 3. Seja natural como um amigo no WhatsApp.
- 
-MENSAGENS SEGUINTES:
-- Voce tem o historico da conversa, entao NUNCA repita a saudacao. Continue a conversa de onde parou.
-- Se o cliente ja perguntou algo antes, lembre e construa em cima.
-- Responda direto a duvida usando o catalogo.
- 
-=== PILARES (Nubank) ===
- 
-ANTECIPAR: quando perceber que o cliente ta indeciso, sugira opcoes baseadas no que ele disse
-RESOLVER RAPIDO: responda a duvida completa no primeiro contato
-CUIDAR: tom Gen Z brasileiro, informal, amigavel
-EMPODERAR: se o cliente quer pedir, mande o link do app
- 
+
+const SYSTEM_CUSTOMER = `Voce e a Drope, assistente virtual da loja de pods descartaveis em SP.
+
+=== TOM ===
+- WhatsApp de amigo, nao de robo. Gen Z brasileiro, informal, direto.
+- Maximo 2-4 linhas por resposta. Sem textao.
+- Maximo 1-2 emojis por mensagem (nao encha de emoji).
+- Use "dropar" como verbo da marca quando encaixar natural.
+- Tudo lowercase exceto nomes proprios (Drope, Pix, marcas).
+
+=== FLUXO DA CONVERSA ===
+
+SAUDACAO (so na PRIMEIRA mensagem, quando historico ta vazio):
+Uma saudacao curta, tipo:
+"e ai! aqui e a Drope, sua loja de pods em SP 🔥 no que posso te ajudar?"
+NUNCA repita saudacao se ja tem historico. Va direto ao ponto.
+
+QUANDO CLIENTE PERGUNTA SOBRE PRODUTO/SABOR:
+Liste as opcoes encontradas no catalogo com NUMEROS pra facilitar:
+"achei essas opcoes de morango:
+1. Elf Bar BC 15k - Strawberry Cream (R$60)
+2. Ignite V250 - Strawberry Ice (R$95)
+3. Ignite V155 - Strawberry Banana (R$60)
+manda o numero ou pergunta mais 😉"
+
+QUANDO CLIENTE RESPONDE COM NUMERO (1, 2, 3...):
+Entenda que ele ta escolhendo da lista anterior. Confirme e pergunte se quer pedir:
+"boa escolha! Ignite V250 Strawberry Ice, 25k puffs por R$95. quer dropar? so abrir o app: https://drope-app.vercel.app"
+
+QUANDO CLIENTE QUER PEDIR:
+Mande o link do app: https://drope-app.vercel.app
+"manda ver no app que la vc monta o pedido: https://drope-app.vercel.app"
+
+QUANDO CLIENTE PERGUNTA PRECO:
+Responda direto com preco do catalogo. Se tem varios, liste com numeros.
+
+QUANDO CLIENTE TA INDECISO:
+Sugira baseado no que ele falou. Ex: "se curte frutado, o Elf Bar Trio Peach Twist e brabo por R$85"
+
 === REGRAS ===
-- BREVE: respostas curtas e diretas (WhatsApp, nao email). 2-4 linhas no maximo.
-- Use "dropar" como verbo da marca naturalmente
-- Maximo 1-2 emojis por mensagem
-- NUNCA invente produtos ou precos que nao estao no catalogo
-- Para pedidos: mande o link do app https://drope-app.vercel.app
-- Pagamento: Pix antecipado (delivery) ou Pix/na hora (retirada)
-- Se nao souber responder, diga "vou confirmar com a equipe e ja te respondo"
-- Se mandar audio/imagem: "por enquanto so leio texto, manda escrito que te ajudo"
- 
+- NUNCA invente produtos ou precos fora do catalogo
+- Pagamento: pods = so Pix | tabacaria = Pix ou cartao
+- Delivery: Pix antecipado, taxa combinada por whats
+- Retirada: Pix antecipado OU paga na hora
+- Se nao souber: "vou confirmar com a equipe e ja te respondo"
+- Nunca mande mais de 1 mensagem por vez. Tudo numa resposta so.
+
 ${CATALOGO}`;
- 
+
 // ============ FLUXOS ADMIN ============
- 
+
 // LUCAS — Entrada de estoque ou cadastro de produto novo
 async function handleAdminLucas(phone, msg, body) {
   const convo = getConvo(phone);
   const hasImage = isImageMessage(msg);
   const text = msg.text || msg.content || msg.caption || "";
- 
+
   // Estado: esperando confirmação de cadastro
   if (convo.state === 'awaiting_confirm' && convo.pending) {
     const lower = text.toLowerCase();
@@ -468,10 +482,10 @@ async function handleAdminLucas(phone, msg, body) {
       // Extrai quantidade e preço se mencionado
       const qtyMatch = text.match(/(\d+)\s*(uni|chegaram|unid)/i) || text.match(/chegaram?\s*(\d+)/i);
       const priceMatch = text.match(/(?:preço|preco|precu|R\$)\s*(\d+)/i);
- 
+
       const qty = qtyMatch ? parseInt(qtyMatch[1]) : (convo.pending.qty || 1);
       const price = priceMatch ? parseInt(priceMatch[1]) : convo.pending.suggested_price;
- 
+
       // Cria o produto
       const newProduct = await createProduct({
         name: `${convo.pending.brand} ${convo.pending.model} ${convo.pending.flavor_pt}`,
@@ -484,26 +498,26 @@ async function handleAdminLucas(phone, msg, body) {
         profile: convo.pending.copy,
         stock: qty
       });
- 
+
       if (!newProduct) {
         await sendText(phone, "❌ erro ao cadastrar, tenta de novo", body);
         convo.state = null; convo.pending = null;
         return;
       }
- 
+
       await sendText(phone, `✅ cadastrado: ${newProduct.name}\npreço: R$${price}\nestoque: ${qty}\nid: ${newProduct.id}`, body);
- 
+
       // Gera arte via Grok
       await sendText(phone, "🎨 gerando arte do produto...", body);
- 
+
       const artUrl = await generateProductImage(
         convo.pending.device_color || "metallic",
         convo.pending.flavor_elements || "tropical fruits"
       );
- 
+
       if (artUrl) {
         await sendImage(phone, artUrl, `arte: ${newProduct.name}`, body);
- 
+
         // Gera vídeo
         await sendText(phone, "🎬 gerando vídeo...", body);
         const videoResult = await generateProductVideo(artUrl);
@@ -519,11 +533,11 @@ async function handleAdminLucas(phone, msg, body) {
         const prompt = `Product photo of a ${convo.pending.device_color} rectangular vape pod device standing upright on a matte black reflective surface. Deep dark purple-black background. Floating slices of ${convo.pending.flavor_elements} around the device with frost and small ice shards. Dramatic neon lighting: hot pink light from the left side and acid lime green light from the right side. Soft vapor mist. No text, no logos. Square format, 1024x1024.`;
         await sendText(phone, prompt, body);
       }
- 
+
       convo.state = null;
       convo.pending = null;
       return;
- 
+
     } else if (lower.includes('cancel') || lower.includes('não') || lower.includes('nao')) {
       convo.state = null; convo.pending = null;
       await sendText(phone, "cancelado ✌️", body);
@@ -537,7 +551,7 @@ async function handleAdminLucas(phone, msg, body) {
     await sendText(phone, `ajustado. confirma cadastro? (sim/nao)`, body);
     return;
   }
- 
+
   // Estado: esperando quantidade pra entrada de estoque
   if (convo.state === 'awaiting_qty' && convo.pending) {
     const qtyMatch = text.match(/(\d+)/);
@@ -553,7 +567,7 @@ async function handleAdminLucas(phone, msg, body) {
       return;
     }
   }
- 
+
   // Recebeu imagem — analisa
   if (hasImage) {
     const imageUrl = await getMediaUrl(msg, body);
@@ -561,9 +575,9 @@ async function handleAdminLucas(phone, msg, body) {
       await sendText(phone, "nao consegui pegar a imagem, manda de novo", body);
       return;
     }
- 
+
     await sendText(phone, "📸 analisando...", body);
- 
+
     // Primeiro tenta identificar como produto existente
     const products = await getProducts();
     if (products.length > 0) {
@@ -576,14 +590,14 @@ async function handleAdminLucas(phone, msg, body) {
         return;
       }
     }
- 
+
     // Produto novo — analisa detalhes
     const analysis = await analyzeProductImage(imageUrl);
     if (!analysis) {
       await sendText(phone, "nao consegui identificar o produto. manda outra foto mais clara da caixa", body);
       return;
     }
- 
+
     convo.state = 'awaiting_confirm';
     convo.pending = analysis;
     const msg_text = `🆕 produto novo identificado:
@@ -592,13 +606,13 @@ ${analysis.puffs} puffs
 copy: ${analysis.copy}
 preço sugerido: R$${analysis.suggested_price}
 cor: ${analysis.device_color}
- 
+
 confirma cadastro? quantos chegaram? (ou ajusta o que precisar)`;
- 
+
     await sendText(phone, msg_text, body);
     return;
   }
- 
+
   // Mensagem de texto do Lucas sem imagem — pode ser comando
   const lower = text.toLowerCase();
   if (lower.includes('estoque') || lower.includes('saldo')) {
@@ -612,17 +626,17 @@ confirma cadastro? quantos chegaram? (ou ajusta o que precisar)`;
     }
     return;
   }
- 
+
   // Fallback — trata como conversa normal de admin
   await sendText(phone, "manda a foto do pod que eu identifico 📸\nou digita 'estoque' pra ver o saldo", body);
 }
- 
+
 // CAIXA — Baixa de estoque (venda física)
 async function handleAdminCaixa(phone, msg, body) {
   const convo = getConvo(phone);
   const hasImage = isImageMessage(msg);
   const text = msg.text || msg.content || msg.caption || "";
- 
+
   // Esperando confirmação de baixa
   if (convo.state === 'awaiting_baixa_confirm' && convo.pending) {
     const lower = text.toLowerCase();
@@ -641,7 +655,7 @@ async function handleAdminCaixa(phone, msg, body) {
       return;
     }
   }
- 
+
   // Recebeu imagem — identifica pra dar baixa
   if (hasImage) {
     const imageUrl = await getMediaUrl(msg, body);
@@ -649,23 +663,23 @@ async function handleAdminCaixa(phone, msg, body) {
       await sendText(phone, "nao peguei a imagem, manda de novo", body);
       return;
     }
- 
+
     await sendText(phone, "📸 identificando...", body);
- 
+
     const products = await getProducts();
     const match = await identifyProductForStock(imageUrl, products);
- 
+
     if (!match?.product_id || match.confidence === 'low') {
       await sendText(phone, "nao identifiquei o produto. manda foto mais clara", body);
       return;
     }
- 
+
     convo.state = 'awaiting_baixa_confirm';
     convo.pending = match;
     await sendText(phone, `🔍 ${match.product_name}\nconfirma baixa de 1 unidade? (sim/nao)`, body);
     return;
   }
- 
+
   // Texto — pode ser código manual (ex: "c15x")
   if (text && text.length > 1) {
     const products = await getProducts();
@@ -680,110 +694,132 @@ async function handleAdminCaixa(phone, msg, body) {
       return;
     }
   }
- 
+
   await sendText(phone, "manda foto do pod vendido ou digita o nome 📸", body);
 }
- 
+
 // ============ HANDLER PRINCIPAL ============
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
- 
+
   if (req.method !== "POST") {
     return res.status(200).send("OK");
   }
- 
+
   try {
     const body = req.body;
- 
+
     // Validação de segurança do webhook
     if (!isValidWebhook(body)) {
       console.log("REJECTED: invalid webhook payload");
       return res.status(200).send("invalid");
     }
- 
+
+    // Ignora eventos que não são mensagens (status, receipts, etc)
+    const eventType = body.EventType || body.event || "";
+    if (eventType && eventType !== "messages" && eventType !== "message") {
+      console.log("SKIP event:", eventType);
+      return res.status(200).send("skip-event");
+    }
+
     console.log("PARSED:", JSON.stringify(body).substring(0, 300));
- 
+
     const msg = body.message || {};
     const chat = body.chat || {};
- 
-    // Ignora mensagens próprias ou enviadas pela API
+
+    // Ignora mensagens próprias, enviadas pela API, ou sem conteúdo real
     if (msg.fromMe || msg.wasSentByApi) {
       return res.status(200).send("ignored");
     }
- 
+
+    // Ignora mensagens de status/broadcast
+    if (msg.isStatusV3 || msg.broadcast || msg.status === "PENDING") {
+      return res.status(200).send("status-ignored");
+    }
+
     // Deduplicação — Uazapi manda webhook duplicado
     const msgId = msg.id || msg.messageId || body.id || "";
     if (isDuplicate(msgId)) {
       console.log("DUPLICATE:", msgId.substring(0, 20));
       return res.status(200).send("duplicate");
     }
- 
+
+    // Deduplicação extra por phone+timestamp (pega duplicatas com IDs diferentes)
+    const rawPhone2 = chat.phone || msg.chatid?.replace("@s.whatsapp.net", "") || "";
+    const phoneDedup = rawPhone2.replace(/[^0-9]/g, "");
+    const msgText = msg.text || msg.content || "";
+    const dedupKey2 = `${phoneDedup}:${msgText.substring(0, 50)}`;
+    if (isDuplicate(dedupKey2)) {
+      console.log("DUPLICATE-TEXT:", dedupKey2.substring(0, 30));
+      return res.status(200).send("duplicate-text");
+    }
+
     // Ignora grupos
     if (msg.isGroup || chat.wa_isGroup) {
       return res.status(200).send("group ignored");
     }
- 
+
     // Extrai telefone
     const rawPhone = chat.phone || msg.chatid?.replace("@s.whatsapp.net", "") || "";
     const phone = rawPhone.replace(/[^0-9]/g, "");
- 
+
     if (!phone) {
       return res.status(200).send("no phone");
     }
- 
+
     console.log("PHONE:", phone.substring(0, 6) + "***", "TYPE:", msg.type || "text");
- 
+
     // Rate limiting
     if (isRateLimited(phone)) {
       console.log("RATE LIMITED:", phone.substring(0, 6) + "***");
       return res.status(200).send("rate limited");
     }
- 
+
     // ======== ROTEAMENTO POR NÚMERO ========
- 
+
     // Admin Lucas — cadastro/entrada
     if (phone === ADMIN_LUCAS) {
       console.log("MODE: admin-lucas");
       await handleAdminLucas(phone, msg, body);
       return res.status(200).send("admin-lucas");
     }
- 
+
     // Admin Caixa — baixa de estoque
     if (ADMIN_CAIXA && phone === ADMIN_CAIXA) {
       console.log("MODE: admin-caixa");
       await handleAdminCaixa(phone, msg, body);
       return res.status(200).send("admin-caixa");
     }
- 
+
     // ======== CLIENTE NORMAL ========
     const message = msg.text || msg.content || "";
- 
+
     // Cliente mandou imagem — explica que só lê texto
     if (isImageMessage(msg) && !message) {
       await sendText(phone, "por enquanto so leio texto, manda escrito que te ajudo 😉", body);
       return res.status(200).send("image-rejected");
     }
- 
+
     if (!message) {
       return res.status(200).send("no message");
     }
- 
+
     // Atendimento normal com Claude
     const convo = getConvo(phone);
     const history = convo.messages;
     const messages = [...history, { role: "user", content: message }];
- 
+
     console.log("Calling Claude AI... history:", history.length, "msgs");
- 
+
     const reply = await callClaude(messages, SYSTEM_CUSTOMER) ||
                   "opa, tive um problema aqui. ja vou chamar alguem da equipe pra te ajudar!";
- 
+
     addMsg(phone, "user", message);
     addMsg(phone, "assistant", reply);
- 
+
     await sendText(phone, reply, body);
     return res.status(200).send("replied");
- 
+
   } catch (err) {
     console.error("WEBHOOK ERROR:", err.message, err.stack);
     return res.status(200).send("error: " + err.message);
