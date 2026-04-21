@@ -14,40 +14,52 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY |
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
 const ADMIN_CAIXA = process.env.ADMIN_CAIXA || "";
 
-// Deduplicação de mensagens (Uazapi envia webhook duplicado)
-const processedMessages = new Map();
-const DEDUP_TTL = 30 * 1000; // 30 segundos
-
-function isDuplicate(msgId) {
-  if (!msgId) return false;
-  const now = Date.now();
-  // Limpa antigas
-  if (processedMessages.size > 1000) {
-    for (const [k, v] of processedMessages) {
-      if (now - v > DEDUP_TTL) processedMessages.delete(k);
+// Deduplicação via Supabase (funciona com Vercel stateless)
+async function isDuplicateSupabase(msgKey) {
+  if (!msgKey || !SUPABASE_URL || !SUPABASE_KEY) return false;
+  try {
+    // Tenta inserir — se já existe, é duplicata
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/webhook_dedup`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ msg_key: msgKey })
+    });
+    if (r.status === 409 || r.status === 409) {
+      console.log("[DEDUP] duplicate:", msgKey.substring(0, 30));
+      return true; // conflito = já existe = duplicata
     }
+    if (!r.ok) {
+      // Se deu erro diferente, verifica se é unique violation
+      const txt = await r.text();
+      if (txt.includes('duplicate') || txt.includes('unique') || txt.includes('23505')) {
+        console.log("[DEDUP] duplicate (error):", msgKey.substring(0, 30));
+        return true;
+      }
+    }
+    return false; // inseriu OK = primeira vez
+  } catch (e) {
+    console.log("[DEDUP] error:", e.message);
+    return false; // em caso de erro, processa normalmente
   }
-  if (processedMessages.has(msgId)) return true;
-  processedMessages.set(msgId, now);
-  return false;
 }
 
-// Cooldown por telefone — impede resposta duplicada em sequência
-const phoneCooldown = new Map();
-const COOLDOWN_MS = 5000; // 5 segundos
-
-function isOnCooldown(phone) {
-  const now = Date.now();
-  const last = phoneCooldown.get(phone);
-  if (last && now - last < COOLDOWN_MS) return true;
-  phoneCooldown.set(phone, now);
-  // Limpa antigas
-  if (phoneCooldown.size > 500) {
-    for (const [k, v] of phoneCooldown) {
-      if (now - v > COOLDOWN_MS * 2) phoneCooldown.delete(k);
-    }
-  }
-  return false;
+// Limpa dedup antigos (roda a cada request, deleta > 2 min)
+async function cleanDedup() {
+  try {
+    const twoMinAgo = new Date(Date.now() - 120000).toISOString();
+    await fetch(`${SUPABASE_URL}/rest/v1/webhook_dedup?created_at=lt.${twoMinAgo}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+  } catch (e) { /* ignora */ }
 }
 
 // Rate limiting simples (por phone, em memória)
@@ -755,22 +767,17 @@ module.exports = async function handler(req, res) {
       return res.status(200).send("status-ignored");
     }
 
-    // Deduplicação — Uazapi manda webhook duplicado
+    // Deduplicação via Supabase (funciona com Vercel stateless)
     const msgId = msg.id || msg.messageId || body.id || "";
-    if (isDuplicate(msgId)) {
-      console.log("DUPLICATE:", msgId.substring(0, 20));
-      return res.status(200).send("duplicate");
-    }
-
-    // Deduplicação extra por phone+timestamp (pega duplicatas com IDs diferentes)
     const rawPhone2 = chat.phone || msg.chatid?.replace("@s.whatsapp.net", "") || "";
     const phoneDedup = rawPhone2.replace(/[^0-9]/g, "");
     const msgText = msg.text || msg.content || "";
-    const dedupKey2 = `${phoneDedup}:${msgText.substring(0, 50)}`;
-    if (isDuplicate(dedupKey2)) {
-      console.log("DUPLICATE-TEXT:", dedupKey2.substring(0, 30));
-      return res.status(200).send("duplicate-text");
+    const dedupKey = msgId || `${phoneDedup}:${msgText.substring(0, 50)}`;
+    if (await isDuplicateSupabase(dedupKey)) {
+      return res.status(200).send("duplicate");
     }
+    // Limpa registros antigos em background
+    cleanDedup();
 
     // Ignora grupos
     if (msg.isGroup || chat.wa_isGroup) {
@@ -786,12 +793,6 @@ module.exports = async function handler(req, res) {
     }
 
     console.log("PHONE:", phone.substring(0, 6) + "***", "TYPE:", msg.type || "text");
-
-    // Cooldown — impede resposta dupla em sequência (5s)
-    if (isOnCooldown(phone)) {
-      console.log("COOLDOWN:", phone.substring(0, 6) + "***");
-      return res.status(200).send("cooldown");
-    }
 
     // Rate limiting
     if (isRateLimited(phone)) {
