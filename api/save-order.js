@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
     if (customer?.phone) {
       const phoneClean = String(customer.phone).replace(/\D/g, '');
       try {
-        const upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/customers?on_conflict=phone`, {
+        const upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?on_conflict=phone`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -91,7 +91,7 @@ module.exports = async function handler(req, res) {
       created_at: new Date().toISOString(),
     };
 
-    const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
+    const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,

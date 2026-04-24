@@ -72,7 +72,7 @@ module.exports = async function handler(req, res) {
       try {
         // Tenta ATUALIZAR primeiro (se o pedido já foi salvo pelo /api/save-order)
         const updateRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
+          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
           {
             method: 'PATCH',
             headers: {
