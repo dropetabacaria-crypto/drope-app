@@ -1125,16 +1125,27 @@
   .step-line.done { background: var(--lime); }
 
   .co-contact-mini {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 14px; margin-top: 14px;
-    background: transparent; border: 1px dashed var(--border);
-    border-radius: 14px; cursor: pointer;
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 18px; margin-top: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 16px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
   }
-  .co-contact-mini .ic { font-size: 18px; }
-  .co-contact-mini .info { flex: 1; min-width: 0; }
-  .co-contact-mini .lbl { color: var(--text-dim); font-size: 11px; }
-  .co-contact-mini .val { color: var(--text); font-size: 13px; }
-  .co-contact-mini .chv { color: var(--pink); font-size: 12px; font-weight: 600; }
+  .co-contact-mini:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.14); }
+  .co-contact-mini .ic { font-size: 20px; opacity: 0.85; }
+  .co-contact-mini .info { flex: 1; min-width: 0; line-height: 1.5; }
+  .co-contact-mini .lbl {
+    color: var(--text-dim); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .co-contact-mini .val { color: var(--text); font-size: 14px; font-weight: 500; }
+  .co-contact-mini .chv {
+    color: var(--text-dim); font-size: 12px; font-weight: 500;
+    opacity: 0.7; transition: opacity 0.15s, color 0.15s;
+  }
+  .co-contact-mini:hover .chv { color: var(--text); opacity: 1; }
 
   .co-coupon-toggle {
     text-align: center; padding: 12px;
@@ -1589,9 +1600,62 @@
     animation: slideUp 0.5s ease-out 0.65s both;
   }
   .success-order {
-    color: var(--text-dim); font-size: 14px; margin-bottom: 34px; font-family: monospace; position: relative; z-index: 1;
+    color: var(--text-dim); font-size: 14px; margin-bottom: 20px; font-family: monospace; position: relative; z-index: 1;
     animation: slideUp 0.5s ease-out 0.75s both;
   }
+
+  /* Resumo do pedido na tela de sucesso */
+  .success-summary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px 18px;
+    margin-bottom: 22px;
+    text-align: left;
+    position: relative;
+    z-index: 1;
+    animation: slideUp 0.5s ease-out 0.85s both;
+  }
+  .success-summary .sum-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .success-summary .sum-item { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); }
+  .success-summary .sum-item .qty { color: var(--text-dim); margin-right: 6px; }
+  .success-summary .sum-divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .success-summary .sum-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+  .success-summary .sum-row.total { color: var(--text); font-size: 16px; font-weight: 700; margin-top: 8px; }
+  .success-summary .sum-row.total .pink { color: var(--pink); font-size: 20px; }
+  .success-summary .sum-meta { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+  .success-summary .sum-meta div { margin-top: 3px; }
+
+  /* Botão whats DESTACADO (lime, glow intenso) */
+  .btn-whats-cta {
+    width: 100%;
+    background: linear-gradient(135deg, #25D366 0%, #1DA851 100%);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(37, 211, 102, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    margin-bottom: 14px;
+    text-align: left;
+    font-family: inherit;
+    transition: transform 0.1s;
+    position: relative;
+    z-index: 1;
+    animation: whatsPulse 2s ease-in-out infinite, slideUp 0.5s ease-out 1s both;
+  }
+  .btn-whats-cta:active { transform: scale(0.98); }
+  @keyframes whatsPulse {
+    0%, 100% { box-shadow: 0 8px 30px rgba(37, 211, 102, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1) inset; }
+    50%      { box-shadow: 0 8px 40px rgba(37, 211, 102, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15) inset; }
+  }
+  .btn-whats-cta .whats-icon { font-size: 32px; line-height: 1; }
+  .btn-whats-cta .whats-txt { flex: 1; }
+  .btn-whats-cta .whats-title { font-size: 15px; font-weight: 700; text-transform: lowercase; }
+  .btn-whats-cta .whats-sub { font-size: 12px; opacity: 0.9; margin-top: 2px; text-transform: lowercase; }
   @keyframes slideUp {
     0% { transform: translateY(20px); opacity: 0; }
     100% { transform: translateY(0); opacity: 1; }
@@ -2825,28 +2889,56 @@
 
   /* Checkout address pick */
   .co-address {
-    margin: 0 20px 16px;
-    padding: 14px 16px;
+    margin: 0 0 14px;
+    padding: 18px 20px;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
+  .co-address:hover { background: var(--card-hi); border-color: rgba(255,255,255,0.14); }
+  .co-address:active { transform: scale(0.99); }
   .co-address .ic {
-    width: 36px; height: 36px;
+    width: 42px; height: 42px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--violet), var(--pink));
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
+    font-size: 18px;
     flex-shrink: 0;
+    box-shadow: 0 4px 16px rgba(255, 45, 111, 0.25);
   }
-  .co-address .info { flex: 1; min-width: 0; }
-  .co-address .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
-  .co-address .val { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .co-address .chv { color: var(--text-dim); font-size: 20px; }
+  .co-address .info { flex: 1; min-width: 0; line-height: 1.5; }
+  .co-address .lbl {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .co-address .val {
+    font-size: 14.5px; color: var(--text); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .co-address .chv {
+    color: var(--text-dim); font-size: 20px;
+    opacity: 0.6; transition: opacity 0.15s;
+  }
+  .co-address:hover .chv { opacity: 1; }
+
+  /* Linha de info da taxa de entrega (antes ficava "jogada") */
+  .co-fee-info {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 18px;
+    margin: -6px 0 4px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .co-fee-info .icn { font-size: 16px; opacity: 0.7; margin-top: 1px; }
+  .co-fee-info .txt { flex: 1; }
+  .co-fee-info b { color: var(--text); font-weight: 600; }
 
   .confirm-btn {
     width: calc(100% - 40px);
@@ -3596,11 +3688,22 @@
     <div class="success-wrap">
       <div class="check">✓</div>
       <div class="success-title display">Dropou ✦</div>
-      <div class="success-sub">pedido confirmado ✦ avisa a gente no whats pra liberar</div>
-      <div class="success-order" id="success-order">#dr-4291</div>
+      <div class="success-sub" id="success-sub">pedido confirmado ✦ manda o comprovante pra liberar</div>
+      <div class="success-order" id="success-order">#dr-0000</div>
+
+      <!-- Resumo do pedido (populado dinamicamente) -->
+      <div class="success-summary" id="success-summary"></div>
+
+      <!-- Botão whats DESTACADO (texto adapta conforme m\u00e9todo de pagamento) -->
+      <button class="btn-whats-cta" onclick="shareOnWhats()">
+        <span class="whats-icon">📱</span>
+        <div class="whats-txt">
+          <div class="whats-title" id="whats-cta-title">mandar comprovante no whats</div>
+          <div class="whats-sub" id="whats-cta-sub">loja confirma e libera teu drope ✦</div>
+        </div>
+      </button>
 
       <div class="success-btns">
-        <button class="btn-primary" onclick="shareOnWhats()">abrir whats da loja 💬</button>
         <button class="btn-secondary" onclick="go('order-tracking')">acompanhar pedido →</button>
       </div>
     </div>
@@ -4867,6 +4970,23 @@
     if (!btn) return;
     btn.textContent = 'gerando link...';
     btn.disabled = true;
+
+    // ⚡ Salva snapshot do pedido ANTES de redirecionar — quando voltar com #success-pay,
+    // a gente confirma o pedido automaticamente com esses dados (fluxo sem perder contexto)
+    try {
+      const snapshot = {
+        items: cart.map(i => ({ ...i })),
+        deliveryMode,
+        payWhen,
+        address: getSelectedAddress ? (getSelectedAddress() || null) : null,
+        customer: { name: profile?.name, phone: profile?.phone, email: profile?.email },
+        appliedCoupon,
+        paymentMethod: 'infinitepay',      // ← marca que foi pelo gateway (InfinitePay já confirma a loja)
+        savedAt: Date.now(),
+      };
+      localStorage.setItem('drope_pending_payment', JSON.stringify(snapshot));
+      window.__lastPaymentMethod = 'infinitepay';
+    } catch(e) { console.warn('[InfinitePay] snapshot fail', e); }
 
     // Abre janela ANTES do fetch — iOS Safari bloqueia window.open após async
     const payWindow = window.open('about:blank', '_blank');
@@ -7996,10 +8116,31 @@
     const summary = cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ ');
     const addr = getSelectedAddress();
     const isPayLater = (deliveryMode === 'pickup' && payWhen === 'later');
+    // Determina método de pagamento usado:
+    // 'infinitepay' (gateway — loja já recebe confirmação pelo painel)
+    // 'pix_manual' (cliente pagou direto banco, PRECISA mandar comprovante)
+    // 'pickup_later' (reserva, paga na loja)
+    let paymentMethod;
+    if (isPayLater) paymentMethod = 'pickup_later';
+    else if (window.__lastPaymentMethod === 'infinitepay') paymentMethod = 'infinitepay';
+    else paymentMethod = 'pix_manual';
+
+    // Status amigável segundo o método
+    const statusByMethod = {
+      pickup_later: 'reservado ✦ pagar na retirada',
+      infinitepay:  'pago ✦ preparando',
+      pix_manual:   'aguardando comprovante',
+    };
+    const statusClsByMethod = {
+      pickup_later: 'reserved',
+      infinitepay:  'paid',
+      pix_manual:   'waiting',
+    };
+
     orders.unshift({
       num: orderNum,
-      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando comprovante',
-      statusCls: isPayLater ? 'reserved' : 'waiting',
+      status: statusByMethod[paymentMethod],
+      statusCls: statusClsByMethod[paymentMethod],
       summary,
       subtotal,
       total,
@@ -8008,9 +8149,11 @@
       address: deliveryMode === 'delivery' && addr ? { ...addr } : null,
       mode: deliveryMode,
       payWhen: deliveryMode === 'pickup' ? payWhen : 'now',
+      paymentMethod,                                                             // ← novo campo
       customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
       createdAt: Date.now(),
     });
+    window.__lastPaymentMethod = null; // limpa após usar
     if (appliedCoupon) {
       orders[0].coupon = appliedCoupon.code;
       orders[0].discount = appliedCoupon.discount;
@@ -8027,18 +8170,117 @@
     renderGrid();
     appliedCoupon = null;
     document.getElementById('success-order').textContent = `#dr-${orderNum}`;
+
+    // Popula o resumo do pedido na tela de sucesso
+    renderSuccessSummary(orders[0]);
+
     go('success');
     fireConfetti();
+
+    // ============ CRM: persiste pedido no Supabase (fire-and-forget) ============
+    // Falha silenciosa — se /api/save-order não existir (dev local) ou der erro, app continua.
+    try {
+      const ord = orders[0];
+      const statusByMethod = {
+        infinitepay: 'paid',
+        pix_manual: 'waiting_proof',
+        pickup_later: 'reserved',
+      };
+      fetch('/api/save-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_nsu: `dr-${ord.num}`,
+          status: statusByMethod[ord.paymentMethod] || 'waiting_proof',
+          payment_method: ord.paymentMethod,
+          subtotal: ord.subtotal,
+          delivery_fee: ord.deliveryFee || 0,
+          total: ord.total,
+          items: ord.items,
+          delivery_mode: ord.mode,
+          address: ord.address,
+          customer: ord.customer,
+        }),
+      }).catch(e => console.warn('[save-order] skip:', e.message));
+    } catch(e) { console.warn('[save-order] wrapper err:', e.message); }
     // Não auto-abre whats — cliente decide quando quer abrir (botão na tela de sucesso)
+  }
+
+  function renderSuccessSummary(order) {
+    const el = document.getElementById('success-summary');
+    if (!el || !order) return;
+
+    const isPayLater = (order.mode === 'pickup' && order.payWhen === 'later');
+    const itemsHtml = (order.items || []).map(i =>
+      `<div class="sum-item"><span><span class="qty">${i.qty}×</span>${i.name}</span><span>r$ ${i.price * i.qty}</span></div>`
+    ).join('');
+
+    let whereHtml = '';
+    if (order.mode === 'pickup') {
+      whereHtml = `<div>🏪 retirar em ${(typeof store !== 'undefined' && store.name) || 'loja'}</div>`;
+    } else if (order.address) {
+      const a = order.address;
+      whereHtml = `<div>🛵 ${a.street}, ${a.num}${a.comp ? ' · ' + a.comp : ''}</div>`;
+      if (a.neigh) whereHtml += `<div style="padding-left:22px">${a.neigh}${a.cep ? ' · CEP ' + a.cep : ''}</div>`;
+    }
+
+    el.innerHTML = `
+      <div class="sum-items">${itemsHtml}</div>
+      <div class="sum-divider"></div>
+      <div class="sum-row"><span>subtotal</span><span>r$ ${order.subtotal}</span></div>
+      ${order.discount ? `<div class="sum-row"><span>cupom ${order.coupon || ''}</span><span style="color:var(--lime)">-r$ ${order.discount}</span></div>` : ''}
+      ${order.deliveryFee ? `<div class="sum-row"><span>entrega</span><span>r$ ${order.deliveryFee}</span></div>` : ''}
+      <div class="sum-row total"><span>total ${isPayLater ? '(pagar na retirada)' : 'pago'}</span><span class="pink">r$ ${order.total}</span></div>
+      <div class="sum-meta">
+        ${whereHtml}
+        <div>👤 ${order.customer?.name || '—'} · ${order.customer?.phone || ''}</div>
+      </div>
+    `;
+
+    // ===== TEXTOS ADAPTATIVOS POR MÉTODO DE PAGAMENTO =====
+    const method = order.paymentMethod || (isPayLater ? 'pickup_later' : 'pix_manual');
+    const copies = {
+      infinitepay: {
+        sub: 'pagamento confirmado ✦ loja já recebeu e tá preparando',
+        btnTitle: 'receber atualizações no whats',
+        btnSub: 'avisa quando sair pra entrega 🛵',
+      },
+      pix_manual: {
+        sub: 'pedido criado ✦ manda o comprovante pra loja liberar',
+        btnTitle: 'mandar comprovante no whats',
+        btnSub: 'loja confirma e libera teu drope ✦',
+      },
+      pickup_later: {
+        sub: 'reserva feita ✦ paga na loja quando chegar',
+        btnTitle: 'avisar a loja no whats',
+        btnSub: 'confirma que tu vem buscar ✦',
+      },
+    };
+    const copy = copies[method] || copies.pix_manual;
+
+    const sub = document.getElementById('success-sub');
+    if (sub) sub.textContent = copy.sub;
+
+    const btnT = document.getElementById('whats-cta-title');
+    if (btnT) btnT.textContent = copy.btnTitle;
+    const btnS = document.getElementById('whats-cta-sub');
+    if (btnS) btnS.textContent = copy.btnSub;
   }
 
   function shareOnWhats() {
     const last = orders[0];
     if (!last) { toast('nenhum pedido pra compartilhar'); return; }
-    const isPayLater = (last.mode === 'pickup' && last.payWhen === 'later');
-    const headline = isPayLater
-      ? `*${store.name} ✦ RESERVA #dr-${last.num}*`
-      : `*${store.name} ✦ pedido #dr-${last.num}*`;
+    const method = last.paymentMethod || 'pix_manual';
+    const isPayLater = method === 'pickup_later';
+
+    // Headline adapta: InfinitePay = "pedido pago", Pix manual = "pedido", Pickup later = "reserva"
+    const headlineByMethod = {
+      infinitepay:  `*${store.name} ✦ pedido #dr-${last.num} (PAGO ✅)*`,
+      pix_manual:   `*${store.name} ✦ pedido #dr-${last.num}*`,
+      pickup_later: `*${store.name} ✦ RESERVA #dr-${last.num}*`,
+    };
+    const headline = headlineByMethod[method];
+
     let whereLine = '🛵 entrega';
     if (last.mode === 'pickup') {
       whereLine = '🏪 retirar na loja';
@@ -8051,18 +8293,35 @@
       if (a.cep) parts.push(`cep: ${a.cep}`);
       whereLine = `🛵 entrega: ${parts.join(' — ')}`;
     }
-    const closer = isPayLater
-      ? 'to indo aí buscar ✦ pago na hora'
-      : 'segue o comprovante ✦';
+
+    // Closer (última linha) adapta pelo método:
+    const closerByMethod = {
+      infinitepay:  'quero receber atualizações aqui no whats sobre meu pedido 🛵',
+      pix_manual:   'segue o comprovante ✦',
+      pickup_later: 'to indo aí buscar ✦ pago na hora',
+    };
+    const closer = closerByMethod[method];
+    // Label do total adapta pelo método
+    const totalLabel =
+      method === 'infinitepay'  ? 'total PAGO' :
+      method === 'pickup_later' ? 'total (a pagar na loja)' :
+                                   'subtotal';
+
+    // Linha extra de informação do método (só quando relevante)
+    const methodInfoLine =
+      method === 'infinitepay'  ? '_✅ pagamento via InfinitePay confirmado_' :
+      method === 'pickup_later' ? '_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_' :
+                                   '';
+
     const lines = [
       headline,
       '',
       ...(last.items || []).map(i => `• ${i.qty}× ${i.name} — r$ ${i.price * i.qty}`),
       '',
       last.discount ? `cupom ${last.coupon}: -r$ ${last.discount}` : '',
-      `*${isPayLater ? 'total' : 'subtotal'}:* r$ ${last.total}`,
+      `*${totalLabel}:* r$ ${last.total}`,
       last.mode === 'delivery' && last.deliveryFee ? `_+ entrega: r$ ${last.deliveryFee}_` : '',
-      isPayLater ? `_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
+      methodInfoLine,
       '',
       whereLine,
       `👤 ${profile.name || 'cliente'} ✦ ${profile.phone || ''}`,
@@ -8350,7 +8609,58 @@ REGRAS:
         }
       });
     }
+
+    // ⚡ Detecta retorno do InfinitePay (#success-pay ou ?capture_method=pix)
+    // Cliente pagou, voltou pro app — confirmamos o pedido automaticamente
+    checkInfinitePayReturn();
   });
+
+  function checkInfinitePayReturn() {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const isSuccessReturn =
+      hash.includes('success-pay') ||
+      search.includes('capture_method=pix') ||
+      search.includes('transaction_id=');
+
+    if (!isSuccessReturn) return;
+
+    // Lê snapshot salvo antes do redirect
+    let snap = null;
+    try {
+      const raw = localStorage.getItem('drope_pending_payment');
+      if (raw) snap = JSON.parse(raw);
+    } catch(e) {}
+
+    if (!snap || !snap.items || !snap.items.length) {
+      // Snapshot perdido — leva pra home com toast
+      if (typeof toast === 'function') toast('pagamento recebido ✦ confere em meus pedidos');
+      setTimeout(() => { if (typeof go === 'function') go('home'); }, 800);
+      // Limpa URL pra não re-disparar em reload
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+
+    // Restaura o contexto e confirma pedido
+    try {
+      cart = snap.items;
+      deliveryMode = snap.deliveryMode || deliveryMode;
+      payWhen = snap.payWhen || payWhen;
+      appliedCoupon = snap.appliedCoupon || null;
+      // address é resolvido por getSelectedAddress() → addresses[addrSelectedIdx]
+      // snap.address já foi selecionado antes — mantém
+      if (typeof confirmOrder === 'function') {
+        confirmOrder();                        // gera pedido, abre tela success
+      }
+      localStorage.removeItem('drope_pending_payment');
+    } catch(e) {
+      console.error('[checkInfinitePayReturn]', e);
+      if (typeof toast === 'function') toast('pagamento recebido, mas houve um erro ao carregar o pedido');
+    }
+
+    // Limpa URL
+    history.replaceState(null, '', window.location.pathname);
+  }
 </script>
 
 </body>
