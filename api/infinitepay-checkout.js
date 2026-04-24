@@ -1,9 +1,9 @@
-// Drope — InfinitePay Checkout Link Generator (Vercel)
-// Gera link de pagamento InfinitePay via API pública
+// Drope â€” InfinitePay Checkout Link Generator (Vercel)
+// Gera link de pagamento InfinitePay via API pÃºblica
 // Endpoint: POST /api/infinitepay-checkout
 
 module.exports = async function handler(req, res) {
-  // CORS headers — restringe ao domínio da Drope
+  // CORS headers â€” restringe ao domÃ­nio da Drope
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
@@ -25,16 +25,21 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'missing handle or items' });
     }
 
-    // Redirect URL dinâmico — usa o host da requisição original (funciona em QUALQUER domínio Vercel)
+    // URLs dinÃ¢micas â€” usam o host da requisiÃ§Ã£o original (funciona em QUALQUER domÃ­nio Vercel)
     const protocol = (req.headers['x-forwarded-proto'] || 'https');
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'drope-app.vercel.app';
     const redirectUrl = `${protocol}://${host}/#success-pay`;
+    const webhookUrl  = `${protocol}://${host}/api/infinitepay-webhook`;
 
-    // Monta payload com dados do cliente pra pré-preencher checkout
+    // Monta payload com dados do cliente pra prÃ©-preencher checkout
+    // webhook_url: InfinitePay dispara POST aqui quando pagamento for aprovado.
+    //   Nosso /api/infinitepay-webhook entÃ£o marca pedido como 'paid' no Supabase
+    //   e (futuro) notifica WhatsApp da loja via UazAPI.
     const payload = {
       handle: handle,
       order_nsu: order_id || `drope-${Date.now()}`,
       redirect_url: redirectUrl,
+      webhook_url:  webhookUrl,
       items: items.map(i => ({
         quantity: i.quantity,
         price: i.price,
@@ -42,7 +47,7 @@ module.exports = async function handler(req, res) {
       }))
     };
 
-    // Se tem dados do cliente, manda pra pré-preencher
+    // Se tem dados do cliente, manda pra prÃ©-preencher
     if (customer && (customer.name || customer.email || customer.phone_number)) {
       payload.customer = {};
       if (customer.name) payload.customer.name = customer.name;
@@ -50,7 +55,7 @@ module.exports = async function handler(req, res) {
       if (customer.phone_number) payload.customer.phone_number = customer.phone_number;
     }
 
-    // Gera o link de checkout via API pública da InfinitePay
+    // Gera o link de checkout via API pÃºblica da InfinitePay
     console.log('[InfinitePay] payload:', JSON.stringify(payload).substring(0, 400));
     const response = await fetch('https://api.infinitepay.io/invoices/public/checkout/links', {
       method: 'POST',
@@ -65,7 +70,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ url: data.url, id: data.id || data.invoice_slug });
     }
 
-    // Fallback: monta URL direta do checkout público
+    // Fallback: monta URL direta do checkout pÃºblico
     if (handle && total) {
       const fallbackUrl = `https://infinitepay.io/${handle}?amount=${total}`;
       console.log('[InfinitePay] usando fallback URL:', fallbackUrl);
