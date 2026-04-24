@@ -196,44 +196,103 @@
   }
   .section-title span { color: var(--text-dim); font-size: 22px; display: block; margin-top: 6px; font-family: 'Inter'; font-weight: 500; text-transform: none; letter-spacing: 0; }
 
-  /* Hero tile */
+  /* Hero tile — estilo Netflix/iFood com foto GRANDE e badge flutuante */
   .hero {
     margin: 0 20px 14px;
-    padding: 22px;
-    background: radial-gradient(circle at 30% 20%, rgba(91, 33, 182, 0.5), var(--card) 70%);
+    padding: 0;                       /* sem padding — imagem encosta */
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 24px;
-    box-shadow: 0 0 40px rgba(91, 33, 182, 0.25), inset 0 0 30px rgba(255, 45, 111, 0.08);
+    box-shadow: 0 0 50px rgba(255, 45, 111, 0.25), 0 0 80px rgba(91, 33, 182, 0.18);
     position: relative;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.25s;
   }
   .hero:active { transform: scale(0.985); }
-  .hero .tag {
-    display: inline-block;
-    background: rgba(91, 33, 182, 0.85);
-    color: var(--text);
-    padding: 6px 12px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: lowercase;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(245, 243, 255, 0.12);
+  .hero:hover { box-shadow: 0 0 60px rgba(255, 45, 111, 0.35), 0 0 100px rgba(91, 33, 182, 0.28); }
+
+  /* Wrapper da imagem (topo do card) */
+  .hero-visual-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 0.95;            /* quase quadrado, impacto visual */
+    background: radial-gradient(ellipse at 50% 30%, rgba(91, 33, 182, 0.55), var(--card) 75%);
+    overflow: hidden;
   }
+  .hero-visual-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 18px;
+    filter: drop-shadow(0 20px 45px rgba(255, 45, 111, 0.45));
+    transition: transform 0.3s;
+  }
+  .hero:hover .hero-visual-wrap img { transform: scale(1.03); }
+
+  /* Gradient embaixo da imagem pra texto ficar legível */
+  .hero-visual-wrap::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 60px;
+    background: linear-gradient(180deg, transparent 0%, var(--card) 100%);
+    pointer-events: none;
+  }
+
+  /* Badge flutuante no canto — destaque social proof */
+  .hero-badge-float {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    padding: 7px 13px;
+    background: linear-gradient(135deg, var(--pink) 0%, #B01855 100%);
+    color: white;
+    border-radius: 100px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 4px 18px var(--pink-glow), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-transform: lowercase;
+    animation: heroBadgePulse 2.5s ease-in-out infinite;
+  }
+  @keyframes heroBadgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  /* Tag antiga (mantida caso algum JS ainda use, mas escondida) */
+  .hero .tag { display: none; }
+
+  /* Emoji antigo (caso produto não tenha img, fallback) */
   .hero .emoji {
     text-align: center;
     font-size: 110px;
     line-height: 1;
-    margin: 18px 0 10px;
     filter: drop-shadow(0 10px 30px rgba(255, 45, 111, 0.4));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Bottom card — info + CTA */
+  .hero-bottom {
+    padding: 8px 22px 22px;
+    position: relative;
+    z-index: 1;
   }
   .hero-name {
-    font-size: 32px;
+    font-size: 28px;
     color: var(--text);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     text-transform: none;
+    line-height: 1.15;
   }
   .hero-sub {
     font-size: 13px;
@@ -3199,15 +3258,19 @@
       </div>
     </div>
 
-    <div class="hero" id="home-hero" onclick="openProduct(0)">
-      <div class="tag">dropou agora ✦</div>
-      <div id="hero-visual" class="emoji"></div>
-      <div class="hero-name display" id="hero-name"></div>
-      <div class="hero-sub">
-        <span class="pink" id="hero-price"></span>
-        chega em 30min 🛵
+    <div class="hero" id="home-hero" onclick="openHeroProduct()">
+      <div class="hero-visual-wrap">
+        <div class="hero-badge-float" id="hero-badge">🔥 bombando</div>
+        <div id="hero-visual" class="emoji"></div>
       </div>
-      <button class="hero-cta">vou levar ✦</button>
+      <div class="hero-bottom">
+        <div class="hero-name display" id="hero-name"></div>
+        <div class="hero-sub">
+          <span class="pink" id="hero-price"></span>
+          chega em 30min 🛵
+        </div>
+        <button class="hero-cta" onclick="event.stopPropagation(); openHeroProduct()">vou levar ✦</button>
+      </div>
     </div>
 
     <div id="home-last-order-wrap"></div>
@@ -6937,17 +7000,65 @@
   renderGrid();
 
   // ===== Hero dinâmico (primeiro produto do catálogo) =====
-  (function updateHero() {
-    const p = products[0];
+  // ============ HERO COM ROTAÇÃO DINÂMICA + SOCIAL PROOF ============
+  // Por enquanto: escolhe rotativamente entre os 5 primeiros pods.
+  // Futuro: query Supabase pra escolher baseado em dados reais (mais vendido, bombando, etc).
+  let heroIndex = 0;
+
+  function pickFeaturedIndex() {
+    if (!products || products.length === 0) return 0;
+    // Prioridade: pod com imagem. Alterna entre os 5 primeiros pods com imagem.
+    const podsComImg = products
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.kind === 'pod' && p.img);
+    if (podsComImg.length === 0) return 0;
+    // Rotação baseada em tempo (minuto atual) — muda ao longo do dia
+    const candidatos = podsComImg.slice(0, 5);
+    const idx = new Date().getMinutes() % candidatos.length;
+    return candidatos[idx].i;
+  }
+
+  function pickFeaturedBadge(product) {
+    // Heurísticas simples baseadas em hora do dia e dia da semana.
+    // Quando Supabase estiver com dados reais, vira query: "mais vendido últimas 24h", etc.
+    const hour = new Date().getHours();
+    const day = new Date().getDay(); // 0=dom
+    const pool = [
+      { when: hour >= 18 || hour < 2, text: '🌙 favorito da noite' },
+      { when: hour >= 12 && hour < 18, text: '🔥 bombando hoje' },
+      { when: hour >= 6 && hour < 12, text: '⚡ top do dia' },
+      { when: day === 5 || day === 6, text: '🎉 vibe fim de semana' },
+      { when: true, text: '👑 mais pedido' },
+    ];
+    return (pool.find(b => b.when) || pool[pool.length - 1]).text;
+  }
+
+  function openHeroProduct() {
+    openProduct(heroIndex);
+  }
+
+  function updateHero() {
+    if (!products || products.length === 0) return;
+    heroIndex = pickFeaturedIndex();
+    const p = products[heroIndex];
     if (!p) return;
     const vis = document.getElementById('hero-visual');
     const nm = document.getElementById('hero-name');
     const pr = document.getElementById('hero-price');
-    if (vis && p.img) vis.innerHTML = `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" style="width:180px;height:180px;border-radius:18px;object-fit:cover;">`;
-    else if (vis) vis.textContent = p.emoji;
+    const bd = document.getElementById('hero-badge');
+    if (vis) {
+      if (p.img) {
+        vis.innerHTML = `<img src="${p.img}" alt="${p.name}" draggable="false">`;
+      } else if (p.emoji) {
+        vis.textContent = p.emoji;
+      }
+    }
     if (nm) nm.textContent = p.name;
     if (pr) pr.textContent = `R$ ${p.price}`;
-  })();
+    if (bd) bd.textContent = pickFeaturedBadge(p);
+  }
+
+  updateHero();
 
   // ===== Navigation =====
   function go(screen) {
