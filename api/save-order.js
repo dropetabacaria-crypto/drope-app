@@ -114,6 +114,53 @@ module.exports = async function handler(req, res) {
       } catch(e) { console.error('[save-order] customer upsert err:', e.message); }
     }
 
+    // 🔒 Osso 8: validação de estoque + decremento atômico ANTES de criar pedido
+    // Cada item deve ter `slug` (do catálogo Supabase). Se faltar, é pedido legacy
+    // (catálogo hardcoded antigo) — pula stock check pra não quebrar.
+    const stockReleases = []; // pra rollback se algo der errado depois
+    const itemsWithSlug = items.filter(i => i.slug && typeof i.slug === 'string');
+
+    if (itemsWithSlug.length > 0) {
+      for (const it of itemsWithSlug) {
+        try {
+          const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+          });
+          const result = await r.json();
+          const row = Array.isArray(result) ? result[0] : result;
+          if (!row || !row.ok) {
+            // Rollback dos decrementos já feitos antes de falhar
+            for (const rel of stockReleases) {
+              try {
+                await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_release_stock`, {
+                  method: 'POST',
+                  headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_slug: rel.slug, p_qty: rel.qty }),
+                });
+              } catch(e) { console.error('[save-order] rollback err:', e.message); }
+            }
+            return res.status(409).json({
+              error: 'out_of_stock',
+              item: it.name,
+              slug: it.slug,
+              reason: row?.reason || 'unknown',
+              qty_available: row?.qty_after !== undefined ? row.qty_after : null,
+            });
+          }
+          stockReleases.push({ slug: it.slug, qty: it.qty });
+        } catch(e) {
+          console.error('[save-order] stock check err:', e.message);
+          // Em erro de stock, NÃO bloqueia pedido (graceful degradation), mas loga
+        }
+      }
+    }
+
     // Insere ORDER
     const orderRow = {
       order_nsu,
@@ -144,6 +191,16 @@ module.exports = async function handler(req, res) {
 
     if (!orderRes.ok) {
       console.error('[save-order] insert err:', orderRes.status, orderData);
+      // 🔒 Rollback: devolve estoque que foi decrementado se o INSERT do pedido falhou
+      for (const rel of stockReleases) {
+        try {
+          await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_release_stock`, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ p_slug: rel.slug, p_qty: rel.qty }),
+          });
+        } catch(e) { console.error('[save-order] rollback err:', e.message); }
+      }
       return res.status(502).json({ error: 'supabase insert failed', details: orderData });
     }
 
