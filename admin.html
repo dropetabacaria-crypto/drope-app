@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="robots" content="noindex, nofollow">
+<title>Drope Admin ✦</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-card-hover: #181822;
+    --border: #1a1a22;
+    --text: #ffffff;
+    --text-dim: #888;
+    --text-muted: #555;
+    --pink: #ec4899;
+    --pink-glow: rgba(236, 72, 153, 0.4);
+    --lime: #bef264;
+    --lilac: #a78bfa;
+    --ultraviolet: #5B21B6;
+    --green: #25D366;
+    --red: #ef4444;
+    --orange: #fb923c;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  a { color: var(--lilac); }
+
+  /* === LOGIN === */
+  .login-screen {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .login-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+  }
+  .login-card h1 {
+    font-size: 32px;
+    background: linear-gradient(90deg, var(--pink), var(--lilac));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .login-card p { color: var(--text-dim); font-size: 14px; margin-bottom: 24px; }
+  .login-card input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: ui-monospace, monospace;
+  }
+  .login-card input:focus { border-color: var(--pink); outline: none; }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--pink), var(--ultraviolet));
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    width: 100%;
+    transition: transform 0.1s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .login-error {
+    color: var(--red);
+    font-size: 13px;
+    margin-top: 12px;
+    min-height: 20px;
+  }
+
+  /* === LAYOUT === */
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .topbar h1 {
+    font-size: 22px;
+    background: linear-gradient(90deg, var(--pink), var(--lilac));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .topbar-actions { display: flex; gap: 8px; align-items: center; }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--lime);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+  .pulse-text { color: var(--text-dim); font-size: 12px; }
+  .btn-secondary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .btn-secondary:hover { background: var(--bg-card-hover); color: var(--text); }
+
+  /* === TABS === */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: var(--bg-card);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .tab.active {
+    background: linear-gradient(90deg, var(--pink), var(--ultraviolet));
+    color: white;
+  }
+
+  /* === STATS === */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .stat-label {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .stat-value { font-size: 24px; font-weight: 800; }
+  .stat-value.pink { color: var(--pink); }
+  .stat-value.lime { color: var(--lime); }
+  .stat-value.orange { color: var(--orange); }
+
+  /* === FILTERS === */
+  .filters {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .filter-chip.active {
+    background: var(--pink);
+    color: white;
+    border-color: var(--pink);
+  }
+
+  /* === ORDER CARD === */
+  .order {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .order:hover { border-color: var(--pink); }
+  .order.cancelled { opacity: 0.5; }
+  .order-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 12px; gap: 12px; flex-wrap: wrap;
+  }
+  .order-id {
+    font-family: ui-monospace, monospace;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .order-time { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .status-created  { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .status-paid     { background: rgba(190,242,100,0.15); color: var(--lime); }
+  .status-waiting_proof { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .status-pending_pickup { background: rgba(251,146,60,0.15); color: var(--orange); }
+  .status-preparing { background: rgba(251,146,60,0.2); color: var(--orange); }
+  .status-out_for_delivery { background: rgba(167,139,250,0.2); color: var(--lilac); }
+  .status-ready_for_pickup { background: rgba(167,139,250,0.2); color: var(--lilac); }
+  .status-delivered { background: rgba(190,242,100,0.25); color: var(--lime); }
+  .status-picked_up { background: rgba(190,242,100,0.25); color: var(--lime); }
+  .status-cancelled { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .order-body { font-size: 13px; color: #ccc; line-height: 1.6; }
+  .order-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .order-row .label { color: var(--text-dim); }
+  .order-items { margin: 8px 0; padding: 10px 12px; background: var(--bg); border-radius: 8px; font-size: 12px; }
+  .order-items .item { padding: 2px 0; }
+  .order-actions {
+    display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .btn-action {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .btn-action.advance { border-color: var(--lime); color: var(--lime); }
+  .btn-action.advance:hover { background: var(--lime); color: var(--bg); }
+  .btn-action.cancel { border-color: var(--red); color: var(--red); }
+  .btn-action.cancel:hover { background: var(--red); color: white; }
+  .btn-action.whats { border-color: var(--green); color: var(--green); }
+  .btn-action.whats:hover { background: var(--green); color: white; }
+  .btn-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .notify-toggle {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--text-dim); font-size: 12px;
+    margin-left: auto;
+  }
+  .notify-toggle input { cursor: pointer; }
+
+  /* === STOCK === */
+  .stock-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto auto;
+    gap: 12px;
+    align-items: center;
+  }
+  .stock-name { font-weight: 600; font-size: 14px; }
+  .stock-meta { color: var(--text-dim); font-size: 11px; }
+  .stock-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    width: 80px;
+    text-align: center;
+  }
+  .stock-input:focus { border-color: var(--pink); outline: none; }
+  .qty-zero { color: var(--red); font-weight: 700; }
+  .qty-low { color: var(--orange); }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 9999;
+    animation: slideUp 0.3s;
+  }
+  .toast.success { border-color: var(--lime); }
+  .toast.error { border-color: var(--red); }
+  @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stock-card { grid-template-columns: 1fr; gap: 8px; }
+    .stock-card .stock-input { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <h1>Drope Admin ✦</h1>
+    <p>cole o ADMIN_TOKEN configurado no Vercel</p>
+    <input type="password" id="tokenInput" placeholder="ADMIN_TOKEN" autocomplete="off" spellcheck="false">
+    <button class="btn-primary" onclick="login()">entrar ✦</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="app" id="dashboard" style="display: none;">
+
+  <div class="topbar">
+    <h1>Drope Admin ✦</h1>
+    <div class="topbar-actions">
+      <span class="pulse-dot"></span>
+      <span class="pulse-text" id="lastUpdate">atualizando...</span>
+      <button class="btn-secondary" onclick="logout()">sair</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="orders" onclick="switchTab('orders')">📦 pedidos</button>
+    <button class="tab" data-tab="stock" onclick="switchTab('stock')">📊 estoque</button>
+  </div>
+
+  <!-- TAB: ORDERS -->
+  <div id="tabOrders">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">hoje</div>
+        <div class="stat-value pink" id="statTotal">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">em andamento</div>
+        <div class="stat-value orange" id="statPending">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">finalizados</div>
+        <div class="stat-value lime" id="statDone">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">receita hoje</div>
+        <div class="stat-value lime" id="statRevenue">—</div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <button class="filter-chip active" data-filter="all" onclick="setFilter('all')">todos</button>
+      <button class="filter-chip" data-filter="pending" onclick="setFilter('pending')">em andamento</button>
+      <button class="filter-chip" data-filter="paid" onclick="setFilter('paid')">novos pagos</button>
+      <button class="filter-chip" data-filter="preparing" onclick="setFilter('preparing')">preparando</button>
+      <button class="filter-chip" data-filter="out_for_delivery,ready_for_pickup" onclick="setFilter('out_for_delivery,ready_for_pickup')">a caminho</button>
+      <button class="filter-chip" data-filter="delivered,picked_up" onclick="setFilter('delivered,picked_up')">finalizados</button>
+      <button class="filter-chip" data-filter="cancelled" onclick="setFilter('cancelled')">cancelados</button>
+    </div>
+
+    <div id="ordersList"></div>
+  </div>
+
+  <!-- TAB: STOCK -->
+  <div id="tabStock" style="display: none;">
+    <div id="stockList"></div>
+  </div>
+
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toastContainer"></div>
+
+<script>
+// 🔒 token nunca commitado — só vive no localStorage do admin
+const STORAGE_KEY = 'drope_admin_token_v1';
+let adminToken = '';
+let currentTab = 'orders';
+let currentFilter = 'all';
+let pollTimer = null;
+let lastOrders = [];
+let lastProducts = [];
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function fmtBRL(cents) { return (cents / 100).toFixed(2).replace('.', ','); }
+
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// === AUTH ===
+async function login() {
+  const input = document.getElementById('tokenInput');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const token = input.value.trim();
+  if (!token) { errEl.textContent = 'cola o token primeiro'; return; }
+
+  // testa o token chamando admin-orders
+  try {
+    const r = await fetch('/api/admin-orders?limit=1', { headers: { 'x-admin-token': token } });
+    if (r.status === 401) { errEl.textContent = 'token invalido'; return; }
+    if (!r.ok) { errEl.textContent = 'erro: ' + r.status; return; }
+    // sucesso
+    adminToken = token;
+    localStorage.setItem(STORAGE_KEY, token);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    startPolling();
+  } catch(e) {
+    errEl.textContent = 'erro de rede: ' + e.message;
+  }
+}
+
+function logout() {
+  if (!confirm('Sair do admin?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  adminToken = '';
+  if (pollTimer) clearInterval(pollTimer);
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// === TABS ===
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tabOrders').style.display = tab === 'orders' ? 'block' : 'none';
+  document.getElementById('tabStock').style.display = tab === 'stock' ? 'block' : 'none';
+  if (tab === 'orders') loadOrders();
+  if (tab === 'stock') loadStock();
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderOrders();
+}
+
+// === ORDERS ===
+async function loadOrders() {
+  try {
+    const r = await fetch('/api/admin-orders?limit=200', { headers: { 'x-admin-token': adminToken } });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!data.ok) { toast('erro carregando pedidos', 'error'); return; }
+    lastOrders = data.orders || [];
+    updateStats(data.stats);
+    renderOrders();
+    document.getElementById('lastUpdate').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('lastUpdate').textContent = 'offline ⚠';
+  }
+}
+
+function updateStats(stats) {
+  if (!stats) return;
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statPending').textContent = stats.pending;
+  document.getElementById('statDone').textContent = stats.done;
+  document.getElementById('statRevenue').textContent = 'R$ ' + fmtBRL(stats.revenue_cents);
+}
+
+function filteredOrders() {
+  if (currentFilter === 'all') return lastOrders;
+  if (currentFilter === 'pending') {
+    return lastOrders.filter(o => ['created','paid','preparing','out_for_delivery','ready_for_pickup','waiting_proof','pending_pickup'].includes(o.status));
+  }
+  const list = currentFilter.split(',');
+  return lastOrders.filter(o => list.includes(o.status));
+}
+
+function renderOrders() {
+  const list = filteredOrders();
+  const wrap = document.getElementById('ordersList');
+  if (list.length === 0) {
+    wrap.innerHTML = `<div class="empty"><div class="icon">📭</div><div>nenhum pedido nesse filtro</div></div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(o => renderOrder(o)).join('');
+}
+
+function renderOrder(o) {
+  const items = (o.items || []).map(i => `<div class="item">${escapeHtml(i.qty || 1)}× ${escapeHtml(i.name)} — r$ ${escapeHtml(((i.price || 0) * (i.qty || 1)))}</div>`).join('');
+  const customer = o.customer_snapshot || {};
+  const addr = o.address;
+  let where = o.delivery_mode === 'pickup' ? '🏪 retirada' : '🛵 entrega';
+  if (addr) where += ` — ${escapeHtml(addr.street || '')}, ${escapeHtml(addr.num || '')}${addr.comp ? ' · ' + escapeHtml(addr.comp) : ''}`;
+  if (addr?.neigh) where += ` · ${escapeHtml(addr.neigh)}`;
+
+  const nextActions = nextStatusActions(o);
+  const trackUrl = o.customer_track_token ? `${location.origin}/#track/${o.customer_track_token}` : '';
+
+  return `
+    <div class="order ${o.status === 'cancelled' ? 'cancelled' : ''}">
+      <div class="order-head">
+        <div>
+          <div class="order-id">#${escapeHtml(o.order_nsu)}</div>
+          <div class="order-time">${escapeHtml(fmtTime(o.created_at))}</div>
+        </div>
+        <span class="status-badge status-${escapeHtml(o.status)}">${escapeHtml(o.status.replace(/_/g, ' '))}</span>
+      </div>
+      <div class="order-body">
+        <div class="order-row"><span class="label">cliente</span><span>${escapeHtml(customer.name || '—')} · ${escapeHtml(customer.phone || '')}</span></div>
+        <div class="order-row"><span class="label">${escapeHtml(o.delivery_mode || 'mode')}</span><span>${where}</span></div>
+        <div class="order-row"><span class="label">pagamento</span><span>${escapeHtml(o.payment_method)}</span></div>
+        <div class="order-row"><span class="label">total</span><span><strong>R$ ${fmtBRL(o.total_cents)}</strong></span></div>
+        <div class="order-items">${items}</div>
+        ${trackUrl ? `<div class="order-row"><span class="label">link cliente</span><a href="${escapeHtml(trackUrl)}" target="_blank" style="font-size:11px;">acompanhar</a></div>` : ''}
+      </div>
+      <div class="order-actions">
+        ${nextActions.map(a => `<button class="btn-action ${a.cls}" onclick="updateStatus('${escapeHtml(o.order_nsu)}', '${escapeHtml(a.status)}')">${a.label}</button>`).join('')}
+        ${o.status !== 'cancelled' && o.status !== 'delivered' && o.status !== 'picked_up' ? `<button class="btn-action cancel" onclick="updateStatus('${escapeHtml(o.order_nsu)}', 'cancelled')">cancelar</button>` : ''}
+        <label class="notify-toggle"><input type="checkbox" id="notify-${escapeHtml(o.order_nsu)}" checked> notificar whats</label>
+      </div>
+    </div>
+  `;
+}
+
+function nextStatusActions(o) {
+  // próximas ações disponíveis baseado no status atual
+  const isPickup = o.delivery_mode === 'pickup';
+  const flow = {
+    created:           [{ status: 'paid', label: '→ marcar pago', cls: 'advance' }],
+    waiting_proof:     [{ status: 'paid', label: '→ comprovante OK', cls: 'advance' }],
+    pending_pickup:    [{ status: 'preparing', label: '→ preparar', cls: 'advance' }],
+    paid:              [{ status: 'preparing', label: '→ preparar', cls: 'advance' }],
+    preparing:         isPickup
+                         ? [{ status: 'ready_for_pickup', label: '→ pronto pra retirar', cls: 'advance' }]
+                         : [{ status: 'out_for_delivery', label: '→ saiu pra entrega', cls: 'advance' }],
+    out_for_delivery:  [{ status: 'delivered', label: '✓ entregue', cls: 'advance' }],
+    ready_for_pickup:  [{ status: 'picked_up', label: '✓ retirado', cls: 'advance' }],
+    delivered:         [],
+    picked_up:         [],
+    cancelled:         [],
+  };
+  return flow[o.status] || [];
+}
+
+async function updateStatus(orderNsu, newStatus) {
+  if (newStatus === 'cancelled' && !confirm('Cancelar pedido #' + orderNsu + '? Devolve estoque dos itens.')) return;
+  const notifyEl = document.getElementById('notify-' + orderNsu);
+  const notify = notifyEl ? notifyEl.checked : false;
+
+  try {
+    const r = await fetch('/api/admin-update-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ order_nsu: orderNsu, status: newStatus, notify_customer: notify }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok) { toast('erro: ' + (data.error || r.status), 'error'); return; }
+    toast(`#${orderNsu} → ${newStatus}${notify ? ' + whats enviado' : ''}`, 'success');
+    loadOrders();
+  } catch(e) {
+    toast('erro de rede: ' + e.message, 'error');
+  }
+}
+
+// === STOCK ===
+async function loadStock() {
+  try {
+    // usa endpoint público (não precisa token) pra listar produtos
+    const r = await fetch('/api/check-stock');
+    const data = await r.json();
+    if (!data.ok) { toast('erro carregando estoque', 'error'); return; }
+    lastProducts = data.products || [];
+    renderStock();
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+  }
+}
+
+function renderStock() {
+  const wrap = document.getElementById('stockList');
+  if (lastProducts.length === 0) {
+    wrap.innerHTML = `<div class="empty"><div class="icon">📦</div><div>sem produtos cadastrados<br><small>roda a migration osso8 no Supabase</small></div></div>`;
+    return;
+  }
+  wrap.innerHTML = lastProducts.map(p => {
+    const qtyClass = p.qty_available === 0 ? 'qty-zero' : p.qty_available < 5 ? 'qty-low' : '';
+    return `
+      <div class="stock-card">
+        <div>
+          <div class="stock-name">${escapeHtml(p.name)} ${p.badge ? `<span style="color:var(--pink);font-size:11px;">✦ ${escapeHtml(p.badge)}</span>` : ''}</div>
+          <div class="stock-meta">${escapeHtml(p.category || 'sem categoria')} · slug: ${escapeHtml(p.slug)}</div>
+        </div>
+        <div>
+          <div class="stock-meta">preço (centavos)</div>
+          <input class="stock-input" type="number" id="price-${escapeHtml(p.slug)}" value="${escapeHtml(p.price_cents)}" min="0">
+        </div>
+        <div>
+          <div class="stock-meta">estoque</div>
+          <input class="stock-input ${qtyClass}" type="number" id="qty-${escapeHtml(p.slug)}" value="${escapeHtml(p.qty_available)}" min="0">
+        </div>
+        <button class="btn-action advance" onclick="saveStock('${escapeHtml(p.slug)}')">salvar</button>
+        <button class="btn-action cancel" onclick="toggleHidden('${escapeHtml(p.slug)}', ${!p.hidden})">${p.hidden ? 'mostrar' : 'esconder'}</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function saveStock(slug) {
+  const qty = parseInt(document.getElementById('qty-' + slug).value, 10);
+  const price = parseInt(document.getElementById('price-' + slug).value, 10);
+  if (isNaN(qty) || qty < 0) { toast('qty inválido', 'error'); return; }
+  if (isNaN(price) || price < 0) { toast('preço inválido', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/admin-update-stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ slug, qty_available: qty, price_cents: price }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok) { toast('erro: ' + (data.error || r.status), 'error'); return; }
+    toast(`${slug}: qty=${qty}, preço=R$${(price/100).toFixed(2)}`, 'success');
+    loadStock();
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+  }
+}
+
+async function toggleHidden(slug, hide) {
+  try {
+    const r = await fetch('/api/admin-update-stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ slug, hidden: hide }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok) { toast('erro: ' + (data.error || r.status), 'error'); return; }
+    toast(`${slug}: ${hide ? 'escondido' : 'visível'}`, 'success');
+    loadStock();
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+  }
+}
+
+// === POLLING (quase-realtime, 10s) ===
+function startPolling() {
+  loadOrders();
+  pollTimer = setInterval(() => {
+    if (currentTab === 'orders') loadOrders();
+  }, 10000);
+}
+
+// === ENTER NA INPUT DO LOGIN ===
+document.getElementById('tokenInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+// === AUTO-LOGIN SE TOKEN SALVO ===
+window.addEventListener('DOMContentLoaded', async () => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    document.getElementById('tokenInput').value = saved;
+    // Tenta validar e logar automaticamente
+    try {
+      const r = await fetch('/api/admin-orders?limit=1', { headers: { 'x-admin-token': saved } });
+      if (r.ok) {
+        adminToken = saved;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        startPolling();
+      }
+    } catch(e) {}
+  }
+});
+</script>
+</body>
+</html>
