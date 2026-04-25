@@ -59,6 +59,36 @@ module.exports = async function handler(req, res) {
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
 
+    // 🔒 Validação de payload — bloqueia atacantes inflando DB com pedidos fake
+    if (typeof order_nsu !== 'string' || order_nsu.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(order_nsu)) {
+      return res.status(400).json({ error: 'invalid order_nsu format' });
+    }
+    if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
+      return res.status(400).json({ error: 'items must be array of 1-50 elements' });
+    }
+    if (typeof total !== 'number' || total < 0 || total > 100000) {
+      return res.status(400).json({ error: 'invalid total (must be 0-100000)' });
+    }
+    if (typeof subtotal !== 'number' || subtotal < 0 || subtotal > 100000) {
+      return res.status(400).json({ error: 'invalid subtotal' });
+    }
+    if (typeof delivery_fee !== 'number' || delivery_fee < 0 || delivery_fee > 1000) {
+      return res.status(400).json({ error: 'invalid delivery_fee' });
+    }
+    // valida cada item
+    for (const it of items) {
+      if (!it || typeof it !== 'object') return res.status(400).json({ error: 'invalid item' });
+      if (typeof it.name !== 'string' || it.name.length > 200) return res.status(400).json({ error: 'invalid item.name' });
+      if (typeof it.qty !== 'number' || it.qty < 1 || it.qty > 100) return res.status(400).json({ error: 'invalid item.qty' });
+      if (typeof it.price !== 'number' || it.price < 0 || it.price > 100000) return res.status(400).json({ error: 'invalid item.price' });
+    }
+    // valida customer (campos opcionais mas se vierem, trunca pra evitar bloat)
+    if (customer && typeof customer === 'object') {
+      if (customer.name && typeof customer.name === 'string') customer.name = customer.name.slice(0, 100);
+      if (customer.phone && typeof customer.phone === 'string') customer.phone = customer.phone.slice(0, 30);
+      if (customer.email && typeof customer.email === 'string') customer.email = customer.email.slice(0, 100);
+    }
+
     // Upsert de CLIENTE (pelo telefone)
     let customerId = null;
     if (customer?.phone) {
