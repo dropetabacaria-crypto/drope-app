@@ -41,12 +41,21 @@ module.exports = async function handler(req, res) {
   try {
     const body = req.body || {};
     const {
-      order_nsu, status = 'waiting_proof',
+      order_nsu,
       payment_method = 'pix_manual',
       subtotal = 0, delivery_fee = 0, total = 0,
       items = [], delivery_mode, address = null,
       customer = {}
     } = body;
+
+    // Status inicial inteligente baseado no método de pagamento
+    // (cliente pode override mandando status no body, mas default é por método)
+    const defaultStatus =
+      payment_method === 'infinitepay'   ? 'created' :        // será atualizado pra 'paid' pelo webhook
+      payment_method === 'pix_manual'    ? 'waiting_proof' :  // espera comprovante via whats
+      payment_method === 'pickup_later'  ? 'pending_pickup' : // pagar na retirada
+      'created';
+    const status = body.status || defaultStatus;
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
 
@@ -108,7 +117,19 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: 'supabase insert failed', details: orderData });
     }
 
-    return res.status(200).json({ ok: true, order: Array.isArray(orderData) ? orderData[0] : orderData, customer_id: customerId });
+    const savedOrder = Array.isArray(orderData) ? orderData[0] : orderData;
+
+    // Retorna inclusive o `customer_track_token` (gerado pelo default da coluna)
+    // pra o app salvar e mandar pro cliente como link de rastreio.
+    return res.status(200).json({
+      ok: true,
+      order: savedOrder,
+      customer_id: customerId,
+      track_token: savedOrder?.customer_track_token || null,
+      track_url: savedOrder?.customer_track_token
+        ? `https://drope-app.vercel.app/#track/${savedOrder.customer_track_token}`
+        : null,
+    });
   } catch (err) {
     console.error('[save-order] ERROR:', err.message);
     return res.status(500).json({ error: err.message });
