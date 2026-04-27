@@ -2336,8 +2336,50 @@
     color: #ffc46b;
     border: 1px solid rgba(255, 170, 45, 0.5);
   }
-  .tile.sold-out { opacity: 0.55; filter: grayscale(0.5); }
+  .tile.sold-out { opacity: 0.7; }
+  .tile.sold-out .prod-img, .tile.sold-out .emoji { filter: grayscale(0.5); opacity: 0.6; }
   .tile.sold-out .price { color: var(--text-dim); }
+  .demand-btn {
+    background: rgba(212, 255, 46, 0.12);
+    border: 1px dashed var(--lime);
+    border-radius: 10px;
+    color: var(--lime);
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 0;
+    width: 100%;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .demand-btn:active { transform: scale(0.95); background: rgba(212, 255, 46, 0.2); }
+  .demand-banner {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 18px 16px;
+    margin-top: 8px;
+    background: rgba(212, 255, 46, 0.06);
+    border: 1px dashed rgba(212, 255, 46, 0.3);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .demand-banner:active { transform: scale(0.98); background: rgba(212, 255, 46, 0.12); }
+  .demand-banner span:first-child {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .demand-banner-sub {
+    color: var(--lime);
+    font-size: 12px;
+    font-weight: 500;
+  }
   .pay-badge {
     display: inline-flex;
     align-items: center;
@@ -6888,12 +6930,16 @@
     const visual = p.img
       ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false">`
       : `<div class="emoji">${p.emoji}</div>`;
+    const demandBtn = soldOut
+      ? `<button class="demand-btn" onclick="event.stopPropagation();requestProduct('${p.name.replace(/'/g,"\\'")}')">quero esse ✦</button>`
+      : '';
     return `
       <div class="tile ${soldOut ? 'sold-out' : ''}" onclick="openProduct(${idx})">
         ${visual}
         <div class="name">${p.name}</div>
         <div class="price">r$ ${p.price}</div>
         ${stockBadge}
+        ${demandBtn}
       </div>
     `;
   }
@@ -7103,9 +7149,13 @@
     const pods = filtered.filter(({ p, i }) => p.cat === 'pod');
     const tabac = filtered.filter(({ p }) => p.cat === 'tabac');
 
+    const demandBanner = `<div class="demand-banner" onclick="requestAnyProduct()">
+      <span>não achou o que procura?</span>
+      <span class="demand-banner-sub">pede que a gente traz ✦</span>
+    </div>`;
     podsEl.innerHTML = pods.length
-      ? pods.map(({ p, i }) => tileHTML(p, i)).join('')
-      : '<div class="empty-mini">nenhum pod bate com os filtros ✦</div>';
+      ? pods.map(({ p, i }) => tileHTML(p, i)).join('') + demandBanner
+      : '<div class="empty-mini">nenhum pod bate com os filtros ✦</div>' + demandBanner;
 
     // Esconde seção tabacaria quando filtro de puffs/marca tá ativo
     const tabacSection = document.querySelector('.cat-section:nth-of-type(2)') || tabacEl.previousElementSibling;
@@ -7673,14 +7723,16 @@
     const stepper = document.getElementById('d-stepper');
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
     if (soldOut) {
-      addBtn.innerHTML = 'esgotado ✦ volta depois';
-      addBtn.disabled = true;
-      addBtn.style.opacity = '0.5';
+      addBtn.innerHTML = 'esgotado ✦ pedir pra trazer';
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.onclick = function() { requestProduct(p.name); };
       if (stepper) stepper.classList.add('disabled');
     } else {
       addBtn.innerHTML = `quero levar ✦ <span id="d-btnprice">r$ ${p.price}</span>`;
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
+      addBtn.onclick = addToCart;
       if (stepper) stepper.classList.remove('disabled');
     }
     go('detail');
@@ -8430,6 +8482,25 @@
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
+  // ===== DEMANDA / WISHLIST =====
+  function requestProduct(productName) {
+    const digits = phoneDigits(store.whats);
+    if (!digits) { toast('whats da loja não cadastrado ✦'); return; }
+    const phone = digits.length <= 11 ? '55' + digits : digits;
+    const userName = profile.name || '';
+    const msg = encodeURIComponent(`oi, procurei *${productName}* no app mas tá esgotado. tem como trazer? ${userName ? '— ' + userName : ''}`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+  }
+
+  function requestAnyProduct() {
+    const digits = phoneDigits(store.whats);
+    if (!digits) { toast('whats da loja não cadastrado ✦'); return; }
+    const phone = digits.length <= 11 ? '55' + digits : digits;
+    const userName = profile.name || '';
+    const msg = encodeURIComponent(`oi, não achei o que procuro no app. queria um pod de: \n\n(descreve o sabor/marca que quer)\n\n${userName ? '— ' + userName : ''}`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+  }
+
   function openHelpWhats() {
     const digits = phoneDigits(store.whats);
     if (!digits) { toast('a loja ainda não cadastrou whats ✦'); return; }
