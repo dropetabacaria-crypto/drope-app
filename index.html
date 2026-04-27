@@ -1891,10 +1891,10 @@
     z-index: 0;
   }
   .splash-logo {
-    width: 200px;
-    height: 200px;
-    border-radius: 40px;
-    object-fit: cover;
+    width: min(80vw, 320px);
+    height: auto;
+    border-radius: 20px;
+    object-fit: contain;
     box-shadow: 0 20px 80px rgba(91, 33, 182, 0.6), 0 0 40px rgba(255, 45, 111, 0.3);
     position: relative;
     z-index: 1;
@@ -1902,9 +1902,10 @@
   }
   .splash-logo-ring {
     position: absolute;
-    width: 240px;
-    height: 240px;
-    border-radius: 50%;
+    width: min(90vw, 360px);
+    height: auto;
+    aspect-ratio: 16/9;
+    border-radius: 28px;
     border: 2px solid rgba(212, 255, 46, 0.35);
     z-index: 1;
     animation: splashRing 2.4s ease-out infinite;
