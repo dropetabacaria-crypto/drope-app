@@ -816,34 +816,40 @@ module.exports = async function handler(req, res) {
       return res.status(200).send("admin-caixa");
     }
 
-    // ======== CLIENTE NORMAL ========
-    const message = msg.text || msg.content || "";
-
-    // Cliente mandou imagem — explica que só lê texto
-    if (isImageMessage(msg) && !message) {
-      await sendText(phone, "por enquanto so leio texto, manda escrito que te ajudo 😉", body);
-      return res.status(200).send("image-rejected");
-    }
-
-    if (!message) {
-      return res.status(200).send("no message");
-    }
-
-    // Atendimento normal com Claude
+    // ======== CLIENTE NORMAL — MODELO RECEPCIONISTA ========
+    // Bot sauda UMA VEZ na primeira mensagem, depois silencia.
+    // Toda mensagem nova notifica o Andrade pra ele atender pessoalmente.
+    const message = msg.text || msg.content || msg.caption || "";
     const convo = getConvo(phone);
-    const history = convo.messages;
-    const messages = [...history, { role: "user", content: message }];
+    const isFirstContact = convo.messages.length === 0;
 
-    console.log("[v5] Calling Claude AI... history:", history.length, "msgs");
+    // Registra mensagem no histórico (pra saber que já saudou)
+    addMsg(phone, "user", message || "[mídia]");
 
-    const reply = await callClaude(messages, SYSTEM_CUSTOMER) ||
-                  "opa, tive um problema aqui. ja vou chamar alguem da equipe pra te ajudar!";
+    if (isFirstContact) {
+      // PRIMEIRA MENSAGEM — sauda + manda link do catálogo
+      console.log("[v5] FIRST CONTACT from", phone.substring(0, 6) + "***");
+      const greeting = "e aí! aqui é o drope 🦎 vi tua mensagem, o andrade já vai te atender. enquanto isso, dá uma olhada no catálogo: drope-app.vercel.app";
+      await sendText(phone, greeting, body);
+      addMsg(phone, "assistant", greeting);
 
-    addMsg(phone, "user", message);
-    addMsg(phone, "assistant", reply);
+      // Notifica Andrade de novo contato
+      if (ADMIN_LUCAS) {
+        const clientName = msg.pushName || msg.notifyName || phone;
+        const preview = message ? message.substring(0, 100) : "[mídia]";
+        await sendText(ADMIN_LUCAS, `🆕 novo contato no drope!\n📱 ${clientName} (${phone})\n💬 "${preview}"\n\nresponde direto no whats`, body);
+      }
+    } else {
+      // MENSAGENS SEGUINTES — bot silencia, só notifica Andrade
+      console.log("[v5] FOLLOW-UP from", phone.substring(0, 6) + "*** (bot silent, notifying admin)");
+      if (ADMIN_LUCAS) {
+        const clientName = msg.pushName || msg.notifyName || phone;
+        const preview = message ? message.substring(0, 100) : "[mídia]";
+        await sendText(ADMIN_LUCAS, `💬 ${clientName}: "${preview}"`, body);
+      }
+    }
 
-    await sendText(phone, reply, body);
-    return res.status(200).send("replied");
+    return res.status(200).send("handled");
 
   } catch (err) {
     console.error("[v5] WEBHOOK ERROR:", err.message, err.stack);
