@@ -6351,6 +6351,66 @@
   }
   loadProducts();
 
+  // ============================================================
+  // CATALOG SYNC — puxa produtos do Supabase (substitui hardcoded)
+  // ============================================================
+  async function fetchProductsFromSupabase() {
+    try {
+      const r = await fetch('/api/check-stock');
+      if (!r.ok) return;
+      const data = await r.json();
+      if (!data.ok || !Array.isArray(data.products) || data.products.length === 0) return;
+
+      const inferPerfil = (p) => {
+        if (p.category && ['frutado','mentolado','gelado'].includes(String(p.category).toLowerCase())) return String(p.category).toLowerCase();
+        const text = ((p.descricao_quebrada || '') + ' ' + (p.metadata?.flavor_pt || '') + ' ' + (p.metadata?.flavor_en || '')).toLowerCase();
+        if (/menta|mint|hortela/.test(text)) return 'mentolado';
+        if (/ice|gelado|frio|cool|frost/.test(text)) return 'gelado';
+        return 'frutado';
+      };
+
+      products = data.products.map(p => {
+        const m = p.metadata || {};
+        return {
+          slug: p.slug,
+          name: p.name,
+          price: Math.floor((p.price_cents || 0) / 100),
+          cat: 'pod',
+          perfil: inferPerfil(p),
+          img: p.image_url || '',
+          desc: p.descricao_quebrada || '',
+          qty: p.qty_available,
+          badge: p.badge,
+          marca: (m.brand || '').toLowerCase(),
+          sabor: (m.flavor_pt || m.flavor_en || '').toLowerCase(),
+          puffs: m.puffs || 0,
+          emoji: '🪂',
+        };
+      });
+
+      // Re-render se grid ja foi montado
+      if (typeof renderGrid === 'function') {
+        try { renderGrid(); } catch(e) {}
+      }
+      // Hash routing pra abrir produto direto via #produto/<slug>
+      checkProductRoute();
+    } catch(e) { console.error('[fetchProductsFromSupabase]', e); }
+  }
+
+  function checkProductRoute() {
+    const hash = window.location.hash || '';
+    const m = hash.match(/#produto\/([a-z0-9-]+)/i);
+    if (!m) return;
+    const slug = m[1].toLowerCase();
+    const idx = products.findIndex(p => p.slug === slug);
+    if (idx >= 0 && typeof openProduct === 'function') {
+      openProduct(idx, 'home');
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }
+
+  fetchProductsFromSupabase();
+
   // ===== Favoritos persistentes =====
   const FAV_KEY = 'drope_favorites_v1';
   function saveFavorites() {
