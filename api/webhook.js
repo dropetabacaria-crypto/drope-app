@@ -103,10 +103,19 @@ async function sbInsert(table, data) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
   const headers = sbHeaders({ 'Prefer': 'return=representation' });
   const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(data) });
-  if (!r.ok) { console.error(`[SB] INSERT ${table} error:`, r.status, await r.text()); return null; }
-  const rows = await r.json();
-  return Array.isArray(rows) ? rows[0] : rows;
+  const txt = await r.text();
+  if (!r.ok) {
+    console.error(`[SB] INSERT ${table} error:`, r.status, txt);
+    sbInsert._lastError = `${r.status}: ${txt.slice(0, 400)}`;
+    return null;
+  }
+  sbInsert._lastError = null;
+  try {
+    const rows = JSON.parse(txt);
+    return Array.isArray(rows) ? rows[0] : rows;
+  } catch { return null; }
 }
+sbInsert._lastError = null;
 
 async function sbUpdate(table, filter, data) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${filter}`;
@@ -587,7 +596,8 @@ async function handleAdminLucas(phone, msg, body) {
   });
 
   if (!inserted) {
-    await sendText(phone, "deu ruim no banco. tenta de novo.", body);
+    const errDetail = sbInsert._lastError ? `\n🔍 [SB err: ${sbInsert._lastError.slice(0, 350)}]` : '';
+    await sendText(phone, `deu ruim no banco. tenta de novo.${errDetail}`, body);
     return;
   }
 
