@@ -283,6 +283,12 @@
   .notify-toggle input { cursor: pointer; }
 
   /* === STOCK === */
+  .stock-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:rgba(255,255,255,0.02); border-radius:10px; margin-bottom:12px; }
+  .stock-toolbar input[type=text] { flex:1; min-width:200px; padding:10px 14px; background:#0d0d10; border:1px solid #2a2a31; border-radius:8px; color:#fff; font-size:14px; outline:none; }
+  .stock-toolbar input[type=text]:focus { border-color: var(--pink); }
+  .stock-toggle { display:flex; gap:6px; align-items:center; color: var(--text-dim); font-size:13px; cursor:pointer; user-select:none; }
+  .stock-toggle input { cursor:pointer; }
+  .stock-count { color: var(--text-dim); font-size:12px; padding:0 4px; }
   .stock-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -338,7 +344,13 @@
 
   @media (max-width: 600px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .stock-card { grid-template-columns: 1fr; gap: 8px; }
+    .stock-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:rgba(255,255,255,0.02); border-radius:10px; margin-bottom:12px; }
+  .stock-toolbar input[type=text] { flex:1; min-width:200px; padding:10px 14px; background:#0d0d10; border:1px solid #2a2a31; border-radius:8px; color:#fff; font-size:14px; outline:none; }
+  .stock-toolbar input[type=text]:focus { border-color: var(--pink); }
+  .stock-toggle { display:flex; gap:6px; align-items:center; color: var(--text-dim); font-size:13px; cursor:pointer; user-select:none; }
+  .stock-toggle input { cursor:pointer; }
+  .stock-count { color: var(--text-dim); font-size:12px; padding:0 4px; }
+  .stock-card { grid-template-columns: 1fr; gap: 8px; }
     .stock-card .stock-input { width: 100%; }
   }
 </style>
@@ -409,6 +421,11 @@
 
   <!-- TAB: STOCK -->
   <div id="tabStock" style="display: none;">
+    <div class="stock-toolbar">
+      <input id="stockSearch" type="text" placeholder="buscar nome / slug / categoria..." oninput="renderStock()" />
+      <label class="stock-toggle"><input id="filterHiddenOnly" type="checkbox" onchange="renderStock()" /> so pendentes (sem preco)</label>
+      <span class="stock-count" id="stockCount"></span>
+    </div>
     <div id="stockList"></div>
   </div>
 
@@ -633,11 +650,29 @@ async function loadStock() {
 
 function renderStock() {
   const wrap = document.getElementById('stockList');
+  const countEl = document.getElementById('stockCount');
+  const search = (document.getElementById('stockSearch')?.value || '').toLowerCase().trim();
+  const hiddenOnly = document.getElementById('filterHiddenOnly')?.checked || false;
+
+  let filtered = lastProducts;
+  if (hiddenOnly) filtered = filtered.filter(p => p.hidden);
+  if (search) filtered = filtered.filter(p =>
+    (p.name || '').toLowerCase().includes(search) ||
+    (p.slug || '').toLowerCase().includes(search) ||
+    (p.category || '').toLowerCase().includes(search)
+  );
+
+  if (countEl) countEl.textContent = filtered.length === lastProducts.length ? ` produtos` : ` de `;
+
   if (lastProducts.length === 0) {
     wrap.innerHTML = `<div class="empty"><div class="icon">📦</div><div>sem produtos cadastrados<br><small>roda a migration osso8 no Supabase</small></div></div>`;
     return;
   }
-  wrap.innerHTML = lastProducts.map(p => {
+  if (filtered.length === 0) {
+    wrap.innerHTML = `<div class="empty"><div class="icon">🔍</div><div>nada encontrado pra esse filtro</div></div>`;
+    return;
+  }
+  wrap.innerHTML = filtered.map(p => {
     const qtyClass = p.qty_available === 0 ? 'qty-zero' : p.qty_available < 5 ? 'qty-low' : '';
     return `
       <div class="stock-card">
