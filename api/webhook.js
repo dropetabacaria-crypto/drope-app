@@ -307,28 +307,68 @@ async function sendImage(phone, imageUrl, caption, body = {}) {
 
 // ============ MEDIA DOWNLOAD ============
 async function getMediaUrl(msg, body) {
+  // Tenta varios paths comuns onde diferentes APIs colocam a URL da imagem
   if (msg.mediaUrl) return msg.mediaUrl;
   if (msg.media?.url) return msg.media.url;
   if (msg.image?.url) return msg.image.url;
+  if (msg.imageMessage?.url) return msg.imageMessage.url;
+  if (msg.message?.imageMessage?.url) return msg.message.imageMessage.url;
+  if (typeof msg.image === 'string' && msg.image.startsWith('http')) return msg.image;
+  if (typeof msg.media === 'string' && msg.media.startsWith('http')) return msg.media;
+  if (msg.url && typeof msg.url === 'string' && msg.url.startsWith('http')) return msg.url;
 
-  if (msg.id || msg.messageId) {
-    const serverUrl = body.BaseUrl || UAZAPI_SERVER;
-    const token = body.token || UAZAPI_TOKEN;
-    const msgId = msg.id || msg.messageId;
-    try {
-      const r = await fetch(`${serverUrl}/download/media/${msgId}`, { headers: { "token": token } });
-      if (r.ok) {
-        const data = await r.json();
-        if (data.url) return data.url;
-        if (data.base64) return `data:${msg.mimetype || 'image/jpeg'};base64,${data.base64}`;
-      }
-    } catch (e) { console.error("[Media] download error:", e.message); }
-  }
-
+  // base64 inline (varios paths possiveis)
   if (msg.base64) return `data:${msg.mimetype || 'image/jpeg'};base64,${msg.base64}`;
-  if (msg.body && msg.mimetype?.startsWith('image/')) {
+  if (msg.image?.base64) return `data:${msg.image.mimetype || 'image/jpeg'};base64,${msg.image.base64}`;
+  if (msg.imageMessage?.base64) return `data:${msg.imageMessage.mimetype || 'image/jpeg'};base64,${msg.imageMessage.base64}`;
+  if (msg.body && typeof msg.body === 'string' && msg.mimetype?.startsWith('image/')) {
     return `data:${msg.mimetype};base64,${msg.body}`;
   }
+
+  // Tenta baixar via API UazAPI usando o msg ID (varios endpoints possiveis)
+  const msgId = msg.id || msg.messageId || msg.key?.id;
+  if (msgId) {
+    const serverUrl = body.BaseUrl || UAZAPI_SERVER;
+    const token = body.token || UAZAPI_TOKEN;
+    const endpoints = [
+      `${serverUrl}/message/download-media`,           // UazAPI moderna
+      `${serverUrl}/message/getMedia/${msgId}`,
+      `${serverUrl}/getMessageMedia/${msgId}`,
+      `${serverUrl}/download/media/${msgId}`,
+    ];
+    for (const url of endpoints) {
+      try {
+        const isPost = url.endsWith('/download-media');
+        const opts = isPost
+          ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'token': token }, body: JSON.stringify({ id: msgId }) }
+          : { headers: { 'token': token } };
+        const r = await fetch(url, opts);
+        if (r.ok) {
+          const ctype = r.headers.get('content-type') || '';
+          if (ctype.includes('application/json')) {
+            const data = await r.json();
+            if (data.url) return data.url;
+            if (data.fileURL) return data.fileURL;
+            if (data.mediaUrl) return data.mediaUrl;
+            if (data.base64) return `data:${data.mimetype || msg.mimetype || 'image/jpeg'};base64,${data.base64}`;
+            if (data.data) return `data:${data.mimetype || msg.mimetype || 'image/jpeg'};base64,${data.data}`;
+            console.log("[Media] endpoint", url, "ok mas resposta sem url/base64. keys:", Object.keys(data).join(','));
+          } else if (ctype.startsWith('image/')) {
+            // Resposta binaria direta
+            const buf = await r.arrayBuffer();
+            const b64 = Buffer.from(buf).toString('base64');
+            return `data:${ctype};base64,${b64}`;
+          }
+        } else {
+          console.log("[Media] endpoint", url, "status:", r.status);
+        }
+      } catch (e) {
+        console.error("[Media] endpoint", url, "error:", e.message);
+      }
+    }
+  }
+
+  console.log("[Media] todos paths falharam. msg keys:", Object.keys(msg || {}).join(','));
   return null;
 }
 
@@ -362,8 +402,11 @@ function asString(v) {
 
 // ============ FLUXO CADASTRO (LUCAS) ============
 async function handleAdminLucas(phone, msg, body) {
+  // DEBUG: dump payload completo pra entender formato real da UazAPI
+  console.log("[handleAdminLucas] msg payload:", JSON.stringify(msg).slice(0, 1500));
   const hasImage = isImageMessage(msg);
   const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
+  console.log("[handleAdminLucas] hasImage:", hasImage, "| text:", text.slice(0, 80));
 
   // Comando texto: estoque
   if (!hasImage) {
