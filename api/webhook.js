@@ -128,7 +128,7 @@ async function findExistingProduct(brand, model, flavor) {
 function slugify(brand, model, flavor) {
   const raw = `${brand}-${model}-${flavor}`.toLowerCase();
   return raw
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // tira acentos (combining marks, ASCII-safe)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // tira acentos (combining marks, ASCII-safe)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
