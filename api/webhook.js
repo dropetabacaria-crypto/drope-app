@@ -225,9 +225,9 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
   "model": "linha/modelo (ex 'V300 Ultra Slim', 'Iceking', 'Cybertank', 'BC15K', 'Trio', 'Spherex')",
   "flavor_en": "sabor em ingles (ex 'Menthol', 'Mango Magic', 'Strawberry Ice')",
   "flavor_pt": "sabor em portugues (ex 'Menta', 'Manga', 'Morango Gelado')",
-  "puffs": numero inteiro (ex 30000) ou null,
-  "ml": float ou null,
-  "mg_nicotina": float ou null,
+  "puffs": numero inteiro (ex 30000) ou null. INFERE do nome se nao tiver explicito: BC15K=15000, V155=15500, 30K=30000, 40K=40000, 45K=45000, 55K=55000. Se ver 'Ultra Slim' sozinho sem numero, usa null.
+  "ml": float (ex 18, 20, 25). INFERE do contexto: pods 30k+ tipicamente 18-22ml; pods <20k tipicamente 12-15ml. Se incerto, usa null.
+  "mg_nicotina": float. Padrao Brasil = 5 (5%). Se a caixa nao mostrar, usa 5. Se mostrar 50mg ou 5%, usa 5. Se 20mg, usa 2. Se 30mg, usa 3.
   "device_color": "cor do device em ingles curto (ex 'matte black', 'green and silver', 'pink purple gradient')",
   "cores_predominantes": "cores da caixa em portugues (ex 'verde escuro com prata e detalhes lima', 'preto matte e neon azul')",
   "flavor_elements": "elementos visuais do sabor pra prompt de arte em ingles (ex 'mint leaves and ice crystals', 'mango slices and frost', 'watermelon dragonfruit')",
@@ -288,7 +288,7 @@ async function generatePadraoAPlus(brand, model, flavor, coresPredominantes) {
       "Authorization": `Bearer ${XAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: "grok-2-image",
+      model: "grok-imagine-image",
       prompt,
       n: 1,
       response_format: "url"
@@ -614,8 +614,7 @@ async function handleAdminLucas(phone, msg, body) {
         return;
       }
     }
-    const errDetail = sbInsert._lastError ? `\n🔍 [SB err: ${sbInsert._lastError.slice(0, 350)}]` : '';
-    await sendText(phone, `deu ruim no banco. tenta de novo.${errDetail}`, body);
+    await sendText(phone, "deu ruim no banco. tenta de novo.", body);
     return;
   }
 
