@@ -84,10 +84,15 @@ painel), aí configura assim:
 Cria 3 jobs em `cron-job.org` apontando pros endpoints abaixo. Em todos: método
 **POST**, header `x-cron-token: <CRON_TOKEN>`.
 
-| Job | URL | Frequência sugerida |
-|-----|-----|---------------------|
-| Expiry de reservas | `https://drope-app.vercel.app/api/cron-release-expired-reservations` | A cada 10 min |
-| Resumo diário do painel | `https://drope-app.vercel.app/api/cron-tasks-daily-summary` | 1×/dia, 09:00 America/Sao_Paulo |
+> **Nota (28/04/2026):** os 5 endpoints da TAREFA 6 foram **consolidados em 1 só**
+> (`/api/tasks`) pra encaixar no limite de 12 funções serverless do plano Hobby do
+> Vercel. As operações são despachadas via método HTTP e query param `op`.
+> Comportamento idêntico, só muda a URL.
+
+| Job | URL (POST) | Frequência sugerida |
+|-----|------------|---------------------|
+| Expiry de reservas | `https://drope-app.vercel.app/api/tasks?op=cron-release` | A cada 10 min |
+| Resumo diário do painel | `https://drope-app.vercel.app/api/tasks?op=cron-daily` | 1×/dia, 09:00 America/Sao_Paulo |
 | (futuros — quando construir) Follow-up 24h, Recompra 15d | a definir | 1×/h, 1×/dia |
 
 ### Se escolher (A2) Vercel Cron Pro

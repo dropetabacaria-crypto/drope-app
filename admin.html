@@ -1,4 +1,4 @@
-<!-- redeploy-trigger: 20260428-172800 -->
+<!-- redeploy-trigger: 20260428-203500 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1058,7 +1058,7 @@ function priorityRank(p) { return p === 'alta' ? 1 : p === 'media' ? 2 : 3; }
 
 async function loadTasks() {
   try {
-    const r = await fetch('/api/tasks-list?limit=300', { headers: authHeaders() });
+    const r = await fetch('/api/tasks?limit=300', { headers: authHeaders() });
     if (r.status === 401) { logout(); return; }
     const data = await r.json();
     if (!data.ok) { toast('erro carregando tarefas', 'error'); return; }
@@ -1221,7 +1221,7 @@ async function updateTask(id, patch) {
     if (el && el.value.trim()) patch.feedback_andrade = el.value.trim();
   }
   try {
-    const r = await fetch('/api/tasks-update', {
+    const r = await fetch('/api/tasks?op=update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ id, ...patch }),
@@ -1285,7 +1285,7 @@ async function submitNewTask() {
   if (!title) { toast('título obrigatório', 'error'); return; }
 
   try {
-    const r = await fetch('/api/tasks-create', {
+    const r = await fetch('/api/tasks?op=create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
       body: JSON.stringify({ title, description, assignee, priority, category, due_date }),
@@ -1316,7 +1316,7 @@ function detectRafaMode() {
 
 async function loginRafa() {
   try {
-    const r = await fetch('/api/tasks-list?limit=1', { headers: { 'x-rafa-token': rafaToken } });
+    const r = await fetch('/api/tasks?limit=1', { headers: { 'x-rafa-token': rafaToken } });
     if (r.status === 401) {
       localStorage.removeItem(RAFA_TOKEN_KEY);
       rafaMode = false;
