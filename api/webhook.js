@@ -573,26 +573,32 @@ async function handleAdminLucas(phone, msg, body) {
     }
   }
 
-  // 4. Insere em drope_products (hidden=true até preço)
+  // 4. Insere em drope_products (hidden=true até preço).
+  // Detalhes do pod (brand, model, flavor, puffs, ml, mg, cor device) vao em `metadata` jsonb
+  // porque a tabela nao tem essas colunas como first-class. cores_predominantes/descricao/image_*
+  // tem coluna propria (osso 9).
   const inserted = await sbInsert('drope_products', {
     slug,
     name: fullName,
-    brand,
-    model,
-    flavor: data.flavor_en,
-    flavor_pt: data.flavor_pt,
-    puffs: data.puffs,
-    ml: data.ml,
-    mg_nicotina: data.mg_nicotina,
-    device_color: data.device_color,
-    cores_predominantes: data.cores_predominantes,
+    category: 'pods',
+    price_cents: 0,                          // sem preco ainda — hidden=true esconde do app
+    qty_available: 1,
+    hidden: true,
     image_url: publicImageUrl,
     image_status: imageStatus,
     descricao_quebrada: data.descricao_quebrada,
-    qty_available: 1,
-    hidden: true,                            // só publica após preço
-    category: 'pods',
+    cores_predominantes: data.cores_predominantes,
     created_via: 'whatsapp_agent',
+    metadata: {
+      brand,
+      model,
+      flavor_en: data.flavor_en,
+      flavor_pt: data.flavor_pt,
+      puffs: data.puffs,
+      ml: data.ml,
+      mg_nicotina: data.mg_nicotina,
+      device_color: data.device_color,
+    },
   });
 
   if (!inserted) {
