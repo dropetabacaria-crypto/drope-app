@@ -53,6 +53,10 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Campos retornados nos modos 2 e 3 (catalogo). Inclui metadata pro app cliente
+    // popular brand/flavor/puffs/cor sem precisar de outro endpoint.
+    const catalogFields = 'slug,name,price_cents,qty_available,category,badge,image_url,descricao_quebrada,cores_predominantes,metadata';
+
     // Modo 2: lista filtrada
     if (slugs) {
       const list = String(slugs).split(',').map(s => s.trim()).filter(s => slugRe.test(s));
@@ -60,7 +64,7 @@ module.exports = async function handler(req, res) {
 
       const filter = list.map(s => `"${s}"`).join(',');
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/drope_products?slug=in.(${encodeURIComponent(filter)})&hidden=eq.false&select=slug,name,price_cents,qty_available,category,badge,image_url`,
+        `${SUPABASE_URL}/rest/v1/drope_products?slug=in.(${encodeURIComponent(filter)})&hidden=eq.false&select=${catalogFields}`,
         { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
       );
       const rows = await r.json();
@@ -69,7 +73,7 @@ module.exports = async function handler(req, res) {
 
     // Modo 3: catálogo completo visível
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/drope_products?hidden=eq.false&select=slug,name,price_cents,qty_available,category,badge,image_url&order=qty_available.desc,name.asc`,
+      `${SUPABASE_URL}/rest/v1/drope_products?hidden=eq.false&select=${catalogFields}&order=qty_available.desc,name.asc`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const rows = await r.json();
