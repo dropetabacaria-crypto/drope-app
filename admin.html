@@ -691,10 +691,35 @@ function renderStock() {
         </div>
         <button class="btn-action advance" onclick="saveStock('${escapeHtml(p.slug)}')">salvar</button>
         <button class="btn-action cancel" onclick="toggleHidden('${escapeHtml(p.slug)}', ${!p.hidden})">${p.hidden ? 'mostrar' : 'esconder'}</button>
+        <button class="btn-action" style="background:#3a1a5a;color:#c4b5fd;border:1px solid #4a2a6a;" onclick="regenerateArt('${escapeHtml(p.slug)}', this)">🔄 arte</button>
         ${p.hidden ? '<span class="btn-action" style="opacity:0.4;cursor:not-allowed;" title="publica primeiro pra ver no app">🔗 app</span>' : `<button class="btn-action" style="background:#1a3a5a;color:#7dd3fc;border:1px solid #2a4a6a;" onclick="window.open('/#produto/' + encodeURIComponent('${escapeHtml(p.slug)}'), '_blank')">🔗 app</button>`}
       </div>
     `;
   }).join('');
+}
+
+async function regenerateArt(slug, btn) {
+  if (!adminToken) { toast('login expirado', 'error'); return; }
+  const original = btn.textContent;
+  btn.textContent = '⏳ gerando...';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/admin-regenerate-art', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ slug }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok || !data.ok) { toast('arte falhou: ' + (data.error || r.status), 'error'); btn.textContent = original; btn.disabled = false; return; }
+    toast('arte regerada ✦ ' + slug, 'success');
+    btn.textContent = '✦ ok';
+    setTimeout(() => loadStock(), 1500);
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+    btn.textContent = original;
+    btn.disabled = false;
+  }
 }
 
 async function saveStock(slug) {
