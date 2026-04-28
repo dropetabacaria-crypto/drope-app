@@ -620,8 +620,8 @@ async function updateStatus(orderNsu, newStatus) {
 // === STOCK ===
 async function loadStock() {
   try {
-    // usa endpoint público (não precisa token) pra listar produtos
-    const r = await fetch('/api/check-stock');
+    // usa endpoint admin que retorna TUDO (incluindo hidden=true cadastrados pelo whats agent)
+    const r = await fetch('/api/admin-list-stock', { headers: { 'x-admin-token': adminToken } });
     const data = await r.json();
     if (!data.ok) { toast('erro carregando estoque', 'error'); return; }
     lastProducts = data.products || [];
