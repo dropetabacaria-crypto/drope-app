@@ -226,10 +226,24 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
 
 NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"]} e o resto null.`;
 
+  // Suporta tanto URL HTTP quanto data: URL (base64 inline, ex: thumbnail UazAPI)
+  let imageSource;
+  if (imageUrl.startsWith('data:')) {
+    const m = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (m) {
+      imageSource = { type: "base64", media_type: m[1], data: m[2] };
+    } else {
+      console.error("[Vision] data: URL invalida");
+      return null;
+    }
+  } else {
+    imageSource = { type: "url", url: imageUrl };
+  }
+
   const messages = [{
     role: "user",
     content: [
-      { type: "image", source: { type: "url", url: imageUrl } },
+      { type: "image", source: imageSource },
       { type: "text", text: "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois." }
     ]
   }];
@@ -317,6 +331,14 @@ async function getMediaUrl(msg, body) {
   if (typeof msg.media === 'string' && msg.media.startsWith('http')) return msg.media;
   if (msg.url && typeof msg.url === 'string' && msg.url.startsWith('http')) return msg.url;
 
+  // UazAPI/dropepod format: msg.content.JPEGThumbnail vem em base64 inline ja descriptografado.
+  // URL do whatsapp (mmg.whatsapp.net) eh encriptada com mediaKey, GET direto retorna lixo.
+  // Thumbnail eh low-res mas Claude Vision consegue extrair marca/sabor/cores.
+  if (msg.content?.JPEGThumbnail) {
+    const mt = msg.content.mimetype || 'image/jpeg';
+    return `data:${mt};base64,${msg.content.JPEGThumbnail}`;
+  }
+
   // base64 inline (varios paths possiveis)
   if (msg.base64) return `data:${msg.mimetype || 'image/jpeg'};base64,${msg.base64}`;
   if (msg.image?.base64) return `data:${msg.image.mimetype || 'image/jpeg'};base64,${msg.image.base64}`;
@@ -385,7 +407,11 @@ function isImageMessage(msg) {
          !!msg.image ||
          !!msg.imageMessage ||
          !!msg.message?.imageMessage ||
-         (msg.media && typeof msg.media === 'object' && !!msg.media.url);
+         (msg.media && typeof msg.media === 'object' && !!msg.media.url) ||
+         // UazAPI/dropepod format: msg.content.{mimetype,URL,JPEGThumbnail}
+         (typeof msg.content?.mimetype === 'string' && msg.content.mimetype.startsWith('image/')) ||
+         !!msg.content?.JPEGThumbnail ||
+         (typeof msg.content?.URL === 'string' && msg.content.URL.startsWith('http'));
 }
 
 // Extrai string limpa de um campo que pode vir como string OU objeto (formatos UazAPI/Baileys variados).
@@ -408,14 +434,6 @@ async function handleAdminLucas(phone, msg, body) {
   const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
   console.log("[handleAdminLucas] hasImage:", hasImage, "| text:", text.slice(0, 80));
 
-  // DEBUG TEMPORARIO: manda payload pro proprio admin via whats (so quando rola imagem)
-  // Andrade ve o JSON exato pra Code identificar formato e remover esse bloco depois.
-  if (hasImage) {
-    const dump1 = JSON.stringify(msg).slice(0, 600);
-    const dump2 = JSON.stringify(msg).slice(600, 1200);
-    await sendText(phone, `🔍 DEBUG msg (parte 1/2):\n${dump1}`, body);
-    if (dump2) await sendText(phone, `🔍 DEBUG msg (parte 2/2):\n${dump2}`, body);
-  }
 
   // Comando texto: estoque
   if (!hasImage) {
