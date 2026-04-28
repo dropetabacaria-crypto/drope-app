@@ -682,8 +682,8 @@ function renderStock() {
           <div class="stock-meta">${escapeHtml(p.category || 'sem categoria')} · slug: ${escapeHtml(p.slug)}</div>
         </div>
         <div>
-          <div class="stock-meta">preço (centavos)</div>
-          <input class="stock-input" type="number" id="price-${escapeHtml(p.slug)}" value="${escapeHtml(p.price_cents)}" min="0">
+          <div class="stock-meta">preço (R$)</div>
+          <input class="stock-input" type="number" step="0.01" id="price-${escapeHtml(p.slug)}" value="${((p.price_cents || 0) / 100).toFixed(2)}" min="0">
         </div>
         <div>
           <div class="stock-meta">estoque</div>
@@ -699,9 +699,10 @@ function renderStock() {
 
 async function saveStock(slug) {
   const qty = parseInt(document.getElementById('qty-' + slug).value, 10);
-  const price = parseInt(document.getElementById('price-' + slug).value, 10);
+  const priceReais = parseFloat(document.getElementById('price-' + slug).value);
   if (isNaN(qty) || qty < 0) { toast('qty inválido', 'error'); return; }
-  if (isNaN(price) || price < 0) { toast('preço inválido', 'error'); return; }
+  if (isNaN(priceReais) || priceReais < 0) { toast('preço inválido', 'error'); return; }
+  const price = Math.round(priceReais * 100); // converte R$ pra centavos
 
   try {
     const r = await fetch('/api/admin-update-stock', {
