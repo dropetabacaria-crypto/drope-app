@@ -82,6 +82,54 @@ function addMsg(phone, role, content) {
   }
 }
 
+// ============ DEDUP DE EVENTOS UAZAPI ============
+// UazAPI manda multiplos eventos por mensagem. Ignora se ja vimos o msgId recente.
+const seenMessageIds = new Map();
+const SEEN_TTL = 5 * 60 * 1000;
+
+function alreadySeen(msgId) {
+  if (!msgId) return false;
+  const ts = seenMessageIds.get(msgId);
+  if (ts && Date.now() - ts < SEEN_TTL) return true;
+  seenMessageIds.set(msgId, Date.now());
+  if (seenMessageIds.size > 500) {
+    const now = Date.now();
+    for (const [k, t] of seenMessageIds) {
+      if (now - t > SEEN_TTL) seenMessageIds.delete(k);
+    }
+  }
+  return false;
+}
+
+// ============ CADASTRO PENDENTE (FLUXO 2 FOTOS) ============
+// Andrade manda foto da caixa → bot pede foto do pod → bot junta.
+const pendingRegistrations = new Map();
+const PENDING_TTL = 10 * 60 * 1000;
+
+function getPending(phone) {
+  const p = pendingRegistrations.get(phone);
+  if (!p) return null;
+  if (Date.now() - p.timestamp > PENDING_TTL) {
+    pendingRegistrations.delete(phone);
+    return null;
+  }
+  return p;
+}
+
+function setPending(phone, data) {
+  pendingRegistrations.set(phone, { ...data, timestamp: Date.now() });
+  if (pendingRegistrations.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of pendingRegistrations) {
+      if (now - v.timestamp > PENDING_TTL) pendingRegistrations.delete(k);
+    }
+  }
+}
+
+function clearPending(phone) {
+  pendingRegistrations.delete(phone);
+}
+
 // ============ SUPABASE HELPERS ============
 function sbHeaders(extra = {}) {
   return {
@@ -215,8 +263,8 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
   return data.content?.[0]?.text || null;
 }
 
-// Extrai dados do pod a partir da foto. Vibe Drope na descricao_quebrada.
-async function analyzeProductImage(imageUrl) {
+// Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
+async function analyzeProductImage(caixaUrl, podUrl = null) {
   const systemPrompt = `Voce e o catalogador da Drope, loja Gen Z de pods em Vila Prudente-SP.
 Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo, deixa null:
 
@@ -237,27 +285,35 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
 
 NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"]} e o resto null.`;
 
-  // Suporta tanto URL HTTP quanto data: URL (base64 inline, ex: thumbnail UazAPI)
-  let imageSource;
-  if (imageUrl.startsWith('data:')) {
-    const m = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (m) {
-      imageSource = { type: "base64", media_type: m[1], data: m[2] };
-    } else {
-      console.error("[Vision] data: URL invalida");
+  // Helper pra montar source aceitando HTTP URL ou data: URL (base64 inline)
+  const makeSource = (url) => {
+    if (url.startsWith('data:')) {
+      const m = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (m) return { type: "base64", media_type: m[1], data: m[2] };
       return null;
     }
-  } else {
-    imageSource = { type: "url", url: imageUrl };
-  }
+    return { type: "url", url };
+  };
 
-  const messages = [{
-    role: "user",
-    content: [
-      { type: "image", source: imageSource },
-      { type: "text", text: "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois." }
-    ]
-  }];
+  const caixaSource = makeSource(caixaUrl);
+  if (!caixaSource) { console.error("[Vision] caixa URL invalida"); return null; }
+
+  const content = [{ type: "image", source: caixaSource }];
+  let userText;
+  if (podUrl) {
+    const podSource = makeSource(podUrl);
+    if (podSource) {
+      content.push({ type: "image", source: podSource });
+      userText = "2 fotos: a 1ª eh a CAIXA do pod (info textual de marca/modelo/sabor/specs). A 2ª eh o POD ao vivo (cor real do device). Use texto da CAIXA pra brand/model/flavor/puffs/ml/mg, e use a cor REAL do POD pra `device_color`. Responde SO o JSON.";
+    } else {
+      userText = "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois.";
+    }
+  } else {
+    userText = "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois.";
+  }
+  content.push({ type: "text", text: userText });
+
+  const messages = [{ role: "user", content }];
 
   const result = await callClaude(messages, systemPrompt, 800);
   if (!result) return null;
@@ -470,25 +526,43 @@ function asString(v) {
   return "";
 }
 
-// ============ FLUXO CADASTRO (LUCAS) ============
+// ============ FLUXO CADASTRO (LUCAS) — 2 fotos: caixa + pod ============
 async function handleAdminLucas(phone, msg, body) {
-  // DEBUG: dump payload completo pra entender formato real da UazAPI
-  console.log("[handleAdminLucas] msg payload:", JSON.stringify(msg).slice(0, 1500));
+  // Dedup: ignora eventos duplicados da UazAPI pra mesma mensagem
+  const msgId = msg.id || msg.messageId || msg.key?.id;
+  if (msgId && alreadySeen(msgId)) {
+    console.log("[handleAdminLucas] ignored duplicate msgId:", msgId);
+    return;
+  }
+
   const hasImage = isImageMessage(msg);
   const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
-  console.log("[handleAdminLucas] hasImage:", hasImage, "| text:", text.slice(0, 80));
 
-
-  // Comando texto: estoque
+  // ========== COMANDOS DE TEXTO ==========
   if (!hasImage) {
-    if (!text) {
-      // Nem imagem nem texto reconhecido — loga payload pra investigar formato novo da UazAPI
-      console.log("[handleAdminLucas] payload nao classificado. msg:", JSON.stringify(msg).slice(0, 600));
-      await sendText(phone, "manda foto do pod que eu cadastro. ou digita 'estoque' pra ver o que tem.", body);
+    const pending = getPending(phone);
+    const lower = text.toLowerCase().trim();
+
+    // Comandos do fluxo pendente
+    if (pending) {
+      if (lower.includes('cancela') || lower.includes('desisto') || lower === 'sai') {
+        clearPending(phone);
+        await sendText(phone, `cancelei. ${pending.fullName} nao foi cadastrado.`, body);
+        return;
+      }
+      if (lower.includes('só essa') || lower.includes('so essa') || lower.includes('só isso') || lower.includes('so isso') || lower.includes('finaliza')) {
+        clearPending(phone);
+        await sendText(phone, "📦 cadastrando so com a foto da caixa...", body);
+        await processProductRegistration(phone, pending.caixaUrl, null, pending.preComputedData, body);
+        return;
+      }
+      // qualquer outro texto durante pendente
+      await sendText(phone, `to esperando a foto do POD pra '${pending.fullName}'.\n('só essa' pra cadastrar so com a caixa, ou 'cancela' pra desistir)`, body);
       return;
     }
-    const lower = text.toLowerCase();
-    if (lower.includes('estoque') || lower.includes('saldo')) {
+
+    // Estoque
+    if (text && (lower.includes('estoque') || lower.includes('saldo'))) {
       const products = await sbGet('drope_products', 'select=name,qty_available,hidden&order=name');
       if (!products.length) {
         await sendText(phone, "estoque vazio.", body);
@@ -498,37 +572,64 @@ async function handleAdminLucas(phone, msg, body) {
       await sendText(phone, `estoque atual:\n${list}`, body);
       return;
     }
-    await sendText(phone, "manda foto do pod que eu cadastro. ou digita 'estoque' pra ver o que tem.", body);
+
+    await sendText(phone, "manda foto da CAIXA do pod que eu cadastro. ou digita 'estoque' pra ver o que tem.", body);
     return;
   }
 
-  // ========== MODO CADASTRO (foto recebida) ==========
+  // ========== FOTO RECEBIDA ==========
   const imageUrl = await getMediaUrl(msg, body);
   if (!imageUrl) {
     await sendText(phone, "não peguei a imagem. manda de novo.", body);
     return;
   }
 
+  // Se tem pendente, essa foto eh a 2a (POD)
+  const pending = getPending(phone);
+  if (pending) {
+    clearPending(phone);
+    await sendText(phone, "📸 juntando as duas fotos...", body);
+    await processProductRegistration(phone, pending.caixaUrl, imageUrl, pending.preComputedData, body);
+    return;
+  }
+
+  // 1a foto: deve ser a CAIXA. Analisa pra confirmar e salva pendente.
   await sendText(phone, "📸 lendo a caixa...", body);
-
-  // 1. Claude Vision extrai dados
   const data = await analyzeProductImage(imageUrl);
-
   if (!data) {
     await sendText(phone, "não consegui ler. manda outra foto, mais nítida da frente da caixa.", body);
     return;
   }
-
-  // Caso: foto não é pod
   if (data.alertas?.includes('nao parece pod') || (!data.brand && !data.flavor_en)) {
-    await sendText(phone, "isso não tá parecendo pod. confere se é a foto certa.", body);
+    await sendText(phone, "isso não tá parecendo pod. manda a foto da CAIXA primeiro.", body);
     return;
   }
 
-  // Caso: dados parciais (alerta)
-  if (data.alertas?.length > 0) {
-    console.log("[Cadastro] alertas:", data.alertas);
-    // Continua mas avisa Andrade ao final
+  const brand = data.brand || 'UNKNOWN';
+  const model = data.model || '';
+  const flavor = data.flavor_en || data.flavor_pt || 'unknown';
+  const fullName = `${brand} ${model} ${flavor}`.replace(/\s+/g, ' ').trim();
+
+  setPending(phone, { caixaUrl: imageUrl, fullName, preComputedData: data });
+  await sendText(phone,
+    `${fullName} ✓\nagora manda a foto do POD pra eu pegar a cor real.\n('só essa' pra cadastrar so com a caixa, 'cancela' pra desistir)`,
+    body);
+}
+
+// Cadastro completo: 1 ou 2 fotos. Se podUrl preenchido, re-roda Vision com as 2 imagens.
+async function processProductRegistration(phone, caixaUrl, podUrl, preComputedData, body) {
+  let data = preComputedData;
+  // Se tem pod, vale re-rodar Vision com as 2 imagens pra cor real do device
+  if (podUrl) {
+    const richer = await analyzeProductImage(caixaUrl, podUrl);
+    if (richer) data = richer;
+  }
+  if (!data) {
+    data = await analyzeProductImage(caixaUrl);
+  }
+  if (!data || data.alertas?.includes('nao parece pod') || (!data.brand && !data.flavor_en)) {
+    await sendText(phone, "isso não tá parecendo pod. confere se é a foto certa.", body);
+    return;
   }
 
   const brand = data.brand || 'UNKNOWN';
@@ -537,35 +638,25 @@ async function handleAdminLucas(phone, msg, body) {
   const fullName = `${brand} ${model} ${flavor}`.replace(/\s+/g, ' ').trim();
   const slug = slugify(brand, model, flavor);
 
-  // 2. Lookup existente
   const existing = await findExistingProduct(brand, model, flavor);
-
   if (existing) {
-    // Produto JÁ existe → incrementa estoque
     const newQty = (existing.qty_available || 0) + 1;
     await sbUpdate('drope_products', `id=eq.${existing.id}`, { qty_available: newQty });
-
     const priceStr = existing.price_cents
       ? `R$ ${(existing.price_cents / 100).toFixed(2).replace('.', ',')}`
       : 'sem preço';
-
     await sendText(phone,
       `+1 ${fullName}\nestoque: ${existing.qty_available || 0} → ${newQty}\npreço: ${priceStr}`,
-      body
-    );
+      body);
     return;
   }
 
-  // 3. Produto NOVO → gera imagem A+ + cria registro
+  // NOVO → arte + insert
   await sendText(phone, "achei novo. gerando arte...", body);
-
   const grokUrl = await generatePadraoAPlus(brand, model, flavor, data.cores_predominantes);
-
   let publicImageUrl = null;
   let imageStatus = 'pending_regeneration';
-
   if (grokUrl) {
-    // Download da imagem do Grok + upload pro Supabase Storage (URL externa Grok expira)
     const imgData = await downloadImage(grokUrl);
     if (imgData) {
       publicImageUrl = await uploadToStorage(slug, imgData, 'image/png');
@@ -573,15 +664,11 @@ async function handleAdminLucas(phone, msg, body) {
     }
   }
 
-  // 4. Insere em drope_products (hidden=true até preço).
-  // Detalhes do pod (brand, model, flavor, puffs, ml, mg, cor device) vao em `metadata` jsonb
-  // porque a tabela nao tem essas colunas como first-class. cores_predominantes/descricao/image_*
-  // tem coluna propria (osso 9).
   const inserted = await sbInsert('drope_products', {
     slug,
     name: fullName,
     category: 'pods',
-    price_cents: 0,                          // sem preco ainda — hidden=true esconde do app
+    price_cents: 0,
     qty_available: 1,
     hidden: true,
     image_url: publicImageUrl,
@@ -598,12 +685,11 @@ async function handleAdminLucas(phone, msg, body) {
       ml: data.ml,
       mg_nicotina: data.mg_nicotina,
       device_color: data.device_color,
+      registered_with_2_photos: !!podUrl,
     },
   });
 
   if (!inserted) {
-    // 409 / duplicate key = race condition entre webhooks duplicados da UazAPI.
-    // Outro evento ja inseriu o slug. Trata como "ja existe, incrementa estoque".
     if (sbInsert._lastError && sbInsert._lastError.startsWith('409')) {
       const dupRows = await sbGet('drope_products', `slug=eq.${encodeURIComponent(slug)}&limit=1`);
       const dup = dupRows[0];
@@ -618,7 +704,6 @@ async function handleAdminLucas(phone, msg, body) {
     return;
   }
 
-  // 5. Resposta final lo-fi
   let alertSuffix = '';
   if (data.alertas?.length > 0) alertSuffix = `\n\nobs: ${data.alertas.join(', ')}`;
   if (imageStatus === 'pending_regeneration') alertSuffix += `\nobs: arte falhou, regenera pelo /admin depois`;
@@ -626,10 +711,8 @@ async function handleAdminLucas(phone, msg, body) {
   const adminLink = `https://drope-app.vercel.app/admin#products/${inserted.id}`;
   await sendText(phone,
     `valeu — ${fullName} tá no app.\nfalta só o preço.\n${adminLink}${alertSuffix}`,
-    body
-  );
+    body);
 
-  // Manda a imagem gerada também (visualização rápida)
   if (publicImageUrl) {
     await sendImage(phone, publicImageUrl, `${fullName} — arte A+`, body);
   }
