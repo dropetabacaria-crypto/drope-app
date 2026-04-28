@@ -602,6 +602,18 @@ async function handleAdminLucas(phone, msg, body) {
   });
 
   if (!inserted) {
+    // 409 / duplicate key = race condition entre webhooks duplicados da UazAPI.
+    // Outro evento ja inseriu o slug. Trata como "ja existe, incrementa estoque".
+    if (sbInsert._lastError && sbInsert._lastError.startsWith('409')) {
+      const dupRows = await sbGet('drope_products', `slug=eq.${encodeURIComponent(slug)}&limit=1`);
+      const dup = dupRows[0];
+      if (dup) {
+        const newQty = (dup.qty_available || 0) + 1;
+        await sbUpdate('drope_products', `id=eq.${dup.id}`, { qty_available: newQty });
+        await sendText(phone, `+1 ${fullName}\nestoque: ${dup.qty_available || 0} → ${newQty} (dedup)`, body);
+        return;
+      }
+    }
     const errDetail = sbInsert._lastError ? `\n🔍 [SB err: ${sbInsert._lastError.slice(0, 350)}]` : '';
     await sendText(phone, `deu ruim no banco. tenta de novo.${errDetail}`, body);
     return;
