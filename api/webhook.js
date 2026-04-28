@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 // Drope WhatsApp AI Agent — Vercel Serverless Function v3
 // 3 modos: atendimento cliente | cadastro/entrada (Lucas) | baixa estoque (caixa)
 // Claude Vision (Haiku 4.5) + Grok image gen + Supabase storage + drope_products
@@ -319,6 +321,25 @@ async function sendImage(phone, imageUrl, caption, body = {}) {
   return r;
 }
 
+// ============ WHATSAPP MEDIA DECRYPT ============
+// Algoritmo publico do whatsapp/signal: HKDF-SHA256(mediaKey) -> iv+cipherKey+macKey,
+// depois AES-256-CBC decrypt do payload (ultimos 10 bytes sao MAC, descartados).
+async function downloadAndDecryptWhatsappMedia(url, mediaKeyB64, infoString = 'WhatsApp Image Keys') {
+  const r = await fetch(url);
+  if (!r.ok) {
+    console.error('[WA Decrypt] download status:', r.status);
+    return null;
+  }
+  const encrypted = Buffer.from(await r.arrayBuffer());
+  const mediaKey = Buffer.from(mediaKeyB64, 'base64');
+  const expanded = Buffer.from(crypto.hkdfSync('sha256', mediaKey, Buffer.alloc(32), Buffer.from(infoString), 112));
+  const iv = expanded.slice(0, 16);
+  const cipherKey = expanded.slice(16, 48);
+  const ciphertext = encrypted.slice(0, -10); // ultimos 10 bytes = MAC, descartados
+  const decipher = crypto.createDecipheriv('aes-256-cbc', cipherKey, iv);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
+
 // ============ MEDIA DOWNLOAD ============
 async function getMediaUrl(msg, body) {
   // Tenta varios paths comuns onde diferentes APIs colocam a URL da imagem
@@ -331,11 +352,25 @@ async function getMediaUrl(msg, body) {
   if (typeof msg.media === 'string' && msg.media.startsWith('http')) return msg.media;
   if (msg.url && typeof msg.url === 'string' && msg.url.startsWith('http')) return msg.url;
 
-  // UazAPI/dropepod format: msg.content.JPEGThumbnail vem em base64 inline ja descriptografado.
-  // URL do whatsapp (mmg.whatsapp.net) eh encriptada com mediaKey, GET direto retorna lixo.
-  // Thumbnail eh low-res mas Claude Vision consegue extrair marca/sabor/cores.
+  // UazAPI/dropepod format: msg.content.URL eh encriptada com mediaKey.
+  // Tenta desencriptar pra alta resolucao (1000x1000 typical).
+  if (msg.content?.URL && msg.content?.mediaKey) {
+    try {
+      const decrypted = await downloadAndDecryptWhatsappMedia(msg.content.URL, msg.content.mediaKey);
+      if (decrypted && decrypted.length > 100) {
+        const mt = msg.content.mimetype || 'image/jpeg';
+        console.log("[WA Decrypt] OK", decrypted.length, "bytes");
+        return `data:${mt};base64,${decrypted.toString('base64')}`;
+      }
+    } catch (e) {
+      console.error("[WA Decrypt] error:", e.message);
+    }
+  }
+
+  // Fallback: JPEGThumbnail vem ja descriptografado mas eh low-res (~100x100).
   if (msg.content?.JPEGThumbnail) {
     const mt = msg.content.mimetype || 'image/jpeg';
+    console.log("[WA Decrypt] usando thumbnail (low-res fallback)");
     return `data:${mt};base64,${msg.content.JPEGThumbnail}`;
   }
 
