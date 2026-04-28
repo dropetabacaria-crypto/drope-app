@@ -6369,6 +6369,42 @@
         return 'frutado';
       };
 
+      const FALLBACK_IMAGES = {
+        'black-sheep-blueberry-55k': '04_Produto_Artes/01-blacksheep-blueberry-55k.png',
+        'elf-bar-bc-pro-mango-magic-45k': '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.png',
+        'elf-bar-ice-king-double-apple-40k': '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.png',
+        'elf-bar-ice-king-green-apple-40k': '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.png',
+        'elf-bar-ice-king-miami-mint-40k': '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.png',
+      };
+      const FALLBACK_VIDEOS = {
+        'black-sheep-blueberry-55k': '04_Produto_Artes/01-blacksheep-blueberry-55k.mp4',
+        'elf-bar-bc-pro-mango-magic-45k': '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.mp4',
+        'elf-bar-ice-king-double-apple-40k': '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.mp4',
+        'elf-bar-ice-king-green-apple-40k': '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.mp4',
+        'elf-bar-ice-king-miami-mint-40k': '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.mp4',
+      };
+      const inferEmoji = (p) => {
+        const m = p.metadata || {};
+        const text = `${m.flavor_pt || ''} ${m.flavor_en || ''} ${p.name || ''}`.toLowerCase();
+        if (/blueberry|mirtilo/.test(text)) return '🫐';
+        if (/menta|mint|hortela/.test(text)) return '🌿';
+        if (/uva|grape/.test(text)) return '🍇';
+        if (/manga|mango/.test(text)) return '🥭';
+        if (/maca|maçã|apple/.test(text)) return '🍏';
+        if (/morango|strawberry/.test(text)) return '🍓';
+        if (/pessego|pêssego|peach/.test(text)) return '🍑';
+        if (/abacaxi|pineapple/.test(text)) return '🍍';
+        if (/banana/.test(text)) return '🍌';
+        if (/melancia|watermelon/.test(text)) return '🍉';
+        if (/cereja|cherry|sakura/.test(text)) return '🍒';
+        if (/laranja|orange/.test(text)) return '🍊';
+        if (/limao|limão|lemon|lime/.test(text)) return '🍋';
+        if (/coco|coconut/.test(text)) return '🥥';
+        if (/agua|água|water|splash/.test(text)) return '🌊';
+        if (/gelo|ice|frost/.test(text)) return '❄️';
+        return '🪂';
+      };
+
       products = data.products.map(p => {
         const m = p.metadata || {};
         return {
@@ -6377,14 +6413,15 @@
           price: Math.floor((p.price_cents || 0) / 100),
           cat: 'pod',
           perfil: inferPerfil(p),
-          img: p.image_url || '',
+          img: p.image_url || FALLBACK_IMAGES[p.slug] || '',
+          video: FALLBACK_VIDEOS[p.slug] || null,
           desc: p.descricao_quebrada || '',
           qty: p.qty_available,
           badge: p.badge,
           marca: (m.brand || '').toLowerCase(),
           sabor: (m.flavor_pt || m.flavor_en || '').toLowerCase(),
           puffs: m.puffs || 0,
-          emoji: '🪂',
+          emoji: inferEmoji(p),
         };
       });
 
