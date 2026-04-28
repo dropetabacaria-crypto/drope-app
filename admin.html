@@ -324,6 +324,168 @@
   }
   .empty .icon { font-size: 48px; margin-bottom: 12px; }
 
+  /* === TAREFAS === */
+  .tasks-toolbar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 16px; align-items: center;
+  }
+  .tasks-toolbar .btn-action.advance { padding: 8px 14px; }
+  .task-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+    cursor: pointer;
+  }
+  .task-card:hover { border-color: var(--lilac); }
+  .task-card.selected { border-color: var(--pink); }
+  .task-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .task-title { font-weight: 700; font-size: 15px; line-height: 1.3; flex: 1; min-width: 0; }
+  .task-meta {
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge.assignee-andrade { background: rgba(167,139,250,0.18); color: var(--lilac); }
+  .badge.assignee-rafa    { background: rgba(96,165,250,0.18); color: var(--blue); }
+  .badge.assignee-code    { background: rgba(190,242,100,0.18); color: var(--lime); }
+  .badge.status-pending     { background: rgba(136,136,136,0.2); color: var(--text-dim); }
+  .badge.status-in_progress { background: rgba(251,146,60,0.18); color: var(--orange); }
+  .badge.status-done        { background: rgba(251,191,36,0.18); color: var(--yellow); }
+  .badge.status-approved    { background: rgba(190,242,100,0.22); color: var(--lime); }
+  .badge.status-rejected    { background: rgba(239,68,68,0.18); color: var(--red); }
+  .badge.status-cancelled   { background: rgba(100,100,100,0.18); color: var(--text-muted); }
+  .badge.priority-alta  { background: rgba(239,68,68,0.18); color: var(--red); }
+  .badge.priority-media { background: rgba(251,191,36,0.18); color: var(--yellow); }
+  .badge.priority-baixa { background: rgba(136,136,136,0.18); color: var(--text-dim); }
+  .task-desc {
+    font-size: 13px; color: #ccc; line-height: 1.5;
+    max-height: 4.5em; overflow: hidden;
+    -webkit-line-clamp: 3; -webkit-box-orient: vertical; display: -webkit-box;
+  }
+  .task-foot {
+    display: flex; justify-content: space-between;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text-muted);
+  }
+  .task-feedback-preview {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 12px; color: #bbb;
+    border-left: 3px solid var(--lime);
+  }
+  .task-aitake-preview {
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(167,139,250,0.06);
+    border-radius: 8px;
+    font-size: 12px; color: #ccc;
+    border-left: 3px solid var(--lilac);
+  }
+
+  /* === MODAL DETALHE TAREFA === */
+  .task-modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .task-modal-bg.open { display: flex; align-items: flex-start; justify-content: center; }
+  .task-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%; max-width: 600px;
+    padding: 24px;
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
+  .task-modal h2 {
+    font-size: 18px; margin-bottom: 14px; line-height: 1.3;
+    background: linear-gradient(90deg, var(--pink), var(--lilac));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .task-modal .field { margin-bottom: 14px; }
+  .task-modal .field-label {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .task-modal .field-value {
+    font-size: 14px; line-height: 1.5; color: var(--text);
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .task-modal textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+  }
+  .task-modal textarea:focus { border-color: var(--pink); outline: none; }
+  .task-modal .modal-actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .task-modal .btn-action.approve { border-color: var(--lime); color: var(--lime); }
+  .task-modal .btn-action.approve:hover { background: var(--lime); color: var(--bg); }
+  .task-modal .btn-action.reject  { border-color: var(--orange); color: var(--orange); }
+  .task-modal .btn-action.reject:hover { background: var(--orange); color: var(--bg); }
+  .task-modal .close-x {
+    float: right; background: transparent; border: none;
+    color: var(--text-dim); font-size: 22px; cursor: pointer;
+    margin-top: -8px;
+  }
+
+  /* === FORM CRIAR TAREFA === */
+  .new-task-form .field input,
+  .new-task-form .field select,
+  .new-task-form .field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .new-task-form .field input:focus,
+  .new-task-form .field select:focus,
+  .new-task-form .field textarea:focus { border-color: var(--pink); outline: none; }
+  .new-task-form textarea { resize: vertical; min-height: 80px; }
+  .new-task-form .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 600px) {
+    .new-task-form .row { grid-template-columns: 1fr; }
+  }
+
   .toast {
     position: fixed;
     bottom: 24px;
@@ -381,9 +543,10 @@
     </div>
   </div>
 
-  <div class="tabs">
+  <div class="tabs" id="tabsBar">
     <button class="tab active" data-tab="orders" onclick="switchTab('orders')">📦 pedidos</button>
     <button class="tab" data-tab="stock" onclick="switchTab('stock')">📊 estoque</button>
+    <button class="tab" data-tab="tarefas" onclick="switchTab('tarefas')">✅ tarefas</button>
   </div>
 
   <!-- TAB: ORDERS -->
@@ -430,6 +593,101 @@
     <div id="stockList"></div>
   </div>
 
+  <!-- TAB: TAREFAS -->
+  <div id="tabTarefas" style="display: none;">
+    <div class="stats-grid" id="tasksStats">
+      <div class="stat-card">
+        <div class="stat-label">ativas</div>
+        <div class="stat-value pink" id="tStatAtivas">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">aguardando voce</div>
+        <div class="stat-value orange" id="tStatAguard">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">aprovadas</div>
+        <div class="stat-value lime" id="tStatAprov">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">refazer</div>
+        <div class="stat-value" id="tStatRej" style="color: var(--red);">—</div>
+      </div>
+    </div>
+
+    <div class="tasks-toolbar" id="tasksToolbar">
+      <button class="btn-action advance" id="btnNewTask" onclick="openNewTaskModal()">+ nova tarefa</button>
+      <div style="flex:1;"></div>
+    </div>
+
+    <div class="filters" id="tasksFilters">
+      <button class="filter-chip active" data-tfilter="ativas"   onclick="setTaskFilter('ativas')">ativas</button>
+      <button class="filter-chip"        data-tfilter="andrade"  onclick="setTaskFilter('andrade')">⚖️ minhas</button>
+      <button class="filter-chip"        data-tfilter="rafa"     onclick="setTaskFilter('rafa')">👤 rafa</button>
+      <button class="filter-chip"        data-tfilter="code"     onclick="setTaskFilter('code')">🤖 code</button>
+      <button class="filter-chip"        data-tfilter="done"     onclick="setTaskFilter('done')">aguard. martelo</button>
+      <button class="filter-chip"        data-tfilter="alta"     onclick="setTaskFilter('alta')">🔴 alta</button>
+      <button class="filter-chip"        data-tfilter="all"      onclick="setTaskFilter('all')">tudo</button>
+    </div>
+
+    <div id="tasksList"></div>
+  </div>
+
+</div>
+
+<!-- TASK MODAL (detalhe) -->
+<div class="task-modal-bg" id="taskModalBg" onclick="if(event.target===this)closeTaskModal()">
+  <div class="task-modal" id="taskModal">
+    <button class="close-x" onclick="closeTaskModal()">×</button>
+    <div id="taskModalBody"></div>
+  </div>
+</div>
+
+<!-- NEW TASK MODAL -->
+<div class="task-modal-bg" id="newTaskModalBg" onclick="if(event.target===this)closeNewTaskModal()">
+  <div class="task-modal new-task-form">
+    <button class="close-x" onclick="closeNewTaskModal()">×</button>
+    <h2>nova tarefa</h2>
+    <div class="field">
+      <div class="field-label">título</div>
+      <input type="text" id="ntTitle" maxlength="200" placeholder="ex: conferir estoque do mango magic">
+    </div>
+    <div class="field">
+      <div class="field-label">descrição</div>
+      <textarea id="ntDesc" maxlength="4000" placeholder="contexto, links, o que precisa ser feito..."></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">atribuir a</div>
+        <select id="ntAssignee">
+          <option value="andrade">andrade (eu)</option>
+          <option value="rafa">rafa</option>
+          <option value="code">code (ia)</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">prioridade</div>
+        <select id="ntPriority">
+          <option value="alta">🔴 alta</option>
+          <option value="media" selected>🟡 média</option>
+          <option value="baixa">🟢 baixa</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <div class="field-label">categoria (opcional)</div>
+        <input type="text" id="ntCategory" maxlength="40" placeholder="ex: estoque, bot, infra">
+      </div>
+      <div class="field">
+        <div class="field-label">prazo (opcional)</div>
+        <input type="date" id="ntDueDate">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-action advance" onclick="submitNewTask()">criar</button>
+      <button class="btn-action" onclick="closeNewTaskModal()">cancelar</button>
+    </div>
+  </div>
 </div>
 
 <!-- TOAST CONTAINER -->
@@ -501,10 +759,12 @@ function logout() {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  document.getElementById('tabOrders').style.display = tab === 'orders' ? 'block' : 'none';
-  document.getElementById('tabStock').style.display = tab === 'stock' ? 'block' : 'none';
-  if (tab === 'orders') loadOrders();
-  if (tab === 'stock') loadStock();
+  document.getElementById('tabOrders').style.display  = tab === 'orders'  ? 'block' : 'none';
+  document.getElementById('tabStock').style.display   = tab === 'stock'   ? 'block' : 'none';
+  document.getElementById('tabTarefas').style.display = tab === 'tarefas' ? 'block' : 'none';
+  if (tab === 'orders')  loadOrders();
+  if (tab === 'stock')   loadStock();
+  if (tab === 'tarefas') loadTasks();
 }
 
 function setFilter(f) {
@@ -764,10 +1024,324 @@ async function toggleHidden(slug, hide) {
 
 // === POLLING (quase-realtime, 10s) ===
 function startPolling() {
+  if (rafaMode) {
+    loadTasks();
+    pollTimer = setInterval(() => loadTasks(), 15000);
+    return;
+  }
   loadOrders();
   pollTimer = setInterval(() => {
     if (currentTab === 'orders') loadOrders();
+    if (currentTab === 'tarefas') loadTasks();
   }, 10000);
+}
+
+// =========================================================================
+// === TAREFAS (TAREFA 6 — painel drope_tasks) =============================
+// =========================================================================
+const RAFA_TOKEN_KEY = 'drope_rafa_token_v1';
+let rafaMode = false;
+let rafaToken = '';
+let lastTasks = [];
+let currentTaskFilter = 'ativas';
+let openedTaskId = null;
+
+function authHeaders() {
+  return rafaMode
+    ? { 'x-rafa-token': rafaToken }
+    : { 'x-admin-token': adminToken };
+}
+
+function escapeAttr(s) { return escapeHtml(s); }
+
+function priorityRank(p) { return p === 'alta' ? 1 : p === 'media' ? 2 : 3; }
+
+async function loadTasks() {
+  try {
+    const r = await fetch('/api/tasks-list?limit=300', { headers: authHeaders() });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!data.ok) { toast('erro carregando tarefas', 'error'); return; }
+    lastTasks = data.tasks || [];
+    updateTasksStats(lastTasks);
+    renderTasks();
+  } catch(e) {
+    console.error('[loadTasks]', e);
+  }
+}
+
+function updateTasksStats(tasks) {
+  const ativas   = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+  const aguardando = tasks.filter(t => t.status === 'done').length;
+  const aprovadas  = tasks.filter(t => t.status === 'approved').length;
+  const refazer    = tasks.filter(t => t.status === 'rejected').length;
+  document.getElementById('tStatAtivas').textContent = ativas;
+  document.getElementById('tStatAguard').textContent = aguardando;
+  document.getElementById('tStatAprov').textContent  = aprovadas;
+  document.getElementById('tStatRej').textContent    = refazer;
+}
+
+function setTaskFilter(f) {
+  currentTaskFilter = f;
+  document.querySelectorAll('.filter-chip[data-tfilter]').forEach(c =>
+    c.classList.toggle('active', c.dataset.tfilter === f));
+  renderTasks();
+}
+
+function filteredTasks() {
+  let list = lastTasks;
+  switch (currentTaskFilter) {
+    case 'ativas':  list = list.filter(t => ['pending','in_progress','done','rejected'].includes(t.status)); break;
+    case 'andrade': list = list.filter(t => t.assignee === 'andrade' && t.status !== 'approved' && t.status !== 'cancelled'); break;
+    case 'rafa':    list = list.filter(t => t.assignee === 'rafa' && t.status !== 'approved' && t.status !== 'cancelled'); break;
+    case 'code':    list = list.filter(t => t.assignee === 'code' && t.status !== 'approved' && t.status !== 'cancelled'); break;
+    case 'done':    list = list.filter(t => t.status === 'done'); break;
+    case 'alta':    list = list.filter(t => t.priority === 'alta' && t.status !== 'approved' && t.status !== 'cancelled'); break;
+    case 'all':     break;
+  }
+  return list.sort((a, b) => {
+    const ps = priorityRank(a.priority) - priorityRank(b.priority);
+    if (ps !== 0) return ps;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+}
+
+function renderTasks() {
+  const list = filteredTasks();
+  const wrap = document.getElementById('tasksList');
+  if (list.length === 0) {
+    wrap.innerHTML = `<div class="empty"><div class="icon">✨</div><div>nenhuma tarefa nesse filtro</div></div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(t => renderTaskCard(t)).join('');
+}
+
+function renderTaskCard(t) {
+  const desc = t.description ? `<div class="task-desc">${escapeHtml(t.description)}</div>` : '';
+  const fbR  = t.feedback_rafa ? `<div class="task-feedback-preview">visão do rafa: ${escapeHtml(t.feedback_rafa).slice(0, 200)}${t.feedback_rafa.length > 200 ? '...' : ''}</div>` : '';
+  const aiT  = t.ai_take ? `<div class="task-aitake-preview">opinião ia: ${escapeHtml(t.ai_take).slice(0, 200)}${t.ai_take.length > 200 ? '...' : ''}</div>` : '';
+  const due  = t.due_date ? `· prazo ${escapeHtml(t.due_date)}` : '';
+  return `
+    <div class="task-card ${openedTaskId === t.id ? 'selected' : ''}" onclick="openTaskModal('${escapeAttr(t.id)}')">
+      <div class="task-head">
+        <div class="task-title">${escapeHtml(t.title)}</div>
+        <span class="badge priority-${escapeHtml(t.priority)}">${escapeHtml(t.priority)}</span>
+      </div>
+      <div class="task-meta">
+        <span class="badge assignee-${escapeHtml(t.assignee)}">${escapeHtml(t.assignee)}</span>
+        <span class="badge status-${escapeHtml(t.status)}">${escapeHtml(t.status.replace(/_/g, ' '))}</span>
+        ${t.category ? `<span class="badge" style="background:rgba(167,139,250,0.1);color:var(--lilac);">${escapeHtml(t.category)}</span>` : ''}
+      </div>
+      ${desc}
+      ${fbR}
+      ${aiT}
+      <div class="task-foot">
+        <span>criada ${escapeHtml(fmtTime(t.created_at))}${due}</span>
+        <span>tap pra abrir →</span>
+      </div>
+    </div>
+  `;
+}
+
+function openTaskModal(id) {
+  const t = lastTasks.find(x => x.id === id);
+  if (!t) return;
+  openedTaskId = id;
+  const body = document.getElementById('taskModalBody');
+  const isAdmin = !rafaMode;
+  const isMyRafaTask = rafaMode && t.assignee === 'rafa';
+
+  const actions = [];
+  if (isAdmin) {
+    if (t.status === 'done') {
+      actions.push(`<button class="btn-action approve" onclick="updateTask('${escapeAttr(id)}', {status:'approved'})">✓ aprovar</button>`);
+      actions.push(`<button class="btn-action reject" onclick="rejectTaskPrompt('${escapeAttr(id)}')">↩ refazer</button>`);
+    }
+    if (t.status === 'pending' || t.status === 'rejected') {
+      actions.push(`<button class="btn-action advance" onclick="updateTask('${escapeAttr(id)}', {status:'in_progress'})">→ em andamento</button>`);
+    }
+    if (t.status === 'in_progress') {
+      actions.push(`<button class="btn-action advance" onclick="updateTask('${escapeAttr(id)}', {status:'done'})">✓ marcar feita</button>`);
+    }
+    if (t.status !== 'cancelled' && t.status !== 'approved') {
+      actions.push(`<button class="btn-action cancel" onclick="if(confirm('cancelar essa tarefa?'))updateTask('${escapeAttr(id)}', {status:'cancelled'})">cancelar</button>`);
+    }
+  }
+  if (isMyRafaTask) {
+    if (t.status === 'pending')     actions.push(`<button class="btn-action advance" onclick="updateTask('${escapeAttr(id)}', {status:'in_progress'})">→ comecei</button>`);
+    if (t.status === 'in_progress') actions.push(`<button class="btn-action approve" onclick="rafaSubmitDone('${escapeAttr(id)}')">✓ concluí</button>`);
+    if (t.status === 'rejected')    actions.push(`<button class="btn-action advance" onclick="updateTask('${escapeAttr(id)}', {status:'in_progress'})">→ refazendo</button>`);
+  }
+
+  body.innerHTML = `
+    <h2>${escapeHtml(t.title)}</h2>
+    <div class="task-meta">
+      <span class="badge assignee-${escapeHtml(t.assignee)}">${escapeHtml(t.assignee)}</span>
+      <span class="badge status-${escapeHtml(t.status)}">${escapeHtml(t.status.replace(/_/g, ' '))}</span>
+      <span class="badge priority-${escapeHtml(t.priority)}">${escapeHtml(t.priority)}</span>
+      ${t.category ? `<span class="badge" style="background:rgba(167,139,250,0.1);color:var(--lilac);">${escapeHtml(t.category)}</span>` : ''}
+    </div>
+    ${t.description ? `<div class="field"><div class="field-label">descrição</div><div class="field-value">${escapeHtml(t.description)}</div></div>` : ''}
+    ${t.feedback_rafa ? `<div class="field"><div class="field-label">visão do rafa</div><div class="field-value">${escapeHtml(t.feedback_rafa)}</div></div>` : ''}
+    ${t.ai_take ? `<div class="field"><div class="field-label">opinião ia</div><div class="field-value">${escapeHtml(t.ai_take)}</div></div>` : ''}
+    ${(!rafaMode && t.feedback_andrade) ? `<div class="field"><div class="field-label">sua resposta</div><div class="field-value">${escapeHtml(t.feedback_andrade)}</div></div>` : ''}
+    ${isMyRafaTask ? `
+      <div class="field">
+        <div class="field-label">sua visão / observações</div>
+        <textarea id="rafaFeedbackInput" maxlength="4000" placeholder="conta o que viu, o que achou, o que tava diferente...">${escapeHtml(t.feedback_rafa || '')}</textarea>
+        <button class="btn-action advance" style="margin-top:8px;" onclick="rafaSaveFeedback('${escapeAttr(id)}')">salvar visão</button>
+      </div>
+    ` : ''}
+    ${(isAdmin && t.status === 'done') ? `
+      <div class="field">
+        <div class="field-label">sua resposta (opcional)</div>
+        <textarea id="adminFeedbackInput" maxlength="4000" placeholder="comentário/justificativa...">${escapeHtml(t.feedback_andrade || '')}</textarea>
+      </div>
+    ` : ''}
+    <div class="modal-actions">
+      ${actions.join('')}
+      <button class="btn-action" onclick="closeTaskModal()">fechar</button>
+    </div>
+    <div class="task-foot" style="margin-top:14px;">
+      <span>criada ${escapeHtml(fmtTime(t.created_at))} por ${escapeHtml(t.created_by)}</span>
+      <span>id: ${escapeHtml((t.id || '').slice(0, 8))}</span>
+    </div>
+  `;
+  document.getElementById('taskModalBg').classList.add('open');
+}
+
+function closeTaskModal() {
+  document.getElementById('taskModalBg').classList.remove('open');
+  openedTaskId = null;
+}
+
+async function updateTask(id, patch) {
+  if (!rafaMode && (patch.status === 'approved' || patch.status === 'rejected')) {
+    const el = document.getElementById('adminFeedbackInput');
+    if (el && el.value.trim()) patch.feedback_andrade = el.value.trim();
+  }
+  try {
+    const r = await fetch('/api/tasks-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ id, ...patch }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok) { toast('erro: ' + (data.error || r.status), 'error'); return; }
+    toast(`tarefa ${patch.status ? '→ ' + patch.status : 'atualizada'}`, 'success');
+    closeTaskModal();
+    loadTasks();
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+  }
+}
+
+function rejectTaskPrompt(id) {
+  const reason = prompt('Motivo / o que precisa refazer:');
+  if (reason === null) return;
+  const patch = { status: 'rejected' };
+  if (reason.trim()) patch.feedback_andrade = reason.trim();
+  updateTask(id, patch);
+}
+
+function rafaSaveFeedback(id) {
+  const text = document.getElementById('rafaFeedbackInput')?.value?.trim() || '';
+  updateTask(id, { feedback_rafa: text });
+}
+
+function rafaSubmitDone(id) {
+  const text = document.getElementById('rafaFeedbackInput')?.value?.trim() || '';
+  if (!text || text.length < 5) {
+    if (!confirm('Marcar como concluída sem deixar visão? (recomendado deixar pelo menos 1 linha)')) return;
+  }
+  const patch = { status: 'done' };
+  if (text) patch.feedback_rafa = text;
+  updateTask(id, patch);
+}
+
+// === CRIAR TAREFA ===
+function openNewTaskModal() {
+  document.getElementById('ntTitle').value = '';
+  document.getElementById('ntDesc').value = '';
+  document.getElementById('ntCategory').value = '';
+  document.getElementById('ntDueDate').value = '';
+  document.getElementById('ntAssignee').value = 'andrade';
+  document.getElementById('ntPriority').value = 'media';
+  document.getElementById('newTaskModalBg').classList.add('open');
+  setTimeout(() => document.getElementById('ntTitle').focus(), 100);
+}
+function closeNewTaskModal() {
+  document.getElementById('newTaskModalBg').classList.remove('open');
+}
+async function submitNewTask() {
+  const title    = document.getElementById('ntTitle').value.trim();
+  const description = document.getElementById('ntDesc').value.trim();
+  const assignee = document.getElementById('ntAssignee').value;
+  const priority = document.getElementById('ntPriority').value;
+  const category = document.getElementById('ntCategory').value.trim() || undefined;
+  const due_date = document.getElementById('ntDueDate').value || undefined;
+
+  if (!title) { toast('título obrigatório', 'error'); return; }
+
+  try {
+    const r = await fetch('/api/tasks-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken },
+      body: JSON.stringify({ title, description, assignee, priority, category, due_date }),
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (!r.ok) { toast('erro: ' + (data.error || r.status), 'error'); return; }
+    toast('tarefa criada' + (data.notif?.ok ? ' + whats enviado' : ''), 'success');
+    closeNewTaskModal();
+    loadTasks();
+  } catch(e) {
+    toast('erro: ' + e.message, 'error');
+  }
+}
+
+// === MODO RAFA ===
+function detectRafaMode() {
+  const params = new URLSearchParams(window.location.search);
+  const tokenFromUrl = params.get('t');
+  const tokenSaved = localStorage.getItem(RAFA_TOKEN_KEY);
+  const token = tokenFromUrl || tokenSaved;
+  if (!token) return false;
+
+  rafaToken = token;
+  if (tokenFromUrl) localStorage.setItem(RAFA_TOKEN_KEY, tokenFromUrl);
+  return true;
+}
+
+async function loginRafa() {
+  try {
+    const r = await fetch('/api/tasks-list?limit=1', { headers: { 'x-rafa-token': rafaToken } });
+    if (r.status === 401) {
+      localStorage.removeItem(RAFA_TOKEN_KEY);
+      rafaMode = false;
+      rafaToken = '';
+      return false;
+    }
+    if (!r.ok) return false;
+    rafaMode = true;
+    return true;
+  } catch (e) {
+    console.error('[loginRafa]', e);
+    return false;
+  }
+}
+
+function applyRafaUI() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    if (tab.dataset.tab !== 'tarefas') tab.style.display = 'none';
+  });
+  document.getElementById('btnNewTask').style.display = 'none';
+  document.querySelectorAll('.filter-chip[data-tfilter]').forEach(c => {
+    if (['andrade','code','done'].includes(c.dataset.tfilter)) c.style.display = 'none';
+  });
+  document.querySelector('.topbar h1').textContent = 'Drope ✦ tarefas';
+  switchTab('tarefas');
 }
 
 // === ENTER NA INPUT DO LOGIN ===
@@ -775,12 +1349,24 @@ document.getElementById('tokenInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') login();
 });
 
-// === AUTO-LOGIN SE TOKEN SALVO ===
+// === BOOT (modo Rafa via URL OU auto-login admin) ===
 window.addEventListener('DOMContentLoaded', async () => {
+  // 1) Modo Rafa via ?t=TOKEN (ou token salvo de visita anterior)
+  if (detectRafaMode()) {
+    const ok = await loginRafa();
+    if (ok) {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      applyRafaUI();
+      startPolling();
+      return;
+    }
+  }
+
+  // 2) Auto-login admin (Andrade) se token salvo
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     document.getElementById('tokenInput').value = saved;
-    // Tenta validar e logar automaticamente
     try {
       const r = await fetch('/api/admin-orders?limit=1', { headers: { 'x-admin-token': saved } });
       if (r.ok) {
