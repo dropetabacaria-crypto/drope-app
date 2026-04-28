@@ -670,10 +670,17 @@ async function processProductRegistration(phone, caixaUrl, podUrl, preComputedDa
     }
   }
 
+  // Infere categoria do app cliente (frutado/mentolado/gelado) a partir do sabor.
+  // O app cliente filtra por essas 3 categorias — usar 'pods' nao bate com filtro.
+  const flavorText = `${data.flavor_en || ''} ${data.flavor_pt || ''} ${data.descricao_quebrada || ''}`.toLowerCase();
+  let category = 'frutado';
+  if (/menta|mint|hortela/.test(flavorText)) category = 'mentolado';
+  else if (/ice|gelado|frio|cool|frost|menthol/.test(flavorText)) category = 'gelado';
+
   const inserted = await sbInsert('drope_products', {
     slug,
     name: fullName,
-    category: 'pods',
+    category,
     price_cents: 0,
     qty_available: 1,
     hidden: true,
