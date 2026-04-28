@@ -277,6 +277,7 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
   "ml": float (ex 18, 20, 25). INFERE do contexto: pods 30k+ tipicamente 18-22ml; pods <20k tipicamente 12-15ml. Se incerto, usa null.
   "mg_nicotina": float. Padrao Brasil = 5 (5%). Se a caixa nao mostrar, usa 5. Se mostrar 50mg ou 5%, usa 5. Se 20mg, usa 2. Se 30mg, usa 3.
   "device_color": "cor do device em ingles curto (ex 'matte black', 'green and silver', 'pink purple gradient')",
+  "device_visual": "descricao visual COMPLETA do pod em ingles, 30-60 palavras, pra usar como prompt de geracao de arte. Inclui: SHAPE (tall slim rectangular / boxy square / rounded cylinder / curved organic), PROPORCOES (height/width ratio approx, ex '3:1 tall slim'), DISPLAY (has small LED screen at front / no screen), CONTROLS (boost/eco button on side / power button on bottom / no buttons), MOUTHPIECE (tapered black / wide rounded / square flat), LOGO (centered front / on side / on top), TEXTURE (matte / glossy / soft-touch / metallic / translucent), FEATURES ESPECIAIS (light strip on side / transparent tank visible / dual mesh visible). Ex: 'Tall slim rectangular vape pod, 3:1 ratio, small LED screen on lower front showing puff count, side boost/eco toggle button, tapered black mouthpiece, matte orange body with bull-skull logo centered front, white IV BR badge on lower right corner'",
   "cores_predominantes": "cores da caixa em portugues (ex 'verde escuro com prata e detalhes lima', 'preto matte e neon azul')",
   "flavor_elements": "elementos visuais do sabor pra prompt de arte em ingles (ex 'mint leaves and ice crystals', 'mango slices and frost', 'watermelon dragonfruit')",
   "descricao_quebrada": "max 80 caracteres, vibe lo-fi authentic Gen Z favela Vila Prudente, minusculas, max 1 emoji, sensacao real do sabor. NUNCA usar 'delicioso, incrivel, experimente, o melhor'. Exemplos certos: 'menta gelada que escorre na garganta 🧊', 'manga doce escorrendo no calor', 'frutas vermelhas com soco de gelo'",
@@ -304,7 +305,7 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
     const podSource = makeSource(podUrl);
     if (podSource) {
       content.push({ type: "image", source: podSource });
-      userText = "2 fotos: a 1ª eh a CAIXA do pod (info textual de marca/modelo/sabor/specs). A 2ª eh o POD ao vivo (cor real do device). Use texto da CAIXA pra brand/model/flavor/puffs/ml/mg, e use a cor REAL do POD pra `device_color`. Responde SO o JSON.";
+      userText = "2 fotos: a 1ª eh a CAIXA do pod (info textual de marca/modelo/sabor/specs). A 2ª eh o POD ao vivo. Use texto da CAIXA pra brand/model/flavor/puffs/ml/mg. Use o POD ao vivo pra `device_color` (cor real) E `device_visual` (formato/proporcoes/display/botoes/mouthpiece/textura/features especiais — observa TUDO no pod fisico, nao na caixa). Responde SO o JSON.";
     } else {
       userText = "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois.";
     }
@@ -330,11 +331,16 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
 // ============ GROK PADRÃO A+ ============
 // Híbrido: pod nítido em fundo dark gradient acid fade + aura sutil cyan/pink.
 // NÃO branco asséptico, NÃO caos cyber. Catálogo coerente com alma Drope.
-async function generatePadraoAPlus(brand, model, flavor, coresPredominantes) {
+async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, deviceVisual) {
   const cores = coresPredominantes || "matte black with brand colors";
   const fullName = `${brand} ${model || ''} ${flavor}`.replace(/\s+/g, ' ').trim();
+  // device_visual descreve forma/proporcoes/display/botoes/textura do pod real (do Vision com 2 fotos).
+  // Sem ele, fallback eh generico — arte vai ficar parecida com pod tipico mas nao com o REAL.
+  const subject = deviceVisual
+    ? `Premium product photography of a single disposable vape pod (${fullName}). DEVICE TO RENDER: ${deviceVisual}. The shape, proportions, display, buttons, mouthpiece and features described MUST be respected exactly`
+    : `Premium product photography of a single disposable vape pod, ${fullName}`;
 
-  const prompt = `Premium product photography of a single disposable vape pod, ${fullName}, centered vertical orientation. Background: subtle dark gradient from deep navy (#070F34) to violet-purple (#1a0d2e) to near-black (#05080f), barely visible cosmic dust particles in the corners. Subtle cyan (#34EDF3) rim light on left edge of pod, faint magenta-pink (#F715AB) rim on right edge, very soft purple (#9201CB) volumetric haze behind. Subtle reflective floor with gentle chromatic aberration glow underneath the pod. Brand text, sabor name and packaging colors crystal clear and ultra-sharp. Color palette of pod must match real packaging: ${cores}. Frame ratio 1:1, resolution 1024x1024. No humans, no warning labels prominently shown, no AI text overlays, no other logos, no extra props. Style: premium e-commerce meets cyberpunk Vila Prudente, Gen Z 2026 aesthetic. Photorealistic + cinematic lighting. NOT pure white background, NOT chaotic neon, NOT minimalist Apple. Goal: 200 products in catalog scroll feel coherent and identifiable but with Drope soul.`;
+  const prompt = `${subject}, centered vertical orientation. Background: subtle dark gradient from deep navy (#070F34) to violet-purple (#1a0d2e) to near-black (#05080f), barely visible cosmic dust particles in the corners. Subtle cyan (#34EDF3) rim light on left edge of pod, faint magenta-pink (#F715AB) rim on right edge, very soft purple (#9201CB) volumetric haze behind. Subtle reflective floor with gentle chromatic aberration glow underneath the pod. Brand text, sabor name and packaging colors crystal clear and ultra-sharp. Color palette of pod must match real packaging: ${cores}. Frame ratio 1:1, resolution 1024x1024. No humans, no warning labels prominently shown, no AI text overlays, no other logos, no extra props. Style: premium e-commerce meets cyberpunk Vila Prudente, Gen Z 2026 aesthetic. Photorealistic + cinematic lighting. NOT pure white background, NOT chaotic neon, NOT minimalist Apple. Goal: 200 products in catalog scroll feel coherent and identifiable but with Drope soul.`;
 
   console.log("[Grok A+] generating image for:", fullName);
   const r = await fetch("https://api.x.ai/v1/images/generations", {
@@ -653,7 +659,7 @@ async function processProductRegistration(phone, caixaUrl, podUrl, preComputedDa
 
   // NOVO → arte + insert
   await sendText(phone, "achei novo. gerando arte...", body);
-  const grokUrl = await generatePadraoAPlus(brand, model, flavor, data.cores_predominantes);
+  const grokUrl = await generatePadraoAPlus(brand, model, flavor, data.cores_predominantes, data.device_visual);
   let publicImageUrl = null;
   let imageStatus = 'pending_regeneration';
   if (grokUrl) {
@@ -685,6 +691,7 @@ async function processProductRegistration(phone, caixaUrl, podUrl, preComputedDa
       ml: data.ml,
       mg_nicotina: data.mg_nicotina,
       device_color: data.device_color,
+      device_visual: data.device_visual,
       registered_with_2_photos: !!podUrl,
     },
   });
