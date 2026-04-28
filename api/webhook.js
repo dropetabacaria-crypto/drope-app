@@ -408,6 +408,15 @@ async function handleAdminLucas(phone, msg, body) {
   const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
   console.log("[handleAdminLucas] hasImage:", hasImage, "| text:", text.slice(0, 80));
 
+  // DEBUG TEMPORARIO: manda payload pro proprio admin via whats (so quando rola imagem)
+  // Andrade ve o JSON exato pra Code identificar formato e remover esse bloco depois.
+  if (hasImage) {
+    const dump1 = JSON.stringify(msg).slice(0, 600);
+    const dump2 = JSON.stringify(msg).slice(600, 1200);
+    await sendText(phone, `🔍 DEBUG msg (parte 1/2):\n${dump1}`, body);
+    if (dump2) await sendText(phone, `🔍 DEBUG msg (parte 2/2):\n${dump2}`, body);
+  }
+
   // Comando texto: estoque
   if (!hasImage) {
     if (!text) {
