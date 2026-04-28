@@ -1,16 +1,16 @@
-// Drope WhatsApp AI Agent â€” Vercel Serverless Function v3
+// Drope WhatsApp AI Agent — Vercel Serverless Function v3
 // 3 modos: atendimento cliente | cadastro/entrada (Lucas) | baixa estoque (caixa)
 // Claude Vision (Haiku 4.5) + Grok image gen + Supabase storage + drope_products
 //
 // V3 (osso 9, 27/04/2026):
-// - Tabela: products â†’ drope_products (consistÃªncia com app)
-// - PadrÃ£o A+ hÃ­brido (gradient acid fade + aura cyan/pink, NÃƒO branco assÃ©ptico, NÃƒO caos cyber)
+// - Tabela: products → drope_products (consistência com app)
+// - Padrão A+ híbrido (gradient acid fade + aura cyan/pink, NÃO branco asséptico, NÃO caos cyber)
 // - Upload de imagem pro Supabase Storage (URL Grok externa expira)
-// - hidden=true atÃ© Andrade definir preÃ§o
-// - Mensagens lo-fi authentic (minÃºsculas, sem corporativismo)
+// - hidden=true até Andrade definir preço
+// - Mensagens lo-fi authentic (minúsculas, sem corporativismo)
 // - descricao_quebrada Gen Z favela (max 80 chars, max 1 emoji)
-// - SEM vÃ­deo (V1.5)
-// - SEM hero shot PadrÃ£o B (V1.5: botÃ£o manual em /admin/products/:id/generate-hero)
+// - SEM vídeo (V1.5)
+// - SEM hero shot Padrão B (V1.5: botão manual em /admin/products/:id/generate-hero)
 
 // ============ CONFIG ============
 const UAZAPI_SERVER = process.env.UAZAPI_SERVER || "https://dropepod.uazapi.com";
@@ -20,14 +20,14 @@ const XAI_API_KEY = process.env.XAI_API_KEY || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://udsjnhbkapjwpdolvtri.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
 
-// Whitelist: sÃ³ esse nÃºmero cadastra produto. Outros = cliente.
+// Whitelist: só esse número cadastra produto. Outros = cliente.
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
 const ADMIN_CAIXA = process.env.ADMIN_CAIXA || "";
 
 // Storage bucket pra imagens geradas
 const STORAGE_BUCKET = "drope-product-images";
 
-// Custo cap diÃ¡rio hardcoded (anti-runaway)
+// Custo cap diário hardcoded (anti-runaway)
 const MAX_IMAGE_GEN_PER_DAY = 50;
 
 // ============ RATE LIMITING ============
@@ -53,7 +53,7 @@ function isValidWebhook(body) {
   return true;
 }
 
-// ============ HISTÃ“RICO DE CONVERSAS ============
+// ============ HISTÓRICO DE CONVERSAS ============
 const conversations = new Map();
 const HISTORY_LIMIT = 10;
 const HISTORY_TTL = 30 * 60 * 1000;
@@ -128,13 +128,13 @@ async function findExistingProduct(brand, model, flavor) {
 function slugify(brand, model, flavor) {
   const raw = `${brand}-${model}-${flavor}`.toLowerCase();
   return raw
-    .normalize('NFD').replace(/[Ì€-Í¯]/g, '')   // tira acentos
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // tira acentos (combining marks, ASCII-safe)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 }
 
-// Upload base64 ou Buffer pro Supabase Storage. Retorna URL pÃºblica.
+// Upload base64 ou Buffer pro Supabase Storage. Retorna URL pública.
 async function uploadToStorage(slug, imageData, contentType = 'image/png') {
   const path = `pods/${slug}.png`;
   const url = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`;
@@ -148,7 +148,7 @@ async function uploadToStorage(slug, imageData, contentType = 'image/png') {
     body = imageData;
   }
 
-  // Upload com upsert (sobrescreve se jÃ¡ existir)
+  // Upload com upsert (sobrescreve se já existir)
   const r = await fetch(url, {
     method: 'POST',
     headers: {
@@ -165,13 +165,13 @@ async function uploadToStorage(slug, imageData, contentType = 'image/png') {
     console.error('[Storage] upload error:', r.status, await r.text());
     return null;
   }
-  // URL pÃºblica (bucket precisa ser public)
+  // URL pública (bucket precisa ser public)
   return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
 }
 
 async function downloadImage(url) {
   if (url.startsWith('data:')) {
-    return url; // jÃ¡ Ã© base64 inline
+    return url; // já é base64 inline
   }
   const r = await fetch(url);
   if (!r.ok) {
@@ -220,7 +220,7 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
   "device_color": "cor do device em ingles curto (ex 'matte black', 'green and silver', 'pink purple gradient')",
   "cores_predominantes": "cores da caixa em portugues (ex 'verde escuro com prata e detalhes lima', 'preto matte e neon azul')",
   "flavor_elements": "elementos visuais do sabor pra prompt de arte em ingles (ex 'mint leaves and ice crystals', 'mango slices and frost', 'watermelon dragonfruit')",
-  "descricao_quebrada": "max 80 caracteres, vibe lo-fi authentic Gen Z favela Vila Prudente, minusculas, max 1 emoji, sensacao real do sabor. NUNCA usar 'delicioso, incrivel, experimente, o melhor'. Exemplos certos: 'menta gelada que escorre na garganta ðŸ§Š', 'manga doce escorrendo no calor', 'frutas vermelhas com soco de gelo'",
+  "descricao_quebrada": "max 80 caracteres, vibe lo-fi authentic Gen Z favela Vila Prudente, minusculas, max 1 emoji, sensacao real do sabor. NUNCA usar 'delicioso, incrivel, experimente, o melhor'. Exemplos certos: 'menta gelada que escorre na garganta 🧊', 'manga doce escorrendo no calor', 'frutas vermelhas com soco de gelo'",
   "alertas": ["lista de strings com qualquer ambiguidade. ex: 'sabor pode ser Menthol ou Icy Mint', 'nao consegui ler mg de nicotina'"]
 }
 
@@ -246,9 +246,9 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
   }
 }
 
-// ============ GROK PADRÃƒO A+ ============
-// HÃ­brido: pod nÃ­tido em fundo dark gradient acid fade + aura sutil cyan/pink.
-// NÃƒO branco assÃ©ptico, NÃƒO caos cyber. CatÃ¡logo coerente com alma Drope.
+// ============ GROK PADRÃO A+ ============
+// Híbrido: pod nítido em fundo dark gradient acid fade + aura sutil cyan/pink.
+// NÃO branco asséptico, NÃO caos cyber. Catálogo coerente com alma Drope.
 async function generatePadraoAPlus(brand, model, flavor, coresPredominantes) {
   const cores = coresPredominantes || "matte black with brand colors";
   const fullName = `${brand} ${model || ''} ${flavor}`.replace(/\s+/g, ' ').trim();
@@ -368,7 +368,7 @@ async function handleAdminLucas(phone, msg, body) {
   // Comando texto: estoque
   if (!hasImage) {
     if (!text) {
-      // Nem imagem nem texto reconhecido â€” loga payload pra investigar formato novo da UazAPI
+      // Nem imagem nem texto reconhecido — loga payload pra investigar formato novo da UazAPI
       console.log("[handleAdminLucas] payload nao classificado. msg:", JSON.stringify(msg).slice(0, 600));
       await sendText(phone, "manda foto do pod que eu cadastro. ou digita 'estoque' pra ver o que tem.", body);
       return;
@@ -380,7 +380,7 @@ async function handleAdminLucas(phone, msg, body) {
         await sendText(phone, "estoque vazio.", body);
         return;
       }
-      const list = products.map(p => `${p.name}: ${p.qty_available || 0}${p.hidden ? ' (sem preÃ§o)' : ''}`).join('\n');
+      const list = products.map(p => `${p.name}: ${p.qty_available || 0}${p.hidden ? ' (sem preço)' : ''}`).join('\n');
       await sendText(phone, `estoque atual:\n${list}`, body);
       return;
     }
@@ -391,23 +391,23 @@ async function handleAdminLucas(phone, msg, body) {
   // ========== MODO CADASTRO (foto recebida) ==========
   const imageUrl = await getMediaUrl(msg, body);
   if (!imageUrl) {
-    await sendText(phone, "nÃ£o peguei a imagem. manda de novo.", body);
+    await sendText(phone, "não peguei a imagem. manda de novo.", body);
     return;
   }
 
-  await sendText(phone, "ðŸ“¸ lendo a caixa...", body);
+  await sendText(phone, "📸 lendo a caixa...", body);
 
   // 1. Claude Vision extrai dados
   const data = await analyzeProductImage(imageUrl);
 
   if (!data) {
-    await sendText(phone, "nÃ£o consegui ler. manda outra foto, mais nÃ­tida da frente da caixa.", body);
+    await sendText(phone, "não consegui ler. manda outra foto, mais nítida da frente da caixa.", body);
     return;
   }
 
-  // Caso: foto nÃ£o Ã© pod
+  // Caso: foto não é pod
   if (data.alertas?.includes('nao parece pod') || (!data.brand && !data.flavor_en)) {
-    await sendText(phone, "isso nÃ£o tÃ¡ parecendo pod. confere se Ã© a foto certa.", body);
+    await sendText(phone, "isso não tá parecendo pod. confere se é a foto certa.", body);
     return;
   }
 
@@ -427,22 +427,22 @@ async function handleAdminLucas(phone, msg, body) {
   const existing = await findExistingProduct(brand, model, flavor);
 
   if (existing) {
-    // Produto JÃ existe â†’ incrementa estoque
+    // Produto JÁ existe → incrementa estoque
     const newQty = (existing.qty_available || 0) + 1;
     await sbUpdate('drope_products', `id=eq.${existing.id}`, { qty_available: newQty });
 
     const priceStr = existing.price_cents
       ? `R$ ${(existing.price_cents / 100).toFixed(2).replace('.', ',')}`
-      : 'sem preÃ§o';
+      : 'sem preço';
 
     await sendText(phone,
-      `+1 ${fullName}\nestoque: ${existing.qty_available || 0} â†’ ${newQty}\npreÃ§o: ${priceStr}`,
+      `+1 ${fullName}\nestoque: ${existing.qty_available || 0} → ${newQty}\npreço: ${priceStr}`,
       body
     );
     return;
   }
 
-  // 3. Produto NOVO â†’ gera imagem A+ + cria registro
+  // 3. Produto NOVO → gera imagem A+ + cria registro
   await sendText(phone, "achei novo. gerando arte...", body);
 
   const grokUrl = await generatePadraoAPlus(brand, model, flavor, data.cores_predominantes);
@@ -459,7 +459,7 @@ async function handleAdminLucas(phone, msg, body) {
     }
   }
 
-  // 4. Insere em drope_products (hidden=true atÃ© preÃ§o)
+  // 4. Insere em drope_products (hidden=true até preço)
   const inserted = await sbInsert('drope_products', {
     slug,
     name: fullName,
@@ -476,7 +476,7 @@ async function handleAdminLucas(phone, msg, body) {
     image_status: imageStatus,
     descricao_quebrada: data.descricao_quebrada,
     qty_available: 1,
-    hidden: true,                            // sÃ³ publica apÃ³s preÃ§o
+    hidden: true,                            // só publica após preço
     category: 'pods',
     created_via: 'whatsapp_agent',
   });
@@ -493,19 +493,19 @@ async function handleAdminLucas(phone, msg, body) {
 
   const adminLink = `https://drope-app.vercel.app/admin#products/${inserted.id}`;
   await sendText(phone,
-    `valeu â€” ${fullName} tÃ¡ no app.\nfalta sÃ³ o preÃ§o.\n${adminLink}${alertSuffix}`,
+    `valeu — ${fullName} tá no app.\nfalta só o preço.\n${adminLink}${alertSuffix}`,
     body
   );
 
-  // Manda a imagem gerada tambÃ©m (visualizaÃ§Ã£o rÃ¡pida)
+  // Manda a imagem gerada também (visualização rápida)
   if (publicImageUrl) {
-    await sendImage(phone, publicImageUrl, `${fullName} â€” arte A+`, body);
+    await sendImage(phone, publicImageUrl, `${fullName} — arte A+`, body);
   }
 }
 
-// ============ FLUXO BAIXA ESTOQUE (CAIXA) â€” placeholder ============
+// ============ FLUXO BAIXA ESTOQUE (CAIXA) — placeholder ============
 async function handleAdminCaixa(phone, msg, body) {
-  await sendText(phone, "modo caixa ainda nÃ£o migrado pra drope_products. fala com Andrade.", body);
+  await sendText(phone, "modo caixa ainda não migrado pra drope_products. fala com Andrade.", body);
 }
 
 // ============ ATENDIMENTO CLIENTE (Claude Haiku) ============
@@ -560,14 +560,14 @@ module.exports = async function handler(req, res) {
 
     // ========== ROTEAMENTO ==========
 
-    // ANDRADE â†’ modo cadastro
+    // ANDRADE → modo cadastro
     if (phone === ADMIN_LUCAS) {
       console.log("MODE: admin-lucas (cadastro)");
       await handleAdminLucas(phone, msg, body);
       return res.status(200).send("admin-lucas");
     }
 
-    // CAIXA â†’ modo baixa
+    // CAIXA → modo baixa
     if (ADMIN_CAIXA && phone === ADMIN_CAIXA) {
       console.log("MODE: admin-caixa");
       await handleAdminCaixa(phone, msg, body);
