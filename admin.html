@@ -691,6 +691,7 @@ function renderStock() {
         </div>
         <button class="btn-action advance" onclick="saveStock('${escapeHtml(p.slug)}')">salvar</button>
         <button class="btn-action cancel" onclick="toggleHidden('${escapeHtml(p.slug)}', ${!p.hidden})">${p.hidden ? 'mostrar' : 'esconder'}</button>
+        ${p.hidden ? '<span class="btn-action" style="opacity:0.4;cursor:not-allowed;" title="publica primeiro pra ver no app">🔗 app</span>' : `<button class="btn-action" style="background:#1a3a5a;color:#7dd3fc;border:1px solid #2a4a6a;" onclick="window.open('/#produto/' + encodeURIComponent('${escapeHtml(p.slug)}'), '_blank')">🔗 app</button>`}
       </div>
     `;
   }).join('');
