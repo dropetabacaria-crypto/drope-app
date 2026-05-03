@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no" class="notranslate">
+<head>
+<meta charset="UTF-8">
+<script>
+// CACHE BUSTER ULTRA-AGRESSIVO — roda ANTES de qualquer coisa.
+// Se a versão salva é diferente, força unregister do SW + clear de todos os caches + reload limpo.
+// Bumpar __DROPE_V quando lançar versão que quebra cache.
+(function(){
+  var V='8';
+  try{
+    if(localStorage.getItem('drope_v')!==V){
+      localStorage.setItem('drope_v',V);
+      var p=[];
+      if('serviceWorker' in navigator){
+        p.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}).catch(function(){}));
+      }
+      if(window.caches){
+        p.push(caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}).catch(function(){}));
+      }
+      Promise.all(p).then(function(){
+        // Reload sem cache
+        var u=new URL(location.href); u.searchParams.set('_b',Date.now().toString(36));
+        location.replace(u.toString());
+      });
+    }
+  }catch(e){}
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A14">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- Desabilita tradução automática do Edge/Chrome (translate manipula DOM e quebra event listeners) -->
+<meta name="google" content="notranslate">
+<meta name="robots" content="notranslate"></meta>
+<!-- Eruda: console DevTools dentro da página, pra debug mobile sem cabo USB.
+     Toca no canto inferior esquerdo da bolinha de Eruda pra abrir o console — vê logs, erros, network. -->
+<script src="https://cdn.jsdelivr.net/npm/eruda@3.0.1"></script>
+<script>try { eruda.init(); } catch(e) {}</script>
+<title>Receber Estoque ✦ Drope</title>
+<link rel="icon" href="/icons/drope-avatar.png" type="image/png">
+<!-- PWA desabilitado nessa versão simplificada — service worker causava cache hell no Chrome do Xiaomi.
+     Re-ativar quando o fluxo estiver estável e validado em browser real. -->
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<!-- ZXing-js: lib JS pura pra ler barcode (substitui BarcodeDetector nativo que trava no Chrome do Xiaomi) -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+<style>
+  :root {
+    --bg: #0A0A14;
+    --bg-elevated: #14141F;
+    --fg: #EAEAF2;
+    --fg-dim: #8A8AA3;
+    --pink: #FF2D6F;
+    --pink-glow: rgba(255, 45, 111, 0.45);
+    --lime: #D4FF2E;
+    --lime-glow: rgba(212, 255, 46, 0.55);
+    --violet: #9D4EDD;
+    --amber: #FFB800;
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    overflow: hidden;
+  }
+  body { display: flex; flex-direction: column; }
+
+  /* Header */
+  header {
+    flex-shrink: 0;
+    padding: 14px 16px 10px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+  .h-row { display: flex; align-items: center; justify-content: space-between; }
+  .h-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .h-title em { color: var(--lime); font-style: normal; }
+  .h-close {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--bg-elevated); color: var(--fg-dim);
+    border: 1px solid var(--border);
+    cursor: pointer; text-decoration: none;
+  }
+  .counters {
+    display: flex; gap: 18px; margin-top: 8px; font-size: 12px;
+  }
+  .counters span b { font-weight: 700; }
+  .counters .c-tot b { color: var(--fg); }
+  .counters .c-ent b { color: var(--pink); }
+  .counters .c-new b { color: var(--lime); }
+  .counters .c-skip b { color: var(--amber); }
+
+  /* Auth */
+  .auth-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--bg);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .auth-overlay.show { display: flex; }
+  .auth-box { width: 100%; max-width: 360px; }
+  .auth-box h2 { margin: 0 0 6px; font-size: 22px; }
+  .auth-box p { margin: 0 0 16px; color: var(--fg-dim); font-size: 13px; }
+  .auth-box input {
+    width: 100%; padding: 12px 14px;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--fg); border-radius: 10px; font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* Scanner */
+  main {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  #scanner-area {
+    flex: 1; position: relative; background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #scanner-video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .viewfinder {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 78%; max-width: 380px;
+    aspect-ratio: 4 / 3;
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    pointer-events: none;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  /* Hint do modo foto: ocupa MESMA caixa do viewfinder, conteúdo centralizado por flex */
+  #photo-mode-hint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 78%; max-width: 380px;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px 20px;
+    color: var(--fg-dim);
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+  #photo-mode-hint .pmh-icon { font-size: 48px; margin-bottom: 10px; line-height: 1; }
+  #photo-mode-hint .pmh-title { font-size: 16px; color: var(--fg); margin-bottom: 6px; font-weight: 600; }
+  #photo-mode-hint .pmh-text { font-size: 13px; line-height: 1.4; max-width: 280px; }
+  #photo-mode-hint .pmh-foot { font-size: 11px; margin-top: 12px; color: var(--fg-dim); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.15); }
+    50%      { box-shadow: 0 0 0 6px rgba(255,255,255,0.05); }
+  }
+  .viewfinder.exists {
+    border-color: var(--pink); border-width: 4px;
+    box-shadow: 0 0 28px var(--pink-glow);
+    animation: none;
+  }
+  .viewfinder.new {
+    border-color: var(--lime); border-width: 4px;
+    box-shadow: 0 0 28px var(--lime-glow);
+    animation: none;
+  }
+  .viewfinder.error {
+    border-color: var(--amber); border-width: 4px;
+    animation: none;
+  }
+  .vf-corners::before, .vf-corners::after,
+  .vf-corners > i::before, .vf-corners > i::after {
+    content: ''; position: absolute;
+    width: 22px; height: 22px;
+    border: 3px solid var(--lime);
+    pointer-events: none;
+  }
+  .vf-corners::before  { top: -3px;    left: -3px;    border-right: none; border-bottom: none; border-top-left-radius: 6px; }
+  .vf-corners::after   { top: -3px;    right: -3px;   border-left: none;  border-bottom: none; border-top-right-radius: 6px; }
+  .vf-corners i::before { bottom: -3px; left: -3px;   border-right: none; border-top: none;    border-bottom-left-radius: 6px; top: auto; }
+  .vf-corners i::after  { bottom: -3px; right: -3px;  border-left: none;  border-top: none;    border-bottom-right-radius: 6px; top: auto; }
+  .vf-corners { position: absolute; inset: 0; }
+
+  /* Toast: acima do debug-chip que fica embaixo */
+  .toast {
+    position: absolute; left: 50%; bottom: 60px;
+    transform: translateX(-50%);
+    background: rgba(20,20,31,0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    max-width: 92%;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0; transition: opacity 0.18s;
+    z-index: 6;
+  }
+  .toast.show { opacity: 1; }
+  .toast.exists { border-color: var(--pink); color: var(--fg); }
+  .toast.new { border-color: var(--lime); color: var(--fg); }
+
+  /* Action bar */
+  .action-bar {
+    flex-shrink: 0;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    /* Garante que nenhum elemento absoluto/fixed sobreposto rouba taps dos botões aqui */
+    position: relative; z-index: 10;
+    touch-action: manipulation;
+  }
+  .btn {
+    padding: 13px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--fg);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.08s, background 0.18s;
+    /* touch-action manipulation: elimina delay de 300ms do double-tap, taps respondem instantâneo no mobile */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(212,255,46,0.2);
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--lime); color: #000;
+    border-color: var(--lime);
+  }
+  .btn-pink { background: var(--pink); color: #fff; border-color: var(--pink); }
+  .btn-ghost { background: transparent; color: var(--fg-dim); }
+  .btn-block { grid-column: 1 / -1; }
+
+  /* Modal */
+  .modal {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(10,10,20,0.86);
+    backdrop-filter: blur(8px);
+    display: none; align-items: flex-end; justify-content: center;
+    padding: 0;
+  }
+  .modal.show { display: flex; }
+  .modal-content {
+    width: 100%; max-width: 480px;
+    max-height: 92dvh;
+    background: var(--bg-elevated);
+    border-radius: 18px 18px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 18px; }
+  .modal .sub { color: var(--fg-dim); font-size: 13px; margin-bottom: 14px; }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 4px;
+  }
+  .field input, .field select {
+    width: 100%; padding: 11px 12px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--fg); border-radius: 10px; font-size: 15px;
+  }
+  .field input:read-only { color: var(--fg-dim); background: rgba(255,255,255,0.03); }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Capture overlay - estilo Drope */
+  #capture-area {
+    position: fixed; inset: 0; z-index: 40;
+    background: #000;
+    display: none; flex-direction: column;
+  }
+  #capture-area.show { display: flex; }
+  .cap-header {
+    flex-shrink: 0;
+    padding: 14px 16px 12px calc(16px + env(safe-area-inset-left));
+    background: linear-gradient(180deg, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.6) 100%);
+    color: var(--fg);
+    position: relative; z-index: 2;
+  }
+  .cap-step {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--lime); color: #000;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .cap-title {
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .cap-sub { color: var(--fg-dim); font-size: 13px; margin: 0; }
+  #capture-video {
+    flex: 1; width: 100%; object-fit: cover; min-height: 0;
+    position: relative; z-index: 1;
+  }
+  .cap-frame {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 78%; max-width: 380px;
+    aspect-ratio: 3 / 4;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .cap-frame::before, .cap-frame::after,
+  .cap-frame > i::before, .cap-frame > i::after {
+    content: ''; position: absolute;
+    width: 28px; height: 28px;
+    border: 3px solid var(--lime);
+    box-shadow: 0 0 12px var(--lime-glow);
+  }
+  .cap-frame::before { top: 0;    left: 0;    border-right: none; border-bottom: none; border-top-left-radius: 8px; }
+  .cap-frame::after  { top: 0;    right: 0;   border-left: none;  border-bottom: none; border-top-right-radius: 8px; }
+  .cap-frame i::before { bottom: 0; left: 0;  border-right: none; border-top: none;    border-bottom-left-radius: 8px; top: auto; }
+  .cap-frame i::after  { bottom: 0; right: 0; border-left: none;  border-top: none;    border-bottom-right-radius: 8px; top: auto; }
+  #capture-area .cap-actions {
+    flex-shrink: 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: 1fr; gap: 10px;
+    background: linear-gradient(0deg, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.6) 100%);
+    position: relative; z-index: 2;
+  }
+  .cap-actions .btn-snap {
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    background: var(--lime); color: #000;
+    border: 4px solid rgba(255,255,255,0.15);
+    font-size: 28px;
+    margin: 0 auto;
+    box-shadow: 0 0 24px var(--lime-glow);
+    display: grid; place-items: center;
+  }
+  .cap-actions .btn-snap:active { transform: scale(0.94); }
+  .cap-actions .btn-cancel {
+    background: transparent; border: none;
+    color: var(--fg-dim); font-size: 13px;
+    padding: 8px;
+  }
+
+  /* Loading overlay (Vision analisando) */
+  .vision-overlay {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(10,10,20,0.94);
+    backdrop-filter: blur(10px);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+  }
+  .vision-overlay.show { display: flex; }
+  .vision-spinner {
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    border: 3px solid rgba(212,255,46,0.2);
+    border-top-color: var(--lime);
+    animation: spin 0.9s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .vision-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .vision-sub { font-size: 13px; color: var(--fg-dim); max-width: 280px; }
+  .vision-step {
+    margin-top: 14px; font-size: 12px;
+    color: var(--lime); letter-spacing: 0.05em;
+    animation: pulse-text 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-text {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  /* Last action chip — fica em cima do video, com right:64px pra deixar espaço pra bolinha (44+12+8=64) */
+  .last-action {
+    position: absolute; top: 12px; left: 12px; right: 64px;
+    background: rgba(20,20,31,0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0; transition: opacity 0.18s;
+    z-index: 5;
+  }
+  .last-action.show { opacity: 1; }
+  .last-action b { color: var(--lime); }
+
+  /* Debug panel — escondido por padrão; ativa com ?debug=1 na URL */
+  .debug-chip {
+    display: none;
+    position: absolute; bottom: 12px; left: 12px; right: 12px;
+    background: rgba(20,20,31,0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(212,255,46,0.25);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--lime);
+    pointer-events: none;
+    z-index: 4;
+    line-height: 1.3;
+    max-height: 60px;
+    overflow: hidden;
+  }
+  .debug-chip.on { display: block; }
+  .debug-chip .dim { color: var(--fg-dim); }
+
+  /* Botão de desfazer dentro do last-action chip — ative pointer-events só no botão */
+  .last-action .undo-btn {
+    background: var(--lime); color: #000;
+    border: 0; padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    margin-left: 10px;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: inherit;
+  }
+  .last-action .undo-btn:active { transform: scale(0.96); }
+
+  /* Resumo */
+  #summary { display: none; padding: 18px; overflow-y: auto; flex: 1; }
+  #summary.show { display: block; }
+  #summary h2 { margin: 0 0 14px; }
+  #summary section { margin-bottom: 18px; }
+  #summary section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim); margin: 0 0 8px; }
+  #summary ul { list-style: none; padding: 0; margin: 0; }
+  #summary li { padding: 8px 12px; background: var(--bg-elevated); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+  #summary li.entry b { color: var(--pink); }
+  #summary li.new b { color: var(--lime); }
+  #summary li.skip b { color: var(--amber); }
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-box">
+    <h2>📦 Receber Estoque</h2>
+    <p>cola o admin token pra continuar (fica salvo no celular).</p>
+    <input type="password" id="auth-token" placeholder="ADMIN_TOKEN" autocomplete="off">
+    <button class="btn btn-primary" onclick="saveToken()" style="width:100%">entrar</button>
+  </div>
+</div>
+
+<header>
+  <div class="h-row">
+    <div class="h-title"><em>📦</em> receber estoque</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="h-close" onclick="resetToken()" title="trocar token" style="cursor:pointer;border:1px solid var(--border);font-size:14px">🔑</button>
+      <a class="h-close" href="/#admin-dash" title="sair">×</a>
+    </div>
+  </div>
+  <div class="counters">
+    <span class="c-tot">escaneados <b id="c-total">0</b></span>
+    <span class="c-ent">entradas <b id="c-entries">0</b></span>
+    <span class="c-new">novos <b id="c-new">0</b></span>
+    <span class="c-skip">pulados <b id="c-skip">0</b></span>
+  </div>
+</header>
+
+<main>
+  <div id="scanner-area">
+    <video id="scanner-video" playsinline muted autoplay></video>
+    <div class="viewfinder" id="viewfinder"><div class="vf-corners"><i></i></div></div>
+    <div class="last-action" id="last-action"></div>
+    <div class="toast" id="toast"></div>
+    <div class="debug-chip" id="debug-chip"><span class="dim">debug:</span> 📸 modo foto — toca no botão lime</div>
+    <div id="photo-mode-hint">
+      <div class="pmh-icon">📸</div>
+      <div class="pmh-title">modo foto</div>
+      <div class="pmh-text">toca em <b style="color:var(--lime)">📸 escanear código</b> abaixo, tira foto do barcode e o app processa.</div>
+      <div class="pmh-foot">funciona em qualquer celular ✦ sem trava</div>
+    </div>
+  </div>
+
+  <div class="action-bar" style="display:grid;grid-template-columns:1fr;gap:8px">
+    <button type="button" class="btn btn-primary" id="btn-photo" style="font-size:16px;padding:18px" aria-label="tirar foto manual do código de barras">📸 escanear código</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button type="button" class="btn" id="btn-manual" style="font-size:12px" aria-label="digitar código manualmente">⌨️ digitar</button>
+      <button type="button" class="btn btn-pink" id="btn-finalize" style="font-size:12px" aria-label="finalizar e ver resumo">finalizar</button>
+    </div>
+  </div>
+</main>
+<input type="file" id="photo-scan-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
+
+<!-- RESUMO FINAL -->
+<div id="summary"></div>
+
+<!-- VISION LOADING OVERLAY -->
+<div class="vision-overlay" id="vision-overlay">
+  <div class="vision-spinner"></div>
+  <div class="vision-title" id="vision-title">📸 analisando a foto…</div>
+  <div class="vision-sub">lendo marca, modelo, sabor e specs da caixa.</div>
+  <div class="vision-step" id="vision-step">aguenta uns 5-10s</div>
+</div>
+
+<!-- MODAL: vision falhou ou veio incompleto -->
+<div class="modal" id="modal-vision-fail">
+  <div class="modal-content">
+    <h3 id="vf-title">⚠️ não consegui ler a foto</h3>
+    <div class="sub" id="vf-msg">a foto pode estar desfocada, escura ou com brilho na caixa. tenta de novo OU preenche manual.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" onclick="retryPhoto()">📸 nova foto</button>
+      <button class="btn" onclick="proceedManual()">preencher manual</button>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn btn-ghost btn-block" onclick="closeVisionFail()">cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: novo produto detectado -->
+<div class="modal" id="modal-new">
+  <div class="modal-content">
+    <h3>📦 produto novo</h3>
+    <div class="sub" id="new-barcode-line">barcode: —</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" onclick="startCapture()">cadastrar agora</button>
+      <button class="btn" onclick="skipProduct()">pular</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: formulário de cadastro -->
+<div class="modal" id="modal-form">
+  <div class="modal-content">
+    <h3>cadastro rápido</h3>
+    <div class="sub">campos pré-preenchidos pela foto. confirma e segue.</div>
+
+    <div class="field">
+      <label>marca</label>
+      <input type="text" id="f-brand" autocomplete="off">
+    </div>
+    <div class="field-grid">
+      <div class="field">
+        <label>modelo</label>
+        <input type="text" id="f-model" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>sabor</label>
+        <input type="text" id="f-flavor" autocomplete="off">
+      </div>
+    </div>
+    <div class="field-grid">
+      <div class="field">
+        <label>puffs</label>
+        <input type="number" id="f-puffs" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>preço (R$)</label>
+        <input type="number" id="f-price" inputmode="decimal" step="0.01" placeholder="ex: 110">
+      </div>
+    </div>
+    <div class="field">
+      <label>barcode (já lido)</label>
+      <input type="text" id="f-barcode" readonly>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+      <button class="btn btn-primary" onclick="confirmRegister()">confirmar</button>
+      <button class="btn btn-ghost" onclick="closeForm()">cancelar</button>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn btn-block" onclick="retryPhoto()" style="background:transparent;border:1px dashed var(--border);color:var(--fg-dim)">📸 tirar foto de novo</button>
+    </div>
+  </div>
+</div>
+
+<!-- CAPTURE OVERLAY (foto da caixa / pod) — estilo Drope -->
+<div id="capture-area">
+  <div class="cap-header">
+    <span class="cap-step" id="cap-step">1/2 ✦ caixa</span>
+    <h2 class="cap-title" id="cap-title">📸 frente da caixa</h2>
+    <p class="cap-sub" id="cap-sub">enquadra a marca e o sabor dentro do frame.</p>
+  </div>
+  <video id="capture-video" playsinline muted autoplay></video>
+  <div class="cap-frame"><i></i></div>
+  <canvas id="capture-canvas" style="display:none"></canvas>
+  <div class="cap-actions">
+    <button class="btn-snap" onclick="snapPhoto()" aria-label="tirar foto">📸</button>
+    <button class="btn-cancel" onclick="cancelCapture()">cancelar</button>
+  </div>
+</div>
+
+
+<script>
+'use strict';
+
+// ============ TIMING (magic numbers extraídos) ============
+const T = {
+  ANTI_SPAM_MS: 5000,
+  FETCH_CHECK_BARCODE_MS: 10000,
+  FETCH_UPDATE_STOCK_MS: 8000,
+  FETCH_REGISTER_MS: 30000,
+  FETCH_UNDO_MS: 8000,
+  WATCHDOG_INTERVAL_MS: 5000,
+  WATCHDOG_IDLE_MS: 25000,
+  TOAST_DEFAULT_MS: 2000,
+  TOAST_LONG_MS: 4000,
+  LAST_ACTION_DEFAULT_MS: 2200,
+  LAST_ACTION_UNDO_MS: 6000,
+  RESET_VF_MS: 1500,
+  RECENT_SCANS_GC_MS: 30000,
+};
+
+// ============ STATE ============
+const state = {
+  token: null,
+  codeReader: null,
+  controls: null,
+  scanLooping: false,
+  recentScans: new Map(),
+  lastEntry: null,           // { type:'entry', slug, name, oldQty, newQty } pra desfazer
+  total: 0,
+  entries: [],
+  news: [],
+  skipped: [],
+  pendingBarcode: null,
+  visionData: null,
+  capStream: null,
+  capMode: null,
+  capPhotos: { box: null, pod: null },
+  lastDetectAttempt: 0,
+};
+
+// ============ OSSO 24b — PERSISTÊNCIA DE SESSÃO ============
+// Bug 01/05/2026: Andrade tava cadastrando, fechou a aba e ao voltar
+// perdeu o pedido (entries, news, skipped). Solução: auto-save em
+// localStorage com TTL 24h. Fotos base64 NÃO persistem (estouram quota
+// de localStorage); se fechou mid-modal, foto se perde — Andrade tira de novo.
+const SESSION_KEY = 'drope_receber_session_v1';
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+function persistSession() {
+  try {
+    const payload = {
+      total: state.total,
+      entries: state.entries,
+      news: state.news,
+      skipped: state.skipped,
+      pendingBarcode: state.pendingBarcode,
+      // visionData só os campos texto (não fotos) — visionData inclui dados
+      // do Vision mas pode ter referência a base64; salvamos versão "leve"
+      visionData: state.visionData ? {
+        brand: state.visionData.brand || null,
+        model: state.visionData.model || null,
+        flavor_pt: state.visionData.flavor_pt || null,
+        flavor_en: state.visionData.flavor_en || null,
+        puffs: state.visionData.puffs || null,
+        ml: state.visionData.ml || null,
+        mg_nicotina: state.visionData.mg_nicotina || null,
+        descricao_quebrada: state.visionData.descricao_quebrada || null,
+        cores_predominantes: state.visionData.cores_predominantes || null,
+        device_visual: state.visionData.device_visual || null,
+        device_visual_detailed: state.visionData.device_visual_detailed || null,
+        device_color: state.visionData.device_color || null,
+        flavor_elements: state.visionData.flavor_elements || null,
+        barcode: state.visionData.barcode || null,
+        flavor_category: state.visionData.flavor_category || null,
+      } : null,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+  } catch (e) { /* quota? noop */ }
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    if (Date.now() - (data.savedAt || 0) > SESSION_TTL_MS) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return data;
+  } catch (e) { return null; }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+// Aplica session salva no state corrente. Não restaura capPhotos (base64
+// não persiste). Atualiza badges/contadores na UI.
+function restoreSession(data) {
+  if (!data) return;
+  if (typeof data.total === 'number') state.total = data.total;
+  if (Array.isArray(data.entries)) state.entries = data.entries;
+  if (Array.isArray(data.news)) state.news = data.news;
+  if (Array.isArray(data.skipped)) state.skipped = data.skipped;
+  if (data.pendingBarcode) state.pendingBarcode = data.pendingBarcode;
+  if (data.visionData) state.visionData = data.visionData;
+  // Atualiza UI
+  try {
+    const eEl = document.getElementById('c-entries');
+    if (eEl) eEl.textContent = state.entries.length;
+    const nEl = document.getElementById('c-new');
+    if (nEl) nEl.textContent = state.news.length;
+    const sEl = document.getElementById('c-skip');
+    if (sEl) sEl.textContent = state.skipped.length;
+  } catch (e) {}
+}
+
+// Mostra banner ao topo perguntando se quer continuar a sessão anterior.
+function showSessionRestoreBanner(data) {
+  const total = (data.entries?.length || 0) + (data.news?.length || 0) + (data.skipped?.length || 0);
+  if (total === 0 && !data.pendingBarcode) return;
+  const ageMs = Date.now() - (data.savedAt || 0);
+  const ageStr = ageMs < 60000 ? 'agora' : (ageMs < 3600000 ? `${Math.round(ageMs/60000)}min atrás` : `${Math.round(ageMs/3600000)}h atrás`);
+  const div = document.createElement('div');
+  div.id = 'session-restore-banner';
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,rgba(91,33,182,0.95),rgba(255,45,111,0.85));color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.25)';
+  div.innerHTML = `
+    <div style="flex:1;line-height:1.3">
+      <div style="font-weight:700">🦎 sessão anterior salva</div>
+      <div style="font-size:12px;opacity:0.85;margin-top:2px">${data.entries?.length || 0} entradas · ${data.news?.length || 0} novos · ${ageStr}</div>
+    </div>
+    <button type="button" id="srb-continue" style="background:#d4ff2e;color:#000;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-family:inherit">continuar</button>
+    <button type="button" id="srb-discard" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:8px 12px;cursor:pointer;font-family:inherit">novo</button>
+  `;
+  document.body.appendChild(div);
+  document.getElementById('srb-continue').onclick = () => {
+    restoreSession(data);
+    div.remove();
+  };
+  document.getElementById('srb-discard').onclick = () => {
+    clearSession();
+    div.remove();
+  };
+}
+
+// Auto-save antes da aba fechar (best-effort — alguns mobile não disparam)
+window.addEventListener('beforeunload', () => { persistSession(); });
+window.addEventListener('pagehide', () => { persistSession(); });
+// Auto-save em background quando aba fica oculta (mobile fecha rápido)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistSession();
+});
+
+// ============ AUTH ============
+function checkAuth() {
+  // Link mágico: se veio com ?t=TOKEN no URL, salva e limpa do URL antes de qualquer coisa
+  try {
+    const u = new URL(location.href);
+    const tParam = u.searchParams.get('t');
+    if (tParam) {
+      localStorage.setItem('drope_admin_token', tParam.trim());
+      u.searchParams.delete('t');
+      history.replaceState(null, '', u.toString());
+    }
+  } catch (e) { /* ok */ }
+
+  state.token = localStorage.getItem('drope_admin_token') || '';
+  if (!state.token) {
+    document.getElementById('auth-overlay').classList.add('show');
+    return false;
+  }
+  return true;
+}
+function saveToken() {
+  const v = document.getElementById('auth-token').value.trim();
+  if (!v) return;
+  state.token = v;
+  localStorage.setItem('drope_admin_token', v);
+  document.getElementById('auth-overlay').classList.remove('show');
+  startScanner();
+}
+
+// Restart do scanner (chamado pelo menu da bolinha) — para stream, recria detector, recomeça loop.
+// Útil quando BarcodeDetector trava no Xiaomi/MIUI sem precisar reload completo da página.
+window.restartReceberScanner = async function () {
+  try {
+    stopWatchdog();
+    state.scanLooping = false;
+    try { if (state.controls) state.controls.stop(); } catch (e) {}
+    try { if (state.codeReader) state.codeReader.reset(); } catch (e) {}
+    state.controls = null;
+    state.codeReader = null;
+    state.recentScans = new Map();
+    dbg('↻ reiniciando…');
+    await new Promise(r => setTimeout(r, 300));
+    await startScanner();
+  } catch (e) {
+    dbg('⚠️ restart falhou: ' + (e.message || e));
+  }
+};
+
+// Limpa token salvo e mostra auth overlay de novo (pra trocar quando erra)
+function resetToken() {
+  if (!confirm('trocar o admin token?\n(o atual será apagado)')) return;
+  localStorage.removeItem('drope_admin_token');
+  state.token = null;
+  if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+  state.scanLooping = false;
+  document.getElementById('auth-token').value = '';
+  document.getElementById('auth-overlay').classList.add('show');
+  // Esconde modais que possam tar abertos
+  ['modal-new', 'modal-form', 'modal-pod-ask', 'modal-vision-fail', 'vision-overlay', 'capture-area'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+}
+
+// ============ AUDIO FEEDBACK ============
+let _audioCtx = null;
+function audio() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { return null; }
+  }
+  return _audioCtx;
+}
+function playBip(freq, duration, gainVal) {
+  const ctx = audio(); if (!ctx) return;
+  // Mobile suspende AudioContext após inatividade — resume antes de tocar
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = freq;
+  osc.type = 'square';
+  gain.gain.value = gainVal != null ? gainVal : 0.08;
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); setTimeout(() => osc.stop(), duration);
+}
+function bipExists() { playBip(800, 180); }
+function bipNew() { playBip(1100, 120); setTimeout(() => playBip(1400, 120), 150); }
+
+// ============ SCANNER (ZXing-js) ============
+// Usa @zxing/browser via CDN. Não depende do BarcodeDetector nativo que trava no
+// Chrome do Xiaomi/MIUI. Funciona em qualquer browser moderno.
+async function startScanner() {
+  try {
+    if (!window.ZXingBrowser) {
+      dbg('⚠️ ZXing não carregou — verifica conexão');
+      showToast('biblioteca não carregou — reload', 'error', 4000);
+      return;
+    }
+    dbg('🎥 abrindo câmera…');
+
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    state.codeReader = codeReader;
+    state.scanLooping = true;
+    state.lastDetectAttempt = Date.now();
+
+    const video = document.getElementById('scanner-video');
+
+    // Tenta preferir câmera traseira via deviceId. Se listVideoInputDevices não responder,
+    // usa undefined (deixa ZXing escolher) que ativa qualquer câmera disponível.
+    let deviceId = undefined;
+    try {
+      const devices = await ZXingBrowser.BrowserMultiFormatReader.listVideoInputDevices();
+      dbg(`🎥 ${devices.length} câmera${devices.length === 1 ? '' : 's'}`);
+      const back = devices.find(d => /back|trás|environment|rear/i.test(d.label || ''));
+      if (back) deviceId = back.deviceId;
+      else if (devices.length > 0) deviceId = devices[devices.length - 1].deviceId;
+    } catch (e) {
+      dbg('⚠️ list devices falhou — usando default');
+    }
+
+    state.controls = await codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
+      // Callback é chamado a cada frame analisado (com result OU com err NotFoundException).
+      // Atualiza watchdog timestamp em CADA chamada — se ZXing parar de chamar, reinicia.
+      state.lastDetectAttempt = Date.now();
+      if (result) {
+        const code = (result.getText() || '').trim();
+        if (code) {
+          // Bloqueia leitura durante modais
+          const blocked = isAnyModalOpen();
+          if (!blocked) processBarcode(code);
+        }
+      }
+      // err é NotFoundException quando frame não tem barcode — esperado, ignora
+    });
+
+    dbg('✅ scanner ativo (ZXing)');
+    startWatchdog();
+  } catch (e) {
+    dbg('⚠️ erro: ' + (e.message || e));
+    showToast('erro câmera: ' + (e.message || e), 'error', 6000);
+  }
+}
+
+// Helper centralizado: checa se algum modal/overlay tá aberto (bloqueia scan e outros eventos)
+function isAnyModalOpen() {
+  return ['modal-new', 'modal-form', 'capture-area', 'vision-overlay', 'modal-vision-fail']
+    .some(id => {
+      const el = document.getElementById(id);
+      return el && el.classList.contains('show');
+    });
+}
+
+// Watchdog: detecta congelamento do scanner (bug Chrome/MIUI antigo).
+// state.stream removido — ZXing gerencia o stream internamente. Só precisa scanLooping.
+let _watchdogTimer = null;
+function startWatchdog() {
+  if (_watchdogTimer) clearInterval(_watchdogTimer);
+  state.lastDetectAttempt = Date.now();
+  _watchdogTimer = setInterval(() => {
+    if (!state.scanLooping || !state.codeReader) return;
+    const idle = Date.now() - (state.lastDetectAttempt || 0);
+    if (idle > T.WATCHDOG_IDLE_MS) {
+      dbg(`🤖 watchdog: ${Math.round(idle/1000)}s sem detect — reiniciando…`);
+      if (typeof window.restartReceberScanner === 'function') window.restartReceberScanner();
+    }
+  }, T.WATCHDOG_INTERVAL_MS);
+}
+function stopWatchdog() { if (_watchdogTimer) { clearInterval(_watchdogTimer); _watchdogTimer = null; } }
+
+function isRecent(barcode) {
+  const ts = state.recentScans.get(barcode);
+  if (!ts) return false;
+  return Date.now() - ts < T.ANTI_SPAM_MS;
+}
+
+// Limpa entries velhas do recentScans pra não vazar memória em sessão longa
+function gcRecentScans() {
+  const cutoff = Date.now() - T.ANTI_SPAM_MS;
+  for (const [k, ts] of state.recentScans) {
+    if (ts < cutoff) state.recentScans.delete(k);
+  }
+}
+setInterval(gcRecentScans, T.RECENT_SCANS_GC_MS);
+
+// Escape HTML pra prevenir XSS via nome do produto vindo do banco
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function dbg(msg) {
+  const el = document.getElementById('debug-chip');
+  if (!el) return;
+  const t = new Date().toTimeString().slice(0, 8);
+  el.innerHTML = `<span class="dim">${t}</span> ${msg}`;
+}
+
+async function processBarcode(barcode) {
+  if (isRecent(barcode)) { dbg(`anti-spam ignorou <b>${barcode}</b>`); return; }
+  // Marca anti-spam ANTES do fetch (evita re-leitura durante request)
+  state.recentScans.set(barcode, Date.now());
+
+  state.total++;
+  document.getElementById('c-total').textContent = state.total;
+  dbg(`📡 fetch check_barcode <b>${barcode}</b>…`);
+
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), T.FETCH_CHECK_BARCODE_MS);
+    const r = await fetch(`/api/webhook?action=check_barcode&barcode=${encodeURIComponent(barcode)}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    dbg(`📡 status ${r.status} — parseando…`);
+    const data = await r.json();
+    if (data && data.exists && data.product) {
+      dbg(`✅ existe: ${data.product.name}`);
+      await handleExisting(data.product);
+    } else if (data && data.error) {
+      // Erro do servidor (ex: SUPABASE down) — mostra erro mas trata como novo pra Andrade poder cadastrar manual
+      dbg(`⚠️ servidor: ${data.error}`);
+      setVfClass('error');
+      showToast('erro: ' + data.error, 'error', 4000);
+      setTimeout(resetVf, 1500);
+    } else {
+      dbg(`📦 novo barcode ${barcode}`);
+      handleNew(barcode);
+    }
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? `timeout (${T.FETCH_CHECK_BARCODE_MS/1000}s)` : (e.message || String(e));
+    dbg(`⚠️ fetch falhou: ${msg}`);
+    // Falhou: libera anti-spam pra permitir nova tentativa
+    state.recentScans.delete(barcode);
+    setVfClass('error');
+    showToast('erro: ' + msg, 'error', T.TOAST_LONG_MS);
+    setTimeout(resetVf, T.RESET_VF_MS);
+  }
+}
+
+async function handleExisting(product) {
+  setVfClass('exists');
+  bipExists();
+  dbg(`✅ existe: ${product.name} ✦ +1 estoque…`);
+
+  const oldQty = product.qty_available || 0;
+  const newQty = oldQty + 1;
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), T.FETCH_UPDATE_STOCK_MS);
+    const r = await fetch('/api/admin-update-stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify({ slug: product.slug, qty_available: newQty }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      dbg(`⚠️ update-stock ${r.status}: ${txt.slice(0,60)}`);
+    } else {
+      dbg(`✅ estoque ${oldQty} → ${newQty}`);
+    }
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? `timeout ${T.FETCH_UPDATE_STOCK_MS/1000}s` : (e.message || e);
+    dbg(`⚠️ update-stock falhou: ${msg}`);
+  }
+
+  state.entries.push({ barcode: product.barcode, slug: product.slug, name: product.name, oldQty, newQty });
+  document.getElementById('c-entries').textContent = state.entries.length;
+  persistSession();
+
+  state.lastEntry = {
+    type: 'entry',
+    slug: product.slug,
+    barcode: product.barcode,
+    name: product.name,
+    oldQty,
+    newQty,
+    at: Date.now()
+  };
+
+  // escapeHtml previne XSS em nome de produto vindo do banco
+  showLastAction(
+    `✅ +1 <b>${escapeHtml(product.name)}</b> ✦ ${oldQty}→${newQty} <button type="button" class="undo-btn" onclick="undoLastEntry()">↩ desfazer</button>`,
+    T.LAST_ACTION_UNDO_MS
+  );
+  setTimeout(resetVf, T.RESET_VF_MS);
+}
+
+// Reverte a última entrada — chama admin-update-stock com a qty antiga
+async function undoLastEntry() {
+  const e = state.lastEntry;
+  if (!e || e.type !== 'entry') return;
+  state.lastEntry = null; // evita duplo desfazer
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), T.FETCH_UNDO_MS);
+    const r = await fetch('/api/admin-update-stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify({ slug: e.slug, qty_available: e.oldQty }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+    if (!r.ok) {
+      showToast('erro ao desfazer: ' + r.status, 'error', 3000);
+      return;
+    }
+    const idx = state.entries.map(x => x.slug).lastIndexOf(e.slug);
+    if (idx !== -1) state.entries.splice(idx, 1);
+    document.getElementById('c-entries').textContent = state.entries.length;
+    persistSession();
+    if (e.barcode) state.recentScans.delete(e.barcode);
+    showLastAction(`↩ desfeito: <b>${escapeHtml(e.name)}</b> volta pra ${e.oldQty}`, 3000);
+  } catch (err) {
+    const msg = err.name === 'AbortError' ? `timeout ${T.FETCH_UNDO_MS/1000}s` : err.message;
+    showToast('erro ao desfazer: ' + msg, 'error', 3000);
+  }
+}
+
+function handleNew(barcode) {
+  setVfClass('new');
+  bipNew();
+  state.pendingBarcode = barcode;
+  document.getElementById('new-barcode-line').textContent = `barcode: ${barcode}`;
+  document.getElementById('modal-new').classList.add('show');
+}
+
+function setVfClass(cls) {
+  const vf = document.getElementById('viewfinder');
+  vf.classList.remove('exists', 'new', 'error');
+  if (cls) vf.classList.add(cls);
+}
+function resetVf() { setVfClass(''); }
+
+function showToast(msg, cls, ms) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (cls ? ' ' + cls : '');
+  setTimeout(() => t.classList.remove('show'), ms || 2000);
+}
+function showLastAction(html, ms) {
+  const el = document.getElementById('last-action');
+  el.innerHTML = html;
+  el.classList.add('show');
+  clearTimeout(el._hideTid);
+  el._hideTid = setTimeout(() => el.classList.remove('show'), ms || 2200);
+}
+
+// ============ NOVO PRODUTO ============
+function skipProduct() {
+  if (state.pendingBarcode) {
+    state.skipped.push({ barcode: state.pendingBarcode });
+    document.getElementById('c-skip').textContent = state.skipped.length;
+    persistSession();
+  }
+  state.pendingBarcode = null;
+  document.getElementById('modal-new').classList.remove('show');
+  resetVf();
+}
+
+function startCapture() {
+  document.getElementById('modal-new').classList.remove('show');
+  state.capMode = 'box';
+  state.capPhotos = { box: null, pod: null };
+  openCapture('box');
+}
+
+function setCaptureUI(mode) {
+  // Atualiza stepper, título e subtítulo conforme step (caixa ou pod)
+  const step = document.getElementById('cap-step');
+  const title = document.getElementById('cap-title');
+  const sub = document.getElementById('cap-sub');
+  if (mode === 'box') {
+    step.textContent = '1/2 ✦ caixa';
+    title.textContent = '📸 frente da caixa';
+    sub.textContent = 'enquadra a marca e o sabor dentro do frame.';
+  } else {
+    step.textContent = '2/2 ✦ pod';
+    title.textContent = '📸 pod ao vivo';
+    sub.textContent = 'mostra o device fora da caixa pra arte ficar fiel.';
+  }
+}
+
+async function openCapture(mode) {
+  setCaptureUI(mode || 'box');
+  document.getElementById('capture-area').classList.add('show');
+  try {
+    if (!state.capStream) {
+      // CRÍTICO: parar o ZXing scanner ao vivo ANTES de abrir captura.
+      // Senão a câmera traseira fica ocupada pelo scanner e o getUserMedia cai pra frontal.
+      try { if (state.controls) state.controls.stop(); } catch (e) {}
+      try { if (state.codeReader) state.codeReader.reset(); } catch (e) {}
+      stopWatchdog();
+      state.scanLooping = false;
+      state.controls = null;
+      state.codeReader = null;
+      // Espera frame pro browser liberar de fato a câmera traseira
+      await new Promise(r => setTimeout(r, 150));
+
+      // Tenta forçar traseira (exact). Se falhar (PC sem traseira), fallback pra ideal.
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        });
+      } catch (eExact) {
+        // Fallback: ideal (não força). Em desktop sem traseira, usa a única disponível.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        });
+      }
+      state.capStream = stream;
+      document.getElementById('capture-video').srcObject = stream;
+    }
+  } catch (e) {
+    showToast('erro câmera captura: ' + e.message, 'error', 4000);
+    cancelCapture();
+  }
+}
+
+function snapPhoto() {
+  const video = document.getElementById('capture-video');
+  const canvas = document.getElementById('capture-canvas');
+  const MAX = 1280;
+  const ratio = video.videoWidth / video.videoHeight;
+  let w, h;
+  if (video.videoWidth >= video.videoHeight) { w = Math.min(MAX, video.videoWidth); h = Math.round(w / ratio); }
+  else { h = Math.min(MAX, video.videoHeight); w = Math.round(h * ratio); }
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+  // Fluxo "receber estoque": só foto da CAIXA. Foto do POD vem depois pela tela de pendentes.
+  state.capPhotos.box = dataUrl;
+  finishCapture();
+}
+
+// askPodPhoto removida — modal-pod-ask não é mais usado no fluxo receber.
+// Foto do pod é captada depois, via tela /api/webhook?action=pending_pod_photos.
+
+// Cicla mensagens no overlay enquanto Vision processa
+let _visionStepTimer = null;
+function showVisionOverlay() {
+  document.getElementById('vision-overlay').classList.add('show');
+  const steps = [
+    'lendo a caixa…',
+    'identificando marca…',
+    'identificando modelo…',
+    'lendo sabor e puffs…',
+    'analisando o device…',
+    'quase lá…',
+  ];
+  let i = 0;
+  const el = document.getElementById('vision-step');
+  el.textContent = steps[0];
+  clearInterval(_visionStepTimer);
+  _visionStepTimer = setInterval(() => {
+    i = Math.min(i + 1, steps.length - 1);
+    el.textContent = steps[i];
+  }, 1800);
+}
+function hideVisionOverlay() {
+  document.getElementById('vision-overlay').classList.remove('show');
+  clearInterval(_visionStepTimer);
+  _visionStepTimer = null;
+}
+
+function showVisionFail(title, msg) {
+  document.getElementById('vf-title').textContent = title || '⚠️ não consegui ler a foto';
+  document.getElementById('vf-msg').textContent = msg || 'a foto pode estar desfocada, escura ou com brilho na caixa. tenta de novo OU preenche manual.';
+  document.getElementById('modal-vision-fail').classList.add('show');
+}
+function closeVisionFail() {
+  document.getElementById('modal-vision-fail').classList.remove('show');
+}
+
+async function finishCapture() {
+  closeCapture();
+  showVisionOverlay();
+
+  let data = null;
+  try {
+    const r = await fetch('/api/webhook?action=analyze_photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify({
+        caixaBase64: state.capPhotos.box,
+        podBase64: state.capPhotos.pod,
+      }),
+    });
+    if (!r.ok) {
+      hideVisionOverlay();
+      if (r.status === 401) {
+        showVisionFail(
+          '🔑 admin token inválido',
+          'o token salvo no celular não bate com o do servidor. clica no 🔑 lá em cima pra trocar.'
+        );
+        return;
+      }
+      const txt = await r.text().catch(() => '');
+      showVisionFail('⚠️ erro do servidor (' + r.status + ')', txt.slice(0, 200) || 'tenta de novo ou preenche manual.');
+      return;
+    }
+    const json = await r.json();
+    if (!json.ok) {
+      hideVisionOverlay();
+      showVisionFail('⚠️ vision falhou', json.error || 'tenta de novo ou preenche manual.');
+      return;
+    }
+    data = json.data || {};
+  } catch (e) {
+    hideVisionOverlay();
+    showVisionFail('⚠️ erro de rede', e.message);
+    return;
+  }
+
+  hideVisionOverlay();
+  state.visionData = data;
+
+  const brand = data.brand || '';
+  const model = data.model || '';
+  const flavor = data.flavor_pt || data.flavor_en || '';
+  const puffs = data.puffs || '';
+
+  // Vision pode retornar tudo null (foto não é pod, muito ruim, etc)
+  // Se nem brand nem flavor vieram → falha clara, oferece retry
+  if (!brand && !flavor) {
+    const alertas = Array.isArray(data.alertas) ? data.alertas.join(' ✦ ') : '';
+    showVisionFail(
+      '⚠️ não consegui ler nada',
+      alertas || 'a foto não parece ser de pod, ou tá muito desfocada. tenta outra (frente da caixa, bem iluminada).'
+    );
+    return;
+  }
+
+  // Sucesso (parcial ou total): abre form com o que veio
+  document.getElementById('modal-form').classList.add('show');
+  fillForm({ brand, model, flavor, puffs });
+  document.getElementById('f-barcode').value = state.pendingBarcode || '';
+
+  // Aviso suave se incompleto
+  const faltam = [];
+  if (!brand) faltam.push('marca');
+  if (!flavor) faltam.push('sabor');
+  if (!model) faltam.push('modelo');
+  if (faltam.length) {
+    showToast('⚠️ leitura parcial — confere ' + faltam.join(', '), 'error', 4000);
+  } else {
+    showToast('✅ dados lidos pela foto', 'new', 2500);
+  }
+}
+
+// Tirar foto de novo (do erro Vision OU dentro do form)
+function retryPhoto() {
+  closeVisionFail();
+  document.getElementById('modal-form').classList.remove('show');
+  state.visionData = null;
+  state.capPhotos = { box: null, pod: null };
+  state.capMode = 'box';
+  openCapture('📸 tira foto da CAIXA (frente)');
+}
+
+// Pular Vision e ir direto pro form em branco (preenche manual)
+function proceedManual() {
+  closeVisionFail();
+  state.visionData = {};
+  document.getElementById('modal-form').classList.add('show');
+  fillForm({ brand: '', model: '', flavor: '', puffs: '' });
+  document.getElementById('f-barcode').value = state.pendingBarcode || '';
+}
+
+function fillForm({ brand, model, flavor, puffs }) {
+  document.getElementById('f-brand').value = brand || '';
+  document.getElementById('f-model').value = model || '';
+  document.getElementById('f-flavor').value = flavor || '';
+  document.getElementById('f-puffs').value = puffs || '';
+  document.getElementById('f-price').value = '';
+}
+
+function closeCapture() {
+  document.getElementById('capture-area').classList.remove('show');
+  if (state.capStream) {
+    state.capStream.getTracks().forEach(t => t.stop());
+    state.capStream = null;
+  }
+}
+function cancelCapture() {
+  closeCapture();
+  state.pendingBarcode = null;
+  resetVf();
+  // Reativa o scanner ao vivo se foi parado pra abrir captura
+  resumeScannerIfStopped();
+}
+
+// Religa o ZXing scanner ao vivo se ele tiver parado (cancelCapture / finishRegister)
+async function resumeScannerIfStopped() {
+  if (state.scanLooping) return;
+  if (state.codeReader || state.controls) return;
+  try {
+    await new Promise(r => setTimeout(r, 200));
+    await startScanner();
+  } catch (e) { dbg('⚠️ resume scanner: ' + e.message); }
+}
+
+async function confirmRegister() {
+  const brand = document.getElementById('f-brand').value.trim();
+  const model = document.getElementById('f-model').value.trim();
+  const flavor = document.getElementById('f-flavor').value.trim();
+  const puffs = document.getElementById('f-puffs').value.trim();
+  const priceStr = document.getElementById('f-price').value.trim();
+  const barcode = document.getElementById('f-barcode').value.trim();
+
+  if (!brand || !flavor) {
+    showToast('marca e sabor são obrigatórios', 'error', T.TOAST_LONG_MS);
+    return;
+  }
+
+  const priceCents = priceStr ? Math.round(parseFloat(priceStr.replace(',', '.')) * 100) : null;
+  const v = state.visionData || {};
+
+  const payload = {
+    barcode,
+    brand,
+    model,
+    flavor,
+    flavor_pt: v.flavor_pt || flavor,
+    flavor_en: v.flavor_en || flavor,
+    puffs: puffs ? Number(puffs) : (v.puffs || null),
+    ml: v.ml || null,
+    mg_nicotina: v.mg_nicotina || 5,
+    device_color: v.device_color || null,
+    device_visual: v.device_visual || null,
+    device_visual_detailed: v.device_visual_detailed || null,
+    cores_predominantes: v.cores_predominantes || null,
+    flavor_elements: v.flavor_elements || null,
+    descricao_quebrada: v.descricao_quebrada || null,
+    priceCents,
+    // Fluxo receber: arte fica pendente até Andrade enviar foto do pod via /admin/pendentes
+    defer_art: true,
+    boxPhotoBase64: state.capPhotos.box,
+  };
+
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), T.FETCH_REGISTER_MS);
+    const r = await fetch('/api/webhook?action=quick_register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+    const data = await r.json();
+    if (!r.ok || !data.ok) {
+      if (r.status === 401) {
+        showToast('🔑 token inválido — toca no 🔑 lá em cima pra trocar', 'error', 5000);
+        return;
+      }
+      showToast('erro: ' + (data.error || r.status), 'error', T.TOAST_LONG_MS);
+      return;
+    }
+    if (data.mode === 'created' || data.mode === 'created_pending_pod') {
+      state.news.push({ barcode, name: data.product.name, productId: data.product.id });
+      document.getElementById('c-new').textContent = state.news.length;
+      persistSession();
+      const tail = data.mode === 'created_pending_pod' ? '⏳ aguardando foto do pod' : '🎬 arte gerando';
+      showLastAction(`✅ <b>${data.product.name}</b> ✦ ${tail}`);
+    } else if (data.mode === 'stock_entry') {
+      state.entries.push({ barcode, name: data.product.name, oldQty: (data.product.qty_available || 1) - 1, newQty: data.product.qty_available });
+      document.getElementById('c-entries').textContent = state.entries.length;
+      persistSession();
+      showLastAction(`✅ +1 <b>${data.product.name}</b> ✦ já existia`);
+    }
+  } catch (e) {
+    showToast('erro: ' + e.message, 'error', T.TOAST_LONG_MS);
+    return;
+  }
+  closeForm();
+}
+
+function closeForm() {
+  document.getElementById('modal-form').classList.remove('show');
+  state.pendingBarcode = null;
+  state.visionData = null;
+  state.capPhotos = { box: null, pod: null };
+  resetVf();
+  // Religa scanner ao vivo se foi parado pra abrir captura
+  resumeScannerIfStopped();
+}
+
+// ============ INPUT MANUAL (FALLBACK) ============
+function manualInput() {
+  const code = prompt('digita o código de barras (só números):', '');
+  if (!code) return;
+  const clean = code.replace(/\D/g, '');
+  if (clean.length < 8 || clean.length > 14) {
+    alert('código inválido (8 a 14 números)');
+    return;
+  }
+  // Limpa anti-spam pra esse code (input manual é intencional)
+  state.recentScans.delete(clean);
+  processBarcode(clean);
+}
+
+// ============ FINALIZAR ============
+function finalize() {
+  // Para o ZXing scanner ao vivo (não usa state.stream — ZXing gerencia internamente)
+  state.scanLooping = false;
+  stopWatchdog();
+  try { if (state.controls) state.controls.stop(); } catch (e) {}
+  try { if (state.codeReader) state.codeReader.reset(); } catch (e) {}
+  state.controls = null;
+  state.codeReader = null;
+  document.querySelector('main').style.display = 'none';
+  const sum = document.getElementById('summary');
+  sum.classList.add('show');
+  let html = '<h2>📦 resumo do recebimento</h2>';
+
+  if (state.entries.length) {
+    html += '<section><h3>✅ entradas (' + state.entries.length + ')</h3><ul>';
+    state.entries.forEach(e => {
+      html += `<li class="entry"><b>+${e.newQty - e.oldQty}</b> ${escapeHtml(e.name)} <span style="color:var(--fg-dim)">(${e.oldQty} → ${e.newQty})</span></li>`;
+    });
+    html += '</ul></section>';
+  }
+  if (state.news.length) {
+    html += '<section><h3>📸 novos cadastrados (' + state.news.length + ')</h3><ul>';
+    state.news.forEach(n => {
+      html += `<li class="new"><b>✅</b> ${escapeHtml(n.name)} <span style="color:var(--fg-dim)">⏳ esperando foto do pod</span></li>`;
+    });
+    html += '</ul></section>';
+    html += `<div style="background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:12px;padding:12px 14px;margin:14px 0;font-size:13px">
+      <b style="color:var(--lime)">📸 próximo passo:</b> abre as caixas dos pods, tira foto do device de cada um e envia pela tela de pendentes — depois a arte gera fiel ao pod real.
+    </div>`;
+  }
+  if (state.skipped.length) {
+    html += '<section><h3>⏭️ pulados (' + state.skipped.length + ')</h3><ul>';
+    state.skipped.forEach(s => {
+      html += `<li class="skip"><b>${escapeHtml(s.barcode)}</b></li>`;
+    });
+    html += '</ul></section>';
+  }
+  if (!state.entries.length && !state.news.length && !state.skipped.length) {
+    html += '<p style="color:var(--fg-dim)">nada escaneado ainda.</p>';
+  }
+  const tokenParam = encodeURIComponent(state.token || '');
+  const pendentesUrl = `/api/webhook?action=pending_pod_photos&token=${tokenParam}`;
+  html += `<div style="display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px">`;
+  if (state.news.length) {
+    html += `<a class="btn btn-primary" href="${pendentesUrl}">📸 enviar fotos dos pods (${state.news.length})</a>`;
+    html += `<button class="btn" onclick="notifyPendingWhats()">📤 me avisar no whats</button>`;
+  }
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+    '<a class="btn" href="/#admin-dash">fechar</a>' +
+    '<a class="btn" href="/#admin-products">ver estoque</a>' +
+    '</div>';
+  html += '</div>';
+  sum.innerHTML = html;
+}
+
+async function notifyPendingWhats() {
+  try {
+    const r = await fetch('/api/webhook?action=notify_pending_pod', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      if (r.status === 401) { showToast('🔑 token inválido — toca no 🔑', 'error', 5000); return; }
+      throw new Error(data.error || ('http ' + r.status));
+    }
+    if (data.count === 0) showToast('nenhum pendente — nada pra notificar', '', T.TOAST_LONG_MS);
+    else showToast('📤 enviado pro whats: ' + data.count + ' pendente' + (data.count === 1 ? '' : 's'), 'new', T.TOAST_LONG_MS);
+  } catch (e) {
+    showToast('⚠️ erro: ' + e.message, 'error', T.TOAST_LONG_MS);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// PWA / Service Worker: DESATIVADO nessa versão.
+// Garante que qualquer SW antigo no celular é desinstalado pra acabar com cache hell.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((rs) => {
+    rs.forEach((r) => r.unregister().catch(() => {}));
+  }).catch(() => {});
+}
+if (window.caches) {
+  caches.keys().then((ks) => ks.forEach((k) => caches.delete(k).catch(() => {}))).catch(() => {});
+}
+
+// ============ MODO FOTO (default — funciona em qualquer celular) ============
+// Em vez de stream contínuo (que trava em Chrome/MIUI e iOS Safari), o user toca
+// num botão grandão e o app de câmera NATIVO do celular abre. Tira foto → ZXing
+// decodifica a imagem estática localmente → segue o fluxo igual.
+function triggerPhotoScan() {
+  const input = document.getElementById('photo-scan-input');
+  input.value = '';
+  input.click();
+}
+
+async function onPhotoScanned(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  ev.target.value = '';
+  dbg('📸 processando foto…');
+
+  if (!window.ZXingBrowser) {
+    dbg('⚠️ ZXing não carregou');
+    showToast('biblioteca não carregou — recarrega a página', 'error', 4000);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  try {
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error('erro ao abrir imagem'));
+      img.src = url;
+    });
+
+    const reader = new ZXingBrowser.BrowserMultiFormatReader();
+    let result;
+    try {
+      result = await reader.decodeFromImageElement(img);
+    } catch (e) {
+      // NotFoundException = não achou barcode na foto
+      URL.revokeObjectURL(url);
+      dbg('⚠️ código não encontrado na foto');
+      showToast('não achei código na foto. tenta outra mais nítida e centrada.', 'error', 5000);
+      return;
+    }
+    URL.revokeObjectURL(url);
+    const code = (result.getText() || '').trim();
+    if (code) {
+      dbg('✅ código: ' + code);
+      // Limpa anti-spam pra esse code (foto é intencional)
+      state.recentScans.delete(code);
+      await processBarcode(code);
+    } else {
+      dbg('⚠️ código vazio');
+      showToast('não consegui ler — tenta outra foto', 'error', 4000);
+    }
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    dbg('⚠️ erro foto: ' + (e.message || e));
+    showToast('erro: ' + (e.message || e), 'error', 4000);
+  }
+}
+
+// ============ EXPORTS GLOBAIS ============
+// iOS Safari às vezes não promove function declarations a window.X. Expor explícito.
+window.saveToken = saveToken;
+window.resetToken = resetToken;
+window.undoLastEntry = undoLastEntry;
+window.triggerPhotoScan = triggerPhotoScan;
+window.onPhotoScanned = onPhotoScanned;
+window.manualInput = manualInput;
+window.finalize = finalize;
+window.snapPhoto = snapPhoto;
+window.cancelCapture = cancelCapture;
+window.confirmRegister = confirmRegister;
+window.closeForm = closeForm;
+window.startCapture = startCapture;
+window.skipProduct = skipProduct;
+window.retryPhoto = retryPhoto;
+window.proceedManual = proceedManual;
+window.closeVisionFail = closeVisionFail;
+window.notifyPendingWhats = notifyPendingWhats;
+
+// Detecta desktop (PC com webcam) vs mobile.
+// Em desktop, scanner contínuo do ZXing funciona perfeitamente — não tem MIUI/Chrome
+// Android killing process. Liga scanner direto, sem modo foto.
+function isDesktop() {
+  // Sem touch screen + tem mouse fino = desktop
+  const noTouch = !('ontouchstart' in window) && navigator.maxTouchPoints === 0;
+  const fineMouse = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  // User agent fallback (alguns notebooks com touch screen)
+  const uaDesktop = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  return (noTouch && fineMouse) || (uaDesktop && fineMouse);
+}
+
+// ============ INIT ============
+window.addEventListener('DOMContentLoaded', () => {
+  // Bind redundante via addEventListener (alguns iOS Safari ignoram onclick em strict)
+  const wire = (id, fn) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', fn);
+  };
+  wire('btn-photo', triggerPhotoScan);
+  wire('btn-manual', manualInput);
+  wire('btn-finalize', finalize);
+  const fileInput = document.getElementById('photo-scan-input');
+  if (fileInput) fileInput.addEventListener('change', onPhotoScanned);
+
+  if (!checkAuth()) return;
+
+  // OSSO 24b — restaura sessão se houver estado salvo (≤24h).
+  // Mostra banner perguntando se quer continuar ou começar do zero.
+  try {
+    const saved = loadSession();
+    if (saved) showSessionRestoreBanner(saved);
+  } catch (e) { /* nunca trava o boot */ }
+
+  // Modo debug via URL: ?debug=1 mostra o debug-chip embaixo
+  try {
+    if (new URL(location.href).searchParams.get('debug') === '1') {
+      document.getElementById('debug-chip').classList.add('on');
+    }
+  } catch (e) {}
+
+  // Scanner ao vivo (ZXing) ligado em desktop E mobile — bug raiz que travava mobile
+  // (feedback-bubble v1 com MutationObserver + pointer capture) foi resolvido na v2.
+  // Modo foto vira fallback manual pra quando barcode tá danificado/iluminação ruim.
+  dbg(isDesktop() ? '💻 PC — ligando scanner ao vivo' : '📱 mobile — ligando scanner ao vivo');
+  const hint = document.getElementById('photo-mode-hint');
+  if (hint) hint.style.display = 'none';
+  const photoBtn = document.getElementById('btn-photo');
+  if (photoBtn) photoBtn.textContent = '📸 tirar foto (fallback)';
+  startScanner();
+});
+window.addEventListener('beforeunload', () => {
+  try { if (state.controls) state.controls.stop(); } catch (e) {}
+  try { if (state.codeReader) state.codeReader.reset(); } catch (e) {}
+  if (state.capStream) state.capStream.getTracks().forEach(t => t.stop());
+});
+// Para câmera quando aba some/some pra background — libera recurso e bateria
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.scanLooping) {
+    try { if (state.controls) state.controls.stop(); } catch (e) {}
+  }
+});
+</script>
+<script src="/feedback-bubble.js?v=3" defer></script>
+</body>
+</html>

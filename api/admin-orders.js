@@ -25,8 +25,15 @@ module.exports = async function handler(req, res) {
 
   // 🔒 AUTH
   if (!ADMIN_TOKEN) return res.status(500).json({ error: 'ADMIN_TOKEN not configured' });
-  const provided = req.headers['x-admin-token'] || '';
-  if (provided !== ADMIN_TOKEN) {
+  // OSSO 29 — aceita token via header (legacy) OU query string ?token= (admin_hub)
+  const headerTok = req.headers['x-admin-token'] || '';
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  if (headerTok !== ADMIN_TOKEN && queryTok !== ADMIN_TOKEN) {
     // Pequeno delay pra dificultar timing attack / brute force
     await new Promise(r => setTimeout(r, 800));
     return res.status(401).json({ error: 'unauthorized' });

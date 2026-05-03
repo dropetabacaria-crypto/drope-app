@@ -1,7 +1,39 @@
 {
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/((?!api/|admin|admin\\.html).*)", "destination": "/index.html" }
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "pdv.html", "use": "@vercel/static" },
+    { "src": "receber.html", "use": "@vercel/static" },
+    { "src": "feedback-bubble.js", "use": "@vercel/static" },
+    { "src": "sw.js", "use": "@vercel/static" },
+    { "src": "manifest.json", "use": "@vercel/static" },
+    { "src": "manifest-receber.json", "use": "@vercel/static" },
+    { "src": "icons/**", "use": "@vercel/static" },
+    { "src": "og/**", "use": "@vercel/static" },
+    { "src": "03_Logo/**", "use": "@vercel/static" },
+    { "src": "04_Produto_Artes/**", "use": "@vercel/static" },
+    { "src": "api/**/*.js", "use": "@vercel/node", "config": { "maxDuration": 60 } }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.js" },
+    { "src": "/pdv.html", "dest": "/pdv.html" },
+    { "src": "/receber.html", "dest": "/receber.html" },
+    { "src": "/receber", "dest": "/receber.html" },
+    { "src": "/feedback-bubble.js", "dest": "/feedback-bubble.js" },
+    { "src": "/sw.js", "dest": "/sw.js" },
+    { "src": "/manifest-receber.json", "dest": "/manifest-receber.json" },
+    { "src": "/.+\\..+", "dest": "/$0" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/webhook?action=daily_dashboard", "schedule": "0 12 * * *" },
+    { "path": "/api/webhook?action=run_followups", "schedule": "0 14 * * *" },
+    { "path": "/api/webhook?action=run_reorder", "schedule": "0 13 * * *" },
+    { "path": "/api/webhook?action=run_drop_notifications", "schedule": "0 13 * * 0" },
+    { "path": "/api/webhook?action=system_health", "schedule": "0 11 * * *" },
+    { "path": "/api/webhook?action=weekly_health", "schedule": "0 12 * * 1" },
+    { "path": "/api/webhook?action=friday_briefing", "schedule": "0 21 * * 5" },
+    { "path": "/api/webhook?action=briefing_reminder", "schedule": "0 13 * * 6" },
+    { "path": "/api/webhook?action=saturday_dispatch", "schedule": "0 9 * * 6" }
   ]
 }

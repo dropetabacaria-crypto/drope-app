@@ -68,6 +68,7 @@ module.exports = async function handler(req, res) {
     }
 
     // 4. Marca pedido como PAGO no Supabase (atualiza ou insere)
+    let updatedCustomerId = null;
     if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
       try {
         // Tenta ATUALIZAR primeiro (se o pedido já foi salvo pelo /api/save-order)
@@ -91,11 +92,27 @@ module.exports = async function handler(req, res) {
         );
         const updated = await updateRes.json();
         console.log('[InfinitePay Webhook] Supabase update status:', updateRes.status, 'rows:', Array.isArray(updated) ? updated.length : 'n/a');
+        if (Array.isArray(updated) && updated[0] && updated[0].customer_id) {
+          updatedCustomerId = updated[0].customer_id;
+        }
       } catch (e) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
       }
     } else {
       console.warn('[InfinitePay Webhook] Supabase não configurado — pulando persistência');
+    }
+
+    // 4B. OSSO 21 Feature 4 — Recalcula flavor_profile do cliente (fire-and-forget).
+    // Chama o webhook.js no mesmo deployment via URL relativa (quando rodando em
+    // produção, a Vercel resolve internamente). Em local/dev, falha gracefully.
+    if (updatedCustomerId) {
+      const host = req.headers?.host || process.env.VERCEL_URL || '';
+      const proto = (req.headers?.['x-forwarded-proto'] || 'https');
+      if (host) {
+        const url = `${proto}://${host}/api/webhook?action=customer_profile&customer_id=${updatedCustomerId}`;
+        // GET dispara updateFlavorProfile internamente. Não esperamos resposta.
+        fetch(url).catch(e => console.error('[InfinitePay Webhook] flavor_profile refresh err:', e.message));
+      }
     }
 
     // 5. Notifica WhatsApp da loja via UazAPI

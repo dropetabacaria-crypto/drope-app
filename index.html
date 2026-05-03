@@ -4,24 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#5B21B6">
-<meta name="description" content="Drope ✦ pods em minutos. Os pods que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
-<title>Drope ✦ pods em minutos</title>
+<meta name="description" content="Drope ✦ drops em minutos. Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
+<title>Drope ✦ drops em minutos</title>
 
 <!-- Open Graph (whats, facebook, linkedin, imessage) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Drope">
-<meta property="og:title" content="Drope ✦ pods em minutos">
-<meta property="og:description" content="Os pods que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
+<meta property="og:title" content="Drope ✦ drops em minutos">
+<meta property="og:description" content="Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
 <meta property="og:image" content="og/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Drope — pods em minutos">
+<meta property="og:image:alt" content="Drope — drops em minutos">
 <meta property="og:locale" content="pt_BR">
 
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Drope ✦ pods em minutos">
-<meta name="twitter:description" content="Os pods que dropam rápido. Paga com Pix. Só 18+.">
+<meta name="twitter:title" content="Drope ✦ drops em minutos">
+<meta name="twitter:description" content="Os drops que dropam rápido. Paga com Pix. Só 18+.">
 <meta name="twitter:image" content="og/og-image.png">
 
 <!-- PWA manifest + ícones -->
@@ -81,16 +81,10 @@
     padding-bottom: 100px;
   }
 
-  /* Screen system — transições suaves estilo Nubank */
-  .screen { display: none; }
-  .screen.active {
-    display: block;
-    animation: screenIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  @keyframes screenIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  /* Screen system */
+  .screen { display: none; animation: fade 0.25s ease; }
+  .screen.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
   /* Typography */
   .display {
@@ -166,26 +160,6 @@
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 12px var(--pink-glow);
     padding: 0 5px;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  .cart-badge.bounce {
-    animation: badgeBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-  @keyframes badgeBounce {
-    0% { transform: scale(1); }
-    30% { transform: scale(1.5); }
-    60% { transform: scale(0.85); }
-    100% { transform: scale(1); }
-  }
-
-  /* Pulse neon ao adicionar ao carrinho */
-  .neon-pulse {
-    animation: neonPulse 0.6s ease-out;
-  }
-  @keyframes neonPulse {
-    0% { box-shadow: 0 0 0 0 var(--pink-glow); }
-    50% { box-shadow: 0 0 25px 8px var(--pink-glow); }
-    100% { box-shadow: 0 0 0 0 transparent; }
   }
 
   .section-title {
@@ -196,103 +170,44 @@
   }
   .section-title span { color: var(--text-dim); font-size: 22px; display: block; margin-top: 6px; font-family: 'Inter'; font-weight: 500; text-transform: none; letter-spacing: 0; }
 
-  /* Hero tile — estilo Netflix/iFood com foto GRANDE e badge flutuante */
+  /* Hero tile */
   .hero {
     margin: 0 20px 14px;
-    padding: 0;                       /* sem padding — imagem encosta */
-    background: var(--card);
+    padding: 22px;
+    background: radial-gradient(circle at 30% 20%, rgba(91, 33, 182, 0.5), var(--card) 70%);
     border: 1px solid var(--border);
     border-radius: 24px;
-    box-shadow: 0 0 50px rgba(255, 45, 111, 0.25), 0 0 80px rgba(91, 33, 182, 0.18);
+    box-shadow: 0 0 40px rgba(91, 33, 182, 0.25), inset 0 0 30px rgba(255, 45, 111, 0.08);
     position: relative;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.25s;
+    transition: transform 0.2s;
   }
   .hero:active { transform: scale(0.985); }
-  .hero:hover { box-shadow: 0 0 60px rgba(255, 45, 111, 0.35), 0 0 100px rgba(91, 33, 182, 0.28); }
-
-  /* Wrapper da imagem (topo do card) */
-  .hero-visual-wrap {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1 / 0.95;            /* quase quadrado, impacto visual */
-    background: radial-gradient(ellipse at 50% 30%, rgba(91, 33, 182, 0.55), var(--card) 75%);
-    overflow: hidden;
-  }
-  .hero-visual-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    padding: 18px;
-    filter: drop-shadow(0 20px 45px rgba(255, 45, 111, 0.45));
-    transition: transform 0.3s;
-  }
-  .hero:hover .hero-visual-wrap img { transform: scale(1.03); }
-
-  /* Gradient embaixo da imagem pra texto ficar legível */
-  .hero-visual-wrap::after {
-    content: '';
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 60px;
-    background: linear-gradient(180deg, transparent 0%, var(--card) 100%);
-    pointer-events: none;
-  }
-
-  /* Badge flutuante no canto — destaque social proof */
-  .hero-badge-float {
-    position: absolute;
-    top: 16px;
-    left: 16px;
-    padding: 7px 13px;
-    background: linear-gradient(135deg, var(--pink) 0%, #B01855 100%);
-    color: white;
+  .hero .tag {
+    display: inline-block;
+    background: rgba(91, 33, 182, 0.85);
+    color: var(--text);
+    padding: 6px 12px;
     border-radius: 100px;
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    box-shadow: 0 4px 18px var(--pink-glow), 0 0 0 1px rgba(255, 255, 255, 0.08);
-    z-index: 2;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: lowercase;
-    animation: heroBadgePulse 2.5s ease-in-out infinite;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(245, 243, 255, 0.12);
   }
-  @keyframes heroBadgePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.04); }
-  }
-
-  /* Tag antiga (mantida caso algum JS ainda use, mas escondida) */
-  .hero .tag { display: none; }
-
-  /* Emoji antigo (caso produto não tenha img, fallback) */
   .hero .emoji {
     text-align: center;
     font-size: 110px;
     line-height: 1;
+    margin: 18px 0 10px;
     filter: drop-shadow(0 10px 30px rgba(255, 45, 111, 0.4));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-  }
-
-  /* Bottom card — info + CTA */
-  .hero-bottom {
-    padding: 8px 22px 22px;
-    position: relative;
-    z-index: 1;
   }
   .hero-name {
-    font-size: 28px;
+    font-size: 32px;
     color: var(--text);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     text-transform: none;
-    line-height: 1.15;
   }
   .hero-sub {
     font-size: 13px;
@@ -331,6 +246,10 @@
     padding: 16px;
     cursor: pointer;
     transition: transform 0.15s, background 0.2s;
+    /* OSSO 21 fix 01/05 — sem isso o .stock-badge (position:absolute) escapava
+       pro ancestral mais próximo com position:relative (o .hero) e ficava em
+       cima do ícone do carrinho no header. */
+    position: relative;
   }
   .tile:active { transform: scale(0.97); background: var(--card-hi); }
   .tile .emoji {
@@ -348,16 +267,43 @@
     margin: 4px 0 10px;
     filter: drop-shadow(0 6px 18px rgba(91, 33, 182, 0.3));
   }
+  /* OSSO 25 — Card hierarquia: sabor (hero, lowercase) + brand/model (muted, menor) */
+  .tile .flavor {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: lowercase;
+    line-height: 1.15;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 36px;
+  }
+  .tile .brand {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* legacy .tile .name fallback (mantém pra qualquer render que ainda use) */
   .tile .name {
     font-size: 15px;
     font-weight: 600;
     color: var(--text);
-    text-transform: none;
+    text-transform: lowercase;
   }
   .tile .price {
     font-size: 13px;
     color: var(--text-dim);
-    margin-top: 2px;
+    margin-top: 4px;
   }
 
   /* Categories scroll */
@@ -946,9 +892,11 @@
     font-size: 32px;
     flex-shrink: 0;
   }
-  .cart-item .info { flex: 1; }
-  .cart-item .info .n { font-size: 15px; font-weight: 600; color: var(--text); text-transform: none; }
-  .cart-item .info .p { font-size: 13px; color: var(--text-dim); }
+  .cart-item .info { flex: 1; min-width: 0; }
+  /* OSSO 25 — sabor hero + brand muted, lowercase */
+  .cart-item .info .n { font-size: 15px; font-weight: 700; color: var(--text); text-transform: lowercase; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-item .info .b { font-size: 11px; color: var(--text-dim); text-transform: lowercase; letter-spacing: 0.02em; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-item .info .p { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
   .cart-item .qty { font-size: 14px; font-weight: 600; color: var(--pink); }
   .cart-item .qty-ctrl {
     display: flex;
@@ -1043,6 +991,147 @@
   .hlo-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hlo-cta { font-size: 12px; color: var(--pink); font-weight: 700; white-space: nowrap; }
 
+  /* OSSO 21 — Home personalizada (vibes + recompra + recomendações) */
+  .vibe-greet {
+    margin: 14px 20px 6px;
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .vibe-greet small {
+    display: block; margin-top: 2px;
+    font-family: inherit; font-size: 13px;
+    color: var(--text-dim); font-weight: 400;
+  }
+  .vibe-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 6px 20px 8px;
+  }
+  .vibe-chip {
+    background: rgba(91,33,182,0.18);
+    border: 1px solid rgba(212,255,46,0.18);
+    border-radius: 18px;
+    padding: 14px 12px;
+    font-size: 14px; font-weight: 600;
+    color: var(--text);
+    cursor: pointer; user-select: none;
+    transition: transform 0.12s, border-color 0.15s, background 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    text-align: center;
+  }
+  .vibe-chip:active { transform: scale(0.97); }
+  .vibe-chip.active {
+    background: rgba(212,255,46,0.18);
+    border-color: var(--lime);
+    color: var(--lime);
+  }
+  .see-all-link {
+    margin: 4px 20px 14px; padding: 10px;
+    text-align: center; cursor: pointer;
+    font-size: 13px; color: var(--text-dim);
+    border-radius: 14px; border: 1px dashed rgba(255,255,255,0.12);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .see-all-link:hover { color: var(--pink); border-color: rgba(255,45,111,0.4); }
+
+  /* Card "dropar de novo" — recompra 1 toque */
+  .reorder-card {
+    margin: 8px 20px 16px;
+    padding: 14px 16px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255,45,111,0.20), rgba(212,255,46,0.10));
+    border: 1px solid rgba(255,45,111,0.30);
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer; transition: transform 0.12s;
+  }
+  .reorder-card:active { transform: scale(0.98); }
+  .reorder-card.disabled { opacity: 0.7; cursor: default; }
+  .reorder-card.disabled:active { transform: none; }
+  .reorder-thumb {
+    width: 56px; height: 56px; border-radius: 14px;
+    overflow: hidden; flex: 0 0 auto;
+    background: rgba(0,0,0,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .reorder-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .reorder-body { flex: 1; min-width: 0; }
+  .reorder-title { font-size: 12px; color: var(--lime); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+  .reorder-flavor { font-size: 16px; color: var(--text); font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; }
+  .reorder-brand { font-size: 11px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; letter-spacing: 0.02em; }
+  /* legacy */
+  .reorder-name { font-size: 15px; color: var(--text); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; }
+  .reorder-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .reorder-cta {
+    padding: 9px 14px; border-radius: 14px;
+    background: var(--pink); color: #fff;
+    font-size: 12px; font-weight: 700;
+    white-space: nowrap; flex: 0 0 auto;
+    border: none;
+  }
+  .reorder-card.disabled .reorder-cta {
+    background: rgba(255,255,255,0.08); color: var(--text-dim);
+  }
+
+  /* Recomendações personalizadas — 3 cards horizontais */
+  .reco-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    padding: 0 20px 10px;
+  }
+  .reco-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .reco-card:active { transform: scale(0.97); }
+  .reco-thumb {
+    width: 100%; aspect-ratio: 1; border-radius: 10px;
+    overflow: hidden; background: rgba(0,0,0,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin-bottom: 6px;
+  }
+  .reco-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .reco-flavor { font-size: 12px; color: var(--text); font-weight: 700; line-height: 1.2; min-height: 28px; overflow: hidden; text-transform: lowercase; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .reco-brand  { font-size: 10px; color: var(--text-dim); line-height: 1.1; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; letter-spacing: 0.02em; }
+  /* legacy */
+  .reco-name { font-size: 11px; color: var(--text); font-weight: 600; line-height: 1.2; min-height: 26px; overflow: hidden; text-transform: lowercase; }
+  .reco-price { font-size: 12px; color: var(--pink); font-weight: 700; margin-top: 2px; }
+  .reco-badge {
+    display: inline-block; padding: 2px 7px; border-radius: 10px;
+    background: rgba(212,255,46,0.18); color: var(--lime);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Tela /perfil — perfil de sabor (Feature 4) */
+  .flavor-bars { padding: 20px; }
+  .flavor-bar-row { margin-bottom: 14px; }
+  .flavor-bar-lbl { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); margin-bottom: 6px; }
+  .flavor-bar-track { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .flavor-bar-fill { height: 100%; border-radius: 5px; transition: width 0.6s; }
+  .flavor-bar-fill.fruity { background: linear-gradient(90deg, var(--pink), #ff8fb8); }
+  .flavor-bar-fill.icy    { background: linear-gradient(90deg, #4ddbff, #6effff); }
+  .flavor-bar-fill.menthol{ background: linear-gradient(90deg, var(--lime), #b8ff7a); }
+  .flavor-bar-fill.sweet  { background: linear-gradient(90deg, #ffb84d, #ffe066); }
+  .flavor-bar-fill.tobacco{ background: linear-gradient(90deg, #c79968, #e0bb8a); }
+  .flavor-bar-fill.other  { background: linear-gradient(90deg, #9580ff, #c2b3ff); }
+  .flavor-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 0 20px;
+  }
+  .flavor-stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 14px;
+  }
+  .flavor-stat-lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; }
+  .flavor-stat-val { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 4px; }
+
   /* Order tracking */
   .ot-card {
     background: linear-gradient(135deg, rgba(91,33,182,0.25), rgba(255,45,111,0.12));
@@ -1125,27 +1214,16 @@
   .step-line.done { background: var(--lime); }
 
   .co-contact-mini {
-    display: flex; align-items: center; gap: 14px;
-    padding: 16px 18px; margin-top: 16px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 16px; cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; margin-top: 14px;
+    background: transparent; border: 1px dashed var(--border);
+    border-radius: 14px; cursor: pointer;
   }
-  .co-contact-mini:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.14); }
-  .co-contact-mini .ic { font-size: 20px; opacity: 0.85; }
-  .co-contact-mini .info { flex: 1; min-width: 0; line-height: 1.5; }
-  .co-contact-mini .lbl {
-    color: var(--text-dim); font-size: 11px;
-    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
-    margin-bottom: 2px;
-  }
-  .co-contact-mini .val { color: var(--text); font-size: 14px; font-weight: 500; }
-  .co-contact-mini .chv {
-    color: var(--text-dim); font-size: 12px; font-weight: 500;
-    opacity: 0.7; transition: opacity 0.15s, color 0.15s;
-  }
-  .co-contact-mini:hover .chv { color: var(--text); opacity: 1; }
+  .co-contact-mini .ic { font-size: 18px; }
+  .co-contact-mini .info { flex: 1; min-width: 0; }
+  .co-contact-mini .lbl { color: var(--text-dim); font-size: 11px; }
+  .co-contact-mini .val { color: var(--text); font-size: 13px; }
+  .co-contact-mini .chv { color: var(--pink); font-size: 12px; font-weight: 600; }
 
   .co-coupon-toggle {
     text-align: center; padding: 12px;
@@ -1549,31 +1627,10 @@
     position: absolute;
     left: 50%; top: 35%;
     width: 500px; height: 500px;
-    transform: translate(-50%, -50%) scale(0);
-    background: radial-gradient(circle, rgba(255, 45, 111, 0.4), rgba(91, 33, 182, 0.3) 40%, transparent 65%);
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(91, 33, 182, 0.45), transparent 60%);
     filter: blur(40px);
     z-index: 0;
-    animation: glowExpand 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  @keyframes glowExpand {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    40% { opacity: 1; }
-    100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-  }
-  .success-wrap::after {
-    content: '';
-    position: absolute;
-    left: 50%; top: 35%;
-    width: 300px; height: 300px;
-    transform: translate(-50%, -50%) scale(0);
-    background: radial-gradient(circle, rgba(212, 255, 46, 0.25), transparent 60%);
-    filter: blur(30px);
-    z-index: 0;
-    animation: glowPulse 2s ease-in-out 0.4s infinite;
-  }
-  @keyframes glowPulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
-    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
   }
   .check {
     position: relative;
@@ -1584,82 +1641,12 @@
     color: var(--lime);
     text-shadow: 0 0 60px var(--lime-glow), 0 0 100px rgba(212, 255, 46, 0.3);
     filter: drop-shadow(0 10px 30px rgba(212, 255, 46, 0.4));
-    animation: checkPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+    animation: pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  @keyframes checkPop {
-    0% { transform: scale(0) rotate(-20deg); opacity: 0; }
-    60% { transform: scale(1.15) rotate(5deg); opacity: 1; }
-    100% { transform: scale(1) rotate(0); opacity: 1; }
-  }
-  .success-title {
-    font-size: 56px; color: var(--text); margin-bottom: 16px; position: relative; z-index: 1;
-    animation: slideUp 0.5s ease-out 0.5s both;
-  }
-  .success-sub {
-    color: var(--text-dim); font-size: 16px; margin-bottom: 6px; position: relative; z-index: 1;
-    animation: slideUp 0.5s ease-out 0.65s both;
-  }
-  .success-order {
-    color: var(--text-dim); font-size: 14px; margin-bottom: 20px; font-family: monospace; position: relative; z-index: 1;
-    animation: slideUp 0.5s ease-out 0.75s both;
-  }
-
-  /* Resumo do pedido na tela de sucesso */
-  .success-summary {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 16px 18px;
-    margin-bottom: 22px;
-    text-align: left;
-    position: relative;
-    z-index: 1;
-    animation: slideUp 0.5s ease-out 0.85s both;
-  }
-  .success-summary .sum-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-  .success-summary .sum-item { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); }
-  .success-summary .sum-item .qty { color: var(--text-dim); margin-right: 6px; }
-  .success-summary .sum-divider { height: 1px; background: var(--border); margin: 10px 0; }
-  .success-summary .sum-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
-  .success-summary .sum-row.total { color: var(--text); font-size: 16px; font-weight: 700; margin-top: 8px; }
-  .success-summary .sum-row.total .pink { color: var(--pink); font-size: 20px; }
-  .success-summary .sum-meta { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
-  .success-summary .sum-meta div { margin-top: 3px; }
-
-  /* Botão whats DESTACADO (lime, glow intenso) */
-  .btn-whats-cta {
-    width: 100%;
-    background: linear-gradient(135deg, #25D366 0%, #1DA851 100%);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    cursor: pointer;
-    box-shadow: 0 8px 30px rgba(37, 211, 102, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    margin-bottom: 14px;
-    text-align: left;
-    font-family: inherit;
-    transition: transform 0.1s;
-    position: relative;
-    z-index: 1;
-    animation: whatsPulse 2s ease-in-out infinite, slideUp 0.5s ease-out 1s both;
-  }
-  .btn-whats-cta:active { transform: scale(0.98); }
-  @keyframes whatsPulse {
-    0%, 100% { box-shadow: 0 8px 30px rgba(37, 211, 102, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1) inset; }
-    50%      { box-shadow: 0 8px 40px rgba(37, 211, 102, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15) inset; }
-  }
-  .btn-whats-cta .whats-icon { font-size: 32px; line-height: 1; }
-  .btn-whats-cta .whats-txt { flex: 1; }
-  .btn-whats-cta .whats-title { font-size: 15px; font-weight: 700; text-transform: lowercase; }
-  .btn-whats-cta .whats-sub { font-size: 12px; opacity: 0.9; margin-top: 2px; text-transform: lowercase; }
-  @keyframes slideUp {
-    0% { transform: translateY(20px); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-  }
+  @keyframes pop { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+  .success-title { font-size: 56px; color: var(--text); margin-bottom: 16px; position: relative; z-index: 1; }
+  .success-sub { color: var(--text-dim); font-size: 16px; margin-bottom: 6px; position: relative; z-index: 1; }
+  .success-order { color: var(--text-dim); font-size: 14px; margin-bottom: 34px; font-family: monospace; position: relative; z-index: 1; }
   .success-whats {
     background: var(--card);
     border: 1px solid var(--border);
@@ -1688,7 +1675,6 @@
     gap: 10px;
     position: relative;
     z-index: 1;
-    animation: slideUp 0.5s ease-out 0.9s both;
   }
   .success-btns .btn-primary { flex: 1.5; padding: 16px; font-size: 15px; }
   .success-btns .btn-secondary { flex: 1; padding: 16px; font-size: 14px; margin: 0; }
@@ -1891,10 +1877,10 @@
     z-index: 0;
   }
   .splash-logo {
-    width: min(80vw, 320px);
-    height: auto;
-    border-radius: 20px;
-    object-fit: contain;
+    width: 200px;
+    height: 200px;
+    border-radius: 40px;
+    object-fit: cover;
     box-shadow: 0 20px 80px rgba(91, 33, 182, 0.6), 0 0 40px rgba(255, 45, 111, 0.3);
     position: relative;
     z-index: 1;
@@ -1902,10 +1888,9 @@
   }
   .splash-logo-ring {
     position: absolute;
-    width: min(90vw, 360px);
-    height: auto;
-    aspect-ratio: 16/9;
-    border-radius: 28px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
     border: 2px solid rgba(212, 255, 46, 0.35);
     z-index: 1;
     animation: splashRing 2.4s ease-out infinite;
@@ -1960,7 +1945,6 @@
     40% { transform: scale(1.2); opacity: 1; }
   }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes pulse  { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(236,72,153,0.6); } 50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(236,72,153,0); } }
 
   /* Onboarding */
   .onboard {
@@ -2337,50 +2321,8 @@
     color: #ffc46b;
     border: 1px solid rgba(255, 170, 45, 0.5);
   }
-  .tile.sold-out { opacity: 0.7; }
-  .tile.sold-out .prod-img, .tile.sold-out .emoji { filter: grayscale(0.5); opacity: 0.6; }
+  .tile.sold-out { opacity: 0.55; filter: grayscale(0.5); }
   .tile.sold-out .price { color: var(--text-dim); }
-  .demand-btn {
-    background: rgba(212, 255, 46, 0.12);
-    border: 1px dashed var(--lime);
-    border-radius: 10px;
-    color: var(--lime);
-    font-family: 'Inter', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 6px 0;
-    width: 100%;
-    cursor: pointer;
-    margin-top: 6px;
-    transition: all 0.2s;
-    letter-spacing: 0.02em;
-  }
-  .demand-btn:active { transform: scale(0.95); background: rgba(212, 255, 46, 0.2); }
-  .demand-banner {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 18px 16px;
-    margin-top: 8px;
-    background: rgba(212, 255, 46, 0.06);
-    border: 1px dashed rgba(212, 255, 46, 0.3);
-    border-radius: 16px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .demand-banner:active { transform: scale(0.98); background: rgba(212, 255, 46, 0.12); }
-  .demand-banner span:first-child {
-    color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .demand-banner-sub {
-    color: var(--lime);
-    font-size: 12px;
-    font-weight: 500;
-  }
   .pay-badge {
     display: inline-flex;
     align-items: center;
@@ -2868,27 +2810,6 @@
   }
   .addr-actions button:hover { color: var(--pink); border-color: rgba(255, 45, 111, 0.4); }
   .addr-actions .rm:hover { color: #ff6b6b; border-color: rgba(255, 107, 107, 0.4); }
-  .gps-btn {
-    width: 100%;
-    padding: 14px 16px;
-    background: rgba(212, 255, 46, 0.1);
-    border: 1px dashed var(--lime);
-    border-radius: 14px;
-    color: var(--lime);
-    font-family: 'Inter';
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 20px;
-    transition: all 0.2s;
-  }
-  .gps-btn:active { transform: scale(0.97); }
-  .gps-btn.loading { opacity: 0.6; pointer-events: none; }
-  .gps-btn.done { background: rgba(212, 255, 46, 0.15); border-style: solid; }
   .addr-form {
     padding: 20px;
   }
@@ -2933,56 +2854,28 @@
 
   /* Checkout address pick */
   .co-address {
-    margin: 0 0 14px;
-    padding: 18px 20px;
+    margin: 0 20px 16px;
+    padding: 14px 16px;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
-  .co-address:hover { background: var(--card-hi); border-color: rgba(255,255,255,0.14); }
-  .co-address:active { transform: scale(0.99); }
   .co-address .ic {
-    width: 42px; height: 42px;
+    width: 36px; height: 36px;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--violet), var(--pink));
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
+    font-size: 16px;
     flex-shrink: 0;
-    box-shadow: 0 4px 16px rgba(255, 45, 111, 0.25);
   }
-  .co-address .info { flex: 1; min-width: 0; line-height: 1.5; }
-  .co-address .lbl {
-    font-size: 11px; color: var(--text-dim);
-    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
-    margin-bottom: 3px;
-  }
-  .co-address .val {
-    font-size: 14.5px; color: var(--text); font-weight: 500;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .co-address .chv {
-    color: var(--text-dim); font-size: 20px;
-    opacity: 0.6; transition: opacity 0.15s;
-  }
-  .co-address:hover .chv { opacity: 1; }
-
-  /* Linha de info da taxa de entrega (antes ficava "jogada") */
-  .co-fee-info {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 10px 18px;
-    margin: -6px 0 4px;
-    font-size: 12.5px;
-    color: var(--text-dim);
-    line-height: 1.55;
-  }
-  .co-fee-info .icn { font-size: 16px; opacity: 0.7; margin-top: 1px; }
-  .co-fee-info .txt { flex: 1; }
-  .co-fee-info b { color: var(--text); font-weight: 600; }
+  .co-address .info { flex: 1; min-width: 0; }
+  .co-address .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .co-address .val { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .co-address .chv { color: var(--text-dim); font-size: 20px; }
 
   .confirm-btn {
     width: calc(100% - 40px);
@@ -3291,7 +3184,7 @@
       <div class="splash-logo-ring"></div>
       <div class="splash-logo-ring d2"></div>
       <img src="03_Logo/drope_logo_v5_neon_chameleon_hero.jpg" alt="Drope" class="splash-logo">
-      <div class="splash-tag">✦ pods em minutos ✦</div>
+      <div class="splash-tag">✦ drops em minutos ✦</div>
       <div class="splash-loader"><div></div><div></div><div></div></div>
     </div>
   </div>
@@ -3300,7 +3193,7 @@
     <div class="onboard">
       <div class="onboard-logo">
         <img src="03_Logo/drope_logo_v5_neon_chameleon_hero.jpg" alt="drope" class="onboard-hero-img">
-        <div class="onboard-tag">✦ pods em minutos ✦</div>
+        <div class="onboard-tag">✦ drops em minutos ✦</div>
       </div>
 
       <!-- Step 1: Age gate -->
@@ -3378,6 +3271,9 @@
       </div>
     </div>
 
+    <!-- OSSO 21 — Home personalizada (vibes pra novo, recompra+reco pra recorrente) -->
+    <div id="home-personalized-wrap"></div>
+
     <div class="section-title display">Catálogo<span>o que dropou hoje</span></div>
 
     <div class="cats-wrap">
@@ -3394,24 +3290,20 @@
       </div>
     </div>
 
-    <div class="hero" id="home-hero" onclick="openHeroProduct()">
-      <div class="hero-visual-wrap">
-        <div class="hero-badge-float" id="hero-badge">🔥 bombando</div>
-        <div id="hero-visual" class="emoji"></div>
+    <div class="hero" id="home-hero" onclick="openProduct(0)">
+      <div class="tag">dropou agora ✦</div>
+      <div id="hero-visual" class="emoji"></div>
+      <div class="hero-name display" id="hero-name"></div>
+      <div class="hero-sub">
+        <span class="pink" id="hero-price"></span>
+        chega em 30min 🛵
       </div>
-      <div class="hero-bottom">
-        <div class="hero-name display" id="hero-name"></div>
-        <div class="hero-sub">
-          <span class="pink" id="hero-price"></span>
-          chega em 30min 🛵
-        </div>
-        <button class="hero-cta" onclick="event.stopPropagation(); openHeroProduct()">vou levar ✦</button>
-      </div>
+      <button class="hero-cta">vou levar ✦</button>
     </div>
 
     <div id="home-last-order-wrap"></div>
 
-    <div class="cat-section">pods</div>
+    <div class="cat-section">drops</div>
     <div class="grid" id="grid-pods"></div>
 
     <div class="cat-section">tabacaria</div>
@@ -3498,27 +3390,26 @@
     </div>
   </div>
 
-  <!-- ============ CHECKOUT (2 sub-steps: entrega → pagamento) ============ -->
-  <div class="screen no-nav" id="checkout" data-step="delivery">
+  <!-- ============ CHECKOUT (entrega + pagamento numa tela só) ============ -->
+  <div class="screen no-nav" id="checkout">
     <div class="top-bar">
-      <div class="icon-btn" onclick="checkoutBack()">
+      <div class="icon-btn" onclick="go('cart')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small" id="co-title">Entrega</div>
+      <div class="brand-small">Fechar pedido</div>
       <div style="width: 42px"></div>
     </div>
 
-    <!-- Step indicator (sincroniza com data-step) -->
+    <!-- Step indicator -->
     <div class="step-indicator">
-      <div class="step active" id="step-delivery"><span class="step-num">1</span> entrega</div>
-      <div class="step-line" id="step-line-1"></div>
-      <div class="step" id="step-payment"><span class="step-num">2</span> pagamento</div>
-      <div class="step-line" id="step-line-2"></div>
-      <div class="step" id="step-confirm"><span class="step-num">3</span> confirmar</div>
+      <div class="step active"><span class="step-num">1</span> entrega</div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-num">2</span> pagamento</div>
+      <div class="step-line"></div>
+      <div class="step"><span class="step-num">3</span> confirmar</div>
     </div>
 
-    <!-- ============ BLOCO 1 · ENTREGA ============ -->
-    <div class="co-wrap" id="co-step-delivery">
+    <div class="co-wrap">
       <div class="co-section-lbl">como quer receber</div>
       <div class="co-mode" id="co-mode">
         <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">🛵 entrega</div>
@@ -3535,11 +3426,8 @@
         <div class="chv">editar ›</div>
       </div>
 
-      <div style="height: 120px"></div>
-    </div>
+      <div class="co-divider"></div>
 
-    <!-- ============ BLOCO 2 · PAGAMENTO ============ -->
-    <div class="co-wrap" id="co-step-payment" style="display:none">
       <div class="co-section-lbl">total</div>
       <div class="co-total">
         <div class="co-total-lbl">teu pedido</div>
@@ -3578,16 +3466,9 @@
       </div>
 
       <div class="co-recap" id="co-recap"></div>
-
-      <div style="height: 120px"></div>
     </div>
 
-    <!-- CTA sticky só na tela de entrega -->
-    <div class="sticky-cta" id="co-cta-wrap">
-      <button class="btn-primary" id="co-cta-btn" onclick="tryGoToPayment()">
-        continuar ✦ pagamento
-      </button>
-    </div>
+    <div style="height: 40px"></div>
   </div>
 
   <!-- ============ CARD ============ -->
@@ -3732,22 +3613,11 @@
     <div class="success-wrap">
       <div class="check">✓</div>
       <div class="success-title display">Dropou ✦</div>
-      <div class="success-sub" id="success-sub">pedido confirmado ✦ manda o comprovante pra liberar</div>
-      <div class="success-order" id="success-order">#dr-0000</div>
-
-      <!-- Resumo do pedido (populado dinamicamente) -->
-      <div class="success-summary" id="success-summary"></div>
-
-      <!-- Botão whats DESTACADO (texto adapta conforme m\u00e9todo de pagamento) -->
-      <button class="btn-whats-cta" onclick="shareOnWhats()">
-        <span class="whats-icon">📱</span>
-        <div class="whats-txt">
-          <div class="whats-title" id="whats-cta-title">mandar comprovante no whats</div>
-          <div class="whats-sub" id="whats-cta-sub">loja confirma e libera teu drope ✦</div>
-        </div>
-      </button>
+      <div class="success-sub">pedido confirmado ✦ avisa a gente no whats pra liberar</div>
+      <div class="success-order" id="success-order">#dr-4291</div>
 
       <div class="success-btns">
+        <button class="btn-primary" onclick="shareOnWhats()">abrir whats da loja 💬</button>
         <button class="btn-secondary" onclick="go('order-tracking')">acompanhar pedido →</button>
       </div>
     </div>
@@ -3792,10 +3662,6 @@
       <div style="width: 42px"></div>
     </div>
     <div class="addr-form">
-      <button class="gps-btn" id="gps-btn" onclick="useGPS()">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="8"/></svg>
-        <span id="gps-btn-text">usar minha localização</span>
-      </button>
       <div class="lab">apelido</div>
       <input id="af-label" placeholder="casa, trampo, role...">
       <div class="lab">cep</div>
@@ -3887,11 +3753,12 @@
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
         <div class="profile-row" onclick="go('profile-edit')">editar perfil <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="go('flavor-profile')">meu perfil de sabor 🦎 <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('favorites')">favoritos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('addresses')">endereços <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="shareDrope()">compartilhar app com alguém <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="openHelpWhats()">ajuda ✦ falar no whats <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="shareDrope()">compartilhar app <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="openHelpWhats()">ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
         <div class="profile-row" onclick="logoutAccount()" style="color: var(--pink)">sair da conta <span class="arrow">›</span></div>
       </div>
     </div>
@@ -3926,13 +3793,28 @@
     </div>
   </div>
 
+  <!-- ============ FLAVOR PROFILE (OSSO 21 — Feature 4) ============ -->
+  <div class="screen no-nav" id="flavor-profile">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('profile')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Meu perfil 🦎</div>
+      <div style="width: 42px"></div>
+    </div>
+    <div id="flavor-profile-body"></div>
+    <div style="padding: 0 20px 80px">
+      <button class="btn-secondary" onclick="shareFlavorCard()" style="width:100%;margin-top:6px">compartilhar meu perfil 🦎</button>
+    </div>
+  </div>
+
   <!-- ============ ADMIN LOGIN ============ -->
   <div class="screen no-nav" id="admin-login">
     <div class="login-wrap">
       <div class="admin-brand">Drope <span class="tag">admin</span></div>
       <div style="color: var(--text-dim); font-size: 14px; margin-top: 20px">entra pra gerenciar o Drope</div>
-      <input id="admin-pw" type="password" placeholder="senha" />
-      <button class="btn-primary" onclick="adminLogin()">entrar</button>
+      <input id="admin-pw" type="password" placeholder="senha" autocomplete="current-password" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();adminLogin();}" />
+      <button class="btn-primary" type="button" onclick="adminLogin()" onpointerdown="event.preventDefault();this.click()">entrar</button>
       <button class="btn-secondary" onclick="location.hash='';go('home')">voltar pro app</button>
       <div style="color: var(--text-dim); font-size: 11px; margin-top: 30px">acesso restrito ao dono</div>
     </div>
@@ -3979,13 +3861,16 @@
 
     <div class="dash-top-card">
       <div class="dtc-head">
-        <div class="dtc-title">top pods ✦ mais vendidos</div>
+        <div class="dtc-title">top drops ✦ mais vendidos</div>
       </div>
       <div class="dtc-list" id="dtc-list"></div>
     </div>
 
     <div style="padding: 20px">
       <button class="btn-primary" onclick="openPOS()">venda presencial ✦ balcão 💰</button>
+      <button class="btn-primary" onclick="openReceberWithToken()" style="background:var(--lime);color:#000">📦 receber estoque ✦ scanner</button>
+      <button class="btn-secondary" onclick="openPendentesPodPhoto()">📸 pendentes de foto do pod</button>
+      <button class="btn-secondary" onclick="openRevisarReferencias()">🖼️ revisar referências (pipeline novo)</button>
       <button class="btn-secondary" onclick="go('admin-ai')">agente drope ✦ ia 🤖</button>
       <button class="btn-secondary" onclick="openAdminOrders('all')">ver todos os pedidos</button>
       <button class="btn-secondary" onclick="go('admin-products')">gerenciar drops</button>
@@ -4305,6 +4190,26 @@
     </div>
   </div>
 
+  <!-- ============ OSSO 34: ADMIN REFERENCES (pipeline visual) ============ -->
+  <div class="screen no-nav" id="admin-references">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('admin-dash')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Referências visuais</div>
+      <div style="width: 42px"></div>
+    </div>
+    <div class="section-title display" style="padding-top: 10px">Pipeline OSSO 34<span id="adm-ref-count">carregando…</span></div>
+    <div style="padding: 0 20px 14px; display:flex; gap:8px; flex-wrap:wrap">
+      <button class="af-seg active" data-ref-filter="pendentes" onclick="setRefFilter('pendentes')">pendentes</button>
+      <button class="af-seg" data-ref-filter="none" onclick="setRefFilter('none')">sem ref</button>
+      <button class="af-seg" data-ref-filter="auto_failed" onclick="setRefFilter('auto_failed')">auto falhou</button>
+      <button class="af-seg" data-ref-filter="ok" onclick="setRefFilter('ok')">resolvidos</button>
+    </div>
+    <input type="file" id="adm-ref-file" accept="image/*" style="display:none" onchange="onRefFileSelected(event)">
+    <div id="admin-references-list" style="padding: 0 20px 40px"></div>
+  </div>
+
   <!-- ============ ADMIN FORM (CRUD) ============ -->
   <div class="screen no-nav" id="admin-form">
     <div class="top-bar">
@@ -4325,7 +4230,7 @@
 
       <label class="card-lbl">categoria</label>
       <div class="af-toggle">
-        <button class="af-seg active" data-cat="pod" onclick="selectCat('pod')">pod ✦ só Pix</button>
+        <button class="af-seg active" data-cat="pod" onclick="selectCat('pod')">drop ✦ só Pix</button>
         <button class="af-seg" data-cat="tabac" onclick="selectCat('tabac')">tabacaria ✦ Pix + cartão</button>
       </div>
 
@@ -4343,6 +4248,10 @@
 
       <label class="card-lbl">estoque (qtd disponível)</label>
       <input class="card-input" id="af-stock" type="number" inputmode="numeric" placeholder="10">
+
+      <label class="card-lbl">código de barras (EAN)</label>
+      <input class="card-input" id="af-barcode" type="text" inputmode="numeric" placeholder="7891234567890" maxlength="20" style="font-family: monospace; letter-spacing: 2px">
+      <div id="af-barcode-hint" style="font-size: 11px; color: var(--text-dim); margin: -4px 0 8px; opacity: 0.6; display: none">cadastrado pelo PDV ✦</div>
 
       <div id="af-pod-fields">
         <label class="card-lbl">perfil</label>
@@ -4569,7 +4478,9 @@
     // Boot async puxa snapshot; set dispara flush debounced (500ms) com upsert REST
     // Veja supabase-setup.md pro schema SQL
     const KEY_TABLE_MAP = {
-      'drope_products_v1':  { table: 'products',     kind: 'array',     pk: 'id' },
+      // REFATOR 30/04/2026: 'drope_products_v1' removido — catálogo agora vem via
+      // /api/webhook?action=catalog (de drope_products). app cliente é READ-ONLY pra
+      // catálogo; bot/gallery são source of truth.
       'drope_orders_v1':    { table: 'orders',       kind: 'array',     pk: 'num' },
       'drope_customers_v1': { table: 'customers',    kind: 'array',     pk: 'phone' },
       'drope_store_v1':     { table: 'store_config', kind: 'singleton' },
@@ -4755,9 +4666,9 @@
       // e sobe tudo. Usado pelo botão "sincronizar com nuvem" do admin.
       async pushAll() {
         if (!sbUrl || !sbKey) throw new Error('supabase não configurado');
-        // mapa de key -> snapshot ao vivo das variáveis globais do app
+        // mapa de key -> snapshot ao vivo das variáveis globais do app.
+        // 'drope_products_v1' removido (refator 30/04/2026): catálogo é READ-ONLY do app.
         const live = {
-          'drope_products_v1':  (typeof products  !== 'undefined') ? products  : null,
           'drope_orders_v1':    (typeof orders    !== 'undefined') ? orders    : null,
           'drope_customers_v1': (typeof customers !== 'undefined') ? customers : null,
           'drope_store_v1':     (typeof store     !== 'undefined') ? store     : null,
@@ -4817,76 +4728,13 @@
   }
 
   // ===== Data =====
-  // cat: 'pod' = só Pix ✦ 'tabac' = Pix + cartão
-  let products = [
-    { emoji: '🫐', name: 'Black Sheep blueberry 55k', desc: 'frutado doce ✦ blueberry maduro', price: 110, cat: 'pod', perfil: 'frutado', puffs: 55000, marca: 'black sheep', sabor: 'blueberry', img: '04_Produto_Artes/01-blacksheep-blueberry-55k.png', video: '04_Produto_Artes/01-blacksheep-blueberry-55k.mp4' },
-    { emoji: '🌿', name: 'Black Sheep miami mint 55k', desc: 'gelado fresco ✦ hortelã tropical', price: 110, cat: 'pod', perfil: 'gelado', puffs: 55000, marca: 'black sheep', sabor: 'menta', img: '04_Produto_Artes/02-blacksheep-miami-mint-55k.png', video: '04_Produto_Artes/02-blacksheep-miami-mint-55k.mp4' },
-    { emoji: '❄️', name: 'Black Sheep cool mint 55k', desc: 'gelado intenso ✦ menta glacial', price: 110, cat: 'pod', perfil: 'gelado', puffs: 55000, marca: 'black sheep', sabor: 'menta', img: '04_Produto_Artes/03-blacksheep-cool-mint-55k.png', video: '04_Produto_Artes/03-blacksheep-cool-mint-55k.mp4' },
-    { emoji: '🍇', name: 'Black Sheep aloe grape 55k', desc: 'frutado suave ✦ uva + aloe vera', price: 110, cat: 'pod', perfil: 'frutado', puffs: 55000, marca: 'black sheep', sabor: 'uva', img: '04_Produto_Artes/04-blacksheep-aloe-grape-55k.png', video: '04_Produto_Artes/04-blacksheep-aloe-grape-55k.mp4' },
-    { emoji: '🥭', name: 'Elf Bar BC Pro mango magic 45k', desc: 'frutado tropical ✦ manga mágica', price: 110, cat: 'pod', perfil: 'frutado', puffs: 45000, marca: 'elf bar', sabor: 'manga', img: '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.png', video: '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.mp4' },
-    { emoji: '🍏', name: 'Elf Bar Ice King green apple 40k', desc: 'gelado frutado ✦ maçã verde glacial', price: 95, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'elf bar', sabor: 'maçã', img: '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.png', video: '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.mp4' },
-    { emoji: '🌿', name: 'Elf Bar Ice King miami mint 40k', desc: 'gelado tropical ✦ menta miami', price: 95, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'elf bar', sabor: 'menta', img: '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.png', video: '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.mp4' },
-    { emoji: '🍎', name: 'Elf Bar Ice King double apple 40k', desc: 'gelado duplo ✦ duas maçãs', price: 95, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'elf bar', sabor: 'maçã', img: '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.png', video: '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.mp4' },
-    { emoji: '🌊', name: 'Elf Bar Ice King summer splash 40k', desc: 'gelado refrescante ✦ ondas de verão', price: 95, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'elf bar', sabor: 'mix frutas', img: '04_Produto_Artes/09-elfbar-iceking-summer-splash-40k.png', video: '04_Produto_Artes/09-elfbar-iceking-summer-splash-40k.mp4' },
-    { emoji: '🍑', name: 'Elf Bar Trio peach twist 40k', desc: 'frutado suave ✦ pêssego girado', price: 85, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'elf bar', sabor: 'pêssego', img: '04_Produto_Artes/10-elfbar-trio-peach-twist-40k.png', video: '04_Produto_Artes/10-elfbar-trio-peach-twist-40k.mp4' },
-    { emoji: '🍓', name: 'Elf Bar Trio blue razz 40k', desc: 'frutado ácido ✦ morango + framboesa', price: 85, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/11-elfbar-trio-blue-razz-40k.png', video: '04_Produto_Artes/11-elfbar-trio-blue-razz-40k.mp4' },
-    { emoji: '🍏', name: 'Elf Bar Trio sour apple 40k', desc: 'frutado ácido ✦ maçã azeda', price: 85, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'elf bar', sabor: 'maçã', img: '04_Produto_Artes/12-elfbar-trio-sour-apple-40k.png', video: '04_Produto_Artes/12-elfbar-trio-sour-apple-40k.mp4' },
-    { emoji: '🌸', name: 'Elf Bar Trio sakura grape 40k', desc: 'frutado floral ✦ cereja sakura + uva', price: 85, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'elf bar', sabor: 'uva', img: '04_Produto_Artes/13-elfbar-trio-sakura-grape-40k.png', video: '04_Produto_Artes/13-elfbar-trio-sakura-grape-40k.mp4' },
-    { emoji: '🍎', name: 'Elf Bar Trio pomegranate 40k', desc: 'frutado exótico ✦ romã vibrante', price: 85, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'elf bar', sabor: 'romã', img: '04_Produto_Artes/14-elfbar-trio-pomegranate-40k.png', video: '04_Produto_Artes/14-elfbar-trio-pomegranate-40k.mp4' },
-    { emoji: '🍏', name: 'Elf Bar TE 30K green apple 30k', desc: 'gelado frutado ✦ maçã verde', price: 90, cat: 'pod', perfil: 'gelado', puffs: 30000, marca: 'elf bar', sabor: 'maçã', img: '04_Produto_Artes/15-elfbar-te30k-green-apple-30k.png', video: '04_Produto_Artes/15-elfbar-te30k-green-apple-30k.mp4' },
-    { emoji: '🍓', name: 'Elf Bar TE 30K strawberry 30k', desc: 'frutado doce ✦ morango fresco', price: 90, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/16-elfbar-te30k-strawberry-30k.png', video: '04_Produto_Artes/16-elfbar-te30k-strawberry-30k.mp4' },
-    { emoji: '🫐', name: 'Elf Bar GH 23K blue razz 23k', desc: 'frutado ácido ✦ framboesa azul', price: 75, cat: 'pod', perfil: 'frutado', puffs: 23000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/17-elfbar-gh23k-blue-razz-23k.png', video: '04_Produto_Artes/17-elfbar-gh23k-blue-razz-23k.mp4', active: false },
-    { emoji: '🫐', name: 'Elf Bar GH 23K blueberry pear 23k', desc: 'frutado doce ✦ mirtilo + pera', price: 75, cat: 'pod', perfil: 'frutado', puffs: 23000, marca: 'elf bar', sabor: 'blueberry', img: '04_Produto_Artes/18-elfbar-gh23k-blueberry-pear-23k.png', video: '04_Produto_Artes/18-elfbar-gh23k-blueberry-pear-23k.mp4', active: false },
-    { emoji: '🌊', name: 'Elf Bar GH 23K baja splash 23k', desc: 'gelado refrescante ✦ baja tropical', price: 75, cat: 'pod', perfil: 'gelado', puffs: 23000, marca: 'elf bar', sabor: 'mix frutas', img: '04_Produto_Artes/19-elfbar-gh23k-baja-splash-23k.png', video: '04_Produto_Artes/19-elfbar-gh23k-baja-splash-23k.mp4', active: false },
-    { emoji: '🍓', name: 'Elf Bar GH 23K strawberry banana 23k', desc: 'frutado doce ✦ morango + banana', price: 75, cat: 'pod', perfil: 'frutado', puffs: 23000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/20-elfbar-gh23k-strawberry-banana-23k.png', video: '04_Produto_Artes/20-elfbar-gh23k-strawberry-banana-23k.mp4', active: false },
-    { emoji: '🍐', name: 'Elf Bar BC 15K pear watermelon 15k', desc: 'frutado refrescante ✦ pera + melancia', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'elf bar', sabor: 'pera', img: '04_Produto_Artes/21-elfbar-bc15k-pear-watermelon-15k.png', video: '04_Produto_Artes/21-elfbar-bc15k-pear-watermelon-15k.mp4' },
-    { emoji: '🍍', name: 'Elf Bar BC 15K pineapple 15k', desc: 'frutado tropical ✦ abacaxi puro', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'elf bar', sabor: 'abacaxi', img: '04_Produto_Artes/22-elfbar-bc15k-pineapple-15k.png', video: '04_Produto_Artes/22-elfbar-bc15k-pineapple-15k.mp4' },
-    { emoji: '🥭', name: 'Elf Bar BC 15K peach mango 15k', desc: 'frutado tropical ✦ pêssego + manga', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'elf bar', sabor: 'manga', img: '04_Produto_Artes/23-elfbar-bc15k-peach-mango-15k.png', video: '04_Produto_Artes/23-elfbar-bc15k-peach-mango-15k.mp4' },
-    { emoji: '🍏', name: 'Elf Bar BC 15K sour apple 15k', desc: 'frutado ácido ✦ maçã verde azeda', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'elf bar', sabor: 'maçã', img: '04_Produto_Artes/24-elfbar-bc15k-sour-apple-15k.png', video: '04_Produto_Artes/24-elfbar-bc15k-sour-apple-15k.mp4' },
-    { emoji: '🍓', name: 'Elf Bar BC 15K strawberry cream 15k', desc: 'doce cremoso ✦ morango com creme', price: 60, cat: 'pod', perfil: 'doce', puffs: 15000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/25-elfbar-bc15k-strawberry-cream-15k.png', video: '04_Produto_Artes/25-elfbar-bc15k-strawberry-cream-15k.mp4' },
-    { emoji: '💖', name: 'Elf Bar BC 15K elf love 15k', desc: 'doce romantic ✦ amor em sabor', price: 60, cat: 'pod', perfil: 'doce', puffs: 15000, marca: 'elf bar', sabor: 'morango', img: '04_Produto_Artes/26-elfbar-bc15k-elf-love-15k.png', video: '04_Produto_Artes/26-elfbar-bc15k-elf-love-15k.mp4' },
-    { emoji: '🍓', name: 'Ignite V250 strawberry ice 25k', desc: 'gelado frutado ✦ morango congelado', price: 95, cat: 'pod', perfil: 'gelado', puffs: 25000, marca: 'ignite', sabor: 'morango', img: '04_Produto_Artes/27-ignite-v250-strawberry-ice-25k.png', video: '04_Produto_Artes/27-ignite-v250-strawberry-ice-25k.mp4' },
-    { emoji: '🍌', name: 'Ignite V250 strawberry banana 25k', desc: 'frutado doce ✦ morango + banana', price: 95, cat: 'pod', perfil: 'frutado', puffs: 25000, marca: 'ignite', sabor: 'morango', img: '04_Produto_Artes/28-ignite-v250-strawberry-banana-25k.png', video: '04_Produto_Artes/28-ignite-v250-strawberry-banana-25k.mp4' },
-    { emoji: '🍏', name: 'Ignite V250 green apple 25k', desc: 'gelado frutado ✦ maçã verde', price: 95, cat: 'pod', perfil: 'gelado', puffs: 25000, marca: 'ignite', sabor: 'maçã', img: '04_Produto_Artes/29-ignite-v250-green-apple-25k.png', video: '04_Produto_Artes/29-ignite-v250-green-apple-25k.mp4' },
-    { emoji: '🍌', name: 'Ignite V250 banana ice 25k', desc: 'gelado doce ✦ banana glacial', price: 95, cat: 'pod', perfil: 'gelado', puffs: 25000, marca: 'ignite', sabor: 'banana', img: '04_Produto_Artes/30-ignite-v250-banana-ice-25k.png', video: '04_Produto_Artes/30-ignite-v250-banana-ice-25k.mp4' },
-    { emoji: '🌿', name: 'Ignite V250 menthol 25k', desc: 'mentolado intenso ✦ menta pura', price: 95, cat: 'pod', perfil: 'mentolado', puffs: 25000, marca: 'ignite', sabor: 'menta', img: '04_Produto_Artes/31-ignite-v250-menthol-25k.png', video: '04_Produto_Artes/31-ignite-v250-menthol-25k.mp4' },
-    { emoji: '🍌', name: 'Ignite V300 banana coconut 30k', desc: 'frutado tropical ✦ banana + coco', price: 100, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'ignite', sabor: 'banana', img: '04_Produto_Artes/32-ignite-v300-banana-coconut-30k.png', video: '04_Produto_Artes/32-ignite-v300-banana-coconut-30k.mp4' },
-    { emoji: '❄️', name: 'Ignite V300 menthol 30k', desc: 'mentolado gelado ✦ menta cristalina', price: 100, cat: 'pod', perfil: 'mentolado', puffs: 30000, marca: 'ignite', sabor: 'menta', img: '04_Produto_Artes/33-ignite-v300-menthol-30k.png', video: '04_Produto_Artes/33-ignite-v300-menthol-30k.mp4' },
-    { emoji: '🐉', name: 'Ignite V300 dragonfruit watermelon 30k', desc: 'frutado refrescante ✦ pitaya + melancia', price: 100, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'ignite', sabor: 'pitaya', img: '04_Produto_Artes/34-ignite-v300-dragonfruit-watermelon-30k.png', video: '04_Produto_Artes/34-ignite-v300-dragonfruit-watermelon-30k.mp4' },
-    { emoji: '🍍', name: 'Ignite V300 pineapple 30k', desc: 'frutado tropical ✦ abacaxi vibrante', price: 100, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'ignite', sabor: 'abacaxi', img: '04_Produto_Artes/35-ignite-v300-pineapple-30k.png', video: '04_Produto_Artes/35-ignite-v300-pineapple-30k.mp4' },
-    { emoji: '❄️', name: 'Ignite V155 icy mint 15k', desc: 'gelado mentolado ✦ menta ártica', price: 60, cat: 'pod', perfil: 'gelado', puffs: 15000, marca: 'ignite', sabor: 'menta', img: '04_Produto_Artes/36-ignite-v155-icy-mint-15k.png', video: '04_Produto_Artes/36-ignite-v155-icy-mint-15k.mp4' },
-    { emoji: '🍍', name: 'Ignite V155 pineapple 15k', desc: 'frutado tropical ✦ abacaxi puro', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'ignite', sabor: 'abacaxi', img: '04_Produto_Artes/37-ignite-v155-pineapple-15k.png', video: '04_Produto_Artes/37-ignite-v155-pineapple-15k.mp4' },
-    { emoji: '🍇', name: 'Ignite V155 grape ice 15k', desc: 'gelado frutado ✦ uva congelada', price: 60, cat: 'pod', perfil: 'gelado', puffs: 15000, marca: 'ignite', sabor: 'uva', img: '04_Produto_Artes/38-ignite-v155-grape-ice-15k.png', video: '04_Produto_Artes/38-ignite-v155-grape-ice-15k.mp4' },
-    { emoji: '🍉', name: 'Ignite V155 watermelon dragonfruit 15k', desc: 'frutado refrescante ✦ melancia + pitaya', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'ignite', sabor: 'melancia', img: '04_Produto_Artes/39-ignite-v155-watermelon-dragonfruit-15k.png', video: '04_Produto_Artes/39-ignite-v155-watermelon-dragonfruit-15k.mp4' },
-    { emoji: '🌿', name: 'Ignite V155 menthol 15k', desc: 'mentolado puro ✦ menta intensa', price: 60, cat: 'pod', perfil: 'mentolado', puffs: 15000, marca: 'ignite', sabor: 'menta', img: '04_Produto_Artes/40-ignite-v155-menthol-15k.png', video: '04_Produto_Artes/40-ignite-v155-menthol-15k.mp4' },
-    { emoji: '🫐', name: 'Ignite V155 blueberry 15k', desc: 'frutado doce ✦ mirtilo suave', price: 60, cat: 'pod', perfil: 'frutado', puffs: 15000, marca: 'ignite', sabor: 'blueberry', img: '04_Produto_Artes/41-ignite-v155-blueberry-15k.png', video: '04_Produto_Artes/41-ignite-v155-blueberry-15k.mp4' },
-    { emoji: '🍓', name: 'Ignite V55 strawberry banana 5k', desc: 'frutado doce ✦ morango + banana', price: 80, cat: 'pod', perfil: 'frutado', puffs: 5000, marca: 'ignite', sabor: 'morango', img: '04_Produto_Artes/42-ignite-v55-strawberry-banana-5k.png', video: '04_Produto_Artes/42-ignite-v55-strawberry-banana-5k.mp4' },
-    { emoji: '🍇', name: 'Ignite V55 aloe grape 5k', desc: 'frutado suave ✦ uva + aloe vera', price: 80, cat: 'pod', perfil: 'frutado', puffs: 5000, marca: 'ignite', sabor: 'uva', img: '04_Produto_Artes/43-ignite-v55-aloe-grape-5k.png', video: '04_Produto_Artes/43-ignite-v55-aloe-grape-5k.mp4' },
-    { emoji: '🍈', name: 'Ignite V55 minty melon 5k', desc: 'gelado frutado ✦ melão + menta', price: 80, cat: 'pod', perfil: 'gelado', puffs: 5000, marca: 'ignite', sabor: 'melancia', img: '04_Produto_Artes/44-ignite-v55-minty-melon-5k.png', video: '04_Produto_Artes/44-ignite-v55-minty-melon-5k.mp4' },
-    { emoji: '🍍', name: 'Ignite Boost pineapple kiwi 40k', desc: 'frutado tropical ✦ abacaxi + kiwi', price: 100, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'ignite', sabor: 'abacaxi', img: '04_Produto_Artes/45-ignite-boost-pineapple-kiwi-40k.png', video: '04_Produto_Artes/45-ignite-boost-pineapple-kiwi-40k.mp4' },
-    { emoji: '🌊', name: 'Dojo fresh splash 40k', desc: 'gelado refrescante ✦ splash tropical', price: 80, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'dojo', sabor: 'mix frutas', img: '04_Produto_Artes/46-dojo-fresh-splash-40k.png', video: '04_Produto_Artes/46-dojo-fresh-splash-40k.mp4' },
-    { emoji: '🌺', name: 'Dojo hawaii dream 40k', desc: 'frutado tropical ✦ sonho havaiano', price: 80, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'dojo', sabor: 'manga', img: '04_Produto_Artes/47-dojo-hawaii-dream-40k.png', video: '04_Produto_Artes/47-dojo-hawaii-dream-40k.mp4' },
-    { emoji: '🍓', name: 'Dojo fresh berry orange 40k', desc: 'frutado cítrico ✦ berries + laranja', price: 80, cat: 'pod', perfil: 'frutado', puffs: 40000, marca: 'dojo', sabor: 'morango', img: '04_Produto_Artes/48-dojo-fresh-berry-orange-40k.png', video: '04_Produto_Artes/48-dojo-fresh-berry-orange-40k.mp4' },
-    { emoji: '🍌', name: 'Dojo frosty banana taffy 40k', desc: 'gelado doce ✦ banana com caramelo', price: 80, cat: 'pod', perfil: 'gelado', puffs: 40000, marca: 'dojo', sabor: 'banana', img: '04_Produto_Artes/49-dojo-frosty-banana-taffy-40k.png', video: '04_Produto_Artes/49-dojo-frosty-banana-taffy-40k.mp4' },
-    { emoji: '🫐', name: 'Lost Mary blue razz 30k', desc: 'frutado ácido ✦ framboesa azul', price: 85, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'lost mary', sabor: 'morango', img: '04_Produto_Artes/50-lostmary-blue-razz-30k.png', video: '04_Produto_Artes/50-lostmary-blue-razz-30k.mp4' },
-    { emoji: '🌿', name: 'Lost Mary miami chill 30k', desc: 'gelado refrescante ✦ miami fresco', price: 85, cat: 'pod', perfil: 'gelado', puffs: 30000, marca: 'lost mary', sabor: 'menta', img: '04_Produto_Artes/51-lostmary-miami-chill-30k.png', video: '04_Produto_Artes/51-lostmary-miami-chill-30k.mp4' },
-    { emoji: '🍇', name: 'Lost Mary aloe grape sour apple 30k', desc: 'frutado ácido ✦ uva + maçã + aloe', price: 85, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'lost mary', sabor: 'uva', img: '04_Produto_Artes/52-lostmary-aloe-grape-sour-apple-30k.png', video: '04_Produto_Artes/52-lostmary-aloe-grape-sour-apple-30k.mp4' },
-    { emoji: '🍌', name: 'Lost Mary banana cherry 30k', desc: 'frutado doce ✦ banana + cereja', price: 85, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'lost mary', sabor: 'banana', img: '04_Produto_Artes/53-lostmary-banana-cherry-30k.png', video: '04_Produto_Artes/53-lostmary-banana-cherry-30k.mp4' },
-    { emoji: '🍓', name: 'Geek Bar frozen strawberry 35k', desc: 'gelado frutado ✦ morango congelado', price: 80, cat: 'pod', perfil: 'gelado', puffs: 35000, marca: 'geek bar', sabor: 'morango', img: '04_Produto_Artes/54-geekbar-frozen-strawberry-35k.png', video: '04_Produto_Artes/54-geekbar-frozen-strawberry-35k.mp4' },
-    { emoji: '🍑', name: 'Geek Bar white peach raspberry 35k', desc: 'frutado delicado ✦ pêssego branco + framboesa', price: 80, cat: 'pod', perfil: 'frutado', puffs: 35000, marca: 'geek bar', sabor: 'pêssego', img: '04_Produto_Artes/55-geekbar-white-peach-raspberry-35k.png', video: '04_Produto_Artes/55-geekbar-white-peach-raspberry-35k.mp4' },
-    { emoji: '❄️', name: 'Geek Bar stone freeze 35k', desc: 'gelado intenso ✦ gelo de pedra', price: 80, cat: 'pod', perfil: 'gelado', puffs: 35000, marca: 'geek bar', sabor: 'menta', img: '04_Produto_Artes/56-geekbar-stone-freeze-35k.png', video: '04_Produto_Artes/56-geekbar-stone-freeze-35k.mp4' },
-    { emoji: '🥤', name: 'Adalya AD5000 fruity smoothie 5k', desc: 'frutado cremoso ✦ smoothie de frutas', price: 80, cat: 'pod', perfil: 'frutado', puffs: 5000, marca: 'adalya', sabor: 'mix frutas', img: '04_Produto_Artes/57-adalya-ad40k-fruity-smoothie-40k.png', video: '04_Produto_Artes/57-adalya-ad40k-fruity-smoothie-40k.mp4' },
-    { emoji: '🍍', name: 'Adalya AD5000 pineapple slice 5k', desc: 'frutado tropical ✦ fatia de abacaxi', price: 80, cat: 'pod', perfil: 'frutado', puffs: 5000, marca: 'adalya', sabor: 'abacaxi', img: '04_Produto_Artes/58-adalya-ad40k-pineapple-slice-40k.png', video: '04_Produto_Artes/58-adalya-ad40k-pineapple-slice-40k.mp4' },
-    { emoji: '🥭', name: 'Adalya AD5000 passion guava kiwi 5k', desc: 'frutado tropical ✦ maracujá + goiaba + kiwi', price: 80, cat: 'pod', perfil: 'frutado', puffs: 5000, marca: 'adalya', sabor: 'maracujá', img: '04_Produto_Artes/59-adalya-ad40k-passion-guava-kiwi-40k.png', video: '04_Produto_Artes/59-adalya-ad40k-passion-guava-kiwi-40k.mp4' },
-    { emoji: '🌿', name: 'Vanther cool mint 30k', desc: 'mentolado gelado ✦ menta fresca', price: 75, cat: 'pod', perfil: 'mentolado', puffs: 30000, marca: 'vanther', sabor: 'menta', img: '04_Produto_Artes/60-vanther-cool-mint-30k.png', video: '04_Produto_Artes/60-vanther-cool-mint-30k.mp4' },
-    { emoji: '🍓', name: 'Vanther mixed berries 30k', desc: 'frutado doce ✦ mix de frutas vermelhas', price: 75, cat: 'pod', perfil: 'frutado', puffs: 30000, marca: 'vanther', sabor: 'morango', img: '04_Produto_Artes/61-vanther-mixed-berries-30k.png', video: '04_Produto_Artes/61-vanther-mixed-berries-30k.mp4' },
-    { emoji: '📄', name: 'seda king', desc: 'tabacaria ✦ papel fino king size', price: 8, cat: 'tabac' },
-    { emoji: '🔥', name: 'isqueiro', desc: 'tabacaria ✦ clássico colorido', price: 12, cat: 'tabac' },
-    { emoji: '🌿', name: 'essência', desc: 'tabacaria ✦ sabor hortelã 50g', price: 25, cat: 'tabac' },
-    { emoji: '💨', name: 'carvão', desc: 'tabacaria ✦ coco premium 250g', price: 18, cat: 'tabac' },
-  ];
-  const allProducts = products;
-  products = products.filter(p => p.active !== false);
+  // REFATOR 30/04/2026 (tarde 5): catálogo agora vem de drope_products via /api/webhook?action=catalog.
+  // O array hardcoded de 66 produtos foi REMOVIDO — apontava pra arquivos PNG estáticos
+  // (vários inexistentes) e bifurcava o catálogo. Agora qualquer produto cadastrado pelo bot
+  // WhatsApp aparece automático no app.
+  // Boot: cache localStorage primeiro pra fast-paint, depois fetch da API atualiza.
+  let products = [];
+  let allProducts = []; // legacy compat — refs externas (admin) leem live via products diretamente
   function payLabel(cat) { return cat === 'pod' ? 'só Pix' : 'Pix + cartão'; }
 
   let cart = [];
@@ -5015,34 +4863,17 @@
     btn.textContent = 'gerando link...';
     btn.disabled = true;
 
-    // ⚡ Salva snapshot do pedido ANTES de redirecionar — quando voltar com #success-pay,
-    // a gente confirma o pedido automaticamente com esses dados (fluxo sem perder contexto)
-    try {
-      const snapshot = {
-        items: cart.map(i => ({ ...i })),
-        deliveryMode,
-        payWhen,
-        address: getSelectedAddress ? (getSelectedAddress() || null) : null,
-        customer: { name: profile?.name, phone: profile?.phone, email: profile?.email },
-        appliedCoupon,
-        paymentMethod: 'infinitepay',      // ← marca que foi pelo gateway (InfinitePay já confirma a loja)
-        savedAt: Date.now(),
-      };
-      localStorage.setItem('drope_pending_payment', JSON.stringify(snapshot));
-      window.__lastPaymentMethod = 'infinitepay';
-    } catch(e) { console.warn('[InfinitePay] snapshot fail', e); }
-
-    // Abre janela ANTES do fetch — iOS Safari bloqueia window.open após async
-    const payWindow = window.open('about:blank', '_blank');
-
     try {
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
       const total = Math.max(0, subtotal - discount);
+      // description: o backend força 'Tabacaria Drope' no payload final pro InfinitePay
+      // (extrato do cliente não mostra nome de pod). Mandar i.name aqui é redundante e
+      // ainda polui logs — mando o genérico desde já.
       const items = cart.map(i => ({
         quantity: i.qty,
         price: Math.round(i.price * 100), // centavos
-        description: i.name
+        description: 'Tabacaria Drope'
       }));
 
       // Manda dados do cliente pro checkout pré-preenchido
@@ -5065,21 +4896,15 @@
 
       const data = await res.json();
       if (data.url) {
-        // Redireciona a janela já aberta pro checkout
-        if (payWindow && !payWindow.closed) {
-          payWindow.location.href = data.url;
-        } else {
-          window.location.href = data.url;
-        }
+        // Abre o checkout InfinitePay (nova aba no mobile abre in-app browser)
+        window.open(data.url, '_blank');
         btn.textContent = 'pagar agora';
         btn.disabled = false;
       } else {
-        if (payWindow && !payWindow.closed) payWindow.close();
         throw new Error(data.error || 'erro ao gerar link');
       }
     } catch(e) {
       console.error('[InfinitePay]', e);
-      if (payWindow && !payWindow.closed) payWindow.close();
       toast('erro no pagamento rápido — usa o Pix manual');
       btn.textContent = 'pagar agora';
       btn.disabled = false;
@@ -5222,73 +5047,7 @@
       openGuestGate();
       return;
     }
-    // Sempre entra pelo step "entrega" (ordem natural do fluxo)
-    checkoutGoStep('delivery');
     go('checkout');
-  }
-
-  // ============ NAVEGAÇÃO INTERNA DO CHECKOUT (2 sub-steps) ============
-  function checkoutGoStep(step) {
-    const screen = document.getElementById('checkout');
-    if (!screen) return;
-    screen.dataset.step = step;
-
-    // Alterna blocos
-    const blockDelivery = document.getElementById('co-step-delivery');
-    const blockPayment = document.getElementById('co-step-payment');
-    if (blockDelivery) blockDelivery.style.display = step === 'delivery' ? '' : 'none';
-    if (blockPayment) blockPayment.style.display = step === 'payment' ? '' : 'none';
-
-    // Atualiza step indicator (ativo/done)
-    const sd = document.getElementById('step-delivery');
-    const sp = document.getElementById('step-payment');
-    const sl1 = document.getElementById('step-line-1');
-    if (sd) {
-      sd.classList.toggle('active', step === 'delivery');
-      sd.classList.toggle('done', step === 'payment');
-    }
-    if (sp) sp.classList.toggle('active', step === 'payment');
-    if (sl1) sl1.classList.toggle('done', step === 'payment');
-
-    // Atualiza título e CTA
-    const title = document.getElementById('co-title');
-    const ctaWrap = document.getElementById('co-cta-wrap');
-    if (title) title.textContent = step === 'delivery' ? 'Entrega' : 'Pagamento';
-    if (ctaWrap) {
-      // CTA sticky só na tela de entrega — na de pagamento os métodos já são CTAs
-      ctaWrap.style.display = step === 'delivery' ? '' : 'none';
-    }
-
-    // Volta pro topo e re-renderiza pra atualizar estado
-    window.scrollTo(0, 0);
-    if (typeof renderCheckout === 'function') renderCheckout();
-  }
-
-  function checkoutBack() {
-    const screen = document.getElementById('checkout');
-    const step = screen ? screen.dataset.step : 'delivery';
-    if (step === 'payment') {
-      checkoutGoStep('delivery');
-    } else {
-      go('cart');
-    }
-  }
-
-  // Valida antes de passar pra tela de pagamento
-  function tryGoToPayment() {
-    if (deliveryMode === 'delivery') {
-      const addr = typeof getSelectedAddress === 'function' ? getSelectedAddress() : null;
-      if (!addr) {
-        if (typeof toast === 'function') toast('cadastra o endereço de entrega primeiro');
-        return;
-      }
-    }
-    if (!profile || !profile.name || !profile.phone) {
-      if (typeof toast === 'function') toast('preenche teu contato primeiro');
-      go('profile-edit');
-      return;
-    }
-    checkoutGoStep('payment');
   }
 
   // Guest gate também aparece ao abrir carrinho (mais cedo = menos surpresa)
@@ -5522,7 +5281,7 @@
     const labelsEl = document.getElementById('dcc-labels');
     if (weekTotal === 0) {
       if (chartEl) {
-        chartEl.innerHTML = `<div class="dcc-empty-msg">📈 <span>sem vendas ainda ✦ bora vender o primeiro pod</span></div>`;
+        chartEl.innerHTML = `<div class="dcc-empty-msg">📈 <span>sem vendas ainda ✦ bora vender o primeiro drop</span></div>`;
       }
       if (labelsEl) labelsEl.innerHTML = '';
     } else {
@@ -6336,117 +6095,62 @@
   }
 
   // ===== Persistência de produtos =====
-  const PRODUCTS_KEY = 'drope_products_v5'; // v5: preços reais, GH23K desativado, Adalya AD5000 corrigido
+  // REFATOR 30/04/2026: o catálogo é READ-ONLY do ponto de vista do app cliente. Source of
+  // truth = drope_products no Supabase, populada via bot WhatsApp + admin gallery. O app
+  // só LÊ via /api/webhook?action=catalog. localStorage é apenas cache pra fast-paint
+  // entre visitas. saveProducts() vira persistência de cache, não de dados.
+  const PRODUCTS_KEY = 'drope_products_v6'; // v6: schema vindo da API (não mais hardcoded)
+  const PRODUCTS_CACHE_TTL = 5 * 60 * 1000; // 5min — bate com o cache do CDN
+
   function saveProducts() {
-    try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); } catch(e) {}
+    // Persiste cache local. NÃO escreve no banco — bot/admin gallery é a fonte de verdade.
+    try {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify({ products, savedAt: Date.now() }));
+    } catch(e) {}
   }
   function loadProducts() {
+    // Cache primeiro (fast-paint), depois fetchCatalog() async atualiza.
     try {
       const saved = localStorage.getItem(PRODUCTS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length) products = parsed;
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length) {
+          products = parsed.products;
+          allProducts = products;
+        }
       }
     } catch(e) {}
   }
-  loadProducts();
-
-  // ============================================================
-  // CATALOG SYNC — puxa produtos do Supabase (substitui hardcoded)
-  // ============================================================
-  async function fetchProductsFromSupabase() {
+  async function fetchCatalog() {
     try {
-      const r = await fetch('/api/check-stock');
-      if (!r.ok) return;
-      const data = await r.json();
-      if (!data.ok || !Array.isArray(data.products) || data.products.length === 0) return;
-
-      const inferPerfil = (p) => {
-        if (p.category && ['frutado','mentolado','gelado'].includes(String(p.category).toLowerCase())) return String(p.category).toLowerCase();
-        const text = ((p.descricao_quebrada || '') + ' ' + (p.metadata?.flavor_pt || '') + ' ' + (p.metadata?.flavor_en || '')).toLowerCase();
-        if (/menta|mint|hortela/.test(text)) return 'mentolado';
-        if (/ice|gelado|frio|cool|frost/.test(text)) return 'gelado';
-        return 'frutado';
-      };
-
-      const FALLBACK_IMAGES = {
-        'black-sheep-blueberry-55k': '04_Produto_Artes/01-blacksheep-blueberry-55k.png',
-        'elf-bar-bc-pro-mango-magic-45k': '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.png',
-        'elf-bar-ice-king-double-apple-40k': '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.png',
-        'elf-bar-ice-king-green-apple-40k': '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.png',
-        'elf-bar-ice-king-miami-mint-40k': '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.png',
-      };
-      const FALLBACK_VIDEOS = {
-        'black-sheep-blueberry-55k': '04_Produto_Artes/01-blacksheep-blueberry-55k.mp4',
-        'elf-bar-bc-pro-mango-magic-45k': '04_Produto_Artes/05-elfbar-bcpro-mango-magic-45k.mp4',
-        'elf-bar-ice-king-double-apple-40k': '04_Produto_Artes/08-elfbar-iceking-double-apple-40k.mp4',
-        'elf-bar-ice-king-green-apple-40k': '04_Produto_Artes/06-elfbar-iceking-green-apple-40k.mp4',
-        'elf-bar-ice-king-miami-mint-40k': '04_Produto_Artes/07-elfbar-iceking-miami-mint-40k.mp4',
-      };
-      const inferEmoji = (p) => {
-        const m = p.metadata || {};
-        const text = `${m.flavor_pt || ''} ${m.flavor_en || ''} ${p.name || ''}`.toLowerCase();
-        if (/blueberry|mirtilo/.test(text)) return '🫐';
-        if (/menta|mint|hortela/.test(text)) return '🌿';
-        if (/uva|grape/.test(text)) return '🍇';
-        if (/manga|mango/.test(text)) return '🥭';
-        if (/abacaxi|pineapple/.test(text)) return '🍍';
-        if (/morango|strawberry/.test(text)) return '🍓';
-        if (/pessego|pêssego|peach/.test(text)) return '🍑';
-        if (/maca|maçã|\bapple\b/.test(text)) return '🍏';
-        if (/banana/.test(text)) return '🍌';
-        if (/melancia|watermelon/.test(text)) return '🍉';
-        if (/cereja|cherry|sakura/.test(text)) return '🍒';
-        if (/laranja|orange/.test(text)) return '🍊';
-        if (/limao|limão|lemon|lime/.test(text)) return '🍋';
-        if (/coco|coconut/.test(text)) return '🥥';
-        if (/agua|água|water|splash/.test(text)) return '🌊';
-        if (/gelo|ice|frost/.test(text)) return '❄️';
-        return '🪂';
-      };
-
-      products = data.products.map(p => {
-        const m = p.metadata || {};
-        return {
-          slug: p.slug,
-          name: p.name,
-          price: Math.floor((p.price_cents || 0) / 100),
-          cat: 'pod',
-          perfil: inferPerfil(p),
-          img: p.image_url || FALLBACK_IMAGES[p.slug] || '',
-          video: FALLBACK_VIDEOS[p.slug] || null,
-          desc: p.descricao_quebrada || '',
-          qty: p.qty_available,
-          badge: p.badge,
-          marca: (m.brand || '').toLowerCase(),
-          sabor: (m.flavor_pt || m.flavor_en || '').toLowerCase(),
-          puffs: m.puffs || 0,
-          emoji: inferEmoji(p),
-        };
-      });
-
-      // Re-render se grid ja foi montado
+      const res = await fetch('/api/webhook?action=catalog', { cache: 'no-store' });
+      if (!res.ok) {
+        console.warn('[catalog] fetch failed', res.status);
+        return false;
+      }
+      const data = await res.json();
+      if (!data || !Array.isArray(data.products)) {
+        console.warn('[catalog] resposta sem products');
+        return false;
+      }
+      products = data.products;
+      allProducts = products;
+      // Cache local pra próxima abertura ser fast-paint
+      try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify({ products, savedAt: Date.now() })); } catch(e) {}
+      // Re-renderiza grid se já tá montado
       if (typeof renderGrid === 'function') {
         try { renderGrid(); } catch(e) {}
       }
-      // Hash routing pra abrir produto direto via #produto/<slug>
-      checkProductRoute();
-    } catch(e) { console.error('[fetchProductsFromSupabase]', e); }
-  }
-
-  function checkProductRoute() {
-    const hash = window.location.hash || '';
-    const m = hash.match(/#produto\/([a-z0-9-]+)/i);
-    if (!m) return;
-    const slug = m[1].toLowerCase();
-    const idx = products.findIndex(p => p.slug === slug);
-    if (idx >= 0 && typeof openProduct === 'function') {
-      openProduct(idx, 'home');
-      history.replaceState(null, '', window.location.pathname);
+      console.log('[catalog] carregou', products.length, 'produtos');
+      return true;
+    } catch(e) {
+      console.error('[catalog] erro', e.message);
+      return false;
     }
   }
-
-  fetchProductsFromSupabase();
+  // Boot: 1) cache pra fast-paint  2) fetch async pra atualizar
+  loadProducts();
+  fetchCatalog();
 
   // ===== Favoritos persistentes =====
   const FAV_KEY = 'drope_favorites_v1';
@@ -6593,6 +6297,35 @@
       const sel = localStorage.getItem(ADDR_SEL_KEY);
       if (sel) selectedAddressId = sel;
       if (!selectedAddressId && addresses.length) selectedAddressId = addresses[0].id;
+
+      // OSSO 21 Feature 2 — pré-preenche endereço a partir do último pedido
+      // (vem do backend via last_delivery_address). Só materializa se o cliente
+      // ainda não tem endereço local — não sobrescreve o que ele escolheu.
+      if (addresses.length === 0) {
+        const prefillRaw = localStorage.getItem('drope_addr_prefill');
+        if (prefillRaw) {
+          try {
+            const prefill = JSON.parse(prefillRaw);
+            if (prefill && prefill.street && prefill.num) {
+              const addr = {
+                id: 'a' + Date.now().toString(36),
+                label: prefill.label || 'casa',
+                street: prefill.street, num: prefill.num,
+                comp: prefill.comp || '', ref: prefill.ref || '',
+                neigh: prefill.neigh || '', city: prefill.city || '',
+                uf: prefill.uf || '', cep: prefill.cep || ''
+              };
+              addresses.push(addr);
+              selectedAddressId = addr.id;
+              try {
+                localStorage.setItem(ADDR_KEY, JSON.stringify(addresses));
+                localStorage.setItem(ADDR_SEL_KEY, selectedAddressId);
+              } catch(e) {}
+            }
+          } catch(e) {}
+          try { localStorage.removeItem('drope_addr_prefill'); } catch(e) {}
+        }
+      }
     } catch(e) {}
   }
   loadAddresses();
@@ -6659,13 +6392,8 @@
 
   function openAddressForm(id) {
     editingAddrId = id || null;
-    pendingGeoCoords = null;
     const title = document.getElementById('addr-form-title');
     const delBtn = document.getElementById('addr-del-btn');
-    const gpsBtn = document.getElementById('gps-btn');
-    const gpsBtnText = document.getElementById('gps-btn-text');
-    if (gpsBtn) { gpsBtn.classList.remove('loading', 'done'); }
-    if (gpsBtnText) gpsBtnText.textContent = 'usar minha localização';
     const fields = ['label','cep','street','num','comp','neigh','ref','city','uf'];
     if (id) {
       const a = addresses.find(x => x.id === id);
@@ -6676,14 +6404,6 @@
         const el = document.getElementById('af-' + f);
         if (el) el.value = a[f] || '';
       });
-      // Se já tem coordenadas, mostra info
-      if (a.lat && a.lng) {
-        pendingGeoCoords = { lat: a.lat, lng: a.lng };
-        const km = calcDistance(STORE_LAT, STORE_LNG, a.lat, a.lng);
-        const fee = feeByDistance(km);
-        if (gpsBtn) gpsBtn.classList.add('done');
-        if (gpsBtnText) gpsBtnText.textContent = `📍 ${km.toFixed(1)}km da loja ✦ taxa r$ ${fee}`;
-      }
     } else {
       title.textContent = 'Novo endereço';
       delBtn.style.display = 'none';
@@ -6693,81 +6413,6 @@
       });
     }
     go('address-form');
-  }
-
-  // ===== GPS — PREENCHER ENDEREÇO POR LOCALIZAÇÃO =====
-  let pendingGeoCoords = null; // guarda lat/lng pra salvar junto com o endereço
-
-  async function useGPS() {
-    const btn = document.getElementById('gps-btn');
-    const btnText = document.getElementById('gps-btn-text');
-    if (!navigator.geolocation) {
-      toast('GPS não disponível nesse navegador');
-      return;
-    }
-    btn.classList.add('loading');
-    btnText.textContent = 'localizando...';
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        pendingGeoCoords = { lat, lng };
-        btnText.textContent = 'buscando endereço...';
-
-        try {
-          // Nominatim (OpenStreetMap) — gratuito, sem API key
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=pt-BR`, {
-            headers: { 'User-Agent': 'DroPe-App/1.0' }
-          });
-          const data = await res.json();
-          const addr = data.address || {};
-
-          const street = document.getElementById('af-street');
-          const num = document.getElementById('af-num');
-          const neigh = document.getElementById('af-neigh');
-          const city = document.getElementById('af-city');
-          const uf = document.getElementById('af-uf');
-          const cep = document.getElementById('af-cep');
-
-          if (addr.road && street) street.value = addr.road;
-          if (addr.house_number && num) num.value = addr.house_number;
-          if ((addr.suburb || addr.neighbourhood) && neigh) neigh.value = addr.suburb || addr.neighbourhood;
-          if ((addr.city || addr.town || addr.municipality) && city) city.value = addr.city || addr.town || addr.municipality;
-          if (addr.state && uf) {
-            // Converte estado pra sigla
-            const siglas = { 'São Paulo': 'SP', 'Rio de Janeiro': 'RJ', 'Minas Gerais': 'MG', 'Bahia': 'BA', 'Paraná': 'PR', 'Rio Grande do Sul': 'RS', 'Pernambuco': 'PE', 'Ceará': 'CE', 'Pará': 'PA', 'Santa Catarina': 'SC', 'Goiás': 'GO', 'Maranhão': 'MA', 'Amazonas': 'AM', 'Espírito Santo': 'ES', 'Paraíba': 'PB', 'Mato Grosso': 'MT', 'Rio Grande do Norte': 'RN', 'Alagoas': 'AL', 'Piauí': 'PI', 'Distrito Federal': 'DF', 'Mato Grosso do Sul': 'MS', 'Sergipe': 'SE', 'Rondônia': 'RO', 'Tocantins': 'TO', 'Acre': 'AC', 'Amapá': 'AP', 'Roraima': 'RR' };
-            uf.value = siglas[addr.state] || addr.state_code || addr.state.substring(0, 2).toUpperCase();
-          }
-          if (addr.postcode && cep) {
-            let c = addr.postcode.replace(/\D/g, '');
-            if (c.length > 5) c = c.slice(0, 5) + '-' + c.slice(5);
-            cep.value = c;
-          }
-
-          // Calcula distância e mostra
-          const km = calcDistance(STORE_LAT, STORE_LNG, lat, lng);
-          const fee = feeByDistance(km);
-          btn.classList.remove('loading');
-          btn.classList.add('done');
-          btnText.textContent = `📍 ${km.toFixed(1)}km da loja ✦ taxa r$ ${fee}`;
-          toast('endereço preenchido pelo GPS ✦');
-        } catch(e) {
-          console.warn('[GPS]', e);
-          btn.classList.remove('loading');
-          btnText.textContent = 'usar minha localização';
-          toast('não consegui buscar o endereço — preenche manual');
-        }
-      },
-      (err) => {
-        console.warn('[GPS]', err);
-        btn.classList.remove('loading');
-        btnText.textContent = 'usar minha localização';
-        if (err.code === 1) toast('permissão de localização negada');
-        else toast('erro no GPS — tenta de novo');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   }
 
   function formatCep(el) {
@@ -6813,13 +6458,6 @@
     }
 
     const payload = { label, cep, street, num, comp, neigh, ref, city, uf };
-
-    // Adiciona coordenadas GPS se disponíveis
-    if (pendingGeoCoords) {
-      payload.lat = pendingGeoCoords.lat;
-      payload.lng = pendingGeoCoords.lng;
-      pendingGeoCoords = null;
-    }
 
     if (editingAddrId) {
       const idx = addresses.findIndex(a => a.id === editingAddrId);
@@ -6905,19 +6543,30 @@
       const stockTag = typeof p.stock === 'number'
         ? (soldOut ? '<span style="color:#888">esgotado</span>' : `estoque: ${p.stock}`)
         : '';
+      const isHidden = p.hidden === true;
+      const hiddenBadge = isHidden
+        ? '<span style="font-size:10px;color:var(--pink);border:1px solid rgba(255,45,111,0.4);padding:2px 6px;border-radius:100px;margin-left:6px">sem foto</span>'
+        : '';
       return `
-      <div class="order-row-admin" style="margin: 0 0 8px; cursor: pointer ${soldOut ? '; opacity:0.6' : ''}" onclick="openProductForm(${i})">
+      <div class="order-row-admin" style="margin: 0 0 8px; cursor: pointer ${soldOut ? '; opacity:0.6' : ''}${isHidden ? '; border-left: 3px solid var(--pink)' : ''}" onclick="openProductForm(${i})">
         <div class="em" style="font-size: 32px">${p.emoji || '📦'}</div>
         <div class="info" style="margin-left: 8px">
-          <div class="nm" style="font-size: 14px; font-weight: 600; color: var(--text); text-transform: lowercase">${p.name}</div>
-          <div class="items">r$ ${p.price} ✦ ${p.cat === 'pod' ? 'pod' : 'tabacaria'} ${stockTag ? '✦ ' + stockTag : ''}</div>
+          <div class="nm" style="font-size: 14px; font-weight: 600; color: var(--text); text-transform: lowercase">${p.name}${hiddenBadge}</div>
+          <div class="items">r$ ${p.price} ✦ ${p.cat === 'pod' ? 'drop' : 'tabacaria'} ${stockTag ? '✦ ' + stockTag : ''}</div>
         </div>
-        <div style="font-size: 10px; color: var(--lime); text-transform: lowercase; padding: 3px 8px; border: 1px solid rgba(212,255,46,0.4); border-radius: 100px">editar</div>
+        <div style="font-size: 10px; color: ${isHidden ? 'var(--pink)' : 'var(--lime)'}; text-transform: lowercase; padding: 3px 8px; border: 1px solid ${isHidden ? 'rgba(255,45,111,0.4)' : 'rgba(212,255,46,0.4)'}; border-radius: 100px">${isHidden ? 'completar' : 'editar'}</div>
       </div>
     `;}).join('');
   }
 
   function openProductForm(idx) {
+    // REFATOR 30/04/2026: catálogo é gerenciado pelo bot WhatsApp + admin gallery.
+    // Edição/criação aqui foi desativada pra evitar bifurcação. Atalho amigável:
+    // - Pra cadastrar novo: manda 'cadastra' no WhatsApp do bot
+    // - Pra editar/aprovar arte: /api/webhook?action=gallery&token=...
+    toast('cadastro/edição agora é pelo bot WhatsApp ou /api/webhook?action=gallery 🦎');
+    return;
+    /* eslint-disable */ // legado mantido pra referência — não executa
     editingIdx = (typeof idx === 'number') ? idx : null;
     const isEdit = editingIdx !== null;
     const p = isEdit ? products[editingIdx] : { emoji: '', name: '', desc: '', price: '', cat: 'pod', perfil: '', puffs: '', sabor: '', marca: '' };
@@ -6929,6 +6578,9 @@
     document.getElementById('af-desc').value = p.desc || '';
     document.getElementById('af-price').value = p.price || '';
     document.getElementById('af-stock').value = (typeof p.stock === 'number') ? p.stock : (isEdit ? 0 : 10);
+    document.getElementById('af-barcode').value = p.barcode || '';
+    const barcodeHint = document.getElementById('af-barcode-hint');
+    barcodeHint.style.display = (p.barcode && p.created_via === 'pdv') ? 'block' : 'none';
     document.getElementById('af-delete').style.display = isEdit ? 'block' : 'none';
 
     selectCat(p.cat || 'pod');
@@ -6970,6 +6622,11 @@
   }
 
   function saveProduct() {
+    // REFATOR 30/04/2026: catálogo é READ-ONLY do app cliente. Cadastro/edição é pelo bot
+    // (mais qualidade — Vision extrai dados das fotos) ou admin gallery (preço/barcode).
+    toast('use o bot WhatsApp pra cadastrar (manda "cadastra") ou a gallery pra ajustar 🦎');
+    return;
+    /* eslint-disable */
     const emoji = document.getElementById('af-emoji').value.trim() || '📦';
     const name = document.getElementById('af-name').value.trim();
     const desc = document.getElementById('af-desc').value.trim();
@@ -7000,22 +6657,34 @@
   }
 
   function deleteProduct() {
-    if (editingIdx === null) return;
-    const idx = editingIdx;
-    const nm = products[idx]?.name || 'esse drope';
-    askConfirm({
-      title: 'apagar drope?',
-      msg: `${nm} vai sair do catálogo. essa ação não tem volta.`,
-      icon: '🗑️',
-      okLabel: 'sim, apagar',
-      danger: true,
-    }, () => {
-      products.splice(idx, 1);
-      saveProducts();
-      renderGrid();
-      toast('drope apagado ✦');
-      go('admin-products');
-    });
+    // REFATOR 30/04/2026: pra remover produto, esconde no admin gallery (image_status →
+    // pending_regeneration ou hidden=true direto no Supabase). App cliente é READ-ONLY.
+    toast('pra esconder/apagar produto, usa o admin gallery 🦎');
+    return;
+  }
+
+  // OSSO 25 — Helper: extrai labels de exibição do produto.
+  // hero = sabor (linha grande); muted = brand+model (linha menor).
+  // Fallback: se sabor vazio, usa name todo no hero e deixa muted vazio.
+  // Tudo lowercase (voz da marca).
+  function productLabels(p) {
+    if (!p) return { hero: '', muted: '' };
+    const flavor = String(p.sabor || p.flavor || p.flavor_pt || p.flavor_en || '').trim();
+    const brand = String(p.marca || p.brand || '').trim();
+    const model = String(p.modelo || p.model || '').trim();
+    const muted = [brand, model].filter(Boolean).join(' ').toLowerCase();
+    if (flavor) {
+      return { hero: flavor.toLowerCase(), muted };
+    }
+    // Fallback: tira brand+model do começo do name pra não duplicar
+    const name = String(p.name || '').trim();
+    if (!name) return { hero: '', muted };
+    let hero = name;
+    if (muted) {
+      const re = new RegExp('^\\s*' + muted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i');
+      hero = name.replace(re, '').trim() || name;
+    }
+    return { hero: hero.toLowerCase(), muted };
   }
 
   // ===== Render grid =====
@@ -7025,19 +6694,19 @@
     const stockBadge = soldOut
       ? '<div class="stock-badge out">esgotado</div>'
       : (lowStock ? `<div class="stock-badge low">🔥 últimas ${p.stock}</div>` : '');
+    // onerror: se a imagem 404 (arquivo não existe ou Storage URL quebrada), troca pelo
+    // emoji do produto. Evita o "alt text feio" que apareceu quando 21-26 PNGs sumiram.
     const visual = p.img
-      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false">`
+      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '🦎').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
-    const demandBtn = soldOut
-      ? `<button class="demand-btn" onclick="event.stopPropagation();requestProduct('${p.name.replace(/'/g,"\\'")}')">quero esse ✦</button>`
-      : '';
+    const labels = productLabels(p);
     return `
       <div class="tile ${soldOut ? 'sold-out' : ''}" onclick="openProduct(${idx})">
         ${visual}
-        <div class="name">${p.name}</div>
+        <div class="flavor">${escapeHtml(labels.hero)}</div>
+        ${labels.muted ? `<div class="brand">${escapeHtml(labels.muted)}</div>` : ''}
         <div class="price">r$ ${p.price}</div>
         ${stockBadge}
-        ${demandBtn}
       </div>
     `;
   }
@@ -7223,9 +6892,6 @@
     filterState.priceMax = draftFilter.priceMax;
     updateFilterBadge();
     renderGrid();
-    // Esconde hero quando qualquer filtro avançado tá ativo
-    const hero = document.getElementById('home-hero');
-    if (hero) hero.style.display = hasAdvancedFilters() ? 'none' : (filterState.perfil === 'tudo' ? '' : 'none');
     closeFilters();
     const n = filterCount();
     if (n > 0) toast(`${n} filtro${n > 1 ? 's' : ''} ativo${n > 1 ? 's' : ''} ✦`);
@@ -7233,9 +6899,6 @@
 
   function clearFilters() {
     draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
-    // Restaura hero se perfil tá em "tudo"
-    const hero = document.getElementById('home-hero');
-    if (hero && filterState.perfil === 'tudo') hero.style.display = '';
     syncSheetChips();
     syncPriceSlider();
   }
@@ -7247,13 +6910,9 @@
     const pods = filtered.filter(({ p, i }) => p.cat === 'pod');
     const tabac = filtered.filter(({ p }) => p.cat === 'tabac');
 
-    const demandBanner = `<div class="demand-banner" onclick="requestAnyProduct()">
-      <span>não achou o que procura?</span>
-      <span class="demand-banner-sub">pede que a gente traz ✦</span>
-    </div>`;
     podsEl.innerHTML = pods.length
-      ? pods.map(({ p, i }) => tileHTML(p, i)).join('') + demandBanner
-      : '<div class="empty-mini">nenhum pod bate com os filtros ✦</div>' + demandBanner;
+      ? pods.map(({ p, i }) => tileHTML(p, i)).join('')
+      : '<div class="empty-mini">nenhum drop bate com os filtros ✦</div>';
 
     // Esconde seção tabacaria quando filtro de puffs/marca tá ativo
     const tabacSection = document.querySelector('.cat-section:nth-of-type(2)') || tabacEl.previousElementSibling;
@@ -7269,65 +6928,21 @@
   renderGrid();
 
   // ===== Hero dinâmico (primeiro produto do catálogo) =====
-  // ============ HERO COM ROTAÇÃO DINÂMICA + SOCIAL PROOF ============
-  // Por enquanto: escolhe rotativamente entre os 5 primeiros pods.
-  // Futuro: query Supabase pra escolher baseado em dados reais (mais vendido, bombando, etc).
-  let heroIndex = 0;
-
-  function pickFeaturedIndex() {
-    if (!products || products.length === 0) return 0;
-    // Prioridade: pod com imagem. Alterna entre os 5 primeiros pods com imagem.
-    const podsComImg = products
-      .map((p, i) => ({ p, i }))
-      .filter(({ p }) => p.kind === 'pod' && p.img);
-    if (podsComImg.length === 0) return 0;
-    // Rotação baseada em tempo (minuto atual) — muda ao longo do dia
-    const candidatos = podsComImg.slice(0, 5);
-    const idx = new Date().getMinutes() % candidatos.length;
-    return candidatos[idx].i;
-  }
-
-  function pickFeaturedBadge(product) {
-    // Heurísticas simples baseadas em hora do dia e dia da semana.
-    // Quando Supabase estiver com dados reais, vira query: "mais vendido últimas 24h", etc.
-    const hour = new Date().getHours();
-    const day = new Date().getDay(); // 0=dom
-    const pool = [
-      { when: hour >= 18 || hour < 2, text: '🌙 favorito da noite' },
-      { when: hour >= 12 && hour < 18, text: '🔥 bombando hoje' },
-      { when: hour >= 6 && hour < 12, text: '⚡ top do dia' },
-      { when: day === 5 || day === 6, text: '🎉 vibe fim de semana' },
-      { when: true, text: '👑 mais pedido' },
-    ];
-    return (pool.find(b => b.when) || pool[pool.length - 1]).text;
-  }
-
-  function openHeroProduct() {
-    openProduct(heroIndex);
-  }
-
-  function updateHero() {
-    if (!products || products.length === 0) return;
-    heroIndex = pickFeaturedIndex();
-    const p = products[heroIndex];
+  // OSSO 25 — sabor hero + brand muted abaixo
+  (function updateHero() {
+    const p = products[0];
     if (!p) return;
     const vis = document.getElementById('hero-visual');
     const nm = document.getElementById('hero-name');
     const pr = document.getElementById('hero-price');
-    const bd = document.getElementById('hero-badge');
-    if (vis) {
-      if (p.img) {
-        vis.innerHTML = `<img src="${p.img}" alt="${p.name}" draggable="false">`;
-      } else if (p.emoji) {
-        vis.textContent = p.emoji;
-      }
+    if (vis && p.img) vis.innerHTML = `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;">`;
+    else if (vis) vis.textContent = p.emoji;
+    const labels = productLabels(p);
+    if (nm) {
+      nm.innerHTML = `${escapeHtml(labels.hero)}${labels.muted ? `<div style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;letter-spacing:0.02em;margin-top:4px;font-family:'Inter',sans-serif;">${escapeHtml(labels.muted)}</div>` : ''}`;
     }
-    if (nm) nm.textContent = p.name;
     if (pr) pr.textContent = `R$ ${p.price}`;
-    if (bd) bd.textContent = pickFeaturedBadge(p);
-  }
-
-  updateHero();
+  })();
 
   // ===== Navigation =====
   function go(screen) {
@@ -7345,7 +6960,8 @@
     });
     window.scrollTo(0, 0);
     if (screen === 'cart') renderCart();
-    if (screen === 'home') renderHomeLastOrder();
+    if (screen === 'home') { renderHomeLastOrder(); renderPersonalizedHome(); }
+    if (screen === 'flavor-profile') renderFlavorProfile();
     if (screen === 'card') renderCardScreen();
     if (screen === 'search') renderSearch();
     if (screen === 'favorites') renderFavorites();
@@ -7387,52 +7003,10 @@
   function cartTotal() {
     return cart.reduce((s, i) => s + (i.price * i.qty), 0);
   }
-  // ===== COORDENADAS DA LOJA (Rua da Igreja 1528, Vila Prudente, SP) =====
-  const STORE_LAT = -23.5836;
-  const STORE_LNG = -46.5802;
-
-  // ===== TAXA DE ENTREGA POR FAIXA DE DISTÂNCIA =====
-  function calcDistance(lat1, lng1, lat2, lng2) {
-    // Haversine formula
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng/2) * Math.sin(dLng/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  function feeByDistance(km) {
-    if (km <= 3) return 8;
-    if (km <= 6) return 12;
-    if (km <= 10) return 18;
-    return 25;
-  }
-
-  function deliveryFee() {
-    if (deliveryMode === 'pickup') return 0;
-    const a = getSelectedAddress();
-    if (a && a.lat && a.lng) {
-      const km = calcDistance(STORE_LAT, STORE_LNG, a.lat, a.lng);
-      return feeByDistance(km);
-    }
-    return 0; // sem endereço = sem taxa ainda
-  }
-
-  function deliveryDistance() {
-    const a = getSelectedAddress();
-    if (a && a.lat && a.lng) {
-      return calcDistance(STORE_LAT, STORE_LNG, a.lat, a.lng);
-    }
-    return null;
-  }
-
+  function deliveryFee() { return 0; } // taxa cotada no whats por motoboy de app
   function finalTotal() {
     const raw = cartTotal();
-    const fee = deliveryFee();
-    const discount = appliedCoupon ? appliedCoupon.discount : 0;
-    return Math.max(0, raw - discount + fee);
+    return appliedCoupon ? Math.max(0, raw - appliedCoupon.discount) : raw;
   }
   function belowMinimum() { return false; }
 
@@ -7496,27 +7070,16 @@
     const canPay = deliveryMode === 'pickup' || !!getSelectedAddress();
     // Bloqueio de métodos de pagamento fica dentro do renderCheckout (unificado)
     window.__canPayNow = canPay;
-    // info de taxa de entrega
+    // info de taxa a combinar
     if (addrWrap && deliveryMode === 'delivery') {
       const info = document.createElement('div');
       info.className = 'delivery-fee-note';
-      const km = deliveryDistance();
-      const fee = deliveryFee();
-      if (km !== null) {
-        info.innerHTML = `
-          <div class="dfn-icon">🛵</div>
-          <div class="dfn-body">
-            <div class="dfn-title">taxa de entrega ✦ R$ ${fee}</div>
-            <div class="dfn-sub">${km.toFixed(1)}km da loja ✦ entrega em ~30min</div>
-          </div>`;
-      } else {
-        info.innerHTML = `
-          <div class="dfn-icon">🛵</div>
-          <div class="dfn-body">
-            <div class="dfn-title">taxa de entrega ✦ R$8 a R$25</div>
-            <div class="dfn-sub">cadastra endereço pra calcular o valor exato</div>
-          </div>`;
-      }
+      info.innerHTML = `
+        <div class="dfn-icon">🛵</div>
+        <div class="dfn-body">
+          <div class="dfn-title">taxa de entrega ✦ ~R$10-20</div>
+          <div class="dfn-sub">valor exato depende da distância — a gente confirma no whats antes de liberar</div>
+        </div>`;
       addrWrap.appendChild(info);
     }
   }
@@ -7577,8 +7140,7 @@
     const totalEl = document.getElementById('co-total');
     const bits = [];
     if (appliedCoupon) bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -r$ ${appliedCoupon.discount}`);
-    const fee = deliveryFee();
-    if (deliveryMode === 'delivery' && fee > 0) bits.push(`+ entrega r$ ${fee}`);
+    if (deliveryMode === 'delivery') bits.push(`+ taxa motoboy (~R$10-20)`);
     totalEl.innerHTML = `r$ ${total}${bits.length ? `<div class="co-total-discount">${bits.join(' • ')}</div>` : ''}`;
     const kind = cartKind();
     const warn = document.getElementById('co-warning');
@@ -7598,7 +7160,7 @@
 
     if (kind === 'pod') {
       warn.style.display = 'block';
-      warn.innerHTML = `<div class="pay-chip pix-only">⚡ só Pix ✦ regra da casa pra pods</div>`;
+      warn.innerHTML = `<div class="pay-chip pix-only">⚡ só Pix ✦ regra da casa pra drops</div>`;
     } else if (kind === 'mix') {
       warn.style.display = 'block';
       warn.innerHTML = `<div class="pay-chip mix">⚡ carrinho misto ✦ só Pix libera tudo</div>`;
@@ -7668,7 +7230,7 @@
             <div class="co-method-icon">💳</div>
             <div class="co-method-body">
               <div class="co-method-title">cartão</div>
-              <div class="co-method-sub">indisponível pra pods</div>
+              <div class="co-method-sub">indisponível pra drops</div>
             </div>
           </div>
         `;
@@ -7677,9 +7239,16 @@
 
     methods.innerHTML = html;
 
-    // recap rodapé — só VALORES (endereço e contato já aparecem na etapa 1, sem repetir)
+    // recap rodapé — resume entrega + contato
     const recap = document.getElementById('co-recap');
     if (recap) {
+      let where = '';
+      if (deliveryMode === 'pickup') {
+        where = `🏪 retirar em ${store.name}`;
+      } else {
+        const a = getSelectedAddress();
+        where = a ? `🛵 ${a.label} ✦ ${a.street}, ${a.num}` : '🛵 entrega';
+      }
       const subtotal = cartTotal();
       const fee = deliveryFee();
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
@@ -7687,6 +7256,8 @@
         <div class="rec-row"><span class="rec-lbl">subtotal</span><span class="rec-val">r$ ${subtotal}</span></div>
         ${discount ? `<div class="rec-row"><span class="rec-lbl">cupom</span><span class="rec-val" style="color:var(--lime)">-r$ ${discount}</span></div>` : ''}
         ${fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">r$ ${fee}</span></div>` : ''}
+        <div class="rec-row"><span class="rec-lbl">onde</span><span class="rec-val">${where}</span></div>
+        <div class="rec-row"><span class="rec-lbl">contato</span><span class="rec-val">${profile.name} ✦ ${profile.phone}</span></div>
       `;
     }
   }
@@ -7821,16 +7392,14 @@
     const stepper = document.getElementById('d-stepper');
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
     if (soldOut) {
-      addBtn.innerHTML = 'esgotado ✦ pedir pra trazer';
-      addBtn.disabled = false;
-      addBtn.style.opacity = '1';
-      addBtn.onclick = function() { requestProduct(p.name); };
+      addBtn.innerHTML = 'esgotado ✦ volta depois';
+      addBtn.disabled = true;
+      addBtn.style.opacity = '0.5';
       if (stepper) stepper.classList.add('disabled');
     } else {
       addBtn.innerHTML = `quero levar ✦ <span id="d-btnprice">r$ ${p.price}</span>`;
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
-      addBtn.onclick = addToCart;
       if (stepper) stepper.classList.remove('disabled');
     }
     go('detail');
@@ -7963,6 +7532,404 @@
     return orders.find(o => o.mode !== 'pos' && o.customer && o.customer.phone === profile.phone) || null;
   }
 
+  // ============ OSSO 21 — IA-FIRST CLIENTE (home personalizada) ============
+  // - Cliente NOVO: chips de vibe (frutado/doce/gelado/mentolado) + popular
+  // - Cliente RECORRENTE: card "dropar de novo" + 3 recomendações
+  // - "ver tudo" sempre disponível (Princípio do Volante).
+  let __personalizedHomeCache = null;
+  let __personalizedHomeAt = 0;
+  const PERSONALIZED_HOME_TTL = 60 * 1000; // 1min — invalida ao logar/comprar
+
+  function getCustomerPhoneClean() {
+    const raw = profile && profile.phone ? String(profile.phone) : '';
+    return raw.replace(/\D/g, '');
+  }
+
+  async function fetchPersonalizedHome(force = false) {
+    const phone = getCustomerPhoneClean();
+    const now = Date.now();
+    if (!force && __personalizedHomeCache && (now - __personalizedHomeAt) < PERSONALIZED_HOME_TTL) {
+      return __personalizedHomeCache;
+    }
+    const url = phone
+      ? `/api/webhook?action=home_personalized&customer_phone=${encodeURIComponent(phone)}`
+      : `/api/webhook?action=home_personalized`;
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) { console.warn('[home_personalized] http', r.status); return null; }
+      const data = await r.json();
+      __personalizedHomeCache = data;
+      __personalizedHomeAt = now;
+      return data;
+    } catch (e) {
+      console.warn('[home_personalized] err', e.message);
+      return null;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  function renderPersonalizedHome() {
+    const wrap = document.getElementById('home-personalized-wrap');
+    if (!wrap) return;
+    fetchPersonalizedHome().then(data => {
+      if (!data) { wrap.innerHTML = ''; return; }
+
+      const isReturning = data.type === 'returning' && data.last_order;
+      const greetName = (profile && profile.name && profile.onboarded) ? profile.name.split(' ')[0] : null;
+      let html = '';
+
+      if (isReturning) {
+        const lo = data.last_order;
+        const inStock = !!lo.in_stock;
+        const days = (typeof lo.days_ago === 'number') ? lo.days_ago : null;
+        const meta = (days !== null)
+          ? `comprou ${days === 0 ? 'hoje' : (days === 1 ? 'há 1 dia' : `há ${days} dias`)}`
+          : `seu último drop`;
+        const ctaTxt = inStock ? `dropar de novo ✦ R$ ${lo.product_price.toFixed(2).replace('.', ',')}` : `esgotou — te aviso`;
+        const cls = inStock ? 'reorder-card' : 'reorder-card disabled';
+        const onclick = inStock ? `onclick="dropAgainFromHome(event)"` : '';
+        const thumb = lo.product_image
+          ? `<img src="${escapeHtml(lo.product_image)}" alt="${escapeHtml(lo.product_name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(lo.emoji || '🦎')}'}))">`
+          : `<span>${escapeHtml(lo.emoji || '🦎')}</span>`;
+        const greeting = greetName ? `fala, ${escapeHtml(greetName)}! separei pra você 🦎` : `fala! separei uns pra você 🦎`;
+        html += `<div class="vibe-greet">${greeting}</div>`;
+        // OSSO 25 — sabor hero + brand muted no card de "dropar de novo"
+        const loLabels = productLabels({
+          name: lo.product_name,
+          sabor: lo.flavor || lo.sabor,
+          marca: lo.brand || lo.marca,
+          modelo: lo.model || lo.modelo,
+        });
+        html += `
+          <div class="${cls}" ${onclick} data-product-id="${escapeHtml(lo.product_id)}" data-slug="${escapeHtml(lo.slug || '')}">
+            <div class="reorder-thumb">${thumb}</div>
+            <div class="reorder-body">
+              <div class="reorder-title">🔄 seu último drop</div>
+              <div class="reorder-flavor">${escapeHtml(loLabels.hero)}</div>
+              ${loLabels.muted ? `<div class="reorder-brand">${escapeHtml(loLabels.muted)}</div>` : ''}
+              <div class="reorder-meta">${escapeHtml(meta)}</div>
+            </div>
+            <button class="reorder-cta" type="button">${ctaTxt}</button>
+          </div>`;
+        // Recomendações: 3 cards horizontais — sabor hero + marca muted
+        const recos = (data.recommendations || []).slice(0, 3);
+        if (recos.length) {
+          html += `<div class="reco-row">`;
+          recos.forEach(r => {
+            const thumbR = r.image_url
+              ? `<img src="${escapeHtml(r.image_url)}" alt="${escapeHtml(r.name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(r.emoji || '🦎')}'}))">`
+              : `<span>${escapeHtml(r.emoji || '🦎')}</span>`;
+            const rLabels = productLabels({
+              name: r.name,
+              sabor: r.flavor || r.sabor,
+              marca: r.brand || r.marca,
+              modelo: r.model || r.modelo,
+            });
+            html += `
+              <div class="reco-card" onclick="openProductBySlug('${escapeHtml(r.slug || '')}')">
+                <div class="reco-thumb">${thumbR}</div>
+                <div class="reco-flavor">${escapeHtml(rLabels.hero)}</div>
+                ${rLabels.muted ? `<div class="reco-brand">${escapeHtml(rLabels.muted)}</div>` : ''}
+                <div class="reco-price">R$ ${(r.price || 0).toFixed(2).replace('.', ',')}</div>
+                ${r.match_score >= 0.3 ? `<div class="reco-badge">🦎 combina</div>` : ''}
+              </div>`;
+          });
+          html += `</div>`;
+        }
+        html += `<div class="see-all-link" onclick="scrollToCatalog()">ver tudo →</div>`;
+      } else {
+        // Cliente novo (ou sem perfil ainda)
+        const greeting = greetName ? `e aí, ${escapeHtml(greetName)}! qual vibe você curte?` : `e aí! qual vibe você curte? 🦎`;
+        const sub = `escolhe uma — ou explora tudo`;
+        html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
+        html += `
+          <div class="vibe-row">
+            <div class="vibe-chip" data-flavor="fruity" onclick="pickVibe('fruity', this)">🍇 frutado</div>
+            <div class="vibe-chip" data-flavor="sweet" onclick="pickVibe('sweet', this)">🍬 doce</div>
+            <div class="vibe-chip" data-flavor="icy" onclick="pickVibe('icy', this)">🧊 gelado</div>
+            <div class="vibe-chip" data-flavor="menthol" onclick="pickVibe('menthol', this)">🌿 mentol</div>
+          </div>
+          <div class="see-all-link" onclick="pickVibe('', null)">ver tudo →</div>`;
+      }
+
+      wrap.innerHTML = html;
+      // Restaura vibe ativa se houver
+      const savedVibe = (function() { try { return localStorage.getItem('drope_picked_vibe') || ''; } catch(e) { return ''; } })();
+      if (savedVibe && !isReturning) {
+        const el = wrap.querySelector(`.vibe-chip[data-flavor="${savedVibe}"]`);
+        if (el) el.classList.add('active');
+      }
+    });
+  }
+
+  // Mapeia flavor_category osso21 → perfil legado dos chips de catálogo.
+  function vibeToPerfil(flavor) {
+    if (flavor === 'fruity') return 'frutado';
+    if (flavor === 'sweet') return 'doce';
+    if (flavor === 'icy') return 'gelado';
+    if (flavor === 'menthol') return 'mentolado';
+    return 'tudo';
+  }
+
+  // Cliente seleciona vibe — filtra catálogo + persiste preferência.
+  function pickVibe(flavor, el) {
+    try { localStorage.setItem('drope_picked_vibe', flavor || ''); } catch(e) {}
+    document.querySelectorAll('.vibe-chip').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+    const perfil = vibeToPerfil(flavor);
+    filterState.perfil = perfil;
+    document.querySelectorAll('#cats-row .chip').forEach(c => {
+      c.classList.toggle('active', c.textContent.trim() === perfil);
+    });
+    renderGrid();
+    scrollToCatalog();
+  }
+
+  function scrollToCatalog() {
+    const cats = document.querySelector('.cats-wrap');
+    if (cats) {
+      const y = cats.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  }
+
+  function openProductBySlug(slug) {
+    if (!slug) return;
+    const idx = products.findIndex(p => p.slug === slug);
+    if (idx >= 0) openProduct(idx);
+  }
+
+  // FEATURE 2 — Recompra em 1 toque
+  // Pega last_order do cache da home, joga produto no carrinho e vai pro checkout.
+  // Se o cliente já tem endereço salvo (last_delivery_address), pré-preenche.
+  function dropAgainFromHome(ev) {
+    if (ev) ev.stopPropagation();
+    const data = __personalizedHomeCache;
+    if (!data || !data.last_order) { toast('último drop não encontrado ✦'); return; }
+    const lo = data.last_order;
+    if (!lo.in_stock) { toast('esgotou — te aviso quando voltar 🦎'); return; }
+    // Tenta achar o produto no catálogo local pra reusar o objeto completo
+    let prod = products.find(p => (lo.slug && p.slug === lo.slug) || p.id === lo.product_id);
+    const cartItem = prod ? {
+      ...prod, qty: 1
+    } : {
+      id: lo.product_id, slug: lo.slug, name: lo.product_name, img: lo.product_image,
+      price: lo.product_price, price_cents: Math.round(lo.product_price * 100),
+      cat: 'pod', perfil: 'frutado', emoji: lo.emoji || '🦎', qty: 1
+    };
+    // Se item já está no carrinho, incrementa qty; senão adiciona.
+    const existing = cart.find(i => i.name === cartItem.name);
+    if (existing) existing.qty += 1;
+    else cart.push(cartItem);
+    updateCartBadge();
+    saveCart();
+    // Pré-preenche endereço se cliente tem
+    if (lo.last_delivery_address && typeof lo.last_delivery_address === 'object') {
+      try { localStorage.setItem('drope_addr_prefill', JSON.stringify(lo.last_delivery_address)); } catch(e) {}
+    }
+    toast('1 toque ✦ vamo no checkout');
+    if (typeof go === 'function') go('checkout');
+  }
+
+  // FEATURE 4 — tela do perfil de sabor (barras + stats + share)
+  const FLAVOR_LABELS = {
+    fruity: { lbl: 'frutado', icon: '🍇', cls: 'fruity' },
+    sweet:  { lbl: 'doce',    icon: '🍬', cls: 'sweet'  },
+    icy:    { lbl: 'gelado',  icon: '🧊', cls: 'icy'    },
+    menthol:{ lbl: 'mentol',  icon: '🌿', cls: 'menthol'},
+    tobacco:{ lbl: 'tabaco',  icon: '🚬', cls: 'tobacco'},
+    other:  { lbl: 'variado', icon: '✨', cls: 'other'  },
+  };
+  let __flavorProfileCache = null;
+
+  async function fetchFlavorProfile() {
+    const phone = getCustomerPhoneClean();
+    if (!phone) return null;
+    try {
+      const r = await fetch(`/api/webhook?action=customer_profile&customer_phone=${encodeURIComponent(phone)}`);
+      if (!r.ok) return null;
+      const data = await r.json();
+      __flavorProfileCache = data;
+      return data;
+    } catch (e) { return null; }
+  }
+
+  function renderFlavorProfile() {
+    const body = document.getElementById('flavor-profile-body');
+    if (!body) return;
+    body.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--text-dim)">carregando 🦎...</div>`;
+    fetchFlavorProfile().then(data => {
+      if (!data) {
+        body.innerHTML = `
+          <div style="padding:60px 20px;text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">🦎</div>
+            <div style="font-family:var(--font-display);font-size:22px;color:var(--text);margin-bottom:8px">teu perfil aparece aqui</div>
+            <div style="color:var(--text-dim);font-size:14px">faz o primeiro drop pra começar</div>
+          </div>`;
+        return;
+      }
+      const profile = data.flavor_profile || {};
+      const entries = Object.entries(profile)
+        .filter(([k, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1]);
+      const total = data.total_orders || 0;
+      const memberSince = data.member_since ? new Date(data.member_since) : null;
+      const memberLbl = memberSince
+        ? memberSince.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '')
+        : '—';
+      let html = `
+        <div style="padding:24px 20px 8px;text-align:center">
+          <div style="font-size:48px">🦎</div>
+          <div style="font-family:var(--font-display);font-size:24px;color:var(--text);margin-top:6px">teu perfil de sabor</div>
+          <div style="color:var(--text-dim);font-size:13px;margin-top:4px">${total} drop${total === 1 ? '' : 's'} e contando</div>
+        </div>`;
+
+      if (entries.length === 0) {
+        html += `<div style="padding:30px 20px;text-align:center;color:var(--text-dim)">teu primeiro drop pinta o perfil 🦎</div>`;
+      } else {
+        html += `<div class="flavor-bars">`;
+        for (const [cat, pct] of entries) {
+          const meta = FLAVOR_LABELS[cat] || FLAVOR_LABELS.other;
+          const pctNum = Math.round(pct * 100);
+          html += `
+            <div class="flavor-bar-row">
+              <div class="flavor-bar-lbl">
+                <span>${meta.icon} ${meta.lbl}</span>
+                <span>${pctNum}%</span>
+              </div>
+              <div class="flavor-bar-track">
+                <div class="flavor-bar-fill ${meta.cls}" style="width:${pctNum}%"></div>
+              </div>
+            </div>`;
+        }
+        html += `</div>`;
+      }
+
+      html += `
+        <div class="flavor-stats">
+          <div class="flavor-stat-card">
+            <div class="flavor-stat-lbl">drops</div>
+            <div class="flavor-stat-val">${total}</div>
+          </div>
+          <div class="flavor-stat-card">
+            <div class="flavor-stat-lbl">sabor favorito</div>
+            <div class="flavor-stat-val">${escapeHtml((FLAVOR_LABELS[data.favorite_flavor] || {}).lbl || '—')}</div>
+          </div>
+          <div class="flavor-stat-card">
+            <div class="flavor-stat-lbl">marca favorita</div>
+            <div class="flavor-stat-val">${escapeHtml(data.favorite_brand || '—')}</div>
+          </div>
+          <div class="flavor-stat-card">
+            <div class="flavor-stat-lbl">membro desde</div>
+            <div class="flavor-stat-val">${escapeHtml(memberLbl)}</div>
+          </div>
+        </div>`;
+      body.innerHTML = html;
+    });
+  }
+
+  // Gera card 1080x1920 (story 9:16) com perfil pra compartilhar
+  function shareFlavorCard() {
+    const data = __flavorProfileCache;
+    if (!data) { toast('carrega o perfil primeiro 🦎'); return; }
+    const W = 1080, H = 1920;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+
+    // Background degrade dark neon
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#0d0a1f');
+    grad.addColorStop(0.5, '#1a0e3a');
+    grad.addColorStop(1, '#3d0f4a');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+    // Logo no topo
+    ctx.fillStyle = '#d4ff2e';
+    ctx.font = 'bold 84px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🦎 Drope', W/2, 200);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 56px sans-serif';
+    ctx.fillText('meu perfil de sabor', W/2, 320);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '38px sans-serif';
+    ctx.fillText(`@${(profile.name || 'visitante').toLowerCase()}`, W/2, 380);
+
+    // Bars
+    const profileObj = data.flavor_profile || {};
+    const entries = Object.entries(profileObj).filter(([k, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    let y = 540;
+    const barW = 800;
+    const barX = (W - barW) / 2;
+    const colorMap = {
+      fruity: '#ff2d6f', icy: '#4ddbff', menthol: '#d4ff2e',
+      sweet: '#ffb84d', tobacco: '#c79968', other: '#9580ff'
+    };
+    for (const [cat, pct] of entries) {
+      const meta = FLAVOR_LABELS[cat] || FLAVOR_LABELS.other;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 44px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${meta.icon} ${meta.lbl}`, barX, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${Math.round(pct * 100)}%`, barX + barW, y);
+      y += 30;
+      // track
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(barX, y, barW, 24);
+      // fill
+      ctx.fillStyle = colorMap[cat] || colorMap.other;
+      ctx.fillRect(barX, y, barW * pct, 24);
+      y += 90;
+    }
+
+    // Stats
+    y += 60;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 110px sans-serif';
+    ctx.fillText(String(data.total_orders || 0), W/2, y);
+    ctx.font = '34px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('drops e contando', W/2, y + 60);
+
+    // Footer / call-to-action
+    ctx.fillStyle = '#ff2d6f';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.fillText('drope-app.vercel.app', W/2, H - 180);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '28px sans-serif';
+    ctx.fillText('teu sabor, teu drop 🦎', W/2, H - 130);
+
+    c.toBlob(blob => {
+      if (!blob) { toast('falhou gerar imagem ✦'); return; }
+      const file = new File([blob], 'meu-perfil-drope.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Meu perfil Drope 🦎', text: 'meu perfil de sabor no Drope' })
+          .catch(() => downloadBlob(blob, 'meu-perfil-drope.png'));
+      } else {
+        downloadBlob(blob, 'meu-perfil-drope.png');
+      }
+    }, 'image/png');
+  }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    toast('imagem baixada ✦');
+  }
+
   function renderHomeLastOrder() {
     const wrap = document.getElementById('home-last-order-wrap');
     if (!wrap) return;
@@ -8077,13 +8044,7 @@
     }
     if (existing) existing.qty += currentQty;
     else cart.push({ ...p, qty: currentQty });
-    updateCartBadge(true);
-    // Pulse neon no botão de adicionar
-    const btn = document.getElementById('d-addbtn');
-    if (btn) {
-      btn.classList.add('neon-pulse');
-      setTimeout(() => btn.classList.remove('neon-pulse'), 700);
-    }
+    updateCartBadge();
     showAddedSheet(p);
   }
 
@@ -8104,17 +8065,11 @@
     document.getElementById('added-sheet').classList.remove('open');
   }
 
-  function updateCartBadge(animate) {
+  function updateCartBadge() {
     const total = cart.reduce((s, i) => s + i.qty, 0);
     const badge = document.getElementById('cart-badge');
     badge.textContent = total;
     badge.style.display = total > 0 ? 'flex' : 'none';
-    if (animate && total > 0) {
-      badge.classList.remove('bounce');
-      void badge.offsetWidth; // force reflow
-      badge.classList.add('bounce');
-      setTimeout(() => badge.classList.remove('bounce'), 600);
-    }
     saveCart();
   }
   updateCartBadge();
@@ -8146,18 +8101,21 @@
     if (hasPod && hasTabac) {
       notice.innerHTML = `<div class="mix-warn">teu carrinho mistura <b>só Pix</b> com <b>aceita cartão</b> ✦ vamos fechar tudo no Pix dessa vez pra não complicar</div>`;
     } else if (hasPod) {
-      notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">pods são <b>só no Pix</b> ✦ é a regra da casa</div>`;
+      notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">drops são <b>só no Pix</b> ✦ é a regra da casa</div>`;
     } else if (hasTabac) {
       notice.innerHTML = `<div class="mix-warn" style="background: rgba(212,255,46,0.08); border-color: rgba(212,255,46,0.35); color: var(--text)">tabacaria <b style="color: var(--lime)">aceita Pix ou cartão</b> ✦ tu escolhe no checkout</div>`;
     } else {
       notice.innerHTML = '';
     }
 
-    list.innerHTML = cart.map((i, idx) => `
+    list.innerHTML = cart.map((i, idx) => {
+      const lbl = productLabels(i);
+      return `
       <div class="cart-item">
         <div class="thumb">${i.emoji}</div>
         <div class="info">
-          <div class="n">${i.name}</div>
+          <div class="n">${escapeHtml(lbl.hero)}</div>
+          ${lbl.muted ? `<div class="b">${escapeHtml(lbl.muted)}</div>` : ''}
           <div class="p">r$ ${i.price} cada</div>
         </div>
         <div class="qty-ctrl">
@@ -8169,7 +8127,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     const sum = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
@@ -8262,49 +8221,24 @@
     const orderNum = orderCounter * 100 + Math.floor(Math.random() * 100);
     const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
-    const fee = deliveryFee();
-    const total = Math.max(0, subtotal - discount + fee);
+    const total = Math.max(0, subtotal - discount);
     const summary = cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ ');
     const addr = getSelectedAddress();
     const isPayLater = (deliveryMode === 'pickup' && payWhen === 'later');
-    // Determina método de pagamento usado:
-    // 'infinitepay' (gateway — loja já recebe confirmação pelo painel)
-    // 'pix_manual' (cliente pagou direto banco, PRECISA mandar comprovante)
-    // 'pickup_later' (reserva, paga na loja)
-    let paymentMethod;
-    if (isPayLater) paymentMethod = 'pickup_later';
-    else if (window.__lastPaymentMethod === 'infinitepay') paymentMethod = 'infinitepay';
-    else paymentMethod = 'pix_manual';
-
-    // Status amigável segundo o método
-    const statusByMethod = {
-      pickup_later: 'reservado ✦ pagar na retirada',
-      infinitepay:  'pago ✦ preparando',
-      pix_manual:   'aguardando comprovante',
-    };
-    const statusClsByMethod = {
-      pickup_later: 'reserved',
-      infinitepay:  'paid',
-      pix_manual:   'waiting',
-    };
-
     orders.unshift({
       num: orderNum,
-      status: statusByMethod[paymentMethod],
-      statusCls: statusClsByMethod[paymentMethod],
+      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando comprovante',
+      statusCls: isPayLater ? 'reserved' : 'waiting',
       summary,
       subtotal,
       total,
-      deliveryFee: fee,
       items: cart.map(i => ({ ...i })),
       address: deliveryMode === 'delivery' && addr ? { ...addr } : null,
       mode: deliveryMode,
       payWhen: deliveryMode === 'pickup' ? payWhen : 'now',
-      paymentMethod,                                                             // ← novo campo
       customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
       createdAt: Date.now(),
     });
-    window.__lastPaymentMethod = null; // limpa após usar
     if (appliedCoupon) {
       orders[0].coupon = appliedCoupon.code;
       orders[0].discount = appliedCoupon.discount;
@@ -8321,165 +8255,23 @@
     renderGrid();
     appliedCoupon = null;
     document.getElementById('success-order').textContent = `#dr-${orderNum}`;
-
-    // Popula o resumo do pedido na tela de sucesso
-    renderSuccessSummary(orders[0]);
+    // OSSO 21 — invalida cache da home personalizada pra próximo render puxar fresh
+    __personalizedHomeCache = null;
+    __personalizedHomeAt = 0;
+    __flavorProfileCache = null;
 
     go('success');
     fireConfetti();
-
-    // ============ CRM: persiste pedido no Supabase + captura track_token ============
-    // Falha silenciosa — se /api/save-order não existir (dev local) ou der erro, app continua.
-    // Osso 7: o endpoint agora retorna {track_token, track_url} pra o cliente acompanhar o pedido.
-    try {
-      const ord = orders[0];
-      fetch('/api/save-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_nsu: `dr-${ord.num}`,
-          // status inicial agora é auto-determinado pelo endpoint baseado no payment_method
-          payment_method: ord.paymentMethod,
-          subtotal: ord.subtotal,
-          delivery_fee: ord.deliveryFee || 0,
-          total: ord.total,
-          items: ord.items,
-          delivery_mode: ord.mode,
-          address: ord.address,
-          customer: ord.customer,
-        }),
-      })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && data.track_token) {
-          // Salva track_token no pedido local + localStorage pra acesso futuro
-          ord.trackToken = data.track_token;
-          ord.trackUrl   = data.track_url;
-          try {
-            localStorage.setItem('lastTrackToken', data.track_token);
-            localStorage.setItem('lastTrackUrl', data.track_url);
-            // mantém histórico dos últimos 10 track_tokens
-            const history = JSON.parse(localStorage.getItem('trackHistory') || '[]');
-            history.unshift({ token: data.track_token, url: data.track_url, nsu: `dr-${ord.num}`, at: new Date().toISOString() });
-            localStorage.setItem('trackHistory', JSON.stringify(history.slice(0, 10)));
-          } catch(e) { /* storage cheio, ignora */ }
-
-          // Re-renderiza success summary se a tela tá visível, agora com link de rastreio
-          if (document.getElementById('screen-success')?.classList.contains('active')) {
-            renderSuccessSummary(ord);
-          }
-        }
-      })
-      .catch(e => console.warn('[save-order] skip:', e.message));
-    } catch(e) { console.warn('[save-order] wrapper err:', e.message); }
     // Não auto-abre whats — cliente decide quando quer abrir (botão na tela de sucesso)
-  }
-
-  // ============================================================
-  // 🔒 SEGURANÇA: escape de HTML pra prevenir XSS
-  // Use SEMPRE que renderizar dados que vêm do cliente (nome, endereço, telefone, email)
-  // dentro de innerHTML / template literals. Vetor: cliente cadastra nome com payload
-  // malicioso → atinge admin que vê o pedido.
-  // ============================================================
-  function escapeHtml(s) {
-    if (s === null || s === undefined) return '';
-    return String(s)
-      .replace(/&/g,  '&amp;')
-      .replace(/</g,  '&lt;')
-      .replace(/>/g,  '&gt;')
-      .replace(/"/g,  '&quot;')
-      .replace(/'/g,  '&#39;')
-      .replace(/\//g, '&#x2F;');
-  }
-
-  function renderSuccessSummary(order) {
-    const el = document.getElementById('success-summary');
-    if (!el || !order) return;
-
-    const isPayLater = (order.mode === 'pickup' && order.payWhen === 'later');
-    // 🔒 escape de tudo que vem do cliente (nome do produto vem do catálogo Drope, mas vamos escape por garantia)
-    const itemsHtml = (order.items || []).map(i =>
-      `<div class="sum-item"><span><span class="qty">${escapeHtml(i.qty)}×</span>${escapeHtml(i.name)}</span><span>r$ ${escapeHtml(i.price * i.qty)}</span></div>`
-    ).join('');
-
-    let whereHtml = '';
-    if (order.mode === 'pickup') {
-      whereHtml = `<div>🏪 retirar em ${escapeHtml((typeof store !== 'undefined' && store.name) || 'loja')}</div>`;
-    } else if (order.address) {
-      const a = order.address;
-      // 🔒 endereço é input livre do cliente — SEMPRE escape
-      whereHtml = `<div>🛵 ${escapeHtml(a.street)}, ${escapeHtml(a.num)}${a.comp ? ' · ' + escapeHtml(a.comp) : ''}</div>`;
-      if (a.neigh) whereHtml += `<div style="padding-left:22px">${escapeHtml(a.neigh)}${a.cep ? ' · CEP ' + escapeHtml(a.cep) : ''}</div>`;
-    }
-
-    // Link de rastreio (Osso 7) — track_url vem do backend (gen_random_bytes), seguro, mas escape por garantia
-    const safeTrackUrl = order.trackUrl ? escapeHtml(order.trackUrl) : '';
-    const trackLinkHtml = order.trackUrl ? `
-      <div class="sum-track" style="margin-top:12px;padding:10px 14px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);border-radius:10px;">
-        <div style="font-size:12px;color:var(--lilac,#a78bfa);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">✦ acompanhar pedido</div>
-        <a href="${safeTrackUrl}" style="color:#fff;font-size:13px;text-decoration:underline;word-break:break-all;">${safeTrackUrl}</a>
-        <div style="font-size:11px;color:#888;margin-top:4px;">salvo no teu dispositivo ✦ volta aqui pra ver o status</div>
-      </div>
-    ` : '';
-
-    el.innerHTML = `
-      <div class="sum-items">${itemsHtml}</div>
-      <div class="sum-divider"></div>
-      <div class="sum-row"><span>subtotal</span><span>r$ ${escapeHtml(order.subtotal)}</span></div>
-      ${order.discount ? `<div class="sum-row"><span>cupom ${escapeHtml(order.coupon || '')}</span><span style="color:var(--lime)">-r$ ${escapeHtml(order.discount)}</span></div>` : ''}
-      ${order.deliveryFee ? `<div class="sum-row"><span>entrega</span><span>r$ ${escapeHtml(order.deliveryFee)}</span></div>` : ''}
-      <div class="sum-row total"><span>total ${isPayLater ? '(pagar na retirada)' : 'pago'}</span><span class="pink">r$ ${escapeHtml(order.total)}</span></div>
-      <div class="sum-meta">
-        ${whereHtml}
-        <div>👤 ${escapeHtml(order.customer?.name || '—')} · ${escapeHtml(order.customer?.phone || '')}</div>
-      </div>
-      ${trackLinkHtml}
-    `;
-
-    // ===== TEXTOS ADAPTATIVOS POR MÉTODO DE PAGAMENTO =====
-    const method = order.paymentMethod || (isPayLater ? 'pickup_later' : 'pix_manual');
-    const copies = {
-      infinitepay: {
-        sub: 'pagamento confirmado ✦ loja já recebeu e tá preparando',
-        btnTitle: 'receber atualizações no whats',
-        btnSub: 'avisa quando sair pra entrega 🛵',
-      },
-      pix_manual: {
-        sub: 'pedido criado ✦ manda o comprovante pra loja liberar',
-        btnTitle: 'mandar comprovante no whats',
-        btnSub: 'loja confirma e libera teu drope ✦',
-      },
-      pickup_later: {
-        sub: 'reserva feita ✦ paga na loja quando chegar',
-        btnTitle: 'avisar a loja no whats',
-        btnSub: 'confirma que tu vem buscar ✦',
-      },
-    };
-    const copy = copies[method] || copies.pix_manual;
-
-    const sub = document.getElementById('success-sub');
-    if (sub) sub.textContent = copy.sub;
-
-    const btnT = document.getElementById('whats-cta-title');
-    if (btnT) btnT.textContent = copy.btnTitle;
-    const btnS = document.getElementById('whats-cta-sub');
-    if (btnS) btnS.textContent = copy.btnSub;
   }
 
   function shareOnWhats() {
     const last = orders[0];
     if (!last) { toast('nenhum pedido pra compartilhar'); return; }
-    const method = last.paymentMethod || 'pix_manual';
-    const isPayLater = method === 'pickup_later';
-
-    // Headline adapta: InfinitePay = "pedido pago", Pix manual = "pedido", Pickup later = "reserva"
-    const headlineByMethod = {
-      infinitepay:  `*${store.name} ✦ pedido #dr-${last.num} (PAGO ✅)*`,
-      pix_manual:   `*${store.name} ✦ pedido #dr-${last.num}*`,
-      pickup_later: `*${store.name} ✦ RESERVA #dr-${last.num}*`,
-    };
-    const headline = headlineByMethod[method];
-
+    const isPayLater = (last.mode === 'pickup' && last.payWhen === 'later');
+    const headline = isPayLater
+      ? `*${store.name} ✦ RESERVA #dr-${last.num}*`
+      : `*${store.name} ✦ pedido #dr-${last.num}*`;
     let whereLine = '🛵 entrega';
     if (last.mode === 'pickup') {
       whereLine = '🏪 retirar na loja';
@@ -8492,43 +8284,22 @@
       if (a.cep) parts.push(`cep: ${a.cep}`);
       whereLine = `🛵 entrega: ${parts.join(' — ')}`;
     }
-
-    // Closer (última linha) adapta pelo método:
-    const closerByMethod = {
-      infinitepay:  'quero receber atualizações aqui no whats sobre meu pedido 🛵',
-      pix_manual:   'segue o comprovante ✦',
-      pickup_later: 'to indo aí buscar ✦ pago na hora',
-    };
-    const closer = closerByMethod[method];
-    // Label do total adapta pelo método
-    const totalLabel =
-      method === 'infinitepay'  ? 'total PAGO' :
-      method === 'pickup_later' ? 'total (a pagar na loja)' :
-                                   'subtotal';
-
-    // Linha extra de informação do método (só quando relevante)
-    const methodInfoLine =
-      method === 'infinitepay'  ? '_✅ pagamento via InfinitePay confirmado_' :
-      method === 'pickup_later' ? '_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_' :
-                                   '';
-
-    // Link de rastreio (Osso 7) — se o pedido tiver track_url, inclui na msg pro cliente ter sempre no whats dele
-    const trackLine = last.trackUrl ? `🔗 acompanhar: ${last.trackUrl}` : '';
-
+    const closer = isPayLater
+      ? 'to indo aí buscar ✦ pago na hora'
+      : 'segue o comprovante ✦';
     const lines = [
       headline,
       '',
       ...(last.items || []).map(i => `• ${i.qty}× ${i.name} — r$ ${i.price * i.qty}`),
       '',
       last.discount ? `cupom ${last.coupon}: -r$ ${last.discount}` : '',
-      `*${totalLabel}:* r$ ${last.total}`,
-      last.mode === 'delivery' && last.deliveryFee ? `_+ entrega: r$ ${last.deliveryFee}_` : '',
-      methodInfoLine,
+      `*${isPayLater ? 'total' : 'subtotal'}:* r$ ${last.total}`,
+      last.mode === 'delivery' ? `_+ taxa de motoboy (~R$10-20, confirmar)_` : '',
+      isPayLater ? `_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
       '',
       whereLine,
       `👤 ${profile.name || 'cliente'} ✦ ${profile.phone || ''}`,
       profile.email ? `📧 ${profile.email}` : '',
-      trackLine,
       '',
       closer,
     ];
@@ -8580,25 +8351,6 @@
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
-  // ===== DEMANDA / WISHLIST =====
-  function requestProduct(productName) {
-    const digits = phoneDigits(store.whats);
-    if (!digits) { toast('whats da loja não cadastrado ✦'); return; }
-    const phone = digits.length <= 11 ? '55' + digits : digits;
-    const userName = profile.name || '';
-    const msg = encodeURIComponent(`oi, procurei *${productName}* no app mas tá esgotado. tem como trazer? ${userName ? '— ' + userName : ''}`);
-    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-  }
-
-  function requestAnyProduct() {
-    const digits = phoneDigits(store.whats);
-    if (!digits) { toast('whats da loja não cadastrado ✦'); return; }
-    const phone = digits.length <= 11 ? '55' + digits : digits;
-    const userName = profile.name || '';
-    const msg = encodeURIComponent(`oi, não achei o que procuro no app. queria um pod de: \n\n(descreve o sabor/marca que quer)\n\n${userName ? '— ' + userName : ''}`);
-    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-  }
-
   function openHelpWhats() {
     const digits = phoneDigits(store.whats);
     if (!digits) { toast('a loja ainda não cadastrou whats ✦'); return; }
@@ -8610,24 +8362,31 @@
   function logoutAccount() {
     if (!confirm('sair da conta? ✦ teus dados locais (perfil, endereços, favoritos) serão apagados deste aparelho. Pedidos feitos continuam no histórico da loja.')) return;
     try {
+      // Bug 01/05: faltava limpar drope_age_confirmed → o boot achava que o cara
+      // ainda tava logado e jogava direto pro catálogo em vez do onboard.
+      localStorage.removeItem('drope_age_confirmed');
       localStorage.removeItem(PROFILE_KEY);
       localStorage.removeItem('drope_addresses_v1');
+      localStorage.removeItem('drope_addr_selected_v1');
+      localStorage.removeItem('drope_addr_prefill');
       localStorage.removeItem('drope_favorites_v1');
       localStorage.removeItem('drope_cart_v1');
-      localStorage.removeItem('drope_onboard_v1');
+      localStorage.removeItem('drope_welcome_coupon');
+      localStorage.removeItem('drope_picked_vibe');
     } catch(e) {}
     profile = { name: '', phone: '', email: '', avatar: '' };
     toast('saiu da conta ✦ até a próxima');
+    // location.reload() volta pro splash → boot detecta age_confirmed=null → onboard
     setTimeout(() => { location.reload(); }, 600);
   }
 
   function shareDrope() {
     const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://resonant-truffle-84fd2e.netlify.app/';
-    const msg = `mano, achei esse app aqui ✦ Drope\n\npods em minutos, paga com Pix, chega rápido 🛵\n\n${url}\n\n(só 18+)`;
+    const msg = `mano, achei esse app aqui ✦ Drope\n\ndrops em minutos, paga com Pix, chega rápido 🛵\n\n${url}\n\n(só 18+)`;
     // Usa Web Share API nativa quando dá (Android/iOS) — melhor UX
     if (navigator.share) {
       navigator.share({
-        title: 'Drope ✦ pods em minutos',
+        title: 'Drope ✦ drops em minutos',
         text: msg,
         url: url,
       }).catch(() => {});
@@ -8723,7 +8482,7 @@
     ).join('\n');
     const s = store;
 
-    return `Você é o assistente IA da loja Drope, uma loja de pods/vapes para público Gen Z em São Paulo.
+    return `Você é o assistente IA da loja Drope, uma tabacaria para público Gen Z em São Paulo.
 
 INFORMAÇÕES DA LOJA:
 - Nome: ${s.name}
@@ -8738,7 +8497,7 @@ PEDIDOS RECENTES:
 ${recentOrders || 'Nenhum pedido ainda.'}
 
 REGRAS:
-- Pagamento: só Pix (pods) ou Pix + cartão (tabacaria). Nunca processa pagamento, cliente manda comprovante via WhatsApp.
+- Pagamento: só Pix (drops/pods de nicotina) ou Pix + cartão (tabacaria). Nunca processa pagamento, cliente manda comprovante via WhatsApp.
 - Taxa de entrega: negociada por WhatsApp, não aparece no app.
 - Pickup: pode pagar antes (Pix) ou na hora.
 - Fale em português brasileiro informal, tom Gen Z mas profissional.
@@ -8831,194 +8590,172 @@ REGRAS:
         }
       });
     }
-
-    // ⚡ Detecta retorno do InfinitePay (#success-pay ou ?capture_method=pix)
-    // Cliente pagou, voltou pro app — confirmamos o pedido automaticamente
-    checkInfinitePayReturn();
-
-    // ⚡ Osso 7: detecta rota de rastreio #track/TOKEN — mostra timeline do pedido
-    checkTrackRoute();
   });
 
-  // ============================================================
-  // OSSO 7 — RASTREIO DO PEDIDO (timeline visual pro cliente)
-  // ============================================================
-  function checkTrackRoute() {
-    const hash = window.location.hash || '';
-    const m = hash.match(/#track\/([a-f0-9]{8,64})/i);
-    if (!m) return;
-    const token = m[1];
-    showTrackScreen(token);
+  // Atalho pra tela /pending_pod_photos — pede ADMIN_TOKEN do Vercel se não tiver salvo
+  function openPendentesPodPhoto() {
+    let t = localStorage.getItem('drope_admin_token');
+    if (!t) {
+      t = prompt('cola o ADMIN_TOKEN do Vercel pra abrir os pendentes de foto:');
+      if (!t) return;
+      localStorage.setItem('drope_admin_token', t.trim());
+    }
+    window.location.href = '/api/webhook?action=pending_pod_photos&token=' + encodeURIComponent(t.trim());
   }
 
-  async function showTrackScreen(token) {
-    // Cria overlay se não existe
-    let overlay = document.getElementById('track-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'track-overlay';
-      overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a0f;z-index:9999;overflow-y:auto;padding:24px 16px;animation:fadeIn .3s';
-      overlay.innerHTML = `
-        <div style="max-width:420px;margin:0 auto;">
-          <button onclick="closeTrackScreen()" style="background:none;border:none;color:#888;font-size:14px;cursor:pointer;margin-bottom:16px;">← voltar pro app</button>
-          <div id="track-content" style="color:#fff;">
-            <div style="text-align:center;padding:40px 20px;">carregando pedido ✦</div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
+  // Tela de revisão de referências do pipeline novo (busca automática via Serper)
+  // OSSO 34 — Pipeline de referência visual (admin)
+  let _adminRefAll = [];
+  let _adminRefFilter = 'pendentes';
+  let _adminRefUploadId = null;
+
+  function openRevisarReferencias() {
+    let t = localStorage.getItem('drope_admin_token');
+    if (!t) {
+      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
+      if (!t) return;
+      localStorage.setItem('drope_admin_token', t.trim());
     }
-    overlay.style.display = 'block';
+    go('admin-references');
+    loadAdminReferences();
+  }
 
+  async function loadAdminReferences() {
+    const token = localStorage.getItem('drope_admin_token') || '';
+    const list = document.getElementById('admin-references-list');
+    const counter = document.getElementById('adm-ref-count');
+    if (list) list.innerHTML = '<div style="padding:20px;opacity:.6">carregando…</div>';
     try {
-      const r = await fetch(`/api/get-order?token=${encodeURIComponent(token)}`);
-      const data = await r.json();
-
-      if (!r.ok || !data.ok) {
-        document.getElementById('track-content').innerHTML = `
-          <div style="text-align:center;padding:40px 20px;">
-            <div style="font-size:48px;margin-bottom:12px;">🤔</div>
-            <div style="font-size:18px;font-weight:700;margin-bottom:8px;">pedido não encontrado</div>
-            <div style="color:#888;font-size:13px;">verifica se o link tá completo</div>
-          </div>
-        `;
-        return;
+      const r = await fetch('/api/admin-list-stock', { headers: { 'x-admin-token': token } });
+      if (!r.ok) {
+        if (r.status === 401) {
+          localStorage.removeItem('drope_admin_token');
+          if (list) list.innerHTML = '<div style="padding:20px;color:#f66">token inválido — clica de novo no botão</div>';
+          return;
+        }
+        throw new Error('HTTP ' + r.status);
       }
-
-      renderTrackTimeline(data.order);
-    } catch(e) {
-      console.error('[track] err:', e);
-      document.getElementById('track-content').innerHTML = `
-        <div style="text-align:center;padding:40px 20px;color:#888;">erro ao carregar ✦ tenta de novo</div>
-      `;
+      const data = await r.json();
+      _adminRefAll = (data.products || []).filter(p => !p.hidden);
+      const pendentes = _adminRefAll.filter(p => !p.ref_status || p.ref_status === 'none' || p.ref_status === 'auto_failed').length;
+      if (counter) counter.textContent = `${pendentes} pendentes / ${_adminRefAll.length} total`;
+      renderAdminReferences();
+    } catch (e) {
+      if (list) list.innerHTML = '<div style="padding:20px;color:#f66">erro: ' + (e.message || e) + '</div>';
     }
   }
 
-  function closeTrackScreen() {
-    const overlay = document.getElementById('track-overlay');
-    if (overlay) overlay.style.display = 'none';
-    history.replaceState(null, '', window.location.pathname);
+  function setRefFilter(f) {
+    _adminRefFilter = f;
+    document.querySelectorAll('[data-ref-filter]').forEach(b => {
+      b.classList.toggle('active', b.dataset.refFilter === f);
+    });
+    renderAdminReferences();
   }
 
-  function renderTrackTimeline(order) {
-    const content = document.getElementById('track-content');
-    if (!content) return;
-
-    const fmtTime = ts => {
-      if (!ts) return '';
-      const d = new Date(ts);
-      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    };
-
-    const stageIcon = (state, key) => {
-      if (state === 'done') return '✅';
-      if (state === 'current') return '⚡';
-      // pending
-      const icons = { paid: '💳', preparing: '👨‍🍳', out_for_delivery: '🛵', ready_for_pickup: '🏪', delivered: '📦', picked_up: '🤝' };
-      return icons[key] || '○';
-    };
-
-    const stageColor = state => {
-      if (state === 'done') return '#bef264';      // lime
-      if (state === 'current') return '#ec4899';    // pink
-      return '#444';                                // gray pending
-    };
-
-    // 🔒 stage.label vem do backend (controlado por nós), seguro. Mas escape por garantia.
-    const timelineHtml = (order.timeline || []).map(stage => `
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid #1a1a22;">
-        <div style="width:40px;height:40px;border-radius:50%;background:${stageColor(stage.state)}22;border:2px solid ${stageColor(stage.state)};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;${stage.state === 'current' ? 'animation:pulse 2s infinite;' : ''}">${stageIcon(stage.state, stage.key)}</div>
-        <div style="flex:1;padding-top:6px;">
-          <div style="font-weight:600;color:${stage.state === 'pending' ? '#666' : '#fff'};font-size:15px;">${escapeHtml(stage.label)}</div>
-          ${stage.ts ? `<div style="color:#888;font-size:12px;margin-top:2px;">${escapeHtml(fmtTime(stage.ts))}</div>` : ''}
-          ${stage.state === 'current' ? `<div style="color:#ec4899;font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;">em andamento</div>` : ''}
-        </div>
-      </div>
-    `).join('');
-
-    const totalBRL = (order.total_cents / 100).toFixed(2).replace('.', ',');
-    // 🔒 i.name pode vir poluído de DB se atacante criou pedido fake — escape
-    const itemsList = (order.items || []).map(i => `• ${escapeHtml(i.qty || 1)}× ${escapeHtml(i.name)} — r$ ${escapeHtml((i.price || 0) * (i.qty || 1))}`).join('<br>');
-
-    const isCancelled = order.status === 'cancelled';
-    const statusBanner = isCancelled
-      ? `<div style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);padding:12px;border-radius:10px;margin-bottom:20px;color:#f87171;text-align:center;font-weight:600;">pedido cancelado</div>`
-      : '';
-
-    content.innerHTML = `
-      <div style="margin-bottom:24px;">
-        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">pedido</div>
-        <div style="font-size:22px;font-weight:800;">#${escapeHtml(order.nsu)}</div>
-        <div style="color:#888;font-size:13px;margin-top:4px;">oi, ${escapeHtml(order.first_name || 'cliente')} ✦</div>
-      </div>
-
-      ${statusBanner}
-
-      <div style="background:#12121a;border:1px solid #1a1a22;border-radius:14px;padding:16px 20px;margin-bottom:20px;">
-        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">progresso</div>
-        ${timelineHtml}
-      </div>
-
-      <div style="background:#12121a;border:1px solid #1a1a22;border-radius:14px;padding:16px 20px;margin-bottom:20px;">
-        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">itens</div>
-        <div style="color:#ddd;font-size:14px;line-height:1.8;">${itemsList}</div>
-        <div style="border-top:1px solid #1a1a22;margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;">
-          <span style="color:#888;">total</span>
-          <span style="color:#ec4899;font-weight:700;">r$ ${totalBRL}</span>
-        </div>
-      </div>
-
-      <div style="text-align:center;color:#666;font-size:12px;margin-top:24px;">Drope ✦ pods em minutos</div>
-    `;
-  }
-
-  function checkInfinitePayReturn() {
-    const hash = window.location.hash || '';
-    const search = window.location.search || '';
-    const isSuccessReturn =
-      hash.includes('success-pay') ||
-      search.includes('capture_method=pix') ||
-      search.includes('transaction_id=');
-
-    if (!isSuccessReturn) return;
-
-    // Lê snapshot salvo antes do redirect
-    let snap = null;
-    try {
-      const raw = localStorage.getItem('drope_pending_payment');
-      if (raw) snap = JSON.parse(raw);
-    } catch(e) {}
-
-    if (!snap || !snap.items || !snap.items.length) {
-      // Snapshot perdido — leva pra home com toast
-      if (typeof toast === 'function') toast('pagamento recebido ✦ confere em meus pedidos');
-      setTimeout(() => { if (typeof go === 'function') go('home'); }, 800);
-      // Limpa URL pra não re-disparar em reload
-      history.replaceState(null, '', window.location.pathname);
+  function renderAdminReferences() {
+    const list = document.getElementById('admin-references-list');
+    if (!list) return;
+    const filter = _adminRefFilter;
+    const filtered = _adminRefAll.filter(p => {
+      const s = p.ref_status || 'none';
+      if (filter === 'pendentes') return s === 'none' || s === 'auto_failed';
+      if (filter === 'none') return s === 'none';
+      if (filter === 'auto_failed') return s === 'auto_failed';
+      if (filter === 'ok') return s === 'auto_found' || s === 'manual_uploaded' || s === 'from_box';
+      return true;
+    });
+    if (filtered.length === 0) {
+      list.innerHTML = '<div style="padding:20px;opacity:.6">nenhum produto neste filtro 🦎</div>';
       return;
     }
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    list.innerHTML = filtered.map(p => {
+      const meta = p.metadata || {};
+      const brand = esc(meta.brand || '—');
+      const model = esc(meta.model || '');
+      const puffs = meta.puffs ? `${meta.puffs}puffs` : '';
+      const status = p.ref_status || 'none';
+      const statusColor = status === 'none' ? '#888' : status === 'auto_failed' ? '#f66' : status === 'manual_uploaded' ? '#7f7' : status === 'auto_found' ? '#7ff' : '#fa7';
+      const refUrl = p.reference_image_url || '';
+      const boxUrl = p.box_photo_url || '';
+      const thumbSrc = refUrl || boxUrl;
+      const thumbHtml = thumbSrc
+        ? `<img src="${esc(thumbSrc)}" style="width:88px;height:88px;object-fit:cover;border-radius:8px;background:#222" loading="lazy">`
+        : '<div style="width:88px;height:88px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;font-size:32px">📦</div>';
+      const googleQ = encodeURIComponent(`${meta.brand || ''} ${meta.model || ''} ${puffs} vape pod device`.trim().replace(/\s+/g, ' '));
+      return `
+        <div style="background:#181820;border:1px solid #2a2a35;border-radius:12px;padding:14px;margin-bottom:12px;display:flex;gap:12px">
+          ${thumbHtml}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;line-height:1.2">${esc(p.name)}</div>
+            <div style="opacity:.7;font-size:12px;margin-top:2px">${brand} · ${model} ${puffs}</div>
+            <div style="margin-top:6px;font-size:11px"><span style="color:${statusColor}">●</span> <span style="opacity:.8">ref_status: ${esc(status)}</span></div>
+            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+              <a href="https://www.google.com/search?tbm=isch&q=${googleQ}" target="_blank" rel="noopener"
+                 style="background:#2a2a35;color:#7ff;padding:6px 10px;border-radius:6px;font-size:12px;text-decoration:none">🔍 google</a>
+              <button onclick="triggerRefUpload(${p.id})"
+                 style="background:var(--lime,#aaff66);color:#000;padding:6px 10px;border-radius:6px;font-size:12px;border:none;cursor:pointer">📤 upload</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
 
-    // Restaura o contexto e confirma pedido
-    try {
-      cart = snap.items;
-      deliveryMode = snap.deliveryMode || deliveryMode;
-      payWhen = snap.payWhen || payWhen;
-      appliedCoupon = snap.appliedCoupon || null;
-      // address é resolvido por getSelectedAddress() → addresses[addrSelectedIdx]
-      // snap.address já foi selecionado antes — mantém
-      if (typeof confirmOrder === 'function') {
-        confirmOrder();                        // gera pedido, abre tela success
+  function triggerRefUpload(productId) {
+    _adminRefUploadId = productId;
+    const f = document.getElementById('adm-ref-file');
+    if (f) { f.value = ''; f.click(); }
+  }
+
+  async function onRefFileSelected(ev) {
+    const file = ev.target.files && ev.target.files[0];
+    const productId = _adminRefUploadId;
+    _adminRefUploadId = null;
+    if (!file || !productId) return;
+    if (file.size > 8 * 1024 * 1024) { alert('imagem muito grande (max 8MB)'); return; }
+    const token = localStorage.getItem('drope_admin_token') || '';
+    if (!token) { alert('sem token — recarrega a página e clica em referências de novo'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dataUrl = reader.result;
+        const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+        if (!m) { alert('falhou ler arquivo'); return; }
+        const mimeType = m[1];
+        const imageBase64 = m[2];
+        const r = await fetch('/api/webhook?action=admin_upload_reference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+          body: JSON.stringify({ productId, imageBase64, mimeType }),
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) { alert('upload falhou: ' + (j.error || j.details || 'erro')); return; }
+        // Update local + re-render
+        const p = _adminRefAll.find(x => x.id === productId);
+        if (p) { p.reference_image_url = j.url; p.ref_status = 'manual_uploaded'; }
+        renderAdminReferences();
+      } catch (e) {
+        alert('erro: ' + (e.message || e));
       }
-      localStorage.removeItem('drope_pending_payment');
-    } catch(e) {
-      console.error('[checkInfinitePayReturn]', e);
-      if (typeof toast === 'function') toast('pagamento recebido, mas houve um erro ao carregar o pedido');
-    }
+    };
+    reader.readAsDataURL(file);
+  }
 
-    // Limpa URL
-    history.replaceState(null, '', window.location.pathname);
+  // Link mágico pro /receber: leva token embutido no URL pra Andrade não precisar colar de novo no celular.
+  // O receber.html lê o ?t=, salva em localStorage e limpa do URL via history.replaceState.
+  function openReceberWithToken() {
+    let t = localStorage.getItem('drope_admin_token');
+    if (!t) {
+      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
+      if (!t) return;
+      t = t.trim();
+      localStorage.setItem('drope_admin_token', t);
+    }
+    window.location.href = '/receber.html?v=5&t=' + encodeURIComponent(t.trim());
   }
 </script>
+<script src="/feedback-bubble.js?v=3" defer></script>
 
 </body>
 </html>

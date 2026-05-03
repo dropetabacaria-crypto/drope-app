@@ -89,26 +89,39 @@ module.exports = async function handler(req, res) {
       if (customer.email && typeof customer.email === 'string') customer.email = customer.email.slice(0, 100);
     }
 
-    // Upsert de CLIENTE (pelo telefone)
+    // Upsert de CLIENTE (pelo telefone) — FEATURE 3B
+    // source='app' marca quem veio pelo checkout. Se a coluna `source` ainda não existe
+    // (migration osso20 não rodou), o INSERT falha e fazemos fallback sem source.
     let customerId = null;
     if (customer?.phone) {
       const phoneClean = String(customer.phone).replace(/\D/g, '');
+      const baseRow = {
+        phone: phoneClean,
+        name: customer.name || null,
+        email: customer.email || null,
+        last_seen_at: new Date().toISOString(),
+      };
+      const upsertHeaders = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation,resolution=merge-duplicates',
+      };
       try {
-        const upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?on_conflict=phone`, {
+        // 1ª tentativa: com source='app'
+        let upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?on_conflict=phone`, {
           method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation,resolution=merge-duplicates',
-          },
-          body: JSON.stringify({
-            phone: phoneClean,
-            name: customer.name || null,
-            email: customer.email || null,
-            last_seen_at: new Date().toISOString(),
-          }),
+          headers: upsertHeaders,
+          body: JSON.stringify({ ...baseRow, source: 'app' }),
         });
+        if (!upsertRes.ok) {
+          // Fallback sem source (coluna ainda não existe — migration osso20 pendente)
+          upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?on_conflict=phone`, {
+            method: 'POST',
+            headers: upsertHeaders,
+            body: JSON.stringify(baseRow),
+          });
+        }
         const rows = await upsertRes.json();
         if (Array.isArray(rows) && rows[0]) customerId = rows[0].id;
       } catch(e) { console.error('[save-order] customer upsert err:', e.message); }
@@ -205,6 +218,78 @@ module.exports = async function handler(req, res) {
     }
 
     const savedOrder = Array.isArray(orderData) ? orderData[0] : orderData;
+
+    // OSSO 21 — IA-FIRST: enriquece drope_customers com dados de recompra
+    // (last_product_id, last_order_date, last_delivery_address) e incrementa
+    // total_orders. Isso alimenta:
+    //   - Feature 1 (home recorrente "dropar de novo")
+    //   - Feature 2 (recompra 1 toque com endereço pré-preenchido)
+    //   - Feature 4 (perfil de sabor consolida com base nos pedidos)
+    // Tudo fire-and-forget — falha aqui NÃO trava o pedido. As colunas só
+    // foram criadas pela migration osso21; se ainda não rodou, o PATCH dá
+    // erro silencioso e seguimos.
+    if (customerId && itemsWithSlug.length > 0) {
+      try {
+        // 1ª escolha pra "último produto": o primeiro item do pedido.
+        // (heurística simples — futuro: ranking por preço ou perfil)
+        const lastSlug = itemsWithSlug[0].slug;
+        const lastProductRows = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_products?slug=eq.${encodeURIComponent(lastSlug)}&select=id&limit=1`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        ).then(r => r.ok ? r.json() : []);
+        const lastProductId = Array.isArray(lastProductRows) && lastProductRows[0] ? lastProductRows[0].id : null;
+
+        const customerPatch = {
+          last_order_date: new Date().toISOString(),
+          last_delivery_address: address || null,
+        };
+        if (lastProductId) customerPatch.last_product_id = lastProductId;
+
+        // total_orders: increment via SQL é mais correto, mas RPC não existe.
+        // Fazemos GET + PATCH (suficiente pra MVP — app é single-tenant,
+        // probabilidade de race condition baixa). Se total_orders ainda não
+        // existe (migration osso21 pendente), o GET ignora gracefully.
+        const curRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${customerId}&select=total_orders`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        if (curRes.ok) {
+          const curRows = await curRes.json();
+          const cur = Array.isArray(curRows) && curRows[0] ? curRows[0] : {};
+          if (typeof cur.total_orders === 'number') {
+            customerPatch.total_orders = cur.total_orders + 1;
+          }
+        }
+
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${customerId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(customerPatch),
+          }
+        );
+      } catch (e) {
+        console.error('[save-order] customer enrich err:', e.message);
+      }
+
+      // Incrementa total_sold de cada produto (fire-and-forget).
+      for (const it of itemsWithSlug) {
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_increment_total_sold`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+        }).catch(e => console.error('[save-order] total_sold rpc err:', e.message));
+      }
+    }
 
     // Retorna inclusive o `customer_track_token` (gerado pelo default da coluna)
     // pra o app salvar e mandar pro cliente como link de rastreio.

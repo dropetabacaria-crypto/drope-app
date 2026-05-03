@@ -38,7 +38,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const { slug, name, category, price_cents, qty_available, hidden, badge, image_url } = body;
+    const { slug, name, category, price_cents, qty_available, hidden, badge, image_url, barcode, created_via } = body;
 
     // 🔒 Validação básica do slug em todas as ações
     if (!slug || typeof slug !== 'string' || !/^[a-z0-9-]{1,80}$/.test(slug)) {
@@ -60,6 +60,9 @@ module.exports = async function handler(req, res) {
         qty_available: qty_available || 0,
         badge: badge ? String(badge).slice(0, 50) : null,
         image_url: image_url ? String(image_url).slice(0, 500) : null,
+        barcode: barcode ? String(barcode).replace(/\D/g, '').slice(0, 20) : null,
+        hidden: hidden === true ? true : false,
+        created_via: created_via ? String(created_via).slice(0, 30) : 'admin',
       };
       const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_products`, {
         method: 'POST',
@@ -92,6 +95,10 @@ module.exports = async function handler(req, res) {
     if (name !== undefined) {
       if (typeof name !== 'string' || name.length > 200) return res.status(400).json({ error: 'invalid name' });
       updates.name = name;
+    }
+    if (barcode !== undefined) {
+      if (barcode !== null && (typeof barcode !== 'string' || !/^[0-9]{0,20}$/.test(barcode))) return res.status(400).json({ error: 'invalid barcode (digits only, max 20)' });
+      updates.barcode = barcode ? barcode.slice(0, 20) : null;
     }
 
     if (Object.keys(updates).length === 0) {
