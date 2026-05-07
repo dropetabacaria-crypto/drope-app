@@ -3370,7 +3370,7 @@ function getDeviceBankDescription(brand, model) {
 // OSSO 34.3: QC com Vision — Rutem (ministra da Qualidade) avalia arte gerada pelo Grok.
 // Checa: texto parasita, proporção do device, frutas corretas pro sabor, atmosfera dark neon.
 // Retorna: { approved: bool, score: 0-1, issues: string[] }
-async function evaluateArtQuality(imgBuffer, productName, flavor, deviceDescription) {
+async function evaluateArtQuality(imgBuffer, productName, flavor, deviceDescription, referenceUrl, boxPhotoUrl) {
   if (!CLAUDE_KEY) return { approved: true, score: 0.5, issues: ['QC skipped: no CLAUDE_KEY'] };
 
   try {
@@ -3382,8 +3382,27 @@ async function evaluateArtQuality(imgBuffer, productName, flavor, deviceDescript
     const mt = detectMT(imgBuffer);
     const b64 = imgBuffer.toString('base64');
 
+    // FIX REF QA v3 (07/05/2026 - Andrade) — Vision QA compara arte gerada com
+    // reference visual (foto Serper aprovada) ALEM da descricao textual.
+    // Antes: so olhava arte + descricao texto. Resultado: aprovava artes com
+    // device parecido em forma mas cor/sabor errado. Agora compara visualmente:
+    // arte gerada vs ref aprovada vs box_photo (ground truth real). Mais rigoroso.
+    const hasVisualRef = !!(referenceUrl && referenceUrl.startsWith('http'));
+    const hasBoxPhoto = !!(boxPhotoUrl && boxPhotoUrl.startsWith('http'));
+
+    const visualCriterion = hasVisualRef ? `
+7. VISUAL FIDELITY (peso ALTO, ref nas Imagens 2 ${hasBoxPhoto ? 'e 3' : ''}): Quao FIEL a arte (Imagem 1) e ao produto REAL?
+   - Mesmo formato/proporcoes do dispositivo?
+   - Mesma cor predominante e gradientes?
+   - Mesmas estampas/grafismos do rotulo?
+   - Mesmo tipo de bocal e LEDs?
+   ${hasBoxPhoto ? 'A IMAGEM 3 e a foto da caixa real (ground truth absoluto).' : ''}
+   A IMAGEM 2 e a referencia aprovada. Score abaixo de 6 = arte ficou diferente do produto = REJEITAR.` : '';
+
     const qcPrompt = `You are Rutem, a strict Quality Control inspector for Drope (premium vape e-commerce).
-Evaluate this product art for "${productName}" (flavor: ${flavor || 'unknown'}).
+Evaluate the product art (IMAGEM 1) for "${productName}" (flavor: ${flavor || 'unknown'}).
+${hasVisualRef ? `IMAGEM 2 = referencia visual aprovada (foto real do produto).` : ''}
+${hasBoxPhoto ? `IMAGEM 3 = foto da caixa real do produto (ground truth).` : ''}
 
 CRITERIA (score each 0-10):
 1. NO ADDED TEXT: The device may show its real brand markings (e.g. "EBCREATE" printed on the physical pod) — that is OK. But NO added text, banners, watermarks, floating titles, prices, or decorative typography anywhere else in the scene. Invented text (words not on the real product) = fail.
@@ -3391,32 +3410,38 @@ CRITERIA (score each 0-10):
 3. FLAVOR MATCH: Fruit/ingredient elements match the "${flavor}" flavor. Wrong fruits = fail.
 4. DARK NEON ATMOSPHERE: Deep dark background, neon pink/lime as subtle rim lights and reflections (not overwhelming floods), atmospheric vapor/smoke present.
 5. COMPOSITION: Device centered, occupies ~35-45% of frame, ingredients around base not covering device. Clean layout.
-6. OVERALL QUALITY: Professional e-commerce quality, no artifacts, no distortion, hyper-detailed.
+6. OVERALL QUALITY: Professional e-commerce quality, no artifacts, no distortion, hyper-detailed.${visualCriterion}
 
-APPROVAL THRESHOLD: Average score >= 7 AND no criterion below 4. Invented/added text = auto-reject. Real brand text on the device body is acceptable.
+APPROVAL THRESHOLD: Average score >= 7 AND no criterion below 4. ${hasVisualRef ? 'visual_fidelity below 6 = auto-reject (arte nao corresponde ao produto real).' : ''} Invented/added text = auto-reject. Real brand text on the device body is acceptable.
 
 Respond ONLY JSON:
 {
-  "scores": {"no_text": N, "device_accuracy": N, "flavor_match": N, "atmosphere": N, "composition": N, "quality": N},
+  "scores": {"no_text": N, "device_accuracy": N, "flavor_match": N, "atmosphere": N, "composition": N, "quality": N${hasVisualRef ? ', "visual_fidelity": N' : ''}},
   "average": N.N,
   "approved": true/false,
   "issues": ["issue1", "issue2"],
   "feedback_for_next_attempt": "one sentence correction if rejected"
 }`;
 
+    // Monta content array com 1, 2 ou 3 imagens
+    const content = [
+      { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } },
+    ];
+    if (hasVisualRef) {
+      content.push({ type: 'image', source: { type: 'url', url: referenceUrl } });
+    }
+    if (hasBoxPhoto) {
+      content.push({ type: 'image', source: { type: 'url', url: boxPhotoUrl } });
+    }
+    content.push({ type: 'text', text: qcPrompt });
+
     const vRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } },
-            { type: 'text', text: qcPrompt }
-          ]
-        }]
+        max_tokens: 600,
+        messages: [{ role: 'user', content }]
       })
     });
 
@@ -4518,21 +4543,33 @@ async function handleAdminLucas(phone, msg, body) {
       if (lower === 'depois' || lower === 'mais tarde' || lower === 'pra depois') {
         await sbUpdate('drope_products', `id=eq.${pending.productId}`, { image_status: 'pending_regeneration' });
         await clearPending(phone);
-        await sendText(phone, `✅ arte de *${pending.fullName}* fica pendente.\n\nresolve no /admin quando puder.\n\n• 'cadastra' — outro produto\n• 'pendentes' — ver lista`, body);
+        await sendText(phone, `✅ arte de *${pending.fullName}* fica pendente.\n\nresolve no Admin Hub quando puder.\n\n• 'pendentes' — ver lista`, body);
         return;
       }
       // 'cancela' = mesmo que 'depois' (não desfaz cadastro, só sai do flow de arte)
       if (lower === 'cancela' || lower === 'sai') {
         await sbUpdate('drope_products', `id=eq.${pending.productId}`, { image_status: 'pending_regeneration' });
         await clearPending(phone);
-        await sendText(phone, `✅ pendente: arte de *${pending.fullName}*\n\n• 'cadastra' — outro\n• 'pendentes' — lista`, body);
+        await sendText(phone, `✅ pendente: arte de *${pending.fullName}*\n\n• 'pendentes' — lista`, body);
+        return;
+      }
+      // FIX 07/05/2026: 'rejeita' descarta a arte atual e marca needs_manual_photo
+      // (Andrade vai mandar foto manual depois). Diferente de 'depois' (que so adia).
+      if (lower === 'rejeita' || lower === 'rejeitar' || lower === 'descarta' || lower === 'lixo' || lower === 'ruim') {
+        await sbUpdate('drope_products', `id=eq.${pending.productId}`, {
+          image_status: 'needs_manual_photo',
+          art_status: 'needs_manual_photo',
+          metadata: { ...(pending.metadata || {}), pending_art_url: null },
+        });
+        await clearPending(phone);
+        await sendText(phone, `❌ arte de *${pending.fullName}* descartada.\n\nManda uma foto da caixa que eu uso direto, ou:\n• 'pendentes' — ver lista`, body);
         return;
       }
 
       // Comandos exclusivos do mode 'art_review' (arte foi gerada com sucesso)
       if (pending.mode === 'art_review') {
         // 'sim' → aprova: arte vira oficial
-        if (lower === 'sim' || lower === 'ok' || lower === 'aprova' || lower === 'aprovar' || lower === 'beleza' || lower === 'boa') {
+        if (lower === 'sim' || lower === 'ok' || lower === 'aprova' || lower === 'aprovar' || lower === 'beleza' || lower === 'boa' || lower === 'aprovo' || lower === 'publica' || lower === 'manda') {
           // Lê pending_art_url do banco (mais confiável que do pending em-memória)
           const rows = await sbGet('drope_products', `id=eq.${pending.productId}&select=metadata&limit=1`);
           const artUrl = rows[0]?.metadata?.pending_art_url;
@@ -4545,7 +4582,7 @@ async function handleAdminLucas(phone, msg, body) {
             image_status: 'ok',
           });
           await clearPending(phone);
-          await sendText(phone, `✅ arte aprovada 🦎\n\n*${pending.fullName}* aparece no app com arte oficial.\n\n• 'cadastra' — outro produto\n• 'pendentes' — pods sem foto\n• 'estoque' — ver tudo`, body);
+          await sendText(phone, `✅ *${pending.fullName}* aprovado 🦎\n\nJa aparece no app com arte oficial.\n\n• 'pendentes' — outras pendencias\n• 'estoque' — ver tudo`, body);
           // Vídeo em background (fire-and-forget) — Lucas vai testar o resultado depois.
           // Não pode bloquear a resposta do webhook (Grok video pode demorar >30s).
           const videoSlug = slugify(pending.brand || 'pod', pending.model || '', pending.flavor || pending.fullName || 'video');
@@ -4575,8 +4612,8 @@ async function handleAdminLucas(phone, msg, body) {
 
       // Default em ambos os modes: instrução
       const helpMsg = pending.mode === 'art_review'
-        ? "responde:\n• 'sim' — aprova arte\n• 'outra' — gera de novo (variação)\n• manda uma foto → uso a tua\n• 'depois' — resolve mais tarde"
-        : "responde:\n• manda uma foto do pod — uso oficial\n• 'depois' — resolve no /admin";
+        ? "*Responde aqui:*\n✅ *aprova* — publica no app\n🔄 *outra* — gera de novo\n📸 *manda foto* — uso a tua\n⏰ *depois* — fica pendente\n❌ *rejeita* — descarta esta arte"
+        : "*Arte falhou.* Responde:\n📸 *manda foto* — uso a tua\n⏰ *depois* — resolvo no Admin Hub";
       await sendText(phone, helpMsg, body);
       return;
     }
@@ -6462,8 +6499,8 @@ async function runArtGeneration(productId, phone, attempt) {
     console.log(`[runArtGeneration] downloadImage productId=${productId}: ${imgData ? 'OK' : 'FAILED'}`);
     if (!imgData) break;
 
-    // QC com Vision — Rutem avalia
-    const qcResult = await evaluateArtQuality(imgData, fullName, flavor, qcDeviceDesc);
+    // QC com Vision — Rutem avalia (FIX REF QA v3: agora compara visual com ref + box_photo)
+    const qcResult = await evaluateArtQuality(imgData, fullName, flavor, qcDeviceDesc, product.reference_image_url, product.box_photo_url);
     console.log(`[runArtGeneration] QC productId=${productId}: approved=${qcResult.approved}, score=${qcResult.score}`);
 
     if (qcResult.approved || qcAttempt >= maxQcAttempts) {
@@ -6523,16 +6560,25 @@ async function runArtGeneration(productId, phone, attempt) {
   });
 
   // Manda URL do Supabase Storage pro WhatsApp
+  // FIX 07/05/2026 (Andrade) — caption inclui QC score visual pra confianca,
+  // e texto separado lista opcoes claras pra responder.
   const imageToSend = pendingArtUrl;
-  await sendImage(phone, imageToSend, attempt > 1
-    ? `versão ${attempt} — ficou melhor?`
-    : `arte do ${fullName} ficou assim. aprova?`, {});
+  const lastQc = (await sbGet('drope_products', `id=eq.${productId}&select=metadata&limit=1`))?.[0]?.metadata || {};
+  const qcScore = typeof lastQc.qc_score === 'number' ? Math.round(lastQc.qc_score * 10) / 10 : null;
+  const qcLine = qcScore != null ? `🎯 QC=${qcScore}/10 (${lastQc.qc_approved ? '✅ aprovou auto' : '⚠️ duvidoso'})` : '';
+  const versionLine = attempt > 1 ? `🔄 versao ${attempt}` : '';
+  const caption = [
+    `🎨 *${fullName}*`,
+    versionLine, qcLine,
+  ].filter(Boolean).join('\n');
+  await sendImage(phone, imageToSend, caption, {});
   await sendText(phone,
-    "responde:\n" +
-    "• 'sim' pra aprovar — vira oficial no app\n" +
-    "• 'outra' pra gerar de novo (variação)\n" +
-    "• manda uma foto → uso a tua\n" +
-    "• 'depois' pra resolver mais tarde",
+    "*Responde aqui:*\n" +
+    "✅ *aprova* — publica no catálogo (vira oficial)\n" +
+    "🔄 *outra* — gera de novo (variação)\n" +
+    "📸 *manda foto* — uso a tua imagem como arte\n" +
+    "⏰ *depois* — fica pendente, resolve no Admin\n" +
+    "❌ *rejeita* — descarta esta arte (pra tentar de novo manualmente)",
     {});
 }
 
