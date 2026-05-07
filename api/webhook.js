@@ -2756,26 +2756,35 @@ async function searchProductReferences(productId, brand, model, flavor) {
     await sbUpdate('drope_products', `id=eq.${productId}`, { art_status: 'needs_manual_photo' });
     return [];
   }
-  const query = `${brand || ''} ${model || ''} ${flavor || ''} pod device product photo`.replace(/\s+/g, ' ').trim();
-  console.log(`[searchRefs] query="${query}"`);
 
-  let serperData;
-  try {
-    const r = await fetch('https://google.serper.dev/images', {
-      method: 'POST',
-      headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: query, num: 8 }),
-    });
-    if (!r.ok) {
-      const errBody = await r.text().catch(() => '');
-      console.error(`[searchRefs] Serper http=${r.status} body=${errBody.slice(0, 200)}`);
-      await sbUpdate('drope_products', `id=eq.${productId}`, { art_status: 'needs_manual_photo' });
-      return [];
+  // FIX REF QA v2 (07/05/2026 - Andrade) — 3 queries em paralelo pra pescar
+  // pack-shot puro (fundo branco, foto oficial). Antes 1 query só pegava muita
+  // foto de loja/mosaico que confundia Grok img2img depois.
+  const baseTerms = [brand, model, flavor].filter(Boolean).join(' ');
+  const queries = [
+    `"${baseTerms}" official product photo white background`,
+    `"${baseTerms}" pod disposable vape`,
+    `${brand || ''} ${flavor || ''} pack shot`.trim(),
+  ].filter(q => q.replace(/[^a-z0-9]/gi, '').length > 5);
+  console.log(`[searchRefs] queries=${JSON.stringify(queries)}`);
+
+  // Roda paralelo, junta resultados, dedupa por URL
+  const responses = await Promise.allSettled(queries.map(q => fetch('https://google.serper.dev/images', {
+    method: 'POST',
+    headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q, num: 6 }),
+  }).then(r => r.ok ? r.json() : null)));
+
+  const allImagesMap = new Map(); // url -> img (dedupa por URL)
+  for (const resp of responses) {
+    if (resp.status !== 'fulfilled' || !resp.value) continue;
+    for (const img of (resp.value.images || [])) {
+      if (img.imageUrl && !allImagesMap.has(img.imageUrl)) allImagesMap.set(img.imageUrl, img);
     }
-    serperData = await r.json();
-    console.log(`[searchRefs] Serper returned ${(serperData.images || []).length} images`);
-  } catch (e) {
-    console.error('[searchRefs] Serper fetch failed:', e.message);
+  }
+  const serperData = { images: Array.from(allImagesMap.values()).slice(0, 12) };
+  console.log(`[searchRefs] Serper merged ${serperData.images.length} unique images from ${queries.length} queries`);
+  if (serperData.images.length === 0) {
     await sbUpdate('drope_products', `id=eq.${productId}`, { art_status: 'needs_manual_photo' });
     return [];
   }
@@ -2878,11 +2887,50 @@ async function searchProductReferences(productId, brand, model, flavor) {
     }
   }
 
-  await sbUpdate('drope_products', `id=eq.${productId}`, {
+  // FIX REF QA v2 (07/05/2026 - Andrade) — Auto-select com 3 niveis de decisao:
+  //   combined >= 80 → AUTO-SELECT + dispara Grok automaticamente
+  //   combined 60-79 → pending_review (Andrade decide entre os 2-3 melhores)
+  //   combined < 60 ou zero → needs_manual_photo (Andrade manda foto manual)
+  // Antes: SEMPRE pending_review = Andrade tinha que escolher mesmo quando
+  // top candidato tinha 92% de confianca. Tempo perdido no obvio.
+  const AUTO_SELECT_THRESHOLD = 80;
+  const REVIEW_MIN = 60;
+  let nextStatus = 'needs_manual_photo';
+  let referenceImageUrl = null;
+  let autoSelected = false;
+  if (candidates.length > 0) {
+    const top = candidates[0];
+    const topScore = (typeof top.combined_score === 'number') ? top.combined_score : top.quality_score;
+    if (topScore >= AUTO_SELECT_THRESHOLD) {
+      // Confianca alta → escolhe sozinho
+      referenceImageUrl = top.url;
+      nextStatus = 'reference_approved';
+      autoSelected = true;
+      console.log(`[searchRefs] AUTO-SELECT productId=${productId} top.combined=${topScore} url=${top.url}`);
+    } else if (topScore >= REVIEW_MIN) {
+      nextStatus = 'pending_review';
+      console.log(`[searchRefs] PENDING_REVIEW productId=${productId} top.combined=${topScore} (<${AUTO_SELECT_THRESHOLD})`);
+    } else {
+      nextStatus = 'needs_manual_photo';
+      console.log(`[searchRefs] NEEDS_MANUAL productId=${productId} top.combined=${topScore} (<${REVIEW_MIN})`);
+    }
+  }
+
+  const updateData = {
     reference_candidates: candidates,
-    art_status: candidates.length > 0 ? 'pending_review' : 'needs_manual_photo',
-  });
-  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas`);
+    art_status: nextStatus,
+  };
+  if (referenceImageUrl) updateData.reference_image_url = referenceImageUrl;
+  await sbUpdate('drope_products', `id=eq.${productId}`, updateData);
+  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas, status=${nextStatus}, autoSelected=${autoSelected}`);
+
+  // Auto-dispara pipeline de arte se selecionou sozinho
+  if (autoSelected) {
+    try {
+      console.log(`[searchRefs] disparando art generation auto productId=${productId}`);
+      await fireBackgroundArtGeneration(productId, ADMIN_LUCAS, 1);
+    } catch (e) { console.warn('[searchRefs] fireArt err:', e.message); }
+  }
   return candidates;
 }
 
