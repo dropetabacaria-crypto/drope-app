@@ -1521,9 +1521,11 @@ async function tryHandleBatchPhoto(phone, msg, body, pending) {
             metadata: { brand: cBrand, model: cModel, flavor: cFlavor, flavor_en: p.flavor_en, flavor_pt: p.flavor_pt },
           });
         }
-        // FLC FASE 3: enriquece com Serper (specs + termometro + descricao). Fire-and-forget.
+        // FLC FASE 3 + FIX BATCH 3 (07/05/2026): enrich em invocacao Vercel propria via fetch.
+        // Cada produto tem 60s pra rodar Serper + Vision rank + autoFindRef + dispatch arte.
+        // Antes era fire-and-forget na mesma invocacao do batch -> morria em lote grande.
         if (newId) {
-          _flcEnrichProduct(newId, cBrand, cModel, cFlavor).catch((e) => console.warn('[FLC enrich bg]', e.message));
+          fireBackgroundEnrich(newId).catch((e) => console.warn('[FLC enrich bg]', e.message));
         }
       } catch (e) { console.warn('[FLC] insert novo:', e.message); }
     }
@@ -1839,6 +1841,35 @@ function _flcGenerateDescription(flavor) {
 
 // Enriquece um produto novo com specs + termometro + descricao + foto referencia + dispara arte.
 // Best-effort: erros nao quebram o flow principal.
+// FIX BATCH 3 (07/05/2026) — Dispara enrichment em invocacao Vercel separada (60s proprios).
+// Antes: tryHandleBatchPhoto chamava _flcEnrichProduct fire-and-forget na MESMA invocacao.
+// Quando o lote era grande (5+ fotos), a invocacao morria por timeout antes do enrichment
+// terminar — produtos ficavam sem reference_candidates e Andrade tinha que clicar
+// "buscar de novo" manualmente. Agora cada produto tem 60s proprios pra enrich.
+async function fireBackgroundEnrich(productId) {
+  if (!ADMIN_TOKEN) {
+    console.error('[fireEnrich] ADMIN_TOKEN not configured');
+    return false;
+  }
+  const host = process.env.VERCEL_URL || 'drope-app.vercel.app';
+  const url = `https://${host}/api/webhook?action=enrich_product&product_id=${encodeURIComponent(productId)}`;
+  console.log(`[fireEnrich] dispatching productId=${productId} via ${host}`);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1500);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
+      signal: controller.signal,
+    });
+    return true;
+  } catch (e) {
+    // AbortError esperado (1.5s timeout do cliente, invocacao destino segue rodando)
+    return e.name === 'AbortError';
+  } finally { clearTimeout(timeoutId); }
+}
+
 async function _flcEnrichProduct(productId, brand, model, flavor) {
   if (!productId) return;
   try {
@@ -10915,6 +10946,44 @@ async function generateAll(){
   } catch (buscaErr) {
     console.error('[busca-ref] ERROR:', buscaErr.message);
     return res.status(500).json({ error: buscaErr.message });
+  }
+
+  // ===== ROTA INTERNA: enrichment de produto novo do batch =====
+  // FIX BATCH 3 (07/05/2026): cada produto vira invocacao Vercel propria com 60s.
+  // Antes _flcEnrichProduct rodava fire-and-forget na MESMA invocacao do webhook
+  // do batch — em lotes grandes morria por timeout.
+  try {
+    if (req.method === "POST" && req.url && req.url.indexOf('action=enrich_product') >= 0) {
+      const qs = req.url.includes('?') ? req.url.split('?')[1] : '';
+      const params = {};
+      qs.split('&').forEach(p => {
+        const [k, v] = p.split('=');
+        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+      });
+      const provided = (req.headers && req.headers['x-admin-token']) || '';
+      if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) {
+        return res.status(401).send('unauthorized');
+      }
+      const productId = params.product_id;
+      if (!productId) return res.status(400).send('missing product_id');
+      try {
+        const rows = await sbGet('drope_products', `id=eq.${productId}&select=id,metadata&limit=1`);
+        const prod = rows && rows[0];
+        if (!prod) return res.status(404).send('produto nao encontrado');
+        const m = prod.metadata || {};
+        const brand = m.brand || '';
+        const model = m.model || '';
+        const flavor = m.flavor_en || m.flavor || m.flavor_pt || '';
+        await _flcEnrichProduct(productId, brand, model, flavor);
+        return res.status(200).send('enrichment done productId=' + productId);
+      } catch (e) {
+        console.error('[enrich_product] error:', e.message, e.stack);
+        return res.status(200).send('enrichment error: ' + e.message);
+      }
+    }
+  } catch (outerErr) {
+    console.error('[enrich_product outer] error:', outerErr.message);
+    return res.status(500).send('outer error: ' + outerErr.message);
   }
 
   // ===== ROTA INTERNA: geração de arte em background =====
