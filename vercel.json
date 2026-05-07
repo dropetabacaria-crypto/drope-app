@@ -4,6 +4,7 @@
     { "src": "index.html", "use": "@vercel/static" },
     { "src": "pdv.html", "use": "@vercel/static" },
     { "src": "receber.html", "use": "@vercel/static" },
+    { "src": "admin-pending.html", "use": "@vercel/static" },
     { "src": "feedback-bubble.js", "use": "@vercel/static" },
     { "src": "sw.js", "use": "@vercel/static" },
     { "src": "manifest.json", "use": "@vercel/static" },
@@ -19,6 +20,8 @@
     { "src": "/pdv.html", "dest": "/pdv.html" },
     { "src": "/receber.html", "dest": "/receber.html" },
     { "src": "/receber", "dest": "/receber.html" },
+    { "src": "/admin-pending.html", "dest": "/admin-pending.html" },
+    { "src": "/admin-pending", "dest": "/admin-pending.html" },
     { "src": "/feedback-bubble.js", "dest": "/feedback-bubble.js" },
     { "src": "/sw.js", "dest": "/sw.js" },
     { "src": "/manifest-receber.json", "dest": "/manifest-receber.json" },
@@ -34,6 +37,7 @@
     { "path": "/api/webhook?action=weekly_health", "schedule": "0 12 * * 1" },
     { "path": "/api/webhook?action=friday_briefing", "schedule": "0 21 * * 5" },
     { "path": "/api/webhook?action=briefing_reminder", "schedule": "0 13 * * 6" },
-    { "path": "/api/webhook?action=saturday_dispatch", "schedule": "0 9 * * 6" }
+    { "path": "/api/webhook?action=saturday_dispatch", "schedule": "0 9 * * 6" },
+    { "path": "/api/webhook?action=weekly_imune_report", "schedule": "0 13 * * 0" }
   ]
 }

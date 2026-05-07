@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drope Admin — Pendentes</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #eee; margin: 0; padding: 20px; }
+  h1 { color: #c4ff00; margin: 0 0 10px; }
+  h2 { color: #e879f9; border-bottom: 1px solid #333; padding-bottom: 6px; margin: 30px 0 14px; font-size: 18px; }
+  .top-bar { position: sticky; top: 0; background: #0a0a0a; padding: 12px 0; border-bottom: 2px solid #c4ff00; z-index: 10; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .badge { background: #c4ff00; color: #000; padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 13px; }
+  button { background: #c4ff00; color: #000; border: none; padding: 8px 14px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; }
+  button:hover { background: #fff; }
+  button.refazer { background: #f59e0b; }
+  button.excluir { background: #ef4444; color: #fff; }
+  button.cinza { background: #444; color: #eee; }
+  input[type="text"], input[type="number"] { background: #1a1a1a; color: #eee; border: 1px solid #333; padding: 6px 10px; border-radius: 4px; font-size: 13px; }
+  .card { background: #1a1a1a; border-radius: 8px; padding: 14px; border: 2px solid #2a2a2a; margin-bottom: 14px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .card-name { font-weight: bold; font-size: 16px; }
+  .card-meta { color: #888; font-size: 12px; }
+  .imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+  .img-box { background: #fff; border-radius: 4px; padding: 4px; text-align: center; }
+  .img-box img { width: 100%; height: 130px; object-fit: contain; border-radius: 2px; }
+  .img-box .label { font-size: 10px; color: #444; margin-top: 4px; font-weight: bold; }
+  .img-box.empty { background: #2a2a2a; color: #666; display: flex; align-items: center; justify-content: center; height: 142px; font-size: 11px; }
+  .specs { font-size: 12px; color: #aaa; margin: 8px 0; }
+  .specs span { margin-right: 12px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .actions input[type="number"] { width: 90px; }
+  .login { display: flex; flex-direction: column; gap: 10px; max-width: 320px; padding: 30px; }
+  .login input { font-size: 16px; padding: 10px; }
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 14px; }
+  .grupo-modelo { background: #14141c; border-left: 3px solid #e879f9; padding: 10px 14px; margin: 24px 0 8px; border-radius: 4px; }
+  .grupo-modelo strong { color: #c4ff00; }
+</style>
+</head>
+<body>
+<h1>🦎 Drope Admin — Pendentes de Aprovação</h1>
+
+<div id="login" class="login" style="display:none;">
+  <p>Cole o ADMIN_TOKEN:</p>
+  <input type="text" id="tokenInput" placeholder="ADMIN_TOKEN">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="top-bar">
+    <span class="badge" id="totalBadge">0 pendentes</span>
+    <button onclick="reload()">🔄 Atualizar</button>
+    <button class="cinza" onclick="approveAll()">✅ Aprovar TODOS</button>
+    <button class="cinza" onclick="logout()" style="margin-left:auto;">Sair</button>
+  </div>
+  <div id="conteudo"></div>
+</div>
+
+<script>
+const TOKEN_KEY = 'drope_admin_token';
+let token = localStorage.getItem(TOKEN_KEY) || '';
+
+function login() {
+  const v = document.getElementById('tokenInput').value.trim();
+  if (!v) return;
+  localStorage.setItem(TOKEN_KEY, v);
+  token = v;
+  showApp();
+}
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  token = '';
+  document.getElementById('login').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  reload();
+}
+
+async function api(path, opts = {}) {
+  const url = path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+  const r = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', 'x-admin-token': token, ...(opts.headers || {}) } });
+  if (r.status === 401) { logout(); throw new Error('Unauthorized'); }
+  return await r.json();
+}
+
+async function reload() {
+  document.getElementById('conteudo').innerHTML = '<div class="empty-state">Carregando...</div>';
+  try {
+    const data = await api('/api/admin-list-pending');
+    document.getElementById('totalBadge').textContent = (data.total || 0) + ' pendentes';
+    render(data);
+  } catch (e) {
+    document.getElementById('conteudo').innerHTML = '<div class="empty-state">Erro: ' + e.message + '</div>';
+  }
+}
+
+function fmtPrice(cents) {
+  if (!cents) return '';
+  return 'R$ ' + (cents / 100).toFixed(2).replace('.', ',');
+}
+
+function thermometer(prod) {
+  const dots = (n) => '●'.repeat(n||0) + '○'.repeat(5-(n||0));
+  return `🍬 ${dots(prod.flavor_sweet)}  🧊 ${dots(prod.flavor_ice)}  🍋 ${dots(prod.flavor_sour)}`;
+}
+
+function imgBox(url, label) {
+  if (url) return `<div class="img-box"><img src="${url}" loading="lazy"><div class="label">${label}</div></div>`;
+  return `<div class="img-box empty">${label}<br>(sem foto)</div>`;
+}
+
+function cardHTML(p) {
+  const meta = p.metadata || {};
+  return `
+    <div class="card" data-id="${p.id}">
+      <div class="card-head">
+        <div>
+          <input type="text" id="name-${p.id}" value="${(p.name || '').replace(/"/g, '&quot;')}" style="width: 380px; max-width:100%; font-weight: bold; font-size: 14px; background: #14141c;">
+          <div class="card-meta">#${p.id} • ${p.slug || ''} • criado ${(p.created_at || '').slice(0,10)}</div>
+        </div>
+        <div class="card-meta">qty: ${p.qty_available || 0}</div>
+      </div>
+      <div class="imgs">
+        ${imgBox(p.box_photo_url, '📦 caixa real')}
+        ${imgBox(p.reference_image_url, '🔍 referência')}
+        ${imgBox(p.image_url, '🎨 arte final')}
+      </div>
+      <div class="specs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+        <label>💨 puffs<br><input type="number" id="puffs-${p.id}" value="${p.puffs || ''}" placeholder="ex: 15000" style="width:100%;"></label>
+        <label>🔋 bateria<br><input type="text" id="battery-${p.id}" value="${p.battery || ''}" placeholder="ex: 650mAh" style="width:100%;"></label>
+        <label>💧 líquido<br><input type="text" id="liquid-${p.id}" value="${p.liquid_ml || ''}" placeholder="ex: 20ml" style="width:100%;"></label>
+        <label>⚗️ nicotina<br><input type="text" id="nicotine-${p.id}" value="${p.nicotine || ''}" placeholder="ex: 5%" style="width:100%;"></label>
+      </div>
+      <div class="specs" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+        <label>🍬 doce (0-5)<br><input type="number" min="0" max="5" id="sweet-${p.id}" value="${p.flavor_sweet ?? ''}" style="width:100%;"></label>
+        <label>🧊 ice (0-5)<br><input type="number" min="0" max="5" id="ice-${p.id}" value="${p.flavor_ice ?? ''}" style="width:100%;"></label>
+        <label>🍋 sour (0-5)<br><input type="number" min="0" max="5" id="sour-${p.id}" value="${p.flavor_sour ?? ''}" style="width:100%;"></label>
+      </div>
+      <div class="specs">${thermometer(p)}</div>
+      <div class="specs">📝 <input type="text" id="desc-${p.id}" value="${(p.description || '').replace(/"/g, '&quot;')}" placeholder="descrição curta (max 60)" maxlength="80" style="width:90%;"></div>
+      <div class="actions">
+        <span>R$:</span>
+        <input type="number" step="0.01" placeholder="venda" id="venda-${p.id}" value="${p.price_cents ? (p.price_cents/100).toFixed(2) : ''}">
+        <input type="number" step="0.01" placeholder="custo" id="custo-${p.id}" value="${p.cost_price || ''}">
+        <button class="cinza" onclick="saveSpecs(${p.id})">💾 Salvar specs</button>
+        <button onclick="approve(${p.id})">✅ Aprovar</button>
+        <button class="refazer" onclick="regenerate(${p.id})">🔄 Refazer arte</button>
+        <button class="excluir" onclick="reject(${p.id})">❌ Excluir</button>
+      </div>
+    </div>
+  `;
+}
+
+async function saveSpecs(id) {
+  const body = { id, action: 'update_specs' };
+  const get = (k) => document.getElementById(`${k}-${id}`).value;
+  const num = (v) => v === '' ? null : parseFloat(v);
+  const intg = (v) => v === '' ? null : parseInt(v);
+  const name = get('name'); if (name && name.trim()) body.name = name.trim();
+  const puffs = intg(get('puffs')); if (puffs > 0) body.puffs = puffs;
+  const battery = get('battery'); if (battery && battery.trim()) body.battery = battery.trim();
+  const liquid = get('liquid'); if (liquid && liquid.trim()) body.liquid_ml = liquid.trim();
+  const nicotine = get('nicotine'); if (nicotine && nicotine.trim()) body.nicotine = nicotine.trim();
+  const desc = get('desc'); body.description = desc ? desc.trim() : '';
+  const sw = intg(get('sweet')); if (sw != null && sw >= 0 && sw <= 5) body.flavor_sweet = sw;
+  const ic = intg(get('ice')); if (ic != null && ic >= 0 && ic <= 5) body.flavor_ice = ic;
+  const so = intg(get('sour')); if (so != null && so >= 0 && so <= 5) body.flavor_sour = so;
+  await api('/api/admin-approve-product', { method: 'POST', body: JSON.stringify(body) });
+  alert('💾 Specs salvas.');
+}
+
+function render(data) {
+  const cont = document.getElementById('conteudo');
+  if (!data.products || data.products.length === 0) {
+    cont.innerHTML = '<div class="empty-state">🎉 Nenhum produto pendente. Tudo no app.</div>';
+    return;
+  }
+  let html = '';
+  for (const grupo of (data.grouped || [])) {
+    html += `<div class="grupo-modelo">📦 <strong>${grupo.brand} ${grupo.model}</strong> — ${grupo.products.length} sabores pendentes</div>`;
+    for (const p of grupo.products) html += cardHTML(p);
+  }
+  cont.innerHTML = html;
+}
+
+async function approve(id) {
+  const venda = parseFloat(document.getElementById('venda-' + id).value);
+  const custo = parseFloat(document.getElementById('custo-' + id).value);
+  const body = { id, action: 'approve' };
+  if (venda > 0) body.price_cents = Math.round(venda * 100);
+  if (custo > 0) body.cost_price = custo;
+  await api('/api/admin-approve-product', { method: 'POST', body: JSON.stringify(body) });
+  await reload();
+}
+
+async function reject(id) {
+  if (!confirm('Excluir esse produto?')) return;
+  await api('/api/admin-approve-product', { method: 'POST', body: JSON.stringify({ id, action: 'reject' }) });
+  await reload();
+}
+
+async function regenerate(id) {
+  await api('/api/admin-approve-product', { method: 'POST', body: JSON.stringify({ id, action: 'regenerate_art' }) });
+  alert('Pipeline de arte disparada. Aguarda uns 30s e atualiza.');
+}
+
+async function approveAll() {
+  if (!confirm('Aprovar TODOS os produtos pendentes (sem revisar individualmente)?')) return;
+  const r = await api('/api/admin-approve-product', { method: 'POST', body: JSON.stringify({ action: 'approve_all' }) });
+  alert(`${r.updated} produtos aprovados.`);
+  await reload();
+}
+
+if (token) showApp();
+else document.getElementById('login').style.display = 'flex';
+</script>
+</body>
+</html>

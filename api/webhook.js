@@ -21,13 +21,26 @@ const CLAUDE_KEY = process.env.CLAUDE_KEY || process.env.ANTHROPIC_API_KEY || ""
 const XAI_API_KEY = process.env.XAI_API_KEY || "";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
+const REMOVEBG_API_KEY = process.env.REMOVEBG_API_KEY || "";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://udsjnhbkapjwpdolvtri.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
 
+// Mercado Pago — Pix
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || "";
+
 // Whitelist: só esse número cadastra produto. Outros = cliente.
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
-const ADMIN_CAIXA = process.env.ADMIN_CAIXA || "";
+// PDV — números que fazem baixa de estoque por foto (loja + Yasmin)
+const PDV_PHONES = (process.env.PDV_PHONES || "5511924810126,5511962589670").split(',').filter(Boolean);
+const ADMIN_CAIXA = PDV_PHONES[0] || "";
+
+// OSSO 35 — Grupos WhatsApp (briefing 06/05/2026)
+// Quando mensagem cai num grupo conhecido, roteia pro handler especifico.
+// Grupo PDV reusa handleAdminCaixa (foto = baixa estoque).
+// Grupo Motoboy ainda nao implementado (TAREFA 2A pendente).
+const GRUPO_PDV_JID = process.env.GRUPO_PDV_JID || "120363425759858512@g.us";
+const GRUPO_MOTOBOY_JID = process.env.GRUPO_MOTOBOY_JID || "";
 
 // OSSO 32 — Fornecedores ativos do Drope (números informados pelo Andrade 03/05/2026).
 // Se quiser desativar um fornecedor sem deletar, marca ativo:false.
@@ -488,6 +501,169 @@ async function cleanupSystemLog() {
 // GET/POST /api/webhook?action=system_health&token=CRON_TOKEN
 // Cron a cada 15min. Verifica Supabase, UazAPI, frescor de outros crons,
 // estoque zerado. Alerta Andrade se status != 'healthy'.
+// ============ ADMIN DIAG ============
+// GET /api/webhook?action=admin_diag&token=ADMIN_TOKEN
+// Devolve env vars (mascaradas), pending atual do Lucas, motoboys cadastrados,
+// corridas recentes, dedup recente, system_log recente. Pra debug sem logs Vercel.
+function _diagMask(v) {
+  if (!v) return "(vazio)";
+  if (v.length <= 8) return v[0] + "***" + v.slice(-1);
+  return v.slice(0, 4) + "***" + v.slice(-4);
+}
+async function _diagSb(table, qs) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${qs}`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    });
+    if (!r.ok) return { error: r.status, body: (await r.text()).slice(0, 300) };
+    return r.json();
+  } catch (e) { return { error: e.message }; }
+}
+async function handleAdminDiag(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Auth
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  const headerTok = req.headers['x-admin-token'] || '';
+  if (!ADMIN_TOKEN || (headerTok !== ADMIN_TOKEN && queryTok !== ADMIN_TOKEN)) {
+    await new Promise(r => setTimeout(r, 800));
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  const out = {
+    ok: true,
+    now: new Date().toISOString(),
+    deploy: {
+      vercel_url: process.env.VERCEL_URL || null,
+      vercel_env: process.env.VERCEL_ENV || null,
+      git_sha: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 8) || null,
+      git_msg: (process.env.VERCEL_GIT_COMMIT_MESSAGE || '').slice(0, 100),
+    },
+    env: {
+      ADMIN_LUCAS,
+      PDV_PHONES: PDV_PHONES.join(','),
+      GRUPO_PDV_JID: GRUPO_PDV_JID || "(vazio)",
+      GRUPO_MOTOBOY_JID: GRUPO_MOTOBOY_JID || "(vazio)",
+      UAZAPI_SERVER,
+      UAZAPI_TOKEN: _diagMask(UAZAPI_TOKEN),
+      ADMIN_TOKEN: _diagMask(ADMIN_TOKEN),
+      ANTHROPIC: _diagMask(CLAUDE_KEY),
+      SUPABASE_URL: SUPABASE_URL || "(vazio)",
+      SUPABASE_KEY: _diagMask(SUPABASE_KEY),
+      SERPER: _diagMask(SERPER_API_KEY),
+      XAI: _diagMask(XAI_API_KEY),
+    },
+  };
+
+  out.lucas_pending = await _diagSb('drope_pending_state', `phone=eq.${ADMIN_LUCAS}&select=phone,state,updated_at&order=updated_at.desc&limit=3`);
+  out.motoboys = await _diagSb('drope_motoboys',
+    'select=phone,nome,ativo,score,corridas_entregues,corridas_canceladas&order=score.desc&limit=20');
+  out.corridas = await _diagSb('drope_corridas',
+    'select=id,order_id,status,motoboy_nome,valor_motoboy_cents,posted_at,accepted_at,delivered_at,cancel_reason&order=posted_at.desc.nullslast&limit=10');
+  // drope_dedup eh a tabela real (drope_check_dedup RPC). webhook_dedup eh legado vazio.
+  out.dedup_recent = await _diagSb('drope_dedup',
+    `phone=eq.${ADMIN_LUCAS}&select=phone,sig,seen_at&order=seen_at.desc&limit=20`);
+  out.system_log = await _diagSb('drope_system_log',
+    'select=action,phone,detail,created_at&order=created_at.desc&limit=15');
+
+  // Status UazAPI (se conectado)
+  try {
+    const r = await fetch(`${UAZAPI_SERVER}/instance/status`, {
+      headers: { token: UAZAPI_TOKEN },
+      signal: AbortSignal.timeout(5000),
+    });
+    out.uazapi_status = { http: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 200) };
+  } catch (e) { out.uazapi_status = { error: e.message }; }
+
+  return res.status(200).json(out);
+}
+
+// ============ SISTEMA IMUNE — RELATORIO SEMANAL ============
+// GET /api/webhook?action=weekly_imune_report (cron domingo 10h BRT = 13h UTC)
+// Manda pro ADMIN_LUCAS um resumo da semana:
+//   - Vendas pendentes que ainda NAO foram cadastradas (alerta pra Andrade cadastrar)
+//   - Reconciliacoes que rolaram (produtos cadastrados que tinham vendas pendentes)
+//   - Top vendedores de itens nao cadastrados (Yasmin/Pai/Tia indicador de gap de catalogo)
+async function handleWeeklyImuneReport(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  if (!checkCronAuth(req)) {
+    await new Promise(r => setTimeout(r, 600));
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+
+  const cutoff7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // 1) Pendentes ainda nao cadastrados (status=pending)
+  const pendentes = await sbGet('drope_pending_sales',
+    `select=vision_brand,vision_model,vision_flavor_en,vision_flavor_pt,qty,vendido_em,vendedor_phone&status=eq.pending&order=vendido_em.desc&limit=200`);
+
+  // 2) Reconciliacoes recentes (resolvidas nos ultimos 7d)
+  const resolvidas = await sbGet('drope_pending_sales',
+    `select=vision_brand,vision_model,vision_flavor_en,qty,resolved_at,resolved_product_id,resolved_method&status=eq.resolved&resolved_at=gt.${encodeURIComponent(cutoff7d)}&order=resolved_at.desc&limit=100`);
+
+  // Agrega pendentes por marca+modelo+sabor
+  const pendAgg = {};
+  for (const ps of (pendentes || [])) {
+    const key = [ps.vision_brand, ps.vision_model, ps.vision_flavor_en || ps.vision_flavor_pt].filter(Boolean).join(' ') || '(sem nome)';
+    if (!pendAgg[key]) pendAgg[key] = { qty: 0, vendedores: new Set(), primeira_venda: null, ultima_venda: null };
+    pendAgg[key].qty += (ps.qty || 1);
+    pendAgg[key].vendedores.add((ps.vendedor_phone || '').slice(0, 6) + '***');
+    if (!pendAgg[key].primeira_venda || ps.vendido_em < pendAgg[key].primeira_venda) pendAgg[key].primeira_venda = ps.vendido_em;
+    if (!pendAgg[key].ultima_venda || ps.vendido_em > pendAgg[key].ultima_venda) pendAgg[key].ultima_venda = ps.vendido_em;
+  }
+
+  // Agrega reconciliacoes por produto
+  const recAgg = {};
+  for (const r of (resolvidas || [])) {
+    const key = [r.vision_brand, r.vision_model, r.vision_flavor_en].filter(Boolean).join(' ') || '(sem nome)';
+    if (!recAgg[key]) recAgg[key] = { qty: 0, count: 0 };
+    recAgg[key].qty += (r.qty || 1);
+    recAgg[key].count++;
+  }
+
+  // Monta mensagem
+  const lines = ['🛡️ *Sistema Imune — Relatório Semanal*', ''];
+  if (Object.keys(pendAgg).length === 0 && Object.keys(recAgg).length === 0) {
+    lines.push('✅ tudo zerado: nenhuma venda pendente, nenhuma reconciliação na semana.');
+  } else {
+    if (Object.keys(pendAgg).length > 0) {
+      lines.push(`⏳ *${Object.keys(pendAgg).length} produto${Object.keys(pendAgg).length>1?'s':''} ainda não cadastrado${Object.keys(pendAgg).length>1?'s':''}*`);
+      lines.push('(Yasmin/Pai/Tia já venderam — cadastra via lote pra reconciliar)');
+      lines.push('');
+      const sorted = Object.entries(pendAgg).sort((a, b) => b[1].qty - a[1].qty).slice(0, 15);
+      for (const [name, data] of sorted) {
+        const dataPrim = data.primeira_venda ? new Date(data.primeira_venda).toLocaleDateString('pt-BR') : '?';
+        lines.push(`• ${name}: ${data.qty} venda${data.qty>1?'s':''} (desde ${dataPrim})`);
+      }
+      if (Object.keys(pendAgg).length > 15) lines.push(`... +${Object.keys(pendAgg).length - 15} outros`);
+      lines.push('');
+    }
+    if (Object.keys(recAgg).length > 0) {
+      lines.push(`✅ *${Object.keys(recAgg).length} reconciliação${Object.keys(recAgg).length>1?'ões':''} essa semana*`);
+      lines.push('(produtos cadastrados que tinham vendas pendentes — baixa retroativa aplicada)');
+      lines.push('');
+      for (const [name, data] of Object.entries(recAgg)) {
+        lines.push(`• ${name}: ${data.qty} unidade${data.qty>1?'s':''} reconciliada${data.qty>1?'s':''}`);
+      }
+      lines.push('');
+    }
+  }
+  lines.push('🦎 (relatório roda toda semana — domingo 10h)');
+
+  const msg = lines.join('\n');
+  try { await sendText(ADMIN_LUCAS, msg, {}); } catch (e) { console.warn('[imune-report] send err:', e.message); }
+  try { await logSystemEvent('weekly_imune_report', { pendentes: Object.keys(pendAgg).length, reconciliadas: Object.keys(recAgg).length }, ADMIN_LUCAS); } catch (_) {}
+  return res.status(200).json({ ok: true, pendentes: Object.keys(pendAgg).length, reconciliadas: Object.keys(recAgg).length });
+}
+
 async function handleSystemHealth(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (!checkCronAuth(req)) {
@@ -795,6 +971,1346 @@ function cleanVisionField(v) {
   return trimmed;
 }
 
+// OSSO 35 — Levenshtein distance pra fuzzy match Vision -> drope_products.
+// Usado pra calcular similaridade entre o que o Vision leu e os produtos cadastrados.
+function _levenshtein(a, b) {
+  if (!a) return (b || '').length;
+  if (!b) return a.length;
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) d[i][0] = i;
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    }
+  }
+  return d[m][n];
+}
+
+// Similaridade 0-1 entre 2 strings (1 = idênticas, 0 = totalmente diferentes).
+function _stringSim(a, b) {
+  if (!a || !b) return 0;
+  const aL = String(a).toLowerCase().trim();
+  const bL = String(b).toLowerCase().trim();
+  if (!aL || !bL) return 0;
+  if (aL === bL) return 1;
+  const dist = _levenshtein(aL, bL);
+  const maxLen = Math.max(aL.length, bL.length);
+  return Math.max(0, 1 - dist / maxLen);
+}
+
+// Score 0-100 de match entre o que Vision leu (visionTerms) e um produto do banco.
+// Pesos: marca 30, modelo 25, sabor 35, bonus de nome completo 10.
+function _matchScore(visionTerms, prod) {
+  const meta = prod.metadata || {};
+  const productName = String(prod.name || '').toLowerCase();
+  let score = 0;
+
+  // Marca: 30 pontos
+  if (visionTerms.brand) {
+    const sim = Math.max(
+      _stringSim(visionTerms.brand, meta.brand),
+      _stringSim(visionTerms.brand, productName) * 0.5,
+    );
+    score += sim * 30;
+  }
+
+  // Modelo: 25 pontos
+  if (visionTerms.model) {
+    const sim = Math.max(
+      _stringSim(visionTerms.model, meta.model),
+      _stringSim(visionTerms.model, productName) * 0.5,
+    );
+    score += sim * 25;
+  }
+
+  // Sabor: 35 pontos (mais peso pq é o que diferencia produtos da mesma linha)
+  // ATENCAO: maioria dos produtos no banco usa metadata.flavor (sem sufixo).
+  // GH23000 e alguns outros usam flavor_en. Lemos os 3 campos pra cobrir tudo.
+  const visionFlavor = visionTerms.flavor_en || visionTerms.flavor_pt || '';
+  let flavorSim = null;
+  if (visionFlavor) {
+    const vfLower = String(visionFlavor).toLowerCase();
+    // Substring exato no nome do produto vale 1.0 (caso "Blue Razz Ice" em "ELFBAR Ice King Blue Razz Ice")
+    const inName = productName.includes(vfLower) ? 1 : _stringSim(visionFlavor, productName) * 0.7;
+    flavorSim = Math.max(
+      _stringSim(visionFlavor, meta.flavor),       // <-- bug: faltava esse campo
+      _stringSim(visionFlavor, meta.flavor_en),
+      _stringSim(visionFlavor, meta.flavor_pt),
+      inName,
+    );
+    score += flavorSim * 35;
+  }
+
+  // Bônus: nome completo do banco contém todos os termos lidos
+  const fullSearch = [visionTerms.brand, visionTerms.model, visionFlavor]
+    .filter(Boolean).map(s => String(s).toLowerCase()).join(' ');
+  if (fullSearch && productName.includes(fullSearch)) score += 10;
+
+  // Penalidade: se Vision leu um sabor mas ele NAO bate com o do produto,
+  // sabor é o discriminador principal — score colapsa proporcional.
+  // Sem essa penalidade, "Banana Ice" matcha 76% com "Mango Ice" só por dividirem
+  // marca/modelo/"Ice", e o handler chuta o produto errado.
+  if (flavorSim !== null && flavorSim < 0.7) {
+    score *= flavorSim;
+  }
+
+  return Math.min(100, score);
+}
+
+// FLUXO LOTE COMPLETO (FASE 1) — Comando "zerar estoque" pra reset antes do recadastro em massa.
+// Soft delete: marca produtos como hidden+inactive+qty=0, NAO deleta (preserva pedidos antigos via FK).
+// Fluxo: "zerar estoque" -> aviso + pending. "CONFIRMO" maiusculo -> executa. "cancela" -> aborta.
+async function tryHandleZeroStock(phone, msg, body, text, pending) {
+  if (!text) return false;
+  const lower = String(text).toLowerCase().trim();
+  const trimmed = String(text).trim();
+
+  // Trigger
+  if (lower === 'zerar estoque' || lower === 'reset estoque' || lower === 'zera estoque') {
+    await setPending(phone, { mode: 'awaiting_zero_confirm', startedAt: Date.now() });
+    await sendText(phone,
+      "⚠️ ATENCAO: vai marcar TODOS os produtos como inactive (qty=0, hidden=true).\n\n" +
+      "Produtos NAO serao deletados — pedidos antigos e historico preservados.\n\n" +
+      "Digite *CONFIRMO* (em maiusculas) pra continuar ou *cancela* pra desistir.",
+      body);
+    return true;
+  }
+
+  // Confirmação (precisa ter pending na mesma sessao)
+  if (pending?.mode === 'awaiting_zero_confirm') {
+    if (trimmed === 'CONFIRMO') {
+      try {
+        // Conta antes pra reportar
+        const before = await sbGet('drope_products', 'select=id&hidden=eq.false&limit=1000');
+        const count = Array.isArray(before) ? before.length : 0;
+        // Soft reset: hidden + qty=0 + status=inactive em todos visiveis
+        await sbUpdate('drope_products', 'hidden=eq.false', {
+          hidden: true,
+          qty_available: 0,
+          status: 'inactive',
+          updated_at: new Date().toISOString(),
+        });
+        await clearPending(phone);
+        await sendText(phone,
+          `🗑️ ${count} produtos zerados (hidden, qty=0, status=inactive).\n\n` +
+          `Pedidos antigos e historico preservados. Manda as fotos do lote agora.`,
+          body);
+        try { await logSystemEvent('stock_zeroed', { count, by: phone.slice(0, 6) + '***' }, phone); } catch (_) {}
+      } catch (e) {
+        await sendText(phone, `❌ erro ao zerar: ${e.message}`, body);
+      }
+      return true;
+    }
+    if (lower === 'cancela' || lower === 'cancelar' || lower === 'sai' || lower === 'desisto') {
+      await clearPending(phone);
+      await sendText(phone, '✅ Cancelado. Estoque inalterado.', body);
+      return true;
+    }
+    // Resposta invalida — avisa e mantem pending
+    await sendText(phone, '⚠️ Nao entendi. Digite *CONFIRMO* (em maiusculas) pra zerar ou *cancela* pra desistir.', body);
+    return true;
+  }
+
+  return false;
+}
+
+// OSSO 35 (FIX 3D) — Detecta padrão de mensagem de correção do admin.
+// Aceita: "errado X", "errei X", "não, era X", "ops X", "corrige X", "correção X", "era X", "foi X".
+// Retorna o termo do produto correto, ou null.
+function _parseCorrection(text) {
+  if (!text) return null;
+  const lower = String(text).toLowerCase().trim();
+  if (lower.length < 3 || lower.length > 200) return null;
+  // Trigger + opcional "era/foi" + nome
+  let m = lower.match(/^(?:n[ãa]o[,\s!]+|errado[,\s!]*|errei[,\s!]*|ops[,\s!]*|corrige[r]?[,\s!]+|correc[ãa]o[,\s!:]+|corrigir[,\s!]+)(?:n[ãa]o foi[,\s]+|era[,\s]+|foi[,\s]+|e[,\s]+)?(.+)$/);
+  if (m && m[1] && m[1].trim().length >= 3) return m[1].trim();
+  // "era X" / "foi X" — precisa termo robusto (>=5 chars) pra evitar falso positivo
+  m = lower.match(/^(?:era|foi)[,\s!]+(.+)$/);
+  if (m && m[1] && m[1].trim().length >= 5) return m[1].trim();
+  return null;
+}
+
+// Aplica correção de uma baixa errada feita pelo bot.
+// Retorna true se processou (resposta enviada), false se não era pattern de correção.
+async function tryHandleCorrection(phone, msg, body, text) {
+  const correctionTerm = _parseCorrection(text);
+  if (!correctionTerm) return false;
+
+  // Busca último log do GRUPO_PDV nos últimos 30 min sem correção
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const logs = await sbGet('drope_vision_log',
+    `select=id,decision,predicted_product_id,predicted_product_name,qty_deducted,group_jid&was_corrected=eq.false&group_jid=eq.${encodeURIComponent(GRUPO_PDV_JID)}&created_at=gt.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=1`);
+  if (!Array.isArray(logs) || logs.length === 0) return false; // não é correção válida — deixa fluxo normal seguir
+
+  const log = logs[0];
+
+  // Match no termo correto via fuzzy
+  const allProducts = await sbGet('drope_products', 'select=id,name,slug,qty_available,total_sold,metadata&hidden=eq.false&limit=500');
+  if (!Array.isArray(allProducts) || allProducts.length === 0) {
+    await sendText(phone, 'catalogo vazio. nao tem como corrigir.', body);
+    return true;
+  }
+
+  // Parse termo simples (toUpperCase): primeira palavra=marca, segunda(opcional)=modelo, resto=flavor
+  const parts = correctionTerm.toUpperCase().split(/\s+/).filter(Boolean);
+  const visionTerms = {
+    brand: parts[0] || null,
+    model: parts.length >= 3 ? parts[1] : null,
+    flavor_en: parts.length >= 3 ? parts.slice(2).join(' ') : (parts.length === 2 ? parts[1] : null),
+    flavor_pt: null,
+  };
+  const ranking = allProducts
+    .map(prod => ({ prod, score: _matchScore(visionTerms, prod) }))
+    .sort((a, b) => b.score - a.score);
+  const top1 = ranking[0] || { prod: null, score: 0 };
+  if (!top1.prod || top1.score < 50) {
+    await sendText(phone, `🤔 Nao achei "${correctionTerm}" no catalogo (melhor match: ${Math.round(top1.score)}%). Tenta outro nome.`, body);
+    return true;
+  }
+  const correctProduct = top1.prod;
+  const wrongProductId = log.predicted_product_id;
+  const qty = log.qty_deducted || 1;
+
+  // Reverte baixa do produto errado (só se houve baixa)
+  if (log.decision === 'baixa' && wrongProductId) {
+    const wrong = allProducts.find(p => p.id === wrongProductId);
+    if (wrong) {
+      await sbUpdate('drope_products', `id=eq.${wrongProductId}`, {
+        qty_available: (wrong.qty_available || 0) + qty,
+        total_sold: Math.max(0, (wrong.total_sold || 0) - qty),
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Aplica baixa no produto correto (se tem estoque)
+  const correctQty = correctProduct.qty_available || 0;
+  if (correctQty < qty) {
+    await sendText(phone,
+      `⚠️ "${correctProduct.name}" so tem ${correctQty} em estoque, nao posso baixar ${qty}.\nDevolvi a baixa errada.`, body);
+    await sbUpdate('drope_vision_log', `id=eq.${log.id}`, {
+      was_corrected: true,
+      corrected_to_id: correctProduct.id,
+      corrected_to_name: correctProduct.name,
+      corrected_at: new Date().toISOString(),
+      corrected_by: phone.replace(/[^0-9]/g, ''),
+    });
+    return true;
+  }
+
+  await sbUpdate('drope_products', `id=eq.${correctProduct.id}`, {
+    qty_available: correctQty - qty,
+    total_sold: (correctProduct.total_sold || 0) + qty,
+    updated_at: new Date().toISOString(),
+  });
+
+  await sbUpdate('drope_vision_log', `id=eq.${log.id}`, {
+    was_corrected: true,
+    corrected_to_id: correctProduct.id,
+    corrected_to_name: correctProduct.name,
+    corrected_at: new Date().toISOString(),
+    corrected_by: phone.replace(/[^0-9]/g, ''),
+  });
+
+  const wrongName = log.predicted_product_name || '?';
+  const confirmMsg = log.decision === 'baixa'
+    ? `✅ Corrigido!\n\nDevolvi: ${qty}x ${wrongName}\nBaixei: ${qty}x ${correctProduct.name} (restam ${correctQty - qty})`
+    : `✅ Registrado!\nBaixei: ${qty}x ${correctProduct.name} (restam ${correctQty - qty})`;
+  await sendText(phone, confirmMsg, body);
+  return true;
+}
+
+// ============ FLUXO LOTE COMPLETO (FASE 2) — MODO LOTE ============
+// Lucas manda "lote" no privado -> ativa modo batch -> manda fotos -> bot enfileira
+// e processa cada uma. Quando ele manda "fechar lote", bot envia resumo + pergunta precos.
+
+function _flcUuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Padroniza marca/modelo/sabor pro formato canonico do Drope
+const _FLC_BRAND_SYNONYMS = {
+  'ELF BAR': 'ELFBAR', 'ELFBAR': 'ELFBAR', 'elfbar': 'ELFBAR',
+  'OX BAR': 'OXBAR', 'OXBAR': 'OXBAR', 'oxbar': 'OXBAR',
+  'LOST MARY': 'LOST MARY', 'LOSTMARY': 'LOST MARY',
+  'IGNITE': 'IGNITE', 'GEEK BAR': 'GEEK BAR', 'GEEKBAR': 'GEEK BAR',
+  'BLACK SHEEP': 'BLACK SHEEP', 'BLACKSHEEP': 'BLACK SHEEP',
+  'NIKBAR': 'NIKBAR', 'HQD': 'HQD', 'RABBEATS': 'RABBEATS',
+  'EBCREATE': 'EBCREATE', 'WAKA': 'WAKA',
+};
+const _FLC_MODEL_SYNONYMS = {
+  'BC15K': 'BC15K', 'BC15000': 'BC15K', 'BC 15K': 'BC15K', 'BC-15K': 'BC15K',
+  'BC PRO': 'BC PRO', 'BCPRO': 'BC PRO',
+  'GH23000': 'GH23000', 'GH 23000': 'GH23000', 'GH23K': 'GH23000',
+  'V55': 'V55', 'V 55': 'V55', 'V80': 'V80', 'V300': 'V300 Slim', 'V300 SLIM': 'V300 Slim',
+  'ICE KING': 'Ice King', 'ICEKING': 'Ice King', 'ICE_KING': 'Ice King',
+  'ICE BOOST': 'Ice Boost', 'ICEBOOST': 'Ice Boost',
+  'TRIO': 'TRIO', 'Z35': 'Z35',
+};
+function _flcCanonBrand(brand) {
+  if (!brand) return null;
+  const up = String(brand).trim().toUpperCase();
+  return _FLC_BRAND_SYNONYMS[up] || up;
+}
+function _flcCanonModel(model) {
+  if (!model) return null;
+  const up = String(model).trim().toUpperCase();
+  return _FLC_MODEL_SYNONYMS[up] || String(model).trim();
+}
+function _flcCanonFlavor(flavor) {
+  if (!flavor) return null;
+  const f = String(flavor).trim().toLowerCase();
+  return f.replace(/\b\w/g, c => c.toUpperCase()); // Title Case
+}
+
+// FLC FASE 2 — Salva foto da caixa no Storage quando UazAPI manda base64.
+// UazAPI as vezes manda data:image/jpeg;base64,... em vez de URL publica.
+// Sem upload, box_photo_url fica null e perdemos a foto da caixa pra exibir no admin.
+async function _flcUploadBoxPhoto(imageUrl, batchId, idx) {
+  if (!imageUrl) return null;
+  if (!imageUrl.startsWith('data:')) return imageUrl; // já é URL publica
+  try {
+    const m = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return null;
+    const mime = m[1] || 'image/jpeg';
+    const base64 = m[2];
+    const ext = mime.includes('png') ? 'png' : 'jpg';
+    const path = `box-photos/batch-${batchId}-${idx}-${Date.now()}.${ext}`;
+    const url = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`, apikey: SUPABASE_KEY,
+        'Content-Type': mime, 'x-upsert': 'true',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+      body: Buffer.from(base64, 'base64'),
+    });
+    if (!r.ok) {
+      console.warn('[FLC box upload]', r.status, await r.text().catch(() => ''));
+      return null;
+    }
+    return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
+  } catch (e) { console.warn('[FLC box upload]', e.message); return null; }
+}
+
+// SISTEMA IMUNE 07/05/2026 — Busca pending_sales matching pra um produto novo
+// que ta sendo cadastrado. Faz fuzzy match por brand+model+flavor (canonicalizados).
+// Retorna { qty_total, sales: [...] } pra reconciliacao retroativa.
+async function _findPendingSalesMatching(cBrand, cModel, cFlavor) {
+  if (!cBrand) return { qty_total: 0, sales: [] };
+  try {
+    // Carrega todas as pending_sales status='pending' (geralmente <50 em volume real)
+    const all = await sbGet('drope_pending_sales',
+      'select=id,qty,vision_brand,vision_model,vision_flavor_en,vision_flavor_pt,vision_search_terms,vendido_em,vendedor_phone,group_jid&status=eq.pending&order=vendido_em.desc&limit=200');
+    if (!Array.isArray(all) || all.length === 0) return { qty_total: 0, sales: [] };
+    const matching = [];
+    for (const ps of all) {
+      const visTerms = {
+        brand: ps.vision_brand,
+        model: ps.vision_model,
+        flavor_en: ps.vision_flavor_en,
+        flavor_pt: ps.vision_flavor_pt,
+      };
+      // Reusa _matchScore mas com produto fake feito do produto sendo cadastrado
+      const fakeProduct = {
+        name: [cBrand, cModel, cFlavor].filter(Boolean).join(' '),
+        metadata: { brand: cBrand, model: cModel, flavor: cFlavor, flavor_en: cFlavor },
+      };
+      const score = _matchScore(visTerms, fakeProduct);
+      if (score >= 75) { // threshold conservador pra evitar reconciliar coisa errada
+        matching.push({ ...ps, score });
+      }
+    }
+    const qty_total = matching.reduce((s, m) => s + (m.qty || 1), 0);
+    return { qty_total, sales: matching };
+  } catch (e) {
+    console.warn('[pending_sales find]', e.message);
+    return { qty_total: 0, sales: [] };
+  }
+}
+
+async function _resolvePendingSales(salesIds, productId) {
+  if (!Array.isArray(salesIds) || salesIds.length === 0) return;
+  try {
+    await sbUpdate('drope_pending_sales', `id=in.(${salesIds.join(',')})`, {
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+      resolved_product_id: productId,
+      resolved_method: 'auto_match',
+    });
+  } catch (e) { console.warn('[pending_sales resolve]', e.message); }
+}
+
+async function tryHandleBatchPhoto(phone, msg, body, pending) {
+  if (!pending || pending.mode !== 'batch_active') return false;
+
+  // FIX BATCH 1 (07/05/2026) — Auto-close inline pra batches abandonados.
+  // Caso: Andrade abre lote, manda fotos, esquece de "fechar lote", e no dia seguinte
+  // manda foto. Antes ela caia no batch antigo (zumbi). Agora fecha o antigo e abre novo.
+  // Threshold 1h: tempo morto razoavel (cadastro normal demora 5-15min do inicio ao fim).
+  const STALE_BATCH_MS = 60 * 60 * 1000; // 1h
+  const lastTouch = pending.lastPhotoAt || pending.startedAt || 0;
+  if (lastTouch && (Date.now() - lastTouch) > STALE_BATCH_MS) {
+    console.log('[FLC stale-batch] fechando batch zumbi de', Math.round((Date.now()-lastTouch)/60000), 'min');
+    try {
+      await closeBatch(phone, pending, body);
+      try { await logSystemEvent('batch_auto_closed_inline', { phone, fotoCount: pending.fotoCount || 0, idle_min: Math.round((Date.now()-lastTouch)/60000) }, phone); } catch (_) {}
+    } catch (e) { console.warn('[FLC stale-batch] closeBatch err:', e.message); }
+    // closeBatch deixa pending=batch_pricing (se tinha novos) ou clearPending.
+    // Pra continuar com a foto nova, criamos batch novo limpo.
+    const newPending = {
+      mode: 'batch_active',
+      batch_id: _flcUuid(),
+      startedAt: Date.now(),
+      lastPhotoAt: Date.now(),
+      fotoCount: 0,
+      errorCount: 0,
+      matched: [],
+      novos: [],
+    };
+    await setPending(phone, newPending);
+    pending = newPending;
+    await sendText(phone, `⏰ Lote anterior fechei automaticamente (>1h sem foto). Lote novo iniciado — pode mandar.`, body).catch(() => {});
+  }
+
+  const imageUrl = await getMediaUrl(msg, body).catch(() => null);
+  const fotoIndex = (pending.fotoCount || 0) + 1;
+  // Se UazAPI mandou base64, sobe pro Storage pra ter URL persistente
+  const boxPhotoStored = imageUrl ? await _flcUploadBoxPhoto(imageUrl, pending.batch_id, fotoIndex) : null;
+
+  // Insere na queue
+  let queueId = null;
+  try {
+    const inserted = await sbInsert('drope_batch_queue', {
+      batch_id: pending.batch_id,
+      phone,
+      msg_id: msg.id || msg.messageId || null,
+      photo_url: boxPhotoStored,
+      photo_index: fotoIndex,
+      status: 'processing',
+    });
+    queueId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
+  } catch (e) { console.warn('[FLC] insert queue:', e.message); }
+
+  if (!imageUrl) {
+    if (queueId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+      status: 'error', error_message: 'media nao baixou', processed_at: new Date().toISOString(),
+    }).catch(() => {});
+    pending.fotoCount = fotoIndex;
+    pending.errorCount = (pending.errorCount || 0) + 1;
+    pending.lastPhotoAt = Date.now();
+    await setPending(phone, pending);
+    return true;
+  }
+
+  // Vision
+  let vis = null;
+  try { vis = await analyzeMixPhoto(imageUrl); } catch (e) { console.warn('[FLC] vision:', e.message); }
+
+  if (!vis || !Array.isArray(vis.products) || vis.products.length === 0) {
+    if (queueId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+      status: 'error', error_message: 'vision sem produto', vision_response: vis,
+      processed_at: new Date().toISOString(),
+    }).catch(() => {});
+    pending.fotoCount = fotoIndex;
+    pending.errorCount = (pending.errorCount || 0) + 1;
+    pending.lastPhotoAt = Date.now();
+    await setPending(phone, pending);
+    return true;
+  }
+
+  // Pra cada produto identificado: match no banco e cadastra/atualiza
+  const allProducts = await sbGet('drope_products', 'select=id,name,slug,qty_available,total_sold,metadata,status,hidden&limit=1000');
+  const productsArr = Array.isArray(allProducts) ? allProducts : [];
+
+  pending.matched = pending.matched || [];
+  pending.novos = pending.novos || [];
+
+  for (const p of vis.products) {
+    const cBrand = _flcCanonBrand(p.brand);
+    const cModel = _flcCanonModel(p.model);
+    const cFlavor = _flcCanonFlavor(p.flavor_en || p.flavor_pt);
+    const visionTerms = { brand: cBrand, model: cModel, flavor_en: cFlavor || p.flavor_en, flavor_pt: p.flavor_pt };
+    const ranking = productsArr.map(prod => ({ prod, score: _matchScore(visionTerms, prod) })).sort((a, b) => b.score - a.score);
+    const top1 = ranking[0] || { prod: null, score: 0 };
+    const qty = Math.max(1, parseInt(p.qty) || 1);
+
+    if (top1.prod && top1.score >= 80) {
+      const newQty = (top1.prod.qty_available || 0) + qty;
+      try {
+        await sbUpdate('drope_products', `id=eq.${top1.prod.id}`, {
+          qty_available: newQty,
+          hidden: false,
+          status: top1.prod.status === 'inactive' ? 'pending' : (top1.prod.status || 'active'),
+          updated_at: new Date().toISOString(),
+        });
+        // FLC FASE 2.1 — Registra match na QUEUE (fonte de verdade, evita race)
+        if (queueId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+          matched_product_id: top1.prod.id,
+          matched_score: top1.score,
+          decision: 'matched_existing',
+          qty_added: qty,
+        }).catch(() => {});
+      } catch (e) { console.warn('[FLC] update qty:', e.message); }
+    } else {
+      // Cadastra novo com status='pending'
+      const name = [cBrand, cModel, cFlavor].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+      if (!cBrand || !cFlavor || name.length < 4 || /undefined/i.test(name)) continue; // ignora se faltou info essencial
+      const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
+
+      // SISTEMA IMUNE 07/05/2026: busca pending_sales matching (Yasmin vendeu antes
+      // de cadastrar). Aplica baixa retroativa no qty inicial.
+      const reconcil = await _findPendingSalesMatching(cBrand, cModel, cFlavor);
+      const qtyInicial = qty;
+      const qtyFinal = Math.max(0, qtyInicial - reconcil.qty_total);
+
+      try {
+        const inserted = await sbInsert('drope_products', {
+          slug,
+          name,
+          qty_available: qtyFinal,
+          total_sold: reconcil.qty_total, // vendas pendentes ja contam como total_sold
+          status: 'pending',
+          hidden: true,
+          price_cents: 0,
+          metadata: {
+            brand: cBrand, model: cModel, flavor: cFlavor,
+            flavor_en: p.flavor_en, flavor_pt: p.flavor_pt,
+            puffs: p.puffs || null,
+            created_via: 'batch_photo', created_at: new Date().toISOString(),
+            box_photo_url: boxPhotoStored,
+            reconciled_pending_sales: reconcil.qty_total > 0 ? {
+              qty_inicial: qtyInicial,
+              qty_pendentes: reconcil.qty_total,
+              qty_final: qtyFinal,
+              sales_resolved: reconcil.sales.map(s => ({ id: s.id, qty: s.qty, vendido_em: s.vendido_em, vendedor: (s.vendedor_phone || '').slice(0,6) + '***' })),
+            } : null,
+          },
+          box_photo_url: boxPhotoStored,
+        });
+        const newId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
+
+        // SISTEMA IMUNE: marca pendencias como resolvidas com vinculo pro produto novo
+        if (newId && reconcil.sales.length > 0) {
+          await _resolvePendingSales(reconcil.sales.map(s => s.id), newId);
+          try { await logSystemEvent('pending_sales_reconciled', { product_id: newId, product_name: name, qty_inicial: qtyInicial, qty_pendentes: reconcil.qty_total, qty_final: qtyFinal, sales_count: reconcil.sales.length }, phone); } catch (_) {}
+        }
+
+        // FLC FASE 2.1 — Registra novo na QUEUE (fonte de verdade)
+        if (queueId && newId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+          created_product_id: newId,
+          decision: 'created_new',
+          qty_added: qtyFinal,
+          matched_score: top1.score || 0,
+        }).catch(() => {});
+        // FIX BATCH 2 (07/05/2026) — Dedup live: adiciona o produto recem criado ao
+        // productsArr in-memory pra que outras fotos do mesmo lote (e da mesma invocacao
+        // OU em invocacoes paralelas) achem match em vez de criar duplicado.
+        // Caso real: Andrade manda 4 fotos da mesma marca+modelo+sabor em sequencia.
+        // Sem isso: 4 produtos duplicados criados, todos com qty=1.
+        // Com isso: 1 produto criado, +3 incrementos de qty.
+        if (newId) {
+          productsArr.push({
+            id: newId, name, slug,
+            qty_available: qty, total_sold: 0, status: 'pending', hidden: true,
+            metadata: { brand: cBrand, model: cModel, flavor: cFlavor, flavor_en: p.flavor_en, flavor_pt: p.flavor_pt },
+          });
+        }
+        // FLC FASE 3: enriquece com Serper (specs + termometro + descricao). Fire-and-forget.
+        if (newId) {
+          _flcEnrichProduct(newId, cBrand, cModel, cFlavor).catch((e) => console.warn('[FLC enrich bg]', e.message));
+        }
+      } catch (e) { console.warn('[FLC] insert novo:', e.message); }
+    }
+  }
+
+  if (queueId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+    status: 'done', vision_response: vis, processed_at: new Date().toISOString(),
+  }).catch(() => {});
+
+  pending.fotoCount = fotoIndex;
+  pending.lastPhotoAt = Date.now();
+  await setPending(phone, pending);
+
+  // A cada 10 fotos manda update silencioso
+  if (fotoIndex % 10 === 0) {
+    sendText(phone, `⏳ Processando... ${fotoIndex} fotos analisadas`, body).catch(() => {});
+  }
+  return true;
+}
+
+async function closeBatch(phone, pending, body) {
+  // FLC FASE 2.1 — Le QUEUE como fonte de verdade (resolve race condition entre invocacoes paralelas).
+  // pending.matched/novos podem estar incompletos por race; queue é persistido linha-a-linha.
+  const batchId = pending.batch_id;
+  let queueRows = [];
+  try {
+    queueRows = await sbGet('drope_batch_queue',
+      `select=*&phone=eq.${encodeURIComponent(phone)}&batch_id=eq.${encodeURIComponent(batchId)}&order=photo_index.asc&limit=500`);
+  } catch (e) { console.warn('[FLC closeBatch] read queue:', e.message); }
+  if (!Array.isArray(queueRows)) queueRows = [];
+
+  const fotoCount = queueRows.length;
+  const errorCount = queueRows.filter(r => r.status === 'error').length;
+  const matchedRows = queueRows.filter(r => r.decision === 'matched_existing' && r.matched_product_id);
+  const novoRows = queueRows.filter(r => r.decision === 'created_new' && r.created_product_id);
+
+  // Busca dados dos produtos referenciados pra montar nomes/modelos
+  const allRefIds = [...new Set([...matchedRows.map(r => r.matched_product_id), ...novoRows.map(r => r.created_product_id)])];
+  let prodById = {};
+  if (allRefIds.length > 0) {
+    try {
+      const prodsResp = await sbGet('drope_products',
+        `select=id,name,metadata,qty_available&id=in.(${allRefIds.join(',')})&limit=500`);
+      if (Array.isArray(prodsResp)) {
+        for (const p of prodsResp) prodById[p.id] = p;
+      }
+    } catch (_) {}
+  }
+
+  // Agrega matched por nome+id (soma qty_added)
+  const matchedAgg = {};
+  for (const r of matchedRows) {
+    const p = prodById[r.matched_product_id];
+    if (!p) continue;
+    matchedAgg[p.name] = (matchedAgg[p.name] || 0) + (r.qty_added || 1);
+  }
+
+  // Agrega novos por modelo
+  const novosByModel = {};
+  for (const r of novoRows) {
+    const p = prodById[r.created_product_id];
+    if (!p) continue;
+    const meta = p.metadata || {};
+    const key = [meta.brand, meta.model].filter(Boolean).join(' ') || p.name;
+    if (!novosByModel[key]) novosByModel[key] = [];
+    novosByModel[key].push({ id: p.id, name: p.name, qty: r.qty_added || 1, brand: meta.brand, model: meta.model });
+  }
+
+  const novos = novoRows.map(r => ({ id: r.created_product_id }));
+
+  let resumo = `📦 LOTE PROCESSADO — ${fotoCount} fotos\n\n`;
+  if (Object.keys(matchedAgg).length) {
+    resumo += `✅ ATUALIZADOS:\n`;
+    for (const [name, qty] of Object.entries(matchedAgg)) resumo += `• ${name}: +${qty}\n`;
+    resumo += `\n`;
+  }
+  if (Object.keys(novosByModel).length) {
+    resumo += `📦 NOVOS CADASTRADOS (${novos.length} produtos, ${Object.keys(novosByModel).length} modelos):\n`;
+    let i = 1;
+    for (const [model, items] of Object.entries(novosByModel)) {
+      resumo += `${i}. ${model} (${items.length} sabores)\n`;
+      i++;
+    }
+    resumo += `\n`;
+  }
+  // SISTEMA IMUNE 07/05/2026: lista produtos novos que tiveram baixa retroativa
+  // de vendas pendentes (Yasmin vendeu antes do cadastro).
+  const reconciledList = [];
+  for (const r of novoRows) {
+    const p = prodById[r.created_product_id];
+    const recon = p?.metadata?.reconciled_pending_sales;
+    if (recon && recon.qty_pendentes > 0) {
+      reconciledList.push({ name: p.name, ...recon });
+    }
+  }
+  if (reconciledList.length) {
+    resumo += `⏪ BAIXA RETROATIVA (vendas que aconteceram antes do cadastro):\n`;
+    for (const r of reconciledList) {
+      resumo += `• ${r.name}: ${r.qty_inicial} - ${r.qty_pendentes} venda${r.qty_pendentes>1?'s':''} = ${r.qty_final}\n`;
+    }
+    resumo += `\n`;
+  }
+  if (errorCount) resumo += `❌ ${errorCount} fotos com erro\n\n`;
+
+  // FLC FASE 4 — Pipeline arte é disparado por _flcEnrichProduct (apos ter referencia).
+  // Aqui só informa o usuário no resumo.
+  if (novos.length > 0) {
+    resumo += `🎨 ARTE: pipelines de busca referência+geração disparados em background pros ${novos.length} novos.\n`;
+    resumo += `Quando todas as artes ficarem prontas, voce ve no Admin Hub.\n\n`;
+  }
+
+  if (novos.length > 0) {
+    // FLC FASE 2.2 (07/05/2026) — usa ARRAY ordenado em vez de Object pra preservar
+    // ordem das chaves no JSONB do Postgres (que reordena alfabeticamente keys de obj).
+    const novosOrdered = Object.entries(novosByModel).map(([modelKey, items]) => ({ modelKey, items }));
+
+    resumo += `💰 PREÇOS PENDENTES — ${novosOrdered.length} modelos\n\n`;
+    resumo += `Manda preço de cada modelo (em R$):\n`;
+    novosOrdered.forEach((entry, i) => {
+      resumo += `${i + 1}. ${entry.modelKey} (${entry.items.length} sabores)\n`;
+    });
+    resumo += `\nFormato: "1. 89.90, 2. 79.90, 3. 99.00"`;
+
+    await setPending(phone, {
+      mode: 'batch_pricing',
+      novosOrdered,
+      startedAt: Date.now(),
+    });
+  } else {
+    await clearPending(phone);
+  }
+
+  await sendText(phone, resumo, body);
+}
+
+async function tryHandleBatchPricing(phone, msg, body, text, pending) {
+  if (!pending || pending.mode !== 'batch_pricing') return false;
+  const lower = String(text || '').toLowerCase().trim();
+
+  if (lower === 'cancela' || lower === 'cancelar' || lower === 'depois') {
+    await clearPending(phone);
+    await sendText(phone, '✅ Cancelado. Os produtos novos ficaram em status pending. Pode setar precos no Admin Hub.', body);
+    return true;
+  }
+
+  // Parse "1. 89.90, 2. 79.90" ou "1. 89.90\n2. 79.90"
+  const matches = [...String(text).matchAll(/(\d+)\.?\s*(\d+(?:[,.]\d+)?)/g)];
+  if (matches.length === 0) {
+    await sendText(phone, 'Nao entendi. Formato: "1. 89.90, 2. 79.90". Ou "cancela" pra deixar pendente.', body);
+    return true;
+  }
+
+  const updates = matches.map(m => ({ idx: parseInt(m[1]), price: parseFloat(m[2].replace(',', '.')) })).filter(u => u.idx > 0 && u.price > 0);
+  // FLC FASE 2.2 — Le array ordenado (resiliente a reorder de jsonb).
+  // Backwards-compat: se for pending velho com novosByModel obj, converte na hora.
+  const novosOrdered = Array.isArray(pending.novosOrdered)
+    ? pending.novosOrdered
+    : Object.entries(pending.novosByModel || {}).map(([modelKey, items]) => ({ modelKey, items }));
+  let countOk = 0, countMod = 0;
+  const aplicados = [];
+  for (const upd of updates) {
+    if (upd.idx > novosOrdered.length) continue;
+    const entry = novosOrdered[upd.idx - 1];
+    if (!entry) continue;
+    countMod++;
+    for (const item of (entry.items || [])) {
+      try {
+        await sbUpdate('drope_products', `id=eq.${item.id}`, {
+          price_cents: Math.round(upd.price * 100),
+          status: 'active',
+          hidden: false,
+          updated_at: new Date().toISOString(),
+        });
+        countOk++;
+      } catch (e) { console.warn('[FLC pricing] update:', e.message); }
+    }
+    aplicados.push(`${entry.modelKey}: R$ ${upd.price.toFixed(2)}`);
+  }
+
+  await clearPending(phone);
+  await sendText(phone,
+    `✅ ${countMod} modelos / ${countOk} produtos com preço atualizado e ATIVADOS!\n\n` +
+    aplicados.map(a => `• ${a}`).join('\n'),
+    body);
+  return true;
+}
+
+// FLC FASE 3 — PESQUISA SERPER (specs + termometro sabor + descricao + ref-visual)
+// SERPER_API_KEY ja existe nas envs (CLAUDE.md confirma).
+async function _serperSearch(query, type = 'search', num = 8) {
+  const key = process.env.SERPER_API_KEY || '';
+  if (!key) return null;
+  const endpoint = type === 'images' ? 'https://google.serper.dev/images' : 'https://google.serper.dev/search';
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, num }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { console.warn('[serper]', e.message); return null; }
+}
+
+// Specs do modelo (com cache em drope_model_specs_cache pra evitar repesquisar)
+async function _flcFetchModelSpecs(brand, model) {
+  if (!brand || !model) return null;
+  // Cache primeiro
+  try {
+    const cached = await sbGet('drope_model_specs_cache',
+      `select=*&brand=eq.${encodeURIComponent(brand)}&model=eq.${encodeURIComponent(model)}&limit=1`);
+    if (Array.isArray(cached) && cached[0]) return cached[0];
+  } catch (_) {}
+
+  const data = await _serperSearch(`"${brand} ${model}" specifications puffs battery ml nicotine`, 'search', 6);
+  if (!data) return null;
+  const blob = (data.organic || []).map(o => `${o.title || ''}. ${o.snippet || ''}`).join('\n');
+  const blobL = blob.toLowerCase();
+
+  // Puffs: aceita "15000 puffs", "15k puffs"
+  let puffsNum = null;
+  const m1 = blobL.match(/(\d+(?:[.,]\d+)?)\s*k\s*puffs?/);
+  const m2 = blobL.match(/(\d+(?:[.,]\d+)?)\s*puffs?/);
+  if (m1) puffsNum = Math.round(parseFloat(m1[1].replace(',', '.')) * 1000);
+  else if (m2) puffsNum = Math.round(parseFloat(m2[1].replace(',', '.')));
+
+  const batMatch = blobL.match(/(\d+)\s*mah/);
+  const liqMatch = blobL.match(/(\d+(?:\.\d+)?)\s*ml/);
+  const nicMatch = blobL.match(/(\d+(?:\.\d+)?)\s*%\s*(?:nic|nicotin)/) || blobL.match(/(\d+(?:\.\d+)?)\s*%/);
+
+  const specs = {
+    brand, model,
+    puffs: puffsNum,
+    battery: batMatch ? `${batMatch[1]}mAh` : null,
+    liquid_ml: liqMatch ? `${liqMatch[1]}ml` : null,
+    nicotine: nicMatch ? `${nicMatch[1]}%` : null,
+    description: ((data.organic || [])[0]?.snippet || '').slice(0, 500),
+    raw_serper_results: data,
+  };
+
+  try { await sbInsert('drope_model_specs_cache', specs); } catch (e) { /* unique violation = race, ignore */ }
+  return specs;
+}
+
+// Termometro de sabor (sweet/ice/sour 0-5) baseado em Serper reviews + fallback heuristico
+async function _flcFetchFlavorThermometer(brand, model, flavor) {
+  if (!flavor) return null;
+  const fl = String(flavor).toLowerCase();
+
+  // Fallback heuristico pelo nome (sempre rola, mesmo se Serper falhar)
+  const inferFromName = () => {
+    let sweet = 3, ice = 0, sour = 0;
+    if (/ice|iced|gelad|menta|mint|cold|frozen|frio|chill/.test(fl)) ice = 4;
+    if (/extreme|max|hyper|frozen/.test(fl)) ice = Math.max(ice, 5);
+    if (/menthol|mint/.test(fl) && !/banana|grape|berry|cherry|peach/.test(fl)) { sweet = 1; ice = 5; }
+    if (/sour|azed|tangy/.test(fl)) sour = 4;
+    if (/banana|mango|peach|caramel|vanilla|cream|donut|honey/.test(fl)) sweet = 4;
+    if (/strawberry|cherry|berry|grape|watermelon|melon|raspberry|blue razz|razz|fruit/.test(fl)) sweet = 4;
+    if (/chocolate|brownie|cake|sirup|sugar/.test(fl)) sweet = 5;
+    if (/lemon|lime|grapefruit|citrus/.test(fl)) sour = 3;
+    return { flavor_sweet: sweet, flavor_ice: ice, flavor_sour: sour };
+  };
+
+  const data = await _serperSearch(`"${brand} ${model} ${flavor}" review flavor profile sweet ice sour`, 'search', 6);
+  if (!data) return inferFromName();
+  const blob = (data.organic || []).map(o => `${o.title || ''}. ${o.snippet || ''}`).join(' ').toLowerCase();
+
+  const cnt = (rx) => (blob.match(rx) || []).length;
+  const sweetWords = cnt(/\b(sweet|sugary|candy|honey|syrup|sirup|saboroso|doce|adocicado|dessert)\b/g);
+  const iceWords = cnt(/\b(ice|iced|cold|cool|menthol|mint|frosty|chill|gelad|menta|frosty)\b/g);
+  const sourWords = cnt(/\b(sour|tart|tangy|acidic|acid|sharp|azed|citrus|zest)\b/g);
+
+  const score = (n) => Math.max(0, Math.min(5, Math.round(n / 1.5)));
+  const fromSerper = {
+    flavor_sweet: score(sweetWords),
+    flavor_ice: score(iceWords),
+    flavor_sour: score(sourWords),
+  };
+  // Se Serper deu 0 em tudo, usa fallback
+  if (fromSerper.flavor_sweet + fromSerper.flavor_ice + fromSerper.flavor_sour === 0) return inferFromName();
+  return fromSerper;
+}
+
+// Descricao curta e gen-z friendly (Lacuna 5)
+function _flcGenerateDescription(flavor) {
+  if (!flavor) return null;
+  const fl = String(flavor).toLowerCase();
+  const main = {
+    banana: 'banana doce', grape: 'uva intensa', mango: 'manga tropical',
+    strawberry: 'morango fresco', watermelon: 'melancia suculenta', peach: 'pêssego maduro',
+    cherry: 'cereja vermelha', blueberry: 'mirtilo profundo', raspberry: 'framboesa azeda',
+    apple: 'maçã crocante', lemon: 'limão cítrico', lime: 'lima refrescante',
+    pineapple: 'abacaxi tropical', coconut: 'coco cremoso', mint: 'menta intensa',
+    'blue razz': 'framboesa azul', 'mixed berry': 'mix de berries',
+    pomegranate: 'romã profunda', kiwi: 'kiwi verde', orange: 'laranja vibrante',
+  };
+  let foundMain = null;
+  for (const [k, v] of Object.entries(main)) {
+    if (fl.includes(k)) { foundMain = v; break; }
+  }
+  if (!foundMain) foundMain = String(flavor).toLowerCase();
+
+  let modifier;
+  if (/ice|iced|frozen|gelad/.test(fl)) modifier = 'gelado refrescante';
+  else if (/sour|tangy/.test(fl)) modifier = 'toque azedo';
+  else if (/cream|creamy|cremoso/.test(fl)) modifier = 'cremoso e suave';
+  else if (/sweet|doce/.test(fl)) modifier = 'super doce';
+  else modifier = 'sabor marcante';
+
+  return `${foundMain} ✦ ${modifier}`.slice(0, 60);
+}
+
+// Enriquece um produto novo com specs + termometro + descricao + foto referencia + dispara arte.
+// Best-effort: erros nao quebram o flow principal.
+async function _flcEnrichProduct(productId, brand, model, flavor) {
+  if (!productId) return;
+  try {
+    const [specs, thermometer] = await Promise.all([
+      _flcFetchModelSpecs(brand, model).catch(() => null),
+      _flcFetchFlavorThermometer(brand, model, flavor).catch(() => null),
+    ]);
+    const desc = _flcGenerateDescription(flavor);
+
+    const update = { updated_at: new Date().toISOString() };
+    if (specs?.puffs) update.puffs = specs.puffs;
+    if (specs?.battery) update.battery = specs.battery;
+    if (specs?.liquid_ml) update.liquid_ml = specs.liquid_ml;
+    if (specs?.nicotine) update.nicotine = specs.nicotine;
+    if (thermometer?.flavor_sweet != null) update.flavor_sweet = thermometer.flavor_sweet;
+    if (thermometer?.flavor_ice != null) update.flavor_ice = thermometer.flavor_ice;
+    if (thermometer?.flavor_sour != null) update.flavor_sour = thermometer.flavor_sour;
+    if (desc) update.description = desc;
+
+    if (Object.keys(update).length > 1) {
+      await sbUpdate('drope_products', `id=eq.${productId}`, update);
+    }
+
+    // FLC FASE 4 — Busca referência visual via autoFindReference (Serper + Vision rank)
+    try {
+      const prods = await sbGet('drope_products', `id=eq.${productId}&select=*&limit=1`);
+      const product = prods?.[0];
+      if (product) {
+        await autoFindReference(product).catch((e) => console.warn('[FLC autoFindRef]', e.message));
+      }
+    } catch (e) { console.warn('[FLC ref]', e.message); }
+
+    // FLC FASE 4 — Depois de ter referência, dispara pipeline arte Grok+VisionQA
+    try {
+      await fireBackgroundArtGeneration(productId, 'admin', 1).catch(() => {});
+    } catch (_) {}
+  } catch (e) {
+    console.warn('[FLC enrich]', e.message);
+  }
+}
+
+// ============ MOTOBOY V2 (07/05/2026) — handler de grupo + whitelist + lifecycle ============
+
+// Calcula valor justo da corrida proporcional à distância.
+// Base: R$ 5 + R$ 1.50/km, mínimo R$ 7. Sem dist informada, default 4km (média Vila Prudente).
+function _motoboyCalcValorCents(distKm) {
+  const km = (typeof distKm === 'number' && distKm > 0) ? distKm : 4;
+  const valor = Math.max(7, Math.round((5 + 1.5 * km) * 100) / 100);
+  return Math.round(valor * 100); // cents
+}
+
+// Detecta intenção de aceitar corrida (flex — não exige palavra exata)
+function _motoboyDetectAceite(text) {
+  if (!text) return false;
+  const t = String(text).toLowerCase().trim();
+  if (t.length > 80) return false; // mensagens longas dificilmente são aceite
+  // Palavras-chave + emojis que indicam aceite
+  const patterns = [
+    /\bpego\b/i, /\bpegou?\b/i, /\bpeguei\b/i,
+    /\bvou\b/i, /\bminha\b/i, /\beu\b.*\bpego\b/i,
+    /\bdeixa comigo\b/i, /\bcomigo\b/i,
+    /\bto indo\b/i, /\btô indo\b/i, /\bto\s*indo\b/i, /\bja vou\b/i,
+    /\bvou levar\b/i, /\bvou fazer\b/i,
+    /^🤚/u, /^🏃/u, /^🏍/u, /^✋/u, /^👋/u,
+    /\b(eu|me)\b.*\b(pego|vou|aceito|levo)\b/i,
+  ];
+  return patterns.some(rx => rx.test(t));
+}
+
+// Detecta comando de lifecycle pós-aceite
+function _motoboyDetectComando(text) {
+  if (!text) return null;
+  const t = String(text).toLowerCase().trim();
+  if (t.length > 50) return null;
+  // SAIU (motoboy iniciou)
+  if (/^(sai|saí|saiu|to indo|tô indo|peguei|coletei|peguei o pedido)\b/.test(t) || /^🛵|^🏍|^🚀/u.test(t)) return 'saiu';
+  // ENTREGUE
+  if (/^(entreguei|entregue|entreguou|finalizei|✅|fim)\b/.test(t) || /^✅|^🏁|^👍/u.test(t)) return 'entregue';
+  // CANCELO
+  if (/^(cancelo|cancela|desisto|desisti|nao vou|não vou|ñ vou|problema)\b/.test(t) || /^❌|^🚫/u.test(t)) return 'cancelo';
+  return null;
+}
+
+// Helper: pega motoboy whitelistado por phone
+async function _motoboyGetByPhone(senderPhone) {
+  if (!senderPhone) return null;
+  const clean = String(senderPhone).replace(/[^0-9]/g, '');
+  if (!clean) return null;
+  // Busca exato OU sem 55 prefix
+  const variants = [clean, clean.startsWith('55') ? clean.slice(2) : '55' + clean];
+  for (const p of variants) {
+    const rows = await sbGet('drope_motoboys', `phone=eq.${encodeURIComponent(p)}&ativo=eq.true&limit=1`);
+    if (Array.isArray(rows) && rows[0]) return rows[0];
+  }
+  return null;
+}
+
+// Comandos admin de motoboy no privado do Lucas
+async function tryHandleMotoboyAdminCommand(phone, msg, body, text, pending) {
+  if (!text) return false;
+  const t = String(text).trim();
+  const lower = t.toLowerCase();
+  console.log('[motoboy-admin] check:', JSON.stringify(lower.slice(0, 40)), 'GRUPO_MOTOBOY_JID set:', !!GRUPO_MOTOBOY_JID);
+
+  // motoboys briefing → posta orientação no grupo motoboy
+  if (lower === 'motoboys briefing' || lower === 'briefing motoboys' || lower === 'orienta motoboys') {
+    if (!GRUPO_MOTOBOY_JID) {
+      await sendText(phone, '⚠️ GRUPO_MOTOBOY_JID nao configurado.', body);
+      return true;
+    }
+    const briefingMsg = `🦎 *DROPE — COMO PEGAR CORRIDA*
+
+Quando aparecer card *🏍️ CORRIDA DISPONÍVEL* aqui no grupo:
+✅ Manda *PEGO* (ou "vou", "minha", "deixa comigo", 🤚)
+✅ Primeiro a responder ganha (sistema race-safe)
+✅ Bot manda detalhes no seu privado: endereço completo, tel cliente, Maps
+
+*Depois que pegar, manda no GRUPO ou no PRIVADO do bot:*
+🛵 *saí* — quando coletar o pedido na loja
+🏁 *entreguei* — quando finalizar a entrega
+❌ *cancelo* — se algo deu errado (recoloca corrida pra outros)
+
+*Score:* todo motoboy começa com 100 pontos.
+• -5 cada cancelamento
+• Quem mantém score alto pega corridas mais valiosas
+
+Dúvida? Manda no privado do Andrade.`;
+    await sendText(GRUPO_MOTOBOY_JID, briefingMsg, body);
+    await sendText(phone, '✅ Briefing postado no grupo motoboy.', body);
+    return true;
+  }
+
+  // motoboys → lista whitelist
+  if (lower === 'motoboys' || lower === 'lista motoboys') {
+    const list = await sbGet('drope_motoboys', 'select=phone,nome,ativo,score,corridas_entregues,corridas_canceladas&order=score.desc&limit=50');
+    if (!Array.isArray(list) || list.length === 0) {
+      await sendText(phone, '🏍️ Nenhum motoboy cadastrado.\n\nAdiciona com: motoboy add 5511XXXXXXXX Nome', body);
+      return true;
+    }
+    const lines = list.map(m => `• ${m.ativo ? '✅' : '❌'} ${m.nome} (${m.phone}) — score ${m.score} | ${m.corridas_entregues}🏁 ${m.corridas_canceladas}❌`);
+    await sendText(phone, `🏍️ MOTOBOYS (${list.length}):\n\n${lines.join('\n')}\n\nComandos:\n• motoboy add 5511XXX Nome\n• motoboy remove 5511XXX\n• motoboy off/on 5511XXX`, body);
+    return true;
+  }
+
+  // motoboy add 5511... Nome Sobrenome
+  const addMatch = t.match(/^motoboy\s+add\s+(\d{10,13})\s+(.{1,80})$/i);
+  if (addMatch) {
+    const motoPhone = addMatch[1].replace(/[^0-9]/g, '');
+    const nome = addMatch[2].trim();
+    try {
+      await sbInsert('drope_motoboys', { phone: motoPhone, nome, ativo: true });
+      await sendText(phone, `✅ Motoboy adicionado: ${nome} (${motoPhone}).`, body);
+    } catch (e) {
+      // pode ser duplicate — atualiza
+      await sbUpdate('drope_motoboys', `phone=eq.${motoPhone}`, { nome, ativo: true, updated_at: new Date().toISOString() });
+      await sendText(phone, `✅ Motoboy atualizado: ${nome} (${motoPhone}).`, body);
+    }
+    return true;
+  }
+
+  // motoboy remove 5511...
+  const rmMatch = lower.match(/^motoboy\s+(remove|delete|del)\s+(\d{10,13})$/);
+  if (rmMatch) {
+    const motoPhone = rmMatch[2];
+    await sbUpdate('drope_motoboys', `phone=eq.${motoPhone}`, { ativo: false, updated_at: new Date().toISOString() });
+    await sendText(phone, `✅ Motoboy ${motoPhone} desativado.`, body);
+    return true;
+  }
+
+  // motoboy off/on 5511...
+  const togMatch = lower.match(/^motoboy\s+(on|off|ativa|desativa)\s+(\d{10,13})$/);
+  if (togMatch) {
+    const ativo = ['on', 'ativa'].includes(togMatch[1]);
+    await sbUpdate('drope_motoboys', `phone=eq.${togMatch[2]}`, { ativo, updated_at: new Date().toISOString() });
+    await sendText(phone, `${ativo ? '✅' : '❌'} Motoboy ${togMatch[2]} ${ativo ? 'ativado' : 'desativado'}.`, body);
+    return true;
+  }
+
+  // corrida #N [dist=X] [valor=Y] — posta corrida no grupo
+  const corridaMatch = lower.match(/^(?:corrida|envia corrida|enviar corrida)\s+#?(\d+)(?:\s+dist=([\d.,]+))?(?:\s+(?:valor|r\$)\s*=?\s*([\d.,]+))?/);
+  if (corridaMatch) {
+    const orderId = parseInt(corridaMatch[1]);
+    const distKm = corridaMatch[2] ? parseFloat(corridaMatch[2].replace(',', '.')) : null;
+    const valorOverride = corridaMatch[3] ? parseFloat(corridaMatch[3].replace(',', '.')) : null;
+    return await _motoboyPostCorrida(phone, body, orderId, distKm, valorOverride);
+  }
+
+  // corridas — lista corridas abertas
+  if (lower === 'corridas' || lower === 'corridas abertas') {
+    const list = await sbGet('drope_corridas', 'select=id,order_id,status,motoboy_nome,valor_motoboy_cents,posted_at&status=in.(aberta,aceita)&order=posted_at.desc&limit=20');
+    if (!Array.isArray(list) || list.length === 0) {
+      await sendText(phone, '🏍️ Nenhuma corrida aberta/em andamento.', body);
+      return true;
+    }
+    const lines = list.map(c => `• ${c.status === 'aberta' ? '🟡 ABERTA' : '🟢 ' + (c.motoboy_nome || '?')} #${c.order_id} — R$ ${(c.valor_motoboy_cents/100).toFixed(2)}`);
+    await sendText(phone, `🏍️ CORRIDAS:\n\n${lines.join('\n')}`, body);
+    return true;
+  }
+
+  return false;
+}
+
+// Posta corrida no grupo motoboy + cria row drope_corridas
+async function _motoboyPostCorrida(adminPhone, body, orderId, distKm, valorOverride) {
+  if (!GRUPO_MOTOBOY_JID) {
+    await sendText(adminPhone, '⚠️ GRUPO_MOTOBOY_JID nao configurado. Adiciona o bot no grupo de motoboys primeiro.', body);
+    return true;
+  }
+  // Busca pedido
+  const orders = await sbGet('drope_orders', `or=(id.eq.${orderId},order_nsu.eq.${orderId})&limit=1`);
+  const order = Array.isArray(orders) && orders[0];
+  if (!order) {
+    await sendText(adminPhone, `⚠️ Pedido #${orderId} nao encontrado.`, body);
+    return true;
+  }
+  // Verifica se ja tem corrida ativa pra esse pedido
+  const exist = await sbGet('drope_corridas', `order_id=eq.${order.id}&status=in.(aberta,aceita)&limit=1`);
+  if (Array.isArray(exist) && exist[0]) {
+    await sendText(adminPhone, `⚠️ Pedido #${orderId} ja tem corrida ${exist[0].status} (id ${exist[0].id}).`, body);
+    return true;
+  }
+
+  // Extrai endereço destino
+  const addr = order.address || {};
+  const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento]
+    .filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço cadastrado)';
+  const clientePhone = order.customer_snapshot?.phone || addr.phone || null;
+  const valorCents = valorOverride ? Math.round(valorOverride * 100) : _motoboyCalcValorCents(distKm);
+  const itensDesc = Array.isArray(order.items)
+    ? order.items.map(i => `${i.qty || 1}x ${i.name || i.slug}`).join(', ').slice(0, 200)
+    : '(itens nao listados)';
+
+  // Cria corrida
+  const inserted = await sbInsert('drope_corridas', {
+    order_id: order.id,
+    status: 'aberta',
+    valor_motoboy_cents: valorCents,
+    distancia_km: distKm,
+    endereco_destino: enderecoDest,
+    cliente_phone: clientePhone,
+  });
+  const corrida = Array.isArray(inserted) ? inserted[0] : inserted;
+
+  // Monta mensagem do grupo
+  const distLabel = distKm ? `📏 Dist: ${distKm}km` : '📏 Dist: ~4km (estimado)';
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(enderecoDest)}`;
+  const grupoMsg = `🏍️ *CORRIDA DISPONÍVEL*
+
+📦 Pedido #${order.order_nsu || order.id}
+🛒 Itens: ${itensDesc}
+📍 Destino: ${enderecoDest}
+${distLabel}
+💰 *R$ ${(valorCents/100).toFixed(2)}*
+🗺️ ${mapsUrl}
+
+Pra pegar, manda *PEGO* aqui no grupo.`;
+
+  await sendText(GRUPO_MOTOBOY_JID, grupoMsg, body);
+  await sbUpdate('drope_corridas', `id=eq.${corrida.id}`, { posted_at: new Date().toISOString() });
+  await sendText(adminPhone, `✅ Corrida ${corrida.id} postada no grupo. R$ ${(valorCents/100).toFixed(2)}${distKm ? ` (${distKm}km)` : ''}.`, body);
+  return true;
+}
+
+// Handler principal do grupo motoboy
+async function handleMotoboyGroup(phone, msg, body) {
+  // phone aqui é o JID do grupo (já vem do roteamento)
+  const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
+  // Phone do remetente (motoboy individual)
+  const senderPhone = msg.sender_pn?.replace(/[^0-9]/g, '') || msg.sender?.replace(/[^0-9]/g, '');
+  if (!senderPhone) return;
+
+  // Ignora msgs do próprio bot (evita loop)
+  if (msg.fromMe || msg.wasSentByApi) return;
+
+  // Verifica whitelist
+  const motoboy = await _motoboyGetByPhone(senderPhone);
+  if (!motoboy) {
+    console.log(`[motoboy] phone ${senderPhone.slice(0,6)}*** nao está na whitelist`);
+    return; // silencioso — nao polui grupo com erro
+  }
+
+  // Detecta comando de lifecycle (sai/entreguei/cancelo)
+  const cmd = _motoboyDetectComando(text);
+  if (cmd) {
+    return await _motoboyHandleLifecycle(phone, body, motoboy, cmd, text);
+  }
+
+  // Detecta aceite ("PEGO" + variações)
+  const aceitou = _motoboyDetectAceite(text);
+  if (aceitou) {
+    return await _motoboyHandleAceite(phone, body, motoboy);
+  }
+
+  // Outras mensagens: ignora silenciosamente
+}
+
+// Aceite de corrida — UPDATE atômico race-safe
+async function _motoboyHandleAceite(grupoJid, body, motoboy) {
+  // FIX MAIO/2026 — Antes de qualquer coisa, checa se há corrida aceita HÁ POUCO (60s).
+  // Se sim, ignora silenciosamente PEGOs tardios pra não poluir o grupo.
+  const aceitaRecente = await sbGet('drope_corridas',
+    `select=id,motoboy_nome,accepted_at&status=in.(aceita,em_rota)&accepted_at=gt.${encodeURIComponent(new Date(Date.now() - 60000).toISOString())}&order=accepted_at.desc&limit=1`);
+  if (Array.isArray(aceitaRecente) && aceitaRecente[0]) {
+    console.log(`[motoboy] PEGO tardio de ${motoboy.nome} ignorado — ${aceitaRecente[0].motoboy_nome} aceitou ha menos de 60s`);
+    return; // silencioso
+  }
+
+  // UPDATE atômico: só pega corridas com status='aberta', se 0 rows = perdeu race
+  const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?status=eq.aberta&order=posted_at.asc&limit=1`, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json', Prefer: 'return=representation',
+    },
+    body: JSON.stringify({
+      status: 'aceita',
+      motoboy_phone: motoboy.phone,
+      motoboy_nome: motoboy.nome,
+      accepted_at: new Date().toISOString(),
+    }),
+  });
+  const updated = await updateRes.json();
+  if (!Array.isArray(updated) || updated.length === 0) {
+    // Nenhuma corrida aberta — silencioso (evita poluir grupo)
+    return;
+  }
+  const corrida = updated[0];
+
+  // Confirma no grupo
+  const valorTxt = `R$ ${(corrida.valor_motoboy_cents/100).toFixed(2)}`;
+  await sendText(grupoJid, `✅ *${motoboy.nome}* pegou a corrida #${corrida.order_id} 🏍️\nValor: ${valorTxt}`, body);
+
+  // Manda detalhes no PRIVADO do motoboy
+  const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(corrida.endereco_destino || '')}`;
+  const detalhes = `🏍️ *Corrida ${corrida.id} — Pedido #${corrida.order_id}*
+
+📍 Destino: ${corrida.endereco_destino || '?'}
+📞 Cliente: ${corrida.cliente_phone || '(sem telefone)'}
+💰 Valor: ${valorTxt}
+🗺️ ${mapsUrl}
+
+*Comandos:*
+• "saí" — quando coletar e iniciar viagem
+• "entreguei" — quando finalizar
+• "cancelo" — se nao puder ir`;
+  await sendText(motoboy.phone, detalhes, body).catch(() => {});
+
+  // Avisa cliente
+  if (corrida.cliente_phone) {
+    await sendText(corrida.cliente_phone,
+      `🏍️ Seu pedido #${corrida.order_id} saiu pra entrega com *${motoboy.nome}*.\nQualquer coisa, fala com a gente.`,
+      body).catch(() => {});
+  }
+
+  // Atualiza contador do motoboy
+  await sbUpdate('drope_motoboys', `phone=eq.${motoboy.phone}`, {
+    corridas_total: (motoboy.corridas_total || 0) + 1,
+    updated_at: new Date().toISOString(),
+  }).catch(() => {});
+}
+
+// Lifecycle: saiu / entregue / cancelo
+// FIX MAIO/2026 — Race-safe via UPDATE atomico com filter de transicao valida.
+// Se 2 invocacoes simultaneas chegam (UazAPI duplica webhook), so a 1a UPDATE retorna >=1
+// row; a 2a retorna 0 (filtro nao bate mais) e sai silenciosamente. Antes ambas
+// chegavam no sendText e geravam mensagem duplicada no grupo.
+async function _motoboyHandleLifecycle(grupoJid, body, motoboy, cmd, text) {
+  if (cmd === 'saiu') {
+    // Transicao valida: aceita -> em_rota. Filter no UPDATE = atomico.
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?motoboy_phone=eq.${encodeURIComponent(motoboy.phone)}&status=eq.aceita&order=accepted_at.desc&limit=1`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'em_rota', updated_at: new Date().toISOString() }),
+    });
+    const updated = await r.json();
+    if (!Array.isArray(updated) || updated.length === 0) {
+      console.log(`[motoboy lifecycle] saiu race-lost para ${motoboy.nome}`);
+      return; // perdeu race ou nao tem corrida aceita
+    }
+    const corrida = updated[0];
+    await sendText(grupoJid, `🛵 ${motoboy.nome} saiu com pedido #${corrida.order_id}.`, body);
+    if (corrida.cliente_phone) {
+      await sendText(corrida.cliente_phone, `🛵 ${motoboy.nome} saiu com seu pedido. Chega aí em uns minutos!`, body).catch(() => {});
+    }
+    return;
+  }
+
+  if (cmd === 'entregue') {
+    // Transicao valida: aceita|em_rota -> entregue. Filter atomico.
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?motoboy_phone=eq.${encodeURIComponent(motoboy.phone)}&status=in.(aceita,em_rota)&order=accepted_at.desc&limit=1`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'entregue', delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+    });
+    const updated = await r.json();
+    if (!Array.isArray(updated) || updated.length === 0) {
+      console.log(`[motoboy lifecycle] entregue race-lost para ${motoboy.nome}`);
+      return;
+    }
+    const corrida = updated[0];
+    await sbUpdate('drope_motoboys', `phone=eq.${motoboy.phone}`, {
+      corridas_entregues: (motoboy.corridas_entregues || 0) + 1,
+      updated_at: new Date().toISOString(),
+    });
+    await sendText(grupoJid, `🏁 ${motoboy.nome} entregou pedido #${corrida.order_id}. R$ ${(corrida.valor_motoboy_cents/100).toFixed(2)}`, body);
+    if (corrida.cliente_phone) {
+      await sendText(corrida.cliente_phone, `✅ Pedido #${corrida.order_id} entregue!\n\nValeu pela compra 🦎`, body).catch(() => {});
+    }
+    return;
+  }
+
+  if (cmd === 'cancelo') {
+    // Transicao valida: aceita|em_rota -> aberta (reabre).
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?motoboy_phone=eq.${encodeURIComponent(motoboy.phone)}&status=in.(aceita,em_rota)&order=accepted_at.desc&limit=1`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({
+        status: 'aberta',
+        motoboy_phone: null, motoboy_nome: null, accepted_at: null,
+        cancel_reason: `cancelado por ${motoboy.nome}: ${text || ''}`.slice(0, 200),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    const updated = await r.json();
+    if (!Array.isArray(updated) || updated.length === 0) {
+      console.log(`[motoboy lifecycle] cancelo race-lost para ${motoboy.nome}`);
+      return;
+    }
+    const corrida = updated[0];
+    await sbUpdate('drope_motoboys', `phone=eq.${motoboy.phone}`, {
+      corridas_canceladas: (motoboy.corridas_canceladas || 0) + 1,
+      score: Math.max(0, (motoboy.score || 100) - 5),
+      updated_at: new Date().toISOString(),
+    });
+    await sendText(grupoJid, `❌ ${motoboy.nome} cancelou corrida #${corrida.order_id}. Quem pega? Manda *PEGO*.`, body);
+    return;
+  }
+}
+
+// Detecta comandos de lote (ativar / fechar)
+async function tryHandleBatchCommand(phone, msg, body, text, pending) {
+  const lower = String(text || '').toLowerCase().trim();
+  if (lower === 'lote' || lower === 'iniciar lote' || lower === 'comeca lote' || lower === 'começa lote' || lower === 'modo lote') {
+    if (pending?.mode === 'batch_active') {
+      await sendText(phone, `📸 Lote ja esta ativo. ${pending.fotoCount || 0} fotos processadas. Manda mais ou "fechar lote".`, body);
+      return true;
+    }
+    await setPending(phone, {
+      mode: 'batch_active',
+      batch_id: _flcUuid(),
+      startedAt: Date.now(),
+      lastPhotoAt: Date.now(),
+      fotoCount: 0,
+      errorCount: 0,
+      matched: [],
+      novos: [],
+    });
+    await sendText(phone, '📸 Modo lote ativado! Pode mandar todas as fotos.\nVou processar tudo e te respondo no final.\n\nQuando terminar, manda "fechar lote".', body);
+    return true;
+  }
+  if (pending?.mode === 'batch_active' && (lower === 'fechar lote' || lower === 'fechar' || lower === 'pronto' || lower === 'acabei' || lower === 'fim')) {
+    await closeBatch(phone, pending, body);
+    return true;
+  }
+  if (pending?.mode === 'batch_active' && (lower === 'cancela lote' || lower === 'cancelar lote')) {
+    await clearPending(phone);
+    await sendText(phone, '✅ Lote cancelado. Os produtos ja processados ficaram cadastrados (status=pending). Use Admin Hub pra revisar.', body);
+    return true;
+  }
+  return false;
+}
+
 // ============ STORAGE HELPERS ============
 function slugify(brand, model, flavor) {
   const raw = `${brand}-${model}-${flavor}`.toLowerCase();
@@ -936,6 +2452,196 @@ async function applyDropeSeal(imageData) {
     console.error('[applyDropeSeal] error:', e.message);
     return imgBuffer;
   }
+}
+
+// ============ AUTO-BUSCA REFERÊNCIA (OSSO 34.7) ============
+// Função reutilizável: busca foto de referência via Serper + Vision ranking.
+// Retorna URL pública da referência no Supabase Storage, ou null se não encontrou.
+function _detectMediaType(buf) {
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) return 'image/webp';
+  return 'image/jpeg';
+}
+
+// FLC FASE 4 (07/05/2026 — refatorado):
+// 1. Query Serper inclui SABOR entre aspas (era so brand+model+puffs antes — pegava sabor errado)
+// 2. Vision compara candidatos com a foto da CAIXA (box_photo_url) como GROUND TRUTH
+// 3. Threshold 0.7 (era 0.35 — passava lixo)
+// 4. Se nenhum >= 0.7 → ref_status='needs_manual' (era 'auto_failed' generico)
+async function autoFindReference(product) {
+  const meta = product.metadata || {};
+  const brand = meta.brand || '';
+  const model = meta.model || '';
+  const flavor = meta.flavor || meta.flavor_en || meta.flavor_pt || '';
+  const boxPhotoUrl = product.box_photo_url || meta.box_photo_url || null;
+
+  // FIX 1: Query inclui SABOR entre aspas (tira ambiguidade Serper)
+  const qParts = [];
+  if (brand && model) qParts.push(`"${brand} ${model}"`);
+  else if (brand) qParts.push(`"${brand}"`);
+  if (flavor) qParts.push(`"${flavor}"`);
+  qParts.push('pod vape device');
+  const searchQ = qParts.join(' ').replace(/\s+/g, ' ').trim();
+  console.log(`[autoFindRef] #${product.id} query: "${searchQ}" boxPhoto=${!!boxPhotoUrl}`);
+
+  // 1. Serper image search
+  const serperRes = await fetch('https://google.serper.dev/images', {
+    method: 'POST',
+    headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: searchQ, num: 10 })
+  });
+  const serperData = await serperRes.json();
+  const imgs = (serperData.images || []).slice(0, 10);
+  if (imgs.length === 0) {
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+
+  // 2. Download candidates (até 6, pra dar mais opção)
+  const cands = [];
+  for (const img of imgs) {
+    if (cands.length >= 6) break;
+    try {
+      const imgR = await fetch(img.imageUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'image/*' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!imgR.ok) continue;
+      const buf = Buffer.from(await imgR.arrayBuffer());
+      if (buf.length < 5000) continue;
+      cands.push({ buffer: buf, url: img.imageUrl, title: img.title || '' });
+    } catch (_) { continue; }
+  }
+  if (cands.length === 0) {
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+
+  // FIX 2: Baixa a foto da CAIXA pra usar como ground truth no Vision
+  let boxBuffer = null;
+  let boxMime = null;
+  if (boxPhotoUrl) {
+    try {
+      const r = await fetch(boxPhotoUrl, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) {
+        boxBuffer = Buffer.from(await r.arrayBuffer());
+        if (boxBuffer.length < 1000) boxBuffer = null;
+        else boxMime = _detectMediaType(boxBuffer);
+      }
+    } catch (e) { console.warn('[autoFindRef] download box:', e.message); }
+  }
+
+  // 3. Vision ranking COM GROUND TRUTH
+  const vContent = [];
+  if (boxBuffer) {
+    vContent.push({ type: 'image', source: { type: 'base64', media_type: boxMime, data: boxBuffer.toString('base64') } });
+    vContent.push({ type: 'text', text: `📦 GROUND TRUTH: foto OFICIAL da caixa do produto (${brand} ${model} ${flavor}). Use pra comparar cor, formato, bocal e identificar o sabor real.` });
+  }
+  for (let i = 0; i < cands.length; i++) {
+    const mType = _detectMediaType(cands[i].buffer);
+    vContent.push({ type: 'image', source: { type: 'base64', media_type: mType, data: cands[i].buffer.toString('base64') } });
+    vContent.push({ type: 'text', text: `Candidato ${i + 1}` });
+  }
+
+  const evalP = `Voce escolhe a MELHOR foto de REFERENCIA do dispositivo (pod descartavel) entre ${cands.length} candidatos.
+
+Produto: ${brand} ${model} ${flavor || '(sem sabor)'}.
+
+${boxBuffer ? `A PRIMEIRA imagem é a foto OFICIAL da CAIXA (ground truth). Use ela pra confirmar:
+- O dispositivo na candidata é o MESMO MODELO da caixa? (forma, proporcao, bocal)
+- A COR predominante BATE com a caixa? (caixa amarela = pod amarelo, caixa azul = pod azul, caixa rosa = pod rosa)
+- Eh o MESMO SABOR? (cor + design batem com o sabor "${flavor}")` :
+`Sem foto da caixa de referência. Avalie pelo nome do sabor "${flavor}":
+- Cor predominante condiz com o sabor?
+- Banana/manga = amarelo. Uva = roxo. Morango/cherry = vermelho. Mint = verde/branco. Blue Razz = azul. Etc.`}
+
+REGRAS DE QUALIDADE (TODAS obrigatorias):
+1. ${boxBuffer ? 'Bate com o produto da caixa (modelo + sabor)' : 'Cor condiz com o sabor'}
+2. Mostra DISPOSITIVO real (nao caixa, nao render 3D, nao banner, nao lifestyle, nao mockup)
+3. Fundo limpo (branco/transparente/neutro), sem watermark, sem logo de loja
+4. Foco no produto, alta resolucao, dispositivo de frente ou levemente angulado
+
+Score 0.0-1.0 pra cada. APROVA SO se score >= 0.7. Se NENHUM passar, retorna melhor=null.
+
+Output APENAS JSON:
+{
+  "ranking": [{"candidato": 1, "score": 0.85, "motivo": "breve - bate com sabor X, fundo limpo"}, ...],
+  "melhor": numero (1-${cands.length}) ou null,
+  "confianca": 0.0-1.0,
+  "motivo_rejeicao": "se melhor=null, explica por que (max 50 chars)"
+}`;
+  vContent.push({ type: 'text', text: evalP });
+
+  const vRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: vContent }] })
+  });
+  const vData = await vRes.json();
+  if (vData.error) {
+    console.error('[autoFindRef] Vision API error:', JSON.stringify(vData.error));
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+
+  const vText = (vData.content && vData.content[0] && vData.content[0].text) || '';
+  let cleanJ = vText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const jsonMatch = cleanJ.match(/\{[\s\S]*\}/);
+  cleanJ = jsonMatch ? jsonMatch[0] : cleanJ;
+
+  let ranking;
+  try { ranking = JSON.parse(cleanJ); } catch (parseErr) {
+    console.error('[autoFindRef] JSON parse failed:', parseErr.message, 'raw:', vText.slice(0, 200));
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+
+  // FIX 3: Threshold 0.7 (era 0.35). Se nao bater, vira needs_manual_photo.
+  const conf = ranking.confianca || 0;
+  const melhor = ranking.melhor;
+  console.log(`[autoFindRef] #${product.id} ranking:`, JSON.stringify(ranking).slice(0, 300));
+
+  if (!melhor || conf < 0.7) {
+    await sbUpdate('drope_products', `id=eq.${product.id}`, {
+      ref_status: 'auto_failed',
+      art_status: 'needs_manual_photo',
+      metadata: { ...meta, ref_rejection_reason: ranking.motivo_rejeicao || `conf=${conf}, melhor=${melhor}` },
+    });
+    console.log(`[autoFindRef] ❌ #${product.id} REJEITADO (conf=${conf}). Marcado needs_manual_photo.`);
+    return null;
+  }
+
+  // 4. Upload winner
+  const winner = cands[melhor - 1];
+  if (!winner) {
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+  const winnerType = _detectMediaType(winner.buffer);
+  const ext = winnerType === 'image/png' ? 'png' : 'jpg';
+  const fName = `references/ref-${product.id}.${ext}`;
+  const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/drope-product-images/${fName}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_KEY,
+      'Content-Type': winnerType,
+      'x-upsert': 'true',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+    body: winner.buffer,
+  });
+  if (!upRes.ok) {
+    await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_failed' });
+    return null;
+  }
+
+  const pubUrl = `${SUPABASE_URL}/storage/v1/object/public/drope-product-images/${fName}`;
+  await sbUpdate('drope_products', `id=eq.${product.id}`, { ref_status: 'auto_found', reference_image_url: pubUrl });
+  console.log(`[autoFindRef] ✅ #${product.id} → ${pubUrl} (conf=${conf})`);
+  return pubUrl;
 }
 
 // ============ PIPELINE DE IMAGEM (busca + qualidade + arte) ============
@@ -1212,6 +2918,9 @@ async function analyzeMixPhoto(imageUrl) {
   const systemPrompt = `Voce identifica MULTIPLOS pods descartaveis na mesma foto (bancada de loja).
 Lucas tira foto da entrada de estoque com varios produtos misturados.
 
+REGRA #1 — IMPORTANTISSIMA — LER TEXTO IMPRESSO:
+Voce DEVE LER literalmente o texto/rotulo escrito na embalagem. NAO adivinhe o sabor pela cor da caixa, pelo desenho ou pelo visual. O nome do sabor esta IMPRESSO em texto na propria caixa (ex: "Banana Ice", "Pineapple Ice", "Strawberry Watermelon"). LEIA esse texto. Se nao conseguir LER claramente (foto borrada, angulo ruim, texto pequeno, embalagem dobrada, reflexo), retorna flavor_en=null e flavor_confidence=0 e adiciona em alertas o porque.
+
 Responde JSON valido (sem markdown):
 {
   "products": [
@@ -1219,12 +2928,13 @@ Responde JSON valido (sem markdown):
       "barcode": "OCR dos digitos IMPRESSOS embaixo do codigo de barras (NAO decodifica as listras — le o numero em texto). Se nao ver claramente, null. NAO inventa.",
       "brand": "marca em maiusculo (IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER). LOST MARY=LOSTMARY",
       "model": "linha/modelo. Se nao ler, null. NUNCA 'unknown'. Catalogo:\n        IGNITE: V155/V250/V300/V55/Boost\n        ELFBAR: BC15K/BC Pro/Trio/Iceking/TE 30K/GH 23K\n        BLACKSHEEP: Cyber Tank Pro/Cybertank/Spherex/Spherex Plus\n        LOSTMARY: MO5000/MO10000/MO20000/MT15000/OS5000/BM6000/PSYBER/Cosmic Edition/Tappo\n        DOJO: Fresh/Frosty/Splash\n        GEEKBAR: Frozen/White Peach/Stone Freeze/Pulse\n        ADALYA: AD5000/AD40K\n        VANTHER: 30K/Cool Mint Edition",
-      "flavor_en": "sabor em ingles ou null",
-      "flavor_pt": "sabor em portugues ou null",
-      "qty": numero inteiro de unidades VISIVEIS desse produto na foto (caixas iguais empilhadas conta. minimo 1)
+      "flavor_en": "sabor LIDO no texto da embalagem em ingles, ou null se nao conseguiu ler. Exemplo de leitura correta: na caixa esta escrito 'Banana Ice' -> flavor_en='Banana Ice'. NAO chuta pela cor amarela da caixa.",
+      "flavor_pt": "traducao do sabor lido pra portugues, ou null",
+      "flavor_confidence": "numero 0.0 a 1.0 que indica o quao confiante voce esta de que LEU corretamente o sabor no texto. 1.0 = li perfeitamente o texto. 0.5 = li parcialmente / texto cortado. 0.0 = chutei ou nao consegui ler.",
+      "qty": "numero inteiro de unidades VISIVEIS desse produto na foto (caixas iguais empilhadas conta. minimo 1)"
     }
   ],
-  "alertas": ["lista de strings se algo confuso"]
+  "alertas": ["lista de strings se algo confuso (texto borrado, angulo, etc)"]
 }
 
 REGRAS:
@@ -1232,6 +2942,7 @@ REGRAS:
 - Se ver 1 sabor diferente sozinho, qty=1.
 - Cada SABOR + MODELO + MARCA distintos vira UM item da lista.
 - NUNCA inventa barcode. Se nao ler, null.
+- LEIA o sabor no texto. Se nao conseguir ler, flavor_en=null e flavor_confidence=0.
 - Se a foto nao tem pod, retorna {"products":[], "alertas":["nao parece pod"]}.`;
 
   const makeSource = (url) => {
@@ -1267,6 +2978,7 @@ REGRAS:
       model: cleanVisionField(p.model),
       flavor_en: cleanVisionField(p.flavor_en),
       flavor_pt: cleanVisionField(p.flavor_pt),
+      flavor_confidence: typeof p.flavor_confidence === 'number' ? p.flavor_confidence : null,
       qty: Math.max(1, parseInt(p.qty) || 1),
     }));
     return parsed;
@@ -1493,6 +3205,86 @@ function getDeviceBankDescription(brand, model) {
   return `${entry.shape}, approximately ${entry.height}. ${entry.finish}. ${entry.mouthpiece}. ${entry.details}. Body color: ${entry.typical_colors}`;
 }
 
+// OSSO 34.3: QC com Vision — Rutem (ministra da Qualidade) avalia arte gerada pelo Grok.
+// Checa: texto parasita, proporção do device, frutas corretas pro sabor, atmosfera dark neon.
+// Retorna: { approved: bool, score: 0-1, issues: string[] }
+async function evaluateArtQuality(imgBuffer, productName, flavor, deviceDescription) {
+  if (!CLAUDE_KEY) return { approved: true, score: 0.5, issues: ['QC skipped: no CLAUDE_KEY'] };
+
+  try {
+    function detectMT(buf) {
+      if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
+      if (buf[0] === 0xFF && buf[1] === 0xD8) return 'image/jpeg';
+      return 'image/png';
+    }
+    const mt = detectMT(imgBuffer);
+    const b64 = imgBuffer.toString('base64');
+
+    const qcPrompt = `You are Rutem, a strict Quality Control inspector for Drope (premium vape e-commerce).
+Evaluate this product art for "${productName}" (flavor: ${flavor || 'unknown'}).
+
+CRITERIA (score each 0-10):
+1. NO ADDED TEXT: The device may show its real brand markings (e.g. "EBCREATE" printed on the physical pod) — that is OK. But NO added text, banners, watermarks, floating titles, prices, or decorative typography anywhere else in the scene. Invented text (words not on the real product) = fail.
+2. DEVICE ACCURACY: Device matches this description: "${(deviceDescription || '').substring(0, 200)}". Correct shape, proportions, realistic materials.
+3. FLAVOR MATCH: Fruit/ingredient elements match the "${flavor}" flavor. Wrong fruits = fail.
+4. DARK NEON ATMOSPHERE: Deep dark background, neon pink/lime as subtle rim lights and reflections (not overwhelming floods), atmospheric vapor/smoke present.
+5. COMPOSITION: Device centered, occupies ~35-45% of frame, ingredients around base not covering device. Clean layout.
+6. OVERALL QUALITY: Professional e-commerce quality, no artifacts, no distortion, hyper-detailed.
+
+APPROVAL THRESHOLD: Average score >= 7 AND no criterion below 4. Invented/added text = auto-reject. Real brand text on the device body is acceptable.
+
+Respond ONLY JSON:
+{
+  "scores": {"no_text": N, "device_accuracy": N, "flavor_match": N, "atmosphere": N, "composition": N, "quality": N},
+  "average": N.N,
+  "approved": true/false,
+  "issues": ["issue1", "issue2"],
+  "feedback_for_next_attempt": "one sentence correction if rejected"
+}`;
+
+    const vRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mt, data: b64 } },
+            { type: 'text', text: qcPrompt }
+          ]
+        }]
+      })
+    });
+
+    const vData = await vRes.json();
+    if (vData.error) {
+      console.error('[QC] Vision API error:', JSON.stringify(vData.error));
+      return { approved: true, score: 0.5, issues: ['QC Vision API error — auto-approved'] };
+    }
+
+    const vText = (vData.content && vData.content[0] && vData.content[0].text) || '';
+    const jsonMatch = vText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim().match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('[QC] parse failed, raw:', vText.substring(0, 200));
+      return { approved: true, score: 0.5, issues: ['QC parse failed — auto-approved'] };
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+    console.log(`[QC] ${productName}: avg=${result.average}, approved=${result.approved}, issues=${(result.issues||[]).join('; ')}`);
+    return {
+      approved: !!result.approved,
+      score: result.average || 0,
+      issues: result.issues || [],
+      feedback: result.feedback_for_next_attempt || '',
+    };
+  } catch (e) {
+    console.error('[QC] exception:', e.message);
+    return { approved: true, score: 0.5, issues: [`QC exception: ${e.message}`] };
+  }
+}
+
 // Cascata de 4 fontes pra descrição visual do device:
 //   1. reference_image_url (Serper aprovado) → analyzeReferenceImage
 //   2. box_photo_url (foto que o Andrade mandou) → analyzeReferenceImage
@@ -1538,39 +3330,290 @@ async function getDeviceDescription(productCtx) {
 }
 
 // Regras absolutas que o prompt deve sempre carregar.
-// Inseridas em ordem: tamanho → realismo → posição → frutas → texto → luz → fundo.
+// OSSO 34.3 (05/05/2026) — Prompt reescrito com base em pesquisa de melhores práticas:
+//   - Estrutura 5 camadas (subject → style → environment → lighting → camera)
+//   - Linguagem técnica fotográfica (Grok Aurora responde melhor a termos de câmera)
+//   - Fumaça/vapor como elemento atmosférico central
+//   - Neon como REFLEXO sutil, nunca inundação
+//   - Zero texto (reforço triplo)
 const ART_QUALITY_RULES = {
-  deviceMaxSize: 'The device should occupy approximately 30-40% of the image height, leaving room for ingredients around it',
-  noDistortion: 'The device must have perfectly straight edges, symmetrical proportions, and realistic materials — no warping, no melting, no impossible geometry',
-  position: 'Device standing perfectly upright in center of frame, slight 5-degree angle for dynamism',
-  ingredientPlacement: 'Fruits and ingredients arranged around the BASE and SIDES of the device — never covering the front face or branding area',
-  noText: 'Absolutely no text, no letters, no numbers, no logos, no watermarks, no brand names visible anywhere in the image',
-  lighting: 'Subtle neon accent lighting — NOT overwhelming neon. The pink (#FF2D6F) and acid lime green (#D4FF2E) should be REFLECTIONS and GLOWS, not colored floods',
-  background: 'Deep dark background (#0A0C1B), clean, no busy patterns, no additional objects',
+  deviceMaxSize: 'The device occupies 35-45% of frame height — hero subject, prominent but with breathing room',
+  noDistortion: 'Device has perfectly straight edges, symmetrical proportions, realistic materials with surface imperfections (subtle scratches, fingerprint-free matte). No warping, melting, or impossible geometry',
+  position: 'Device standing upright, dead center, tilted 3-5 degrees for dynamism. Base touching the reflective surface with a crisp shadow',
+  ingredientPlacement: 'Flavor ingredients arranged at the BASE and SIDES only — never covering the front face. Ingredients are SUPPORTING cast, not competing with the device',
+  noText: 'CRITICAL: No ADDED text, watermarks, labels, banners, or floating text anywhere in the image. The device itself may show its real brand markings as they appear on the physical product — that is acceptable. But do NOT add any text, titles, prices, or decorative typography to the scene',
+  lighting: 'Low-key three-point cinematic lighting. Key light: soft cool white from upper-left. Fill: faint ultraviolet (#7B2FBE) from right. Accent: neon pink (#FF2D6F) and acid lime (#D4FF2E) as thin rim lights and surface reflections — NOT colored floods. Ratio: 70% dark shadows, 20% midtones, 10% neon highlights',
+  background: 'Deep dark background gradient (#0A0C1B to #12091F), clean negative space, no patterns, no extra objects. Matte black reflective surface below device creating a subtle mirror reflection',
+  vapor: 'Atmospheric vapor/smoke drifting lazily behind and around the device — wispy, translucent, catching the neon rim lights with subtle pink and green tints. NOT thick fog — ethereal, like hookah smoke in slow motion. Vapor rises from behind the device and curls gently at the edges',
 };
 
+// ============ COMPOSITE PIPELINE (OSSO 34.5) — pod real + cenário gerado ============
+// Fluxo: referência → recorta fundo → gera cenário dark neon (SEM device) → cola o pod real.
+// O pod NUNCA é alterado — só o ambiente ao redor muda.
+//
+// 1. removeBackground(imageUrl) → PNG com fundo transparente (via remove.bg API)
+// 2. generateBackgroundScene(flavor, flavorElements) → cenário Grok (text-to-image, sem device)
+// 3. compositeProductArt(background, deviceCutout) → arte final via sharp
+
+// Remove background da foto de referência usando remove.bg API
+// Retorna Buffer PNG com alpha channel (fundo transparente)
+async function removeBackground(imageUrl) {
+  if (!REMOVEBG_API_KEY) {
+    console.warn('[removeBackground] REMOVEBG_API_KEY not configured — falling back to sharp threshold');
+    return removeBackgroundSharp(imageUrl);
+  }
+
+  console.log('[removeBackground] calling remove.bg API...');
+  const t0 = Date.now();
+  try {
+    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': REMOVEBG_API_KEY,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        size: 'regular', // até 625x400 (free tier)
+        format: 'png',
+        type: 'product',
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[removeBackground] remove.bg error ${res.status}:`, errText.substring(0, 300));
+      // Fallback pra sharp
+      return removeBackgroundSharp(imageUrl);
+    }
+
+    // remove.bg retorna JSON com base64 quando Accept: application/json
+    const data = await res.json();
+    const b64 = data.data?.result_b64;
+    if (!b64) {
+      console.error('[removeBackground] remove.bg no b64 in response');
+      return removeBackgroundSharp(imageUrl);
+    }
+
+    const buf = Buffer.from(b64, 'base64');
+    console.log(`[removeBackground] remove.bg OK — ${buf.length} bytes, ${Date.now() - t0}ms`);
+    logApiCost('removebg', { status: res.status, ms: Date.now() - t0, bytes: buf.length }).catch(() => {});
+    return buf;
+  } catch (e) {
+    console.error('[removeBackground] exception:', e.message);
+    return removeBackgroundSharp(imageUrl);
+  }
+}
+
+// Fallback: remoção de fundo simples com sharp (threshold-based).
+// Funciona bem pra fotos de produto com fundo branco/claro.
+async function removeBackgroundSharp(imageUrl) {
+  console.log('[removeBackgroundSharp] usando fallback sharp threshold...');
+  const sharp = require('sharp');
+
+  // Download da imagem
+  const imgBuf = await downloadImage(imageUrl);
+  if (!imgBuf) return null;
+
+  const { data, info } = await sharp(imgBuf)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+
+  // Amostra das bordas pra detectar cor de fundo dominante
+  const edgeSamples = [];
+  const sampleEdge = (x, y) => {
+    const idx = (y * width + x) * 4;
+    edgeSamples.push([data[idx], data[idx + 1], data[idx + 2]]);
+  };
+  for (let x = 0; x < width; x += 2) { sampleEdge(x, 0); sampleEdge(x, height - 1); }
+  for (let y = 0; y < height; y += 2) { sampleEdge(0, y); sampleEdge(width - 1, y); }
+
+  const avgR = edgeSamples.reduce((s, p) => s + p[0], 0) / edgeSamples.length;
+  const avgG = edgeSamples.reduce((s, p) => s + p[1], 0) / edgeSamples.length;
+  const avgB = edgeSamples.reduce((s, p) => s + p[2], 0) / edgeSamples.length;
+
+  console.log(`[removeBackgroundSharp] detected bg color: rgb(${Math.round(avgR)},${Math.round(avgG)},${Math.round(avgB)})`);
+
+  // Pixels próximos da cor de fundo → transparente
+  const threshold = 60;
+  const newData = Buffer.from(data);
+  for (let i = 0; i < data.length; i += 4) {
+    const dr = data[i] - avgR;
+    const dg = data[i + 1] - avgG;
+    const db = data[i + 2] - avgB;
+    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    if (dist < threshold) {
+      newData[i + 3] = 0; // alpha = 0 (transparente)
+    }
+  }
+
+  const result = await sharp(newData, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
+
+  console.log(`[removeBackgroundSharp] done — ${result.length} bytes`);
+  return result;
+}
+
+// Gera APENAS o cenário dark neon (frutas, vapor, iluminação) SEM NENHUM device.
+// O centro fica vazio pro pod ser colado depois.
+async function generateBackgroundScene(flavor, flavorElements, qcFeedback) {
+  const flavorEls = (flavorElements && flavorElements.length > 2)
+    ? flavorElements
+    : deriveFlavorElements(flavor);
+
+  const prompt = [
+    `Dark cinematic product photography BACKGROUND SCENE. This is ONLY the environment — NO device, NO product, NO pod, NO vape in the image.`,
+    `The CENTER of the image is EMPTY — reserved for a product to be composited later.`,
+
+    // Superfície
+    `A matte black reflective surface occupies the bottom third of the frame, creating subtle mirror reflections.`,
+    `Deep dark background gradient (#0A0C1B to #12091F), clean negative space above.`,
+
+    // Ingredientes de sabor
+    `Fresh ${flavorEls} placed naturally on the reflective surface in the LOWER portion — real organic texture, visible juice, tiny ice crystals, natural imperfections. The fruits are arranged at the sides and base, leaving the center clear.`,
+
+    // Atmosfera
+    `Atmospheric vapor/smoke drifting across the scene — wispy, translucent, catching neon rim lights with subtle pink (#FF2D6F) and green (#D4FF2E) tints. NOT thick fog — ethereal, like hookah smoke in slow motion.`,
+    `Low-key cinematic lighting. Key light: soft cool white from upper-left. Fill: faint ultraviolet (#7B2FBE). Accent: neon pink and acid lime as thin rim highlights on surfaces.`,
+    `70% dark shadows, 20% midtones, 10% neon highlights.`,
+
+    // Regras duras
+    `CRITICAL: NO device, NO product, NO pod, NO vape, NO electronic device anywhere in the image. ONLY the dark atmospheric scene with fruits and vapor.`,
+    `NO text, NO watermarks, NO labels.`,
+    `Square format 1024x1024.`,
+    qcFeedback ? `CORRECTIONS: ${qcFeedback}` : '',
+  ].filter(Boolean).join(' ');
+
+  if (!XAI_API_KEY) {
+    console.error('[generateBackgroundScene] XAI_API_KEY not configured');
+    return null;
+  }
+
+  console.log('[generateBackgroundScene] generating dark neon scene, flavor:', flavorEls.slice(0, 60));
+  const t0 = Date.now();
+  const r = await fetch('https://api.x.ai/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
+    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
+  });
+
+  const data = await r.json();
+  console.log(`[generateBackgroundScene] status: ${r.status}, ${Date.now() - t0}ms`);
+  logApiCost('grok_background', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
+
+  if (r.status >= 400) {
+    console.error('[generateBackgroundScene] error:', JSON.stringify(data).slice(0, 400));
+    return null;
+  }
+
+  return data.data?.[0]?.url || null;
+}
+
+// Composite: cola o pod recortado (com alpha) no cenário gerado.
+// Pod fica centralizado, ocupando ~45% da altura do frame.
+async function compositeProductArt(backgroundBuffer, deviceCutoutBuffer) {
+  const sharp = require('sharp');
+
+  // Background: resize pra 1024x1024
+  const bg = await sharp(backgroundBuffer)
+    .resize(1024, 1024, { fit: 'cover' })
+    .png()
+    .toBuffer();
+
+  // Device: pegar dimensões originais
+  const deviceMeta = await sharp(deviceCutoutBuffer).metadata();
+  const targetHeight = Math.round(1024 * 0.50); // 50% do frame
+  const scale = targetHeight / deviceMeta.height;
+  const targetWidth = Math.min(Math.round(deviceMeta.width * scale), 900); // max 900px largura
+
+  const device = await sharp(deviceCutoutBuffer)
+    .resize(targetWidth, targetHeight, { fit: 'inside' })
+    .png()
+    .toBuffer();
+
+  // Pegar dimensões finais do device redimensionado
+  const resizedMeta = await sharp(device).metadata();
+  const left = Math.round((1024 - resizedMeta.width) / 2);
+  const top = Math.round((1024 - resizedMeta.height) / 2 - 40); // levemente acima do centro
+
+  console.log(`[compositeProductArt] device ${resizedMeta.width}x${resizedMeta.height} at (${left},${top}) on 1024x1024 bg`);
+
+  const result = await sharp(bg)
+    .composite([{ input: device, left, top }])
+    .png()
+    .toBuffer();
+
+  console.log(`[compositeProductArt] done — ${result.length} bytes`);
+  return result;
+}
+
+// Pipeline completo de composite: recorta → gera cenário → cola
+// Retorna Buffer da arte final ou null se falhar
+async function runCompositeArt(referenceImageUrl, flavor, flavorElements, qcFeedback) {
+  console.log('[runCompositeArt] starting composite pipeline...');
+
+  // Passo 1: Recortar fundo da referência
+  const deviceCutout = await removeBackground(referenceImageUrl);
+  if (!deviceCutout) {
+    console.error('[runCompositeArt] background removal failed');
+    return null;
+  }
+
+  // Passo 2: Gerar cenário dark neon (SEM device)
+  const bgUrl = await generateBackgroundScene(flavor, flavorElements, qcFeedback);
+  if (!bgUrl) {
+    console.error('[runCompositeArt] background scene generation failed');
+    return null;
+  }
+
+  // Passo 3: Download do cenário
+  const bgBuffer = await downloadImage(bgUrl);
+  if (!bgBuffer) {
+    console.error('[runCompositeArt] background download failed');
+    return null;
+  }
+
+  // Passo 4: Composite
+  const finalArt = await compositeProductArt(bgBuffer, deviceCutout);
+  if (!finalArt) {
+    console.error('[runCompositeArt] composite failed');
+    return null;
+  }
+
+  console.log(`[runCompositeArt] composite complete — ${finalArt.length} bytes`);
+  return finalArt;
+}
+
 // ============ xAI GROK IMAGE — geração de arte do pod ============
-// Template definitivo (validado pelos 60 prompts em prompts-grok-pods.md).
-// Estrutura fixa: deviceColor + deviceShape + flavorElements no template,
-// dark moody, neon pink+lime, fruit elements floating, sem texto.
+// OSSO 34.5 (05/05/2026) — COMPOSITE: quando existe reference_image_url, usa pipeline
+// de composite (recorte + cenário + colagem). Pod real NUNCA é alterado.
+// Quando NÃO tem referência, cai no modo antigo /v1/images/generations (text-only).
 //
 // Grok retorna URL (não base64). Caller faz downloadImage(url) → uploadToStorage.
-async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, deviceVisual, attempt = 1, flavorElements = '', deviceVisualDetailed = '', productCtx = null) {
+async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, deviceVisual, attempt = 1, flavorElements = '', deviceVisualDetailed = '', productCtx = null, qcFeedback = '') {
   const fullName = `${brand} ${model || ''} ${flavor}`.replace(/\s+/g, ' ').trim();
 
-  // OSSO 28B (01/05/2026): cascata de descrição visual do device.
-  //   1. reference_image_url (Serper aprovada)
-  //   2. box_photo_url (foto que Andrade mandou)
-  //   3. DEVICE_BANK (banco local por brand+model)
-  //   4. Fallback genérico
-  // productCtx é opcional — quando ausente, usa só (3)+(4).
-  let deviceDescription;
-  try {
-    const ctx = productCtx || { metadata: { brand, model } };
-    deviceDescription = await getDeviceDescription(ctx);
-  } catch (e) {
-    deviceDescription = getDeviceBankDescription(brand, model)
-      || 'compact rectangular pod device with rounded edges, matte finish, approximately 100mm tall and 45mm wide';
+  // OSSO 34.6: IMG2IMG comprovado (gerou arte perfeita 05/05/2026).
+  // Com reference_image_url → /v1/images/edits (Grok transforma cenário, preserva pod)
+  // Sem referência → /v1/images/generations (text-only, gera tudo do zero)
+  const referenceImageUrl = productCtx?.reference_image_url || null;
+  const useImg2Img = !!referenceImageUrl;
+
+  let deviceDescription = '';
+  if (!useImg2Img) {
+    // Text-only precisa descrever o device
+    try {
+      const ctx = productCtx || { metadata: { brand, model } };
+      deviceDescription = await getDeviceDescription(ctx);
+    } catch (e) {
+      deviceDescription = getDeviceBankDescription(brand, model)
+        || 'compact rectangular pod device with rounded edges, matte finish, approximately 100mm tall and 45mm wide';
+    }
   }
 
   // Variáveis do template (legacy, ainda usadas como fallback dentro do prompt):
@@ -1583,61 +3626,133 @@ async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, dev
 
   const variationSuffix = getArtVariationSuffix(attempt);
 
-  // Template OSSO 28B (01/05/2026 — Andrade aprovou Amor ELF com v2):
-  //   - Mantém composição v2 (pod = subject, frutas = accent)
-  //   - INJETA deviceDescription da cascata (refs reais, banco, ou fallback)
-  //   - INJETA ART_QUALITY_RULES literais no prompt (proporção, sem distorção, sem texto)
-  //   - deviceColor ainda usado pra reforçar cor real
-  const prompt = `Ultra-realistic product photography of a vape pod device. ` +
-    `Device specifications: ${deviceDescription}. Body color: ${deviceColor}. ` +
-    `${ART_QUALITY_RULES.deviceMaxSize}. ` +
-    `${ART_QUALITY_RULES.noDistortion}. ` +
-    `${ART_QUALITY_RULES.position}. ` +
-    `Standing on a matte black reflective surface. ${ART_QUALITY_RULES.background}. ` +
-    `Fresh ${flavorEls} arranged naturally around the base of the device — real texture, visible juice, natural imperfections, as if just sliced. Tiny ice crystals and frost on fruit surfaces. ` +
-    `${ART_QUALITY_RULES.ingredientPlacement}. ` +
-    `${ART_QUALITY_RULES.lighting}. ` +
-    `Thin wisp of vapor rising behind the device with subtle pink and green tints. Water droplets on the device catching the neon light. ` +
-    `Cinematic, premium, dark and atmospheric — vibe of luxury e-commerce for premium youth tech. ` +
-    `${ART_QUALITY_RULES.noText}. ` +
-    `Shot on Phase One IQ4 150MP, 80mm lens, f/8 (deep focus on device). Hyper-detailed, 8K texture, commercial product photography for premium e-commerce. ` +
-    `Square format, 1024x1024 pixels${variationSuffix}`;
+  // OSSO 34.6: Dois modos de prompt comprovados.
+  let prompt;
+
+  if (useImg2Img) {
+    // ═══ IMG2IMG: Grok recebe a foto real → transforma CENÁRIO, preserva DEVICE ═══
+    prompt = [
+      `Transform this product photo into a cinematic dark premium e-commerce hero shot.`,
+      `KEEP THE DEVICE EXACTLY AS IT IS — same shape, same proportions, same colors, same brand markings. Do NOT change the product itself.`,
+
+      `${ART_QUALITY_RULES.position}.`,
+      `${ART_QUALITY_RULES.deviceMaxSize}.`,
+      `${ART_QUALITY_RULES.background}.`,
+
+      `Add fresh ${flavorEls} placed naturally around the base — real organic texture, visible juice, tiny ice crystals, natural imperfections.`,
+      `${ART_QUALITY_RULES.ingredientPlacement}.`,
+
+      `${ART_QUALITY_RULES.vapor}.`,
+      `${ART_QUALITY_RULES.lighting}.`,
+      `Tiny water droplets on the device surface catching neon rim light. Frost condensation near the base.`,
+
+      `Color grade: deep shadows, desaturated midtones, selective neon highlights. Dark moody atmosphere — premium Gen Z aesthetic.`,
+      `Hyper-detailed 8K texture. Commercial product photography.`,
+
+      `${ART_QUALITY_RULES.noText}.`,
+      `Square format 1024x1024.`,
+      qcFeedback ? `IMPORTANT CORRECTIONS: ${qcFeedback}` : '',
+      variationSuffix,
+    ].filter(Boolean).join(' ');
+  } else {
+    // ═══ TEXT-ONLY: descreve device + cenário (fallback sem referência) ═══
+    prompt = [
+      `Cinematic product photography of a single vape pod device.`,
+      `Device: ${deviceDescription}. Body color: ${deviceColor}.`,
+      `${ART_QUALITY_RULES.position}.`,
+      `${ART_QUALITY_RULES.deviceMaxSize}.`,
+      `${ART_QUALITY_RULES.noDistortion}.`,
+
+      `${ART_QUALITY_RULES.background}.`,
+
+      `Fresh ${flavorEls} placed naturally around the base — real organic texture, visible juice, tiny ice crystals.`,
+      `${ART_QUALITY_RULES.ingredientPlacement}.`,
+
+      `${ART_QUALITY_RULES.vapor}.`,
+      `${ART_QUALITY_RULES.lighting}.`,
+      `Tiny water droplets on the device surface catching neon rim light. Frost condensation near the base.`,
+
+      `Shot on Hasselblad X2D 100C, 90mm f/3.2 lens, f/5.6 aperture for deep focus.`,
+      `Color grade: deep shadows, desaturated midtones, selective neon highlights. Dark moody atmosphere — premium Gen Z vape culture aesthetic.`,
+      `Hyper-detailed 8K texture. Commercial e-commerce hero shot.`,
+
+      `${ART_QUALITY_RULES.noText}.`,
+      `Square format 1024x1024.`,
+      qcFeedback ? `IMPORTANT CORRECTIONS: ${qcFeedback}` : '',
+      variationSuffix,
+    ].filter(Boolean).join(' ');
+  }
 
   if (!XAI_API_KEY) {
     console.error("[Grok image] XAI_API_KEY not configured");
     return null;
   }
 
-  console.log("[Grok image] generating for:", fullName, "attempt:", attempt, "flavorEls:", flavorEls.slice(0, 60));
+  console.log("[Grok image] generating for:", fullName, "attempt:", attempt, "mode:", useImg2Img ? 'IMG2IMG' : 'TEXT-ONLY', "flavorEls:", flavorEls.slice(0, 60));
 
-  // Modelo: 'grok-imagine-image' (verificado em /v1/models). Sem campo image_url —
-  // Grok ignora silenciosamente, descobrimos via teste visual em 2026-04-30.
+  // OSSO 34.6: IMG2IMG usa /v1/images/edits, TEXT-ONLY usa /v1/images/generations
   const t0 = Date.now();
-  const r = await fetch("https://api.x.ai/v1/images/generations", {
+  let apiUrl, bodyPayload;
+
+  if (useImg2Img) {
+    apiUrl = "https://api.x.ai/v1/images/edits";
+    bodyPayload = {
+      model: "grok-imagine-image",
+      prompt,
+      image: { url: referenceImageUrl, type: "image_url" },
+      n: 1
+    };
+    console.log(`[Grok image] IMG2IMG ref: ${referenceImageUrl.substring(0, 80)}...`);
+  } else {
+    apiUrl = "https://api.x.ai/v1/images/generations";
+    bodyPayload = { model: "grok-imagine-image", prompt, n: 1 };
+  }
+
+  const r = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${XAI_API_KEY}`
     },
-    body: JSON.stringify({
-      model: "grok-imagine-image",
-      prompt,
-      n: 1
-    })
+    body: JSON.stringify(bodyPayload)
   });
 
   const data = await r.json();
   console.log("[Grok image] status:", r.status);
-  // OSSO 23 — log custo
   logApiCost('grok_image', {
     status: r.status,
     attempt,
+    mode: useImg2Img ? 'img2img' : 'text2img',
     ms: Date.now() - t0,
     full_name: fullName,
   }).catch(() => {});
 
   if (r.status >= 400) {
-    console.error("[Grok image] error:", JSON.stringify(data).slice(0, 400));
+    console.error(`[Grok image] error (${useImg2Img ? 'img2img' : 'text2img'}):`, JSON.stringify(data).slice(0, 500));
+    // Se img2img falhou, tenta text-only como fallback
+    if (useImg2Img) {
+      console.warn('[Grok image] img2img failed, falling back to text-only');
+      let fallbackDesc;
+      try { fallbackDesc = await getDeviceDescription(productCtx || { metadata: { brand, model } }); }
+      catch (e) { fallbackDesc = getDeviceBankDescription(brand, model) || 'compact rectangular pod device'; }
+      const fallbackPrompt = [
+        `Cinematic product photography of a single vape pod device.`,
+        `Device: ${fallbackDesc}. Body color: ${deviceColor}.`,
+        `${ART_QUALITY_RULES.position}.`, `${ART_QUALITY_RULES.deviceMaxSize}.`,
+        `${ART_QUALITY_RULES.background}.`,
+        `Fresh ${flavorEls} placed naturally around the base.`,
+        `${ART_QUALITY_RULES.vapor}.`, `${ART_QUALITY_RULES.lighting}.`,
+        `${ART_QUALITY_RULES.noText}.`, `Square format 1024x1024.`,
+      ].filter(Boolean).join(' ');
+      const rFb = await fetch("https://api.x.ai/v1/images/generations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${XAI_API_KEY}` },
+        body: JSON.stringify({ model: "grok-imagine-image", prompt: fallbackPrompt, n: 1 })
+      });
+      const dFb = await rFb.json();
+      if (rFb.status >= 400) return null;
+      return dFb.data?.[0]?.url || null;
+    }
     return null;
   }
 
@@ -2045,11 +4160,11 @@ async function handleAdminLucas(phone, msg, body) {
   const msgId = msg.id || msg.messageId || msg.key?.id;
   console.log("[handleAdminLucas] phone:", phone.slice(0, 6) + "***", "msgId:", msgId, "type:", msg.type || 'text');
 
-  // Dedup primário por msgId
-  if (msgId && alreadySeen(msgId)) {
-    console.log("[handleAdminLucas] ignored duplicate msgId:", msgId);
-    return;
-  }
+  // FIX MAIO/2026 — REMOVIDO o dedup primário por msgId aqui. O dedup global top-level
+  // (no entry do webhook, linha ~10660) já marca msgId no Map seenMessageIds via alreadySeen().
+  // Quando handleAdminLucas chamava alreadySeen(msgId) DE NOVO, o ID ja estava marcado pela
+  // chamada anterior, retornava true e MATAVA todas as mensagens reais do Andrade.
+  // Sintoma: "Motoboys briefing" e qualquer texto novo do admin nunca chegavam aos handlers.
 
   const hasImage = isImageMessage(msg);
   const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
@@ -2086,6 +4201,61 @@ async function handleAdminLucas(phone, msg, body) {
 
   // ========== COMANDOS DE TEXTO ==========
   if (!hasImage) {
+    console.log('[admin-router] text:', JSON.stringify((text || '').slice(0, 80)));
+
+    // FLC FASE 2 — Pricing do batch tem prioridade absoluta (user tá no flow de preço).
+    try {
+      const _pendingP = await getPending(phone);
+      const consumed = text && await tryHandleBatchPricing(phone, msg, body, text, _pendingP);
+      if (consumed) { console.log('[admin-router] consumed by tryHandleBatchPricing'); return; }
+    } catch (e) { console.warn('[FLC] tryHandleBatchPricing:', e.message); }
+
+    // FLC FASE 2 — Comandos de lote (lote / fechar lote / cancela lote).
+    try {
+      const _pendingB = await getPending(phone);
+      const consumed = text && await tryHandleBatchCommand(phone, msg, body, text, _pendingB);
+      if (consumed) { console.log('[admin-router] consumed by tryHandleBatchCommand'); return; }
+    } catch (e) { console.warn('[FLC] tryHandleBatchCommand:', e.message); }
+
+    // FLC FASE 1 — Comando "zerar estoque" tem PRIORIDADE absoluta entre os handlers de texto.
+    // Comando claro do admin nunca pode ser confundido com correção/briefing/cadastro.
+    try {
+      const _pendingZ = await getPending(phone);
+      const consumed = text && await tryHandleZeroStock(phone, msg, body, text, _pendingZ);
+      if (consumed) { console.log('[admin-router] consumed by tryHandleZeroStock'); return; }
+    } catch (e) { console.warn('[FLC] tryHandleZeroStock:', e.message); }
+
+    // MOTOBOY V2 — Comandos admin: motoboy add/remove/list, corrida #N, corridas
+    try {
+      const _pendingM = await getPending(phone);
+      console.log('[admin-router] entering tryHandleMotoboyAdminCommand. GRUPO_MOTOBOY_JID set:', !!GRUPO_MOTOBOY_JID);
+      const consumed = text && await tryHandleMotoboyAdminCommand(phone, msg, body, text, _pendingM);
+      if (consumed) { console.log('[admin-router] consumed by tryHandleMotoboyAdminCommand'); return; }
+    } catch (e) { console.warn('[motoboy admin]', e.message); }
+
+    // MOTOBOY V2 — Lifecycle no PRIVADO (motoboy manda "saí"/"entreguei"/"cancelo" direto pro bot,
+    // sem precisar ir no grupo). Funciona se phone do remetente tem corrida ativa como motoboy.
+    try {
+      if (text) {
+        const cmdLifecycle = _motoboyDetectComando(text);
+        if (cmdLifecycle) {
+          const moto = await _motoboyGetByPhone(phone);
+          if (moto) {
+            await _motoboyHandleLifecycle(GRUPO_MOTOBOY_JID || phone, body, moto, cmdLifecycle, text);
+            return;
+          }
+        }
+      }
+    } catch (e) { console.warn('[motoboy lifecycle priv]', e.message); }
+
+    // OSSO 35 (FIX 3D) — Detecta correção de baixa errada do PDV.
+    // Aciona ANTES de qualquer outro fluxo: se Andrade manda "errado, era X" / "não, era X",
+    // bot reverte a baixa errada (do log) e aplica baixa no produto correto.
+    // Só ativa se houver log recente (30min) sem correção. Senão, deixa fluxo normal.
+    try {
+      if (text && await tryHandleCorrection(phone, msg, body, text)) return;
+    } catch (e) { console.warn('[FIX 3D] tryHandleCorrection:', e.message); }
+
     // OSSO 33 — Resposta a briefing pendente tem prioridade quando NÃO é comando admin claro.
     // tryHandleBriefingResponse retorna true se consumiu (já mandou resposta).
     try {
@@ -2106,11 +4276,20 @@ async function handleAdminLucas(phone, msg, body) {
       }
     }
 
-    // CANCELA — funciona em qualquer pending
+    // CANCELA — funciona em qualquer pending. FIX 07/05/2026: mensagem contextual por modo.
     if (pending && (lower.includes('cancela') || lower.includes('desisto') || lower === 'sai')) {
       await clearPending(phone);
-      const what = pending.fullName || 'cadastro';
-      await sendText(phone, `✅ cancelado.\n\n${what} não foi cadastrado.\n\n• 'cadastra' — começa de novo\n• 'estoque' — ver estado`, body);
+      let cancelMsg = '✅ cancelado.';
+      if (pending.mode === 'batch_active') {
+        cancelMsg = `✅ Lote cancelado. ${pending.fotoCount || 0} fotos já processadas ficaram cadastradas (status=pending). Use o Admin Hub pra revisar.`;
+      } else if (pending.mode === 'batch_pricing') {
+        cancelMsg = '✅ Cancelado. Os novos ficaram em pending no Admin Hub.';
+      } else if (pending.mode === 'stock_entry') {
+        cancelMsg = `✅ Cancelado. ${pending.fullName || 'estoque'} não foi mexido.`;
+      } else if (pending.mode === 'awaiting_zero_confirm') {
+        cancelMsg = '✅ Cancelado. Estoque inalterado.';
+      }
+      await sendText(phone, cancelMsg, body);
       return;
     }
 
@@ -2240,55 +4419,12 @@ async function handleAdminLucas(phone, msg, body) {
       return;
     }
 
-    // FIX TARDE 8 (BUG SIM REINICIA): handler de continua/recomeça quando há cadastro
-    // ativo e Lucas tentou iniciar outro. Tem prioridade ANTES do gatilho 'cadastra'.
-    if (pending && pending.awaiting_user_decision === 'continua_recomeca') {
-      if (lower === 'continua' || lower === 'continuar' || lower === 'continuo') {
-        delete pending.awaiting_user_decision;
-        await setPending(phone, pending);
-        if (pending.step === 'awaiting_confirm') {
-          await sendText(phone, `↩️ voltei ao cadastro de *${pending.fullName || ''}*`, body);
-          await buildAndShowPreview(phone, pending, body);
-        } else if (pending.step === 'awaiting_price') {
-          await sendText(phone, `↩️ voltei\n\n💰 *preço do ${pending.brand} ${pending.model || ''}*\n\ndigita só o número (ex: 110)\n\n• 'cancela' — para`.trim(), body);
-        } else if (pending.step === 'awaiting_model') {
-          await sendText(phone, `↩️ voltei\n\ndigita o *modelo*\n\n• ex: MO20000, BC15K\n• 'sem modelo' — cadastra sem`, body);
-        } else if (pending.step === 'awaiting_brand') {
-          await sendText(phone, `↩️ voltei\n\ndigita a *marca*\n\n• ex: Elfbar, Hidden Hills\n• 'sem marca' — cadastra sem`, body);
-        } else {
-          await sendText(phone, `↩️ voltei\n\nstep: ${pending.step}`, body);
-        }
-        return;
-      }
-      if (lower === 'recomeça' || lower === 'recomeca' || lower === 'recomeçar' || lower === 'recomecar' || lower === 'novo') {
-        await clearPending(phone);
-        await setPending(phone, { mode: 'cadastro_3photos', step: 'awaiting_caixa', photos: {} });
-        await sendText(phone, "↩️ recomeçando do zero\n\n📸 *1/2* — foto da CAIXA\n\nmanda a foto da caixa do pod.\n\n• 'cancela' — para", body);
-        return;
-      }
-      // Não entendeu — re-pergunta
-      await sendText(phone, "tem cadastro pendente.\n\n• 'continua' — volta onde parou\n• 'recomeça' — apaga e começa outro", body);
-      return;
-    }
-
-    // GATILHO CADASTRO — começa nova state machine (caixa → pod → barcode digitado)
+    // GATILHO CADASTRO LEGACY — DEPRECATED 07/05/2026.
+    // Handler "continua_recomeca" tambem foi removido (era do fluxo cadastro_3photos legacy).
+    // Antes iniciava fluxo cadastro_3photos (1 produto por vez via state machine).
+    // Hoje: batch (lote) processa tudo de uma vez. Redireciona o usuario.
     if (lower === 'cadastra' || lower === 'cadastrar' || lower === 'novo') {
-      // FIX TARDE 8 (BUG SIM REINICIA): se já tem cadastro em andamento em fase avançada,
-      // perguntar antes de sobrescrever. Em fase precoce (awaiting_caixa/awaiting_pod) é
-      // restart legítimo (Lucas mandou foto errada e quer recomeçar) → limpa e segue.
-      if (pending && pending.mode === 'cadastro_3photos' &&
-          ['awaiting_confirm', 'awaiting_price', 'awaiting_model', 'awaiting_brand'].includes(pending.step)) {
-        pending.awaiting_user_decision = 'continua_recomeca';
-        await setPending(phone, pending);
-        await sendText(phone,
-          `⚠️ você tem um cadastro em andamento: ${pending.fullName || '(sem nome ainda)'}\nstep atual: ${pending.step}\n\nresponde:\n• 'continua' pra voltar onde parou\n• 'recomeça' pra apagar e cadastrar outro`,
-          body);
-        return;
-      }
-      // Sem pending OU pending em fase precoce → restart limpo
-      if (pending) await clearPending(phone);
-      await setPending(phone, { mode: 'cadastro_3photos', step: 'awaiting_caixa', photos: {} });
-      await sendText(phone, "📸 *1/2* — foto da CAIXA\n\nmanda a foto da caixa do pod.\n\n• 'cancela' — para", body);
+      await sendText(phone, "📸 cadastro 1-by-1 foi descontinuado. Usa *lote* agora:\n\n• manda 'lote' pra começar\n• manda quantas fotos quiser\n• manda 'fechar lote' quando terminar", body);
       return;
     }
 
@@ -2301,7 +4437,7 @@ async function handleAdminLucas(phone, msg, body) {
       const pendingArt = await sbGet('drope_products',
         `image_status=in.(pending_art,pending_regeneration,error,generating)&order=created_at.desc&limit=1`);
       if (!pendingArt.length) {
-        await sendText(phone, "✅ nenhum produto pendente 🦎\n\n• 'cadastra' — novo\n• 'estoque' — ver tudo", body);
+        await sendText(phone, "✅ nenhum produto pendente 🦎\n\n• 'lote' — cadastra novos\n• 'estoque' — ver tudo", body);
         return;
       }
       const product = pendingArt[0];
@@ -2345,7 +4481,9 @@ async function handleAdminLucas(phone, msg, body) {
       return;
     }
 
-    // GATILHO ABASTECIMENTO — começa state machine de reposição de estoque
+    // GATILHO ABASTECIMENTO LEGACY — DEPRECATED 07/05/2026.
+    // O fluxo de abastecimento (state machine separada) foi unificado no batch.
+    // Hoje: 'lote' faz cadastro novo E reposicao (matched_existing soma qty).
     if (!pending && (
       lower === 'chegou' ||
       lower === 'chegou estoque' ||
@@ -2359,8 +4497,7 @@ async function handleAdminLucas(phone, msg, body) {
       lower === 'reposicao' ||
       lower === 'reposição'
     )) {
-      await setPending(phone, { mode: 'abastecimento', step: 'awaiting_photos', identified: [], unrecognized: [], photoCount: 0 });
-      await sendText(phone, "📦 *modo abastecimento*\n\nmanda as fotos do que chegou\n(1 ou várias, com vários pods em cada).\n\n• 'pronto' — vai pro preview\n• 'cancela' — para", body);
+      await sendText(phone, "📦 abastecimento agora é *lote* — mesmo fluxo:\n\n• manda 'lote'\n• manda fotos do que chegou (produtos cadastrados somam estoque automatico, novos viram cadastro)\n• 'fechar lote' quando terminar", body);
       return;
     }
 
@@ -2676,7 +4813,7 @@ async function handleAdminLucas(phone, msg, body) {
         arr.findIndex(x => x.name === p.name) === i
       );
       if (!all.length) {
-        await sendText(phone, "✅ tudo certo 🦎\n\ntodos pods têm arte oficial no catálogo.\n\n• 'cadastra' — novo produto\n• 'estoque' — ver tudo\n• 'chegou' — abastece", body);
+        await sendText(phone, "✅ tudo certo 🦎\n\ntodos pods têm arte oficial no catálogo.\n\n• 'lote' — cadastra/abastece\n• 'estoque' — ver tudo", body);
         return;
       }
       // Categoriza por status pra Andrade ter clareza do que tá rolando
@@ -2721,11 +4858,11 @@ async function handleAdminLucas(phone, msg, body) {
     if (text && (lower.includes('estoque') || lower.includes('saldo'))) {
       const products = await sbGet('drope_products', 'select=name,qty_available,hidden,image_url&order=name');
       if (!products.length) {
-        await sendText(phone, "📦 estoque vazio\n\n• 'cadastra' — novo produto\n• 'chegou' — abastece", body);
+        await sendText(phone, "📦 estoque vazio\n\n• 'lote' — começa cadastro/abastecimento", body);
         return;
       }
       const list = products.map(p => `${p.name}: ${p.qty_available || 0}${p.hidden ? ' (sem preço)' : ''}`).join('\n');
-      await sendText(phone, `📦 *estoque atual*\n\n${list}\n\n• 'cadastra' — novo\n• 'chegou' — abastece\n• 'pendentes' — sem foto`, body);
+      await sendText(phone, `📦 *estoque atual*\n\n${list}\n\n• 'lote' — cadastra/abastece\n• 'pendentes' — sem foto`, body);
 
       // Avisa se tem pendentes do PDV
       const pendingCount = products.filter(p => p.hidden && !p.image_url).length;
@@ -2736,17 +4873,62 @@ async function handleAdminLucas(phone, msg, body) {
     }
 
     await sendText(phone,
-      "comandos:\n" +
-      "• 'cadastra' → cadastrar produto novo (foto da caixa → foto do pod → digita o código de barras → preview → preço)\n" +
-      "• 'chegou' / 'entrada' → modo abastecimento (manda fotos do mix, confirma e dá entrada)\n" +
-      "• manda foto direto sem comando → atalho 2 fotos (caixa → pod)\n" +
+      "🦎 *comandos drope*\n\n" +
+      "📦 *estoque*\n" +
+      "• 'lote' → cadastrar/abastecer (manda fotos, processa todas)\n" +
+      "• 'fechar lote' → finaliza lote em andamento\n" +
       "• 'estoque' → lista do que tem\n" +
-      "• 'pendentes' → pods do PDV sem foto",
+      "• 'pendentes' → pods sem foto/arte\n" +
+      "• 'zerar estoque' → marca tudo inactive (cuidado)\n\n" +
+      "🏍️ *motoboys*\n" +
+      "• 'motoboys' → lista whitelist\n" +
+      "• 'motoboys briefing' → orienta no grupo\n" +
+      "• 'motoboy add 5511XXX Nome' → cadastra novo\n" +
+      "• 'corrida #N' → posta corrida no grupo",
       body);
     return;
   }
 
   // ========== FOTO RECEBIDA ==========
+
+  // FLC FASE 2 (07/05/2026 - Andrade) — TODO cadastro de produto e abastecimento via foto
+  // passa pelo modo lote. Sem flow legacy de single-photo cadastro_2_fotos.
+  // Regras:
+  //   - Se já tem batch_active OU não tem pending nenhum → modo lote (cria auto se necessario)
+  //   - Se há outro pending especifico (cadastro_3photos, abastecimento, art_review, etc) →
+  //     respeita o pending atual (Lucas iniciou um fluxo formal)
+  {
+    let _pendingBatch = await getPending(phone);
+    const SPECIFIC_FLOWS = ['cadastro_3photos', 'abastecimento', 'art_review', 'art_review_failed', 'awaiting_zero_confirm', 'batch_pricing', 'stock_entry'];
+    const inSpecificFlow = _pendingBatch && SPECIFIC_FLOWS.includes(_pendingBatch.mode);
+
+    if (!inSpecificFlow) {
+      // Se não tem batch ativo, cria silenciosamente e processa a foto como batch
+      if (!_pendingBatch || _pendingBatch.mode !== 'batch_active') {
+        _pendingBatch = {
+          mode: 'batch_active',
+          batch_id: _flcUuid(),
+          startedAt: Date.now(),
+          lastPhotoAt: Date.now(),
+          fotoCount: 0,
+          errorCount: 0,
+          matched: [],
+          novos: [],
+          autoCreated: true,
+        };
+        await setPending(phone, _pendingBatch);
+        // Aviso curto pra Andrade saber que ativou
+        sendText(phone,
+          '📸 Modo lote ativado (auto). Pode mandar mais fotos.\n' +
+          'Quando terminar, "fechar lote".',
+          body).catch(() => {});
+      }
+      try {
+        if (await tryHandleBatchPhoto(phone, msg, body, _pendingBatch)) return;
+      } catch (e) { console.warn('[FLC] tryHandleBatchPhoto:', e.message, e.stack); }
+    }
+  }
+
   const imageUrl = await getMediaUrl(msg, body);
   if (!imageUrl) {
     await sendText(phone, "⚠️ não consegui ler a imagem.\n\n• manda de novo\n• 'cancela' — para", body);
@@ -2846,34 +5028,14 @@ async function handleAdminLucas(phone, msg, body) {
     return;
   }
 
-  // FLUXO LEGACY 2 FOTOS — comportamento antigo (compatibilidade total)
-  if (pending) {
-    await clearPending(phone);
-    await sendText(phone, "📸 combinando caixa + pod...", body);
-    await processProductRegistration(phone, pending.caixaUrl, imageUrl, pending.preComputedData, body);
-    return;
-  }
-
-  // 1a foto: deve ser a CAIXA. Analisa pra confirmar e salva pendente.
-  await sendText(phone, "📸 lendo a caixa...", body);
-  const data = await analyzeProductImage(imageUrl);
-  if (!data) {
-    await sendText(phone, "⚠️ foto desfocada.\n\n• manda outra mais nítida (frente da caixa)\n• 'cancela' — para", body);
-    return;
-  }
-  if (data.alertas?.includes('nao parece pod') || (!data.brand && !data.flavor_en)) {
-    await sendText(phone, "⚠️ não parece pod.\n\n• manda a foto da *CAIXA* primeiro\n• 'cancela' — para", body);
-    return;
-  }
-
-  const brand = data.brand || 'UNKNOWN';
-  const model = data.model || '';
-  const flavor = data.flavor_en || data.flavor_pt || 'unknown';
-  const fullName = `${brand} ${model} ${flavor}`.replace(/\s+/g, ' ').trim();
-
-  await setPending(phone, { caixaUrl: imageUrl, fullName, preComputedData: data });
+  // FLC FASE 2 (07/05/2026) — FLOW LEGACY 1-foto / 2-fotos REMOVIDO.
+  // Andrade quer todo cadastro/abastecimento via batch. Se chegou aqui, eh
+  // porque tryHandleBatchPhoto deu exception OU ha pending de fluxo desconhecido.
+  // Mensagem fallback (sem clearPending — preserva qualquer batch ativo):
+  console.warn(`[admin foto fallback] pending mode=${pending?.mode || 'null'} — nao casou em nenhum flow`);
   await sendText(phone,
-    `✅ *${fullName}*\n\n📸 manda a foto do POD pra eu pegar a cor real.\n\n• 'só essa' — usa só a caixa\n• 'cancela' — para`,
+    "⚠️ erro ao processar foto. Tenta de novo.\n\n" +
+    "Se persistir, manda 'cancela' e depois 'lote' antes de mandar fotos.",
     body);
 }
 
@@ -3552,9 +5714,50 @@ async function registerUnrecognizedFromAbastecimento(phone, pending, indexOrAll,
   return created;
 }
 
-// ============ FLUXO BAIXA ESTOQUE (CAIXA) — placeholder ============
+// ============ FLUXO PDV — BAIXA ESTOQUE POR FOTO (loja + Yasmin) ============
+// Foto → Vision identifica → dá baixa automática no estoque.
+// Texto "estoque" → mostra saldo atual.
 async function handleAdminCaixa(phone, msg, body) {
-  await sendText(phone, "⚠️ modo caixa não migrado pra drope_products.\n\n• fala com Andrade", body);
+  const hasImage = isImageMessage(msg);
+  const text = asString(msg.text) || asString(msg.content) || asString(msg.caption);
+  const lower = (text || '').toLowerCase().trim();
+
+  // FIX MAIO/2026 — REMOVIDO o alreadySeen aqui. Dedup global top-level ja marca msgId.
+  // Manter essa chamada redundante matava a 1a request real (mesmo bug do handleAdminLucas).
+
+  // FOTO = baixa de estoque
+  if (hasImage) {
+    await handleStockPhoto(phone, msg, body);
+    return;
+  }
+
+  // Comandos de texto simples pro PDV
+  if (lower === 'estoque' || lower === 'saldo') {
+    const products = await sbGet('drope_products', 'select=name,qty_available,hidden&hidden=eq.false&qty_available=gt.0&order=name&limit=200');
+    if (!products || products.length === 0) {
+      await sendText(phone, "📦 estoque zerado em tudo.\n\navisa o Andrade", body);
+      return;
+    }
+    const list = products.map(p => `${p.name}: ${p.qty_available}`).join('\n');
+    await sendText(phone, `📦 *estoque atual*\n\n${list}`, body);
+    return;
+  }
+
+  if (lower === 'ajuda' || lower === 'help' || lower === '?') {
+    await sendText(phone,
+      "🦎 *modo PDV*\n\n" +
+      "📸 manda foto do pod vendido → baixa automática\n" +
+      "📦 'estoque' → ver saldo\n" +
+      "❓ 'ajuda' → esse menu", body);
+    return;
+  }
+
+  // Qualquer outro texto
+  await sendText(phone,
+    "🦎 modo PDV ativo\n\n" +
+    "📸 foto do pod = baixa estoque\n" +
+    "📦 'estoque' = ver saldo\n" +
+    "❓ 'ajuda' = comandos", body);
 }
 
 // ============ MODO ESTOQUE POR FOTO (TEMPORÁRIO — 02/05/2026) ============
@@ -3607,46 +5810,121 @@ async function handleStockPhoto(phone, msg, body) {
     return;
   }
 
+  // OSSO 35 — separa mensagens em 2 buckets:
+  //   results = sucessos vão pro grupo (silencioso)
+  //   adminAlerts = problemas vão pro ADMIN_LUCAS no privado (não polui grupo)
+  // Fluxo Andrade quer: grupo só pra venda confirmada. Erro/ambiguidade resolve por privado dele.
+  const isFromGroup = String(phone).endsWith('@g.us');
+  const adminAlerts = [];
+
+  // OSSO 35 (FIX 3D) — Logger de toda decisao em drope_vision_log.
+  // Guarda predicao + confidence + decisao pra suportar aprendizado por correcao.
+  const senderPhone = msg.sender_pn?.replace(/[^0-9]/g, '') || msg.sender?.replace(/[^0-9]/g, '') || phone.replace(/[^0-9]/g, '');
+  const senderName = msg.senderName || null;
+  const photoUrl = msg.fileURL || (typeof imageUrl === 'string' && !imageUrl.startsWith('data:') ? imageUrl : null);
+  async function _logVisionDecision(p, decision, matched, score, qtyDeducted = 0) {
+    try {
+      await sbInsert('drope_vision_log', {
+        photo_url: photoUrl,
+        group_jid: isFromGroup ? phone : null,
+        sender_phone: senderPhone || null,
+        sender_name: senderName,
+        vision_response: p,
+        predicted_product_id: matched?.id || null,
+        predicted_product_name: matched?.name || null,
+        predicted_score: typeof score === 'number' ? score : null,
+        predicted_confidence: typeof p?.flavor_confidence === 'number' ? p.flavor_confidence : null,
+        decision,
+        qty_deducted: qtyDeducted,
+      });
+    } catch (e) { console.warn('[vision_log] erro ao gravar:', e.message); }
+  }
+
   for (const p of analysis.products) {
     const qty = Math.max(1, parseInt(p.qty) || 1);
     const searchTerms = [p.brand, p.model, p.flavor_en, p.flavor_pt].filter(Boolean);
 
     if (searchTerms.length === 0) {
-      results.push(`❓ produto nao identificado`);
+      adminAlerts.push(`❓ produto nao identificado`);
+      await _logVisionDecision(p, 'nao_identificado', null, null, 0);
       continue;
     }
 
-    // Match fuzzy: score por keyword no nome/slug/metadata
-    let matched = null;
-    let bestScore = 0;
-    for (const prod of allProducts) {
-      const meta = prod.metadata || {};
-      const haystack = `${prod.name || ''} ${prod.slug || ''} ${meta.brand || ''} ${meta.model || ''} ${meta.flavor_en || ''} ${meta.flavor_pt || ''}`.toLowerCase();
-      let score = 0;
-      for (const term of searchTerms) {
-        const tLower = String(term).toLowerCase().trim();
-        if (!tLower) continue;
-        // Match completo (vale +2)
-        if (haystack.includes(tLower)) score += 2;
-        // Match por palavra (vale +1 cada palavra >= 3 chars)
-        for (const word of tLower.split(/[\s\-_]+/)) {
-          if (word.length >= 3 && haystack.includes(word)) score += 1;
-        }
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        matched = prod;
-      }
+    // OSSO 35 — Gate de confianca no sabor (briefing 06/05/2026)
+    // Se Vision nao leu o sabor com confianca, NAO baixa estoque automaticamente.
+    // Pergunta pro grupo qual e o produto certo.
+    const conf = (typeof p.flavor_confidence === 'number') ? p.flavor_confidence : null;
+    const flavorMissing = !p.flavor_en && !p.flavor_pt;
+    if (flavorMissing || (conf !== null && conf < 0.7)) {
+      const palpite = [p.brand, p.model, p.flavor_en || p.flavor_pt || '?sabor'].filter(Boolean).join(' ');
+      const motivo = flavorMissing
+        ? "nao consegui ler o sabor na embalagem"
+        : `confianca baixa (${Math.round(conf * 100)}%) na leitura do sabor`;
+      adminAlerts.push(`🤔 ${palpite} — ${motivo}. NAO dei baixa. Manda foto melhor (mais perto do rotulo) ou me diz o nome exato do sabor.`);
+      await _logVisionDecision(p, 'sabor_baixo', null, null, 0);
+      continue;
     }
 
-    if (!matched || bestScore < 2) {
+    // OSSO 35 — Match inteligente Levenshtein + decisao tripla
+    // Score 0-100 (marca 30, modelo 25, sabor 35, bonus 10).
+    // - Score >= 80: match firme, baixa estoque direto
+    // - Score 50-79:  ambiguo, pergunta no grupo (NAO baixa)
+    // - Score <  50:  nao encontrou, avisa
+    const visionTerms = { brand: p.brand, model: p.model, flavor_en: p.flavor_en, flavor_pt: p.flavor_pt };
+    const ranking = allProducts
+      .map(prod => ({ prod, score: _matchScore(visionTerms, prod) }))
+      .sort((a, b) => b.score - a.score);
+    const top1 = ranking[0] || { prod: null, score: 0 };
+    const top2 = ranking[1] || { prod: null, score: 0 };
+    const matched = top1.prod;
+    const matchScore = top1.score;
+
+    if (!matched || matchScore < 50) {
       const label = searchTerms.join(' ');
-      results.push(`❓ "${label}" — nao encontrei no catalogo`);
+      adminAlerts.push(`❓ ${label} — nao encontrei no catalogo (melhor match: ${Math.round(matchScore)}%)`);
+      await _logVisionDecision(p, 'nao_encontrou', matched, matchScore, 0);
+      // SISTEMA IMUNE 07/05/2026: registra venda pendente. Quando Andrade cadastrar
+      // depois, o tryHandleBatchPhoto busca matching e aplica baixa retroativa.
+      try {
+        await sbInsert('drope_pending_sales', {
+          vendedor_phone: phone,
+          group_jid: isFromGroup ? phone : null,
+          vision_brand: p.brand || null,
+          vision_model: p.model || null,
+          vision_flavor_en: p.flavor_en || null,
+          vision_flavor_pt: p.flavor_pt || null,
+          vision_search_terms: label,
+          qty,
+          vision_score: matchScore,
+          candidate_product_id: matched?.id || null,
+          candidate_score: matchScore,
+          status: 'pending',
+        });
+      } catch (e) { console.warn('[pending_sales insert]', e.message); }
+      continue;
+    }
+
+    // Score 50-79: ambiguo. Manda alerta pro admin privado, NAO baixa.
+    if (matchScore < 80) {
+      const candidato1 = `${matched.name} (${Math.round(matchScore)}%)`;
+      const candidato2 = top2.prod && top2.score >= 50
+        ? `\nou: ${top2.prod.name} (${Math.round(top2.score)}%)`
+        : '';
+      adminAlerts.push(`🤔 ${searchTerms.join(' ')} — match ambiguo. Acho que e: ${candidato1}${candidato2}\nNAO dei baixa. Confirma o nome exato.`);
+      await _logVisionDecision(p, 'ambiguo', matched, matchScore, 0);
+      continue;
+    }
+
+    // Score >= 80: match firme. Se top2 tambem e alto e PROXIMO do top1, ainda e ambiguo.
+    if (top2.score >= 75 && (top1.score - top2.score) < 8) {
+      adminAlerts.push(`🤔 2 produtos parecidos: "${matched.name}" (${Math.round(top1.score)}%) vs "${top2.prod.name}" (${Math.round(top2.score)}%). NAO dei baixa. Qual e o certo?`);
+      await _logVisionDecision(p, 'ambiguo', matched, matchScore, 0);
       continue;
     }
 
     if ((matched.qty_available || 0) <= 0) {
-      results.push(`⚠️ ${matched.name} — estoque ja zerado!`);
+      adminAlerts.push(`⚠️ ${matched.name} — estoque ja zerado, alguem quis vender o que nao tem.`);
+      await _logVisionDecision(p, 'estoque_zerado', matched, matchScore, 0);
       continue;
     }
 
@@ -3690,6 +5968,8 @@ async function handleStockPhoto(phone, msg, body) {
     if (updated) {
       const boxTag = updateData.box_photo_url ? ' 📦+' : '';
       results.push(`✅ -${qty} ${matched.name}${boxTag} | restam: ${newQty}`);
+      // OSSO 35 (FIX 3D) — log da decisao pra suporte de aprendizado por correcao
+      await _logVisionDecision(p, 'baixa', matched, matchScore, qty);
       // Log auditoria (best-effort)
       logSystemEvent('stock_photo_deduct', {
         product_id: matched.id,
@@ -3707,11 +5987,49 @@ async function handleStockPhoto(phone, msg, body) {
         results.push(`⚠️ estoque baixo! so restam ${newQty}`);
       }
     } else {
-      results.push(`❌ erro ao dar baixa em ${matched.name}`);
+      adminAlerts.push(`❌ erro ao dar baixa em ${matched.name}`);
+      await _logVisionDecision(p, 'erro', matched, matchScore, 0);
     }
   }
 
-  await sendText(phone, results.join('\n'), body);
+  // OSSO 35 + FAXINA 07/05/2026 — Envio final em 3 destinos:
+  //   1. Grupo (ou privado original): só sucessos (✅ baixa, 🔴 zerou pos-baixa, ⚠️ estoque baixo)
+  //   2. ADMIN_LUCAS privado: problemas que precisam intervencao manual
+  //   3. Grupo PDV: confirmacao curta pro vendedor saber que o bot processou
+  //      (antes Yasmin ficava no escuro quando produto nao tava cadastrado)
+  if (results.length > 0) {
+    await sendText(phone, results.join('\n'), body);
+  }
+  if (adminAlerts.length > 0) {
+    if (isFromGroup) {
+      // Mensagem do grupo: alerta vai pro Andrade no privado
+      const header = `🦎 ALERTA PDV (grupo Estoque):`;
+      await sendText(ADMIN_LUCAS, [header, ...adminAlerts].join('\n'), body);
+      // Feedback CURTO no grupo pra vendedor saber que o bot viu (sem expor specs)
+      if (results.length === 0) {
+        // Soh alerta, nenhuma baixa: vendedor precisa saber pra entregar mesmo assim
+        const naoEncontrei = adminAlerts.filter(a => a.startsWith('❓')).length;
+        const ambiguos = adminAlerts.filter(a => a.startsWith('🤔')).length;
+        const erros = adminAlerts.filter(a => a.startsWith('❌') || a.startsWith('⚠️')).length;
+        let msgGrupo = '';
+        if (naoEncontrei > 0) {
+          msgGrupo = `❓ ${naoEncontrei === 1 ? 'pod' : naoEncontrei + ' pods'} não cadastrado${naoEncontrei > 1 ? 's' : ''} ainda. Já avisei o Andrade — pode entregar pro cliente, ele cadastra depois.`;
+        } else if (ambiguos > 0) {
+          msgGrupo = `🤔 ${ambiguos === 1 ? 'pod' : ambiguos + ' pods'} com nome parecido — não dei baixa pra não errar. Andrade vai confirmar.`;
+        } else if (erros > 0) {
+          msgGrupo = `⚠️ deu ruim no estoque desse pod. Andrade ja foi avisado.`;
+        }
+        if (msgGrupo) await sendText(phone, msgGrupo, body);
+      }
+    } else if (phone === ADMIN_LUCAS) {
+      // Andrade no privado dele mesmo: junta tudo numa msg
+      await sendText(phone, adminAlerts.join('\n'), body);
+    } else {
+      // Outro PDV no privado (Pai, Tia, Yasmin diretamente): manda problema pra eles + copia pro Andrade
+      await sendText(phone, adminAlerts.join('\n'), body);
+      await sendText(ADMIN_LUCAS, [`🦎 ALERTA PDV (vindo do privado de ${phone.slice(0,6)}***):`, ...adminAlerts].join('\n'), body);
+    }
+  }
 }
 
 // ============ ATENDIMENTO CLIENTE (Claude Haiku) ============
@@ -3915,8 +6233,8 @@ function clearLastQuery(phone) {
 // timeout próprio, não bloqueia o webhook original do UazAPI.
 async function runArtGeneration(productId, phone, attempt) {
   console.log(`[runArtGeneration] START productId=${productId} phone=${phone?.slice(0,6)}*** attempt=${attempt}`);
-  const rows = await sbGet('drope_products', `id=eq.${productId}&select=id,name,image_url,image_status,metadata,price_cents,reference_image_url&limit=1`);
-  const product = rows[0];
+  let rows = await sbGet('drope_products', `id=eq.${productId}&select=id,name,image_url,image_status,metadata,price_cents,reference_image_url,box_photo_url,ref_status&limit=1`);
+  let product = rows[0];
   if (!product) {
     console.error('[runArtGeneration] product not found:', productId);
     // FIX TARDE 7: NUNCA falhar silenciosa. Manda msg pro Lucas sempre.
@@ -3926,6 +6244,21 @@ async function runArtGeneration(productId, phone, attempt) {
       } catch (e) { console.error('[runArtGeneration] sendText fail:', e.message); }
     }
     return;
+  }
+
+  // FLC FASE 4 (07/05/2026) — Se nao tem reference_image_url, tenta autoFindReference primeiro
+  // (Vision compara com box_photo_url como ground truth). Sem referencia, IMG2IMG nao roda
+  // e a arte sai genérica em TEXT-ONLY. Auto-discover aqui evita esse problema.
+  if (!product.reference_image_url && SERPER_API_KEY) {
+    console.log(`[runArtGeneration] sem ref — tentando autoFindReference primeiro`);
+    try {
+      const refUrl = await autoFindReference(product);
+      if (refUrl) {
+        // Re-busca product com a nova ref
+        rows = await sbGet('drope_products', `id=eq.${productId}&select=id,name,image_url,image_status,metadata,price_cents,reference_image_url,box_photo_url,ref_status&limit=1`);
+        product = rows[0] || product;
+      }
+    } catch (e) { console.warn('[runArtGeneration] autoFindReference:', e.message); }
   }
 
   const meta = product.metadata || {};
@@ -3939,26 +6272,58 @@ async function runArtGeneration(productId, phone, attempt) {
   const fullName = product.name;
   const slug = slugify(brand || 'pod', model, flavor || 'art');
 
-  // Vision sobre reference_image_url é feito dentro de generatePadraoAPlus → getDeviceDescription.
-  // Removido segundo Vision call aqui (era dead code: deviceVisualDetailed nunca chegava no prompt).
   console.log(`[runArtGeneration] starting productId=${productId}, attempt=${attempt}, hasRef=${!!product.reference_image_url}`);
 
-  // OSSO 28B — passa productCtx pra cascata de descrição (ref → box → bank → fallback)
-  const grokDataUrl = await generatePadraoAPlus(brand, model, flavor, cores, deviceVisual, attempt, flavorElements, deviceVisualDetailed, product);
-  console.log(`[runArtGeneration] generatePadraoAPlus productId=${productId}: ${grokDataUrl ? 'GOT URL' : 'NULL'}`);
+  // OSSO 34.6 — IMG2IMG principal, TEXT-ONLY fallback:
+  // Com referência → Grok /v1/images/edits (manda foto real, transforma cenário ao redor)
+  // Sem referência → Grok /v1/images/generations (gera tudo do zero com texto)
+  // IMG2IMG COMPROVADO: gerou arte perfeita do EBCREATE BC PRO 40K (05/05/2026)
+  const qcDeviceDesc = deviceVisualDetailed || deviceVisual || `${brand || ''} ${model || ''} pod device`.trim();
   let pendingArtUrl = null;
-  if (grokDataUrl) {
+  const maxQcAttempts = 2;
+  let qcAttempt = 0;
+  let qcFeedback = '';
+
+  while (qcAttempt < maxQcAttempts && !pendingArtUrl) {
+    qcAttempt++;
+    const currentAttempt = attempt + qcAttempt - 1;
+    const mode = product.reference_image_url ? 'IMG2IMG' : 'TEXT-ONLY';
+    console.log(`[runArtGeneration] ${mode} attempt ${qcAttempt}/${maxQcAttempts}, productId=${productId}`);
+
+    // generatePadraoAPlus detecta reference_image_url e escolhe img2img vs text-only
+    const grokDataUrl = await generatePadraoAPlus(brand, model, flavor, cores, deviceVisual, currentAttempt, flavorElements, deviceVisualDetailed, product, qcFeedback);
+    console.log(`[runArtGeneration] generatePadraoAPlus productId=${productId}: ${grokDataUrl ? 'GOT URL' : 'NULL'}`);
+
+    if (!grokDataUrl) break;
+
     const imgData = await downloadImage(grokDataUrl);
     console.log(`[runArtGeneration] downloadImage productId=${productId}: ${imgData ? 'OK' : 'FAILED'}`);
-    if (imgData) {
-      const uploadName = attempt > 1 ? `${slug}-v${attempt}` : slug;
-      // Aplica selo do camaleão antes do upload (overlay programático, não distorce como IA)
+    if (!imgData) break;
+
+    // QC com Vision — Rutem avalia
+    const qcResult = await evaluateArtQuality(imgData, fullName, flavor, qcDeviceDesc);
+    console.log(`[runArtGeneration] QC productId=${productId}: approved=${qcResult.approved}, score=${qcResult.score}`);
+
+    if (qcResult.approved || qcAttempt >= maxQcAttempts) {
+      const uploadName = currentAttempt > 1 ? `${slug}-v${currentAttempt}` : slug;
       const sealedImgData = await applyDropeSeal(imgData);
-      console.log(`[runArtGeneration] applyDropeSeal productId=${productId}: bytes=${sealedImgData?.length || 0}`);
       pendingArtUrl = await uploadToStorage(uploadName, sealedImgData, 'image/png');
       console.log(`[runArtGeneration] uploadToStorage productId=${productId}: ${pendingArtUrl ? 'OK' : 'FAILED'}`);
+
+      const qcMeta = {
+        qc_score: qcResult.score, qc_approved: qcResult.approved, qc_attempts: qcAttempt,
+        art_mode: product.reference_image_url ? 'img2img' : 'text_only',
+      };
+      if (qcResult.issues?.length) qcMeta.qc_issues = qcResult.issues;
+      await sbUpdate('drope_products', `id=eq.${productId}`, {
+        metadata: { ...meta, ...qcMeta, last_art_attempt: currentAttempt }
+      });
+    } else {
+      qcFeedback = qcResult.feedback || (qcResult.issues || []).join('. ');
+      console.log(`[runArtGeneration] QC REJECTED productId=${productId}, feedback: ${qcFeedback}`);
     }
   }
+
   console.log(`[runArtGeneration] RESULT productId=${productId}: ${pendingArtUrl ? 'SUCCESS' : 'FAILED'}`);
 
   if (!pendingArtUrl) {
@@ -3995,9 +6360,8 @@ async function runArtGeneration(productId, phone, attempt) {
     brand, model, flavor, cores, deviceVisual,
   });
 
-  // Manda base64 direto pro WhatsApp (UazAPI pode não conseguir acessar URL do Supabase Storage)
-  // grokDataUrl = "data:image/png;base64,..." — sendImage extrai o base64 puro
-  const imageToSend = grokDataUrl || pendingArtUrl;
+  // Manda URL do Supabase Storage pro WhatsApp
+  const imageToSend = pendingArtUrl;
   await sendImage(phone, imageToSend, attempt > 1
     ? `versão ${attempt} — ficou melhor?`
     : `arte do ${fullName} ficou assim. aprova?`, {});
@@ -5433,6 +7797,44 @@ async function handleRunReorder(req, res) {
 
 // FEATURE 4 — Dashboard matinal
 // Resumo das últimas 24h enviado pro WhatsApp do Lucas. Cron diário 9h SP (12h UTC).
+// FLC FASE 6 (07/05/2026) — Auto-close de batches abandonados.
+// Piggyback no daily_dashboard: roda 1x/dia, fecha batches do Andrade que
+// ficaram presos em batch_active >2h sem foto nova. Resolve o caso visto hoje
+// onde Andrade tinha pending batch_active de 8h atras travando o fluxo.
+async function autoCloseAbandonedBatches() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return { closed: 0, errors: 0, skipped: 0 };
+  let closed = 0, errors = 0, skipped = 0, found = 0;
+  try {
+    // Le todos pendings (filtro do mode no cliente, jsonb sem indice)
+    const rows = await sbGet('drope_pending_state', 'select=phone,state,updated_at&order=updated_at.desc&limit=100');
+    if (!Array.isArray(rows)) return { closed: 0, errors: 0, skipped: 0 };
+    const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h
+    for (const row of rows) {
+      const state = row.state || {};
+      if (state.mode !== 'batch_active') continue;
+      found++;
+      const lastTouch = state.lastPhotoAt || state.startedAt || new Date(row.updated_at).getTime();
+      if (lastTouch > cutoff) { skipped++; continue; } // ainda recente
+      try {
+        // Simula fechar lote pelo proprio Andrade
+        await closeBatch(row.phone, state, {});
+        closed++;
+        await sendText(row.phone,
+          `⏰ Lote anterior estava aberto ha mais de 2h sem fotos novas. Fechei automaticamente. Manda 'lote' pra começar outro.`,
+          {});
+        try { await logSystemEvent('batch_auto_closed', { phone: row.phone, fotoCount: state.fotoCount || 0, batch_id: state.batch_id }, row.phone); } catch (_) {}
+      } catch (e) {
+        console.warn('[auto-close-batch] err:', row.phone, e.message);
+        errors++;
+      }
+    }
+  } catch (e) {
+    console.warn('[auto-close-batch] outer err:', e.message);
+  }
+  console.log(`[auto-close-batch] found=${found} closed=${closed} skipped=${skipped} errors=${errors}`);
+  return { found, closed, skipped, errors };
+}
+
 async function handleDailyDashboard(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (!checkCronAuth(req)) {
@@ -5442,6 +7844,10 @@ async function handleDailyDashboard(req, res) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return res.status(500).json({ ok: false, error: 'supabase not configured' });
   }
+
+  // FLC FASE 6 — auto-close batches abandonados (piggyback no daily cron)
+  let autoClose = null;
+  try { autoClose = await autoCloseAbandonedBatches(); } catch (e) { console.warn('[daily_dashboard] auto-close err:', e.message); }
 
   const now = Date.now();
   const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
@@ -5535,7 +7941,27 @@ async function handleDailyDashboard(req, res) {
       unique_customers_week: uniqueCustomers,
     },
     log_cleanup: cleanup,
+    auto_close_batches: autoClose,
   });
+}
+
+// GET/POST /api/webhook?action=auto_close_batches&token=ADMIN_TOKEN
+// Endpoint manual pra forcar o auto-close (sem esperar o cron diario).
+// Util pra debug ou pra Andrade chamar quando quiser destravar manualmente.
+async function handleAutoCloseBatches(req, res) {
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  const headerTok = req.headers['x-admin-token'] || '';
+  if (!ADMIN_TOKEN || (headerTok !== ADMIN_TOKEN && queryTok !== ADMIN_TOKEN)) {
+    await new Promise(r => setTimeout(r, 800));
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  const result = await autoCloseAbandonedBatches();
+  return res.status(200).json({ ok: true, ...result });
 }
 
 // GET/POST /api/webhook?action=friday_briefing  — cron sexta 18h SP (21h UTC)
@@ -6045,6 +8471,216 @@ responde quando puder com preços e disponibilidade — fechamos hoje cedo.`;
   });
 }
 
+// ===== MERCADO PAGO PIX HANDLERS (05/05/2026) =====
+
+// Cria pagamento Pix via API do Mercado Pago, retorna QR code + copia-e-cola
+async function handleMPCreatePix(req, res) {
+  // CORS
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!MP_ACCESS_TOKEN) {
+    return res.status(500).json({ error: 'MP_ACCESS_TOKEN not configured' });
+  }
+
+  try {
+    const body = req.body || {};
+    const { items, total_cents, order_id, customer } = body;
+
+    if (!items || !items.length || !total_cents) {
+      return res.status(400).json({ error: 'missing items or total_cents' });
+    }
+
+    const description = `Tabacaria Drope - Pedido ${order_id || 'avulso'}`;
+
+    const payload = {
+      transaction_amount: total_cents / 100,
+      description: description,
+      payment_method_id: 'pix',
+      payer: {
+        email: (customer && customer.email) || 'cliente@drope.app',
+        first_name: (customer && customer.name) ? customer.name.split(' ')[0] : undefined,
+        last_name: (customer && customer.name && customer.name.split(' ').length > 1)
+          ? customer.name.split(' ').slice(1).join(' ') : undefined,
+      },
+      notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
+      metadata: {
+        order_id: order_id || `dr-${Date.now().toString(36)}`,
+        items_count: items.length,
+      },
+      date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    };
+
+    console.log('[MercadoPago] Creating Pix:', JSON.stringify(payload).substring(0, 400));
+
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+        'X-Idempotency-Key': order_id || `dr-${Date.now()}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    console.log('[MercadoPago] Response:', response.status);
+
+    if (!response.ok) {
+      console.error('[MercadoPago] Error:', JSON.stringify(data).substring(0, 500));
+      return res.status(502).json({ error: 'mercadopago_error', status: response.status, details: data.message || data.cause || data });
+    }
+
+    const txData = data.point_of_interaction?.transaction_data;
+    if (!txData) {
+      return res.status(502).json({ error: 'no_pix_data' });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      payment_id: data.id,
+      status: data.status,
+      qr_code: txData.qr_code,
+      qr_code_base64: txData.qr_code_base64,
+      ticket_url: txData.ticket_url,
+      expires_at: data.date_of_expiration,
+      amount: data.transaction_amount,
+    });
+  } catch (err) {
+    console.error('[MercadoPago] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// Checa status de pagamento existente (polling do frontend)
+async function handleMPCheckPix(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const url = new URL(req.url, `https://${req.headers.host}`);
+  const paymentId = url.searchParams.get('payment_id');
+  if (!paymentId || !MP_ACCESS_TOKEN) {
+    return res.status(400).json({ error: 'missing payment_id or token' });
+  }
+  try {
+    const checkRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
+    });
+    const checkData = await checkRes.json();
+    return res.status(200).json({
+      status: checkData.status,
+      status_detail: checkData.status_detail,
+      payment_id: checkData.id,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// Recebe notificação do MP quando pagamento é aprovado
+async function handleMPWebhook(req, res) {
+  if (req.method === 'GET') {
+    return res.status(200).json({ ok: true, service: 'drope-mp-webhook' });
+  }
+
+  try {
+    const body = req.body || {};
+    console.log('[MP Webhook] received:', JSON.stringify(body).substring(0, 400));
+
+    let paymentId = null;
+    if (body.data && body.data.id) paymentId = body.data.id;
+    else if (body.topic === 'payment' && body.id) paymentId = body.id;
+    else if (body.type === 'payment' && body.data?.id) paymentId = body.data.id;
+
+    if (!paymentId) {
+      return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    if (!MP_ACCESS_TOKEN) {
+      return res.status(200).json({ ok: false, error: 'token_missing' });
+    }
+
+    const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
+    });
+
+    if (!paymentRes.ok) {
+      console.error('[MP Webhook] fetch failed:', paymentRes.status);
+      return res.status(200).json({ ok: false, error: 'payment_fetch_failed' });
+    }
+
+    const payment = await paymentRes.json();
+    console.log('[MP Webhook] status:', payment.status, 'id:', payment.id);
+
+    if (payment.status !== 'approved') {
+      return res.status(200).json({ ok: true, status: payment.status, awaiting: true });
+    }
+
+    const orderNsu = payment.metadata?.order_id || '';
+    const amountCents = Math.round((payment.transaction_amount || 0) * 100);
+    const payerEmail = payment.payer?.email || '';
+    const payerName = [payment.payer?.first_name, payment.payer?.last_name].filter(Boolean).join(' ') || '';
+
+    // Marca pedido como PAGO no Supabase
+    if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
+      try {
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: 'paid',
+              payment_confirmed_at: new Date().toISOString(),
+              transaction_id: String(payment.id),
+              amount_paid_cents: amountCents,
+              payment_method: 'mercadopago_pix',
+            }),
+          }
+        );
+        console.log('[MP Webhook] order updated:', orderNsu);
+      } catch (e) {
+        console.error('[MP Webhook] Supabase error:', e.message);
+      }
+    }
+
+    // Notifica WhatsApp do Lucas
+    if (UAZAPI_TOKEN && ADMIN_LUCAS) {
+      try {
+        const amountBRL = (amountCents / 100).toFixed(2).replace('.', ',');
+        const lines = [
+          '\u{1F4B0} *PAGAMENTO CONFIRMADO* \u{2705}',
+          '',
+          `Pedido: *#${orderNsu}*`,
+          `Valor: *R$ ${amountBRL}*`,
+          'Via: Pix (Mercado Pago)',
+          '',
+          `\u{1F464} ${payerName || payerEmail || 'cliente'}`,
+          '',
+          '_Drope \u{2726} Mercado Pago_',
+        ];
+        await sendText(ADMIN_LUCAS, lines.join('\n'), {});
+      } catch (e) {
+        console.error('[MP Webhook] WhatsApp err:', e.message);
+      }
+    }
+
+    return res.status(200).json({ ok: true, processed: true, orderNsu });
+  } catch (err) {
+    console.error('[MP Webhook] ERROR:', err.message);
+    return res.status(200).json({ ok: false, error: err.message });
+  }
+}
+
 // FEATURE 5 — Smoke test / health check (sem auth, monitoramento público)
 async function handleHealthCheck(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -6268,11 +8904,23 @@ module.exports = async function handler(req, res) {
   if (req.url && req.url.indexOf('action=system_health') >= 0) {
     return await handleSystemHealth(req, res);
   }
+  // Diagnostico admin (debug rapido sem precisar de logs Vercel)
+  if (req.url && req.url.indexOf('action=admin_diag') >= 0) {
+    return await handleAdminDiag(req, res);
+  }
+  // FLC FASE 6 — auto-close manual de batches abandonados
+  if (req.url && req.url.indexOf('action=auto_close_batches') >= 0) {
+    return await handleAutoCloseBatches(req, res);
+  }
   if (req.url && req.url.indexOf('action=cost_report') >= 0) {
     return await handleCostReport(req, res);
   }
   if (req.url && req.url.indexOf('action=weekly_health') >= 0) {
     return await withRetry('weekly_health', () => handleWeeklyHealth(req, res));
+  }
+  // Sistema imune — relatorio semanal de reconciliacoes (07/05/2026)
+  if (req.url && req.url.indexOf('action=weekly_imune_report') >= 0) {
+    return await handleWeeklyImuneReport(req, res);
   }
 
   // ===== ROTAS FEEDBACK (sessão MEKA 30/04 noite — bolinha admin) =====
@@ -7966,6 +10614,20 @@ async function generateAll(){
     }
   }
 
+  // ===== MERCADO PAGO PIX (05/05/2026) =====
+  // action=mp_create_pix — POST: cria pagamento Pix via API do Mercado Pago
+  // action=mp_check_pix  — GET: checa status de pagamento existente (polling)
+  // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
+  if (req.url && req.url.indexOf('action=mp_create_pix') >= 0) {
+    return await handleMPCreatePix(req, res);
+  }
+  if (req.url && req.url.indexOf('action=mp_check_pix') >= 0) {
+    return await handleMPCheckPix(req, res);
+  }
+  if (req.url && req.url.indexOf('action=mp_webhook') >= 0) {
+    return await handleMPWebhook(req, res);
+  }
+
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====
   // health_check: público, monitoramento. Os outros: auth via CRON_TOKEN/ADMIN_TOKEN.
   if (req.url && req.url.indexOf('action=health_check') >= 0) {
@@ -8000,27 +10662,57 @@ async function generateAll(){
     return await handleAdminUploadReference(req, res);
   }
 
+  // ===== ROTA ADMIN: cadastro em lote de produtos =====
+  // POST /api/webhook?action=batch_create&admin_token=XXX
+  // Body: JSON array de produtos [{name, slug, description, price, category, puffs, metadata}]
+  if (req.url && req.url.indexOf('action=batch_create') >= 0) {
+    const urlP = new URL(req.url, 'http://localhost');
+    const tk = urlP.searchParams.get('admin_token');
+    if (tk !== ADMIN_TOKEN) return res.status(403).json({ error: 'forbidden' });
+    if (req.method !== 'POST') return res.status(405).json({ error: 'use POST with JSON body' });
+    try {
+      const products = req.body;
+      if (!Array.isArray(products) || !products.length) {
+        return res.status(400).json({ error: 'body must be a non-empty JSON array' });
+      }
+      const results = [];
+      for (const p of products) {
+        const row = await sbInsert('drope_products', {
+          name: p.name,
+          slug: p.slug,
+          price_cents: Math.round((p.price || 0) * 100),
+          qty_available: 1,
+          hidden: true,
+          category: p.category || 'fruity',
+          image_status: 'pending_art',
+          created_via: 'manual',
+          metadata: { ...(p.metadata || {}), description: p.description || '' },
+        });
+        if (row && row.id) {
+          results.push({ id: row.id, name: p.name, status: 'created' });
+        } else {
+          results.push({ name: p.name, status: 'error', detail: sbInsert._lastError });
+        }
+      }
+      return res.status(200).json({ created: results.filter(r => r.status === 'created').length, total: products.length, results });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // ===== ROTA DESACOPLADA: gera arte de produtos pendentes =====
-  // GET (browser-friendly) ou POST. Busca produtos com image_status='pending_art'
-  // ou 'pending_regeneration'. NÃO inclui 'generating' (evita reprocessar produto
-  // que está sendo gerado em outra invocação simultânea — causa de mensagens duplicadas).
-  // Sem auth — endpoint pra ser triggado pelo Lucas/cron via URL pública.
-  // Processa 1 por chamada. Reusa runArtGeneration().
+  // OSSO 34.7: AUTOMATIZADO — busca referência + gera arte img2img em uma chamada.
+  // Se produto não tem reference_image_url, busca via Serper+Vision antes de gerar.
+  // GET (browser-friendly) ou POST. Processa 1 por chamada.
   if (req.url && req.url.indexOf('action=generate_pending') >= 0) {
     if (!SUPABASE_KEY || !XAI_API_KEY) {
       return res.status(500).json({ error: 'missing env vars (SUPABASE_KEY or XAI_API_KEY)' });
     }
     console.log('[generate_pending] starting...');
-    // FIX TARDE 7: inclui 'generating' e 'error' no filtro pra recovery de produtos travados.
-    // Antes excluía 'generating' pra evitar concorrência, mas isso deixava produtos órfãos
-    // (geração começou + travou no meio = preso pra sempre). Idempotência: sbUpdate com
-    // status='generating' protege contra dupla execução em <2s; após isso, recovery > corrida.
-    // Stale cutoff: produtos atualizados há > 2min (não tá ninguém processando agora).
     const stalecutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     let pending = await sbGet('drope_products',
       'image_status=in.(pending_art,pending_regeneration)&order=updated_at.asc&limit=1');
     if (!pending.length) {
-      // Tenta buscar produtos travados em 'generating' ou 'error' há mais de 2min
       pending = await sbGet('drope_products',
         `image_status=in.(generating,error)&updated_at=lt.${encodeURIComponent(stalecutoff)}&order=updated_at.asc&limit=1`);
     }
@@ -8030,10 +10722,25 @@ async function generateAll(){
     const product = pending[0];
     const meta = product.metadata || {};
     const attempt = (meta.last_art_attempt || 0) + 1;
-    // Marca como 'generating' pra não processar duas vezes em chamadas concorrentes
     await sbUpdate('drope_products', `id=eq.${product.id}`, { image_status: 'generating' });
+
+    // OSSO 34.7: AUTO-BUSCA REFERÊNCIA — se não tem reference_image_url, busca agora
+    if (!product.reference_image_url && SERPER_API_KEY && CLAUDE_KEY) {
+      console.log(`[generate_pending] #${product.id} sem referência → buscando via Serper...`);
+      try {
+        const refUrl = await autoFindReference(product);
+        if (refUrl) {
+          product.reference_image_url = refUrl;
+          console.log(`[generate_pending] #${product.id} referência encontrada: ${refUrl.substring(0, 80)}...`);
+        } else {
+          console.log(`[generate_pending] #${product.id} referência não encontrada → text-only`);
+        }
+      } catch (refErr) {
+        console.warn(`[generate_pending] #${product.id} busca referência falhou: ${refErr.message} → text-only`);
+      }
+    }
+
     try {
-      // runArtGeneration faz: OpenAI → upload → update awaiting_approval → setPending art_review → sendImage + sendText
       await runArtGeneration(product.id, ADMIN_LUCAS, attempt);
       return res.status(200).json({
         processed: 1,
@@ -8041,10 +10748,173 @@ async function generateAll(){
       });
     } catch (e) {
       console.error('[generate_pending] error:', e.message, e.stack);
-      // Garante que o produto não fica preso em 'generating'
       await sbUpdate('drope_products', `id=eq.${product.id}`, { image_status: 'error' });
       return res.status(500).json({ error: e.message, product: product.name });
     }
+  }
+
+  // ===== ROTA INTERNA: busca automática de referência visual (OSSO 34.2) =====
+  // POST /api/webhook?action=busca_referencia&product_id=172&token=ADMIN_TOKEN
+  // GET  /api/webhook?action=busca_referencia (pega próximo pendente — pra cron diário)
+  // Usa Serper API (Google Images) + Claude Vision (Haiku) pra achar foto do pod.
+  try {
+    if (req.url && req.url.indexOf('action=busca_referencia') >= 0) {
+      const qs2 = req.url.includes('?') ? req.url.split('?')[1] : '';
+      const p2 = {};
+      qs2.split('&').forEach(pp => {
+        const [k, v] = pp.split('=');
+        if (k) p2[decodeURIComponent(k)] = decodeURIComponent(v || '');
+      });
+
+      // Auth check
+      const tok2 = (req.headers && req.headers['x-admin-token']) || p2.token || '';
+      if (!ADMIN_TOKEN || tok2 !== ADMIN_TOKEN) {
+        return res.status(401).json({ error: 'unauthorized' });
+      }
+
+      if (!SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY not set' });
+      if (!CLAUDE_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+
+      // Pegar produto
+      let buscaProd;
+      if (p2.product_id) {
+        const r = await sbGet('drope_products', `id=eq.${p2.product_id}&select=id,name,slug,metadata,ref_status,reference_image_url`);
+        buscaProd = r && r[0];
+      } else {
+        const r = await sbGet('drope_products', `ref_status=in.(none,auto_failed)&order=created_at.desc&limit=1&select=id,name,slug,metadata,ref_status,reference_image_url`);
+        buscaProd = r && r[0];
+      }
+
+      if (!buscaProd) return res.status(200).json({ ok: true, found: false, message: 'Nenhum produto pendente' });
+
+      console.log(`[busca-ref] #${buscaProd.id} ${buscaProd.name}`);
+      const meta = buscaProd.metadata || {};
+      const qParts = [meta.brand, meta.model, meta.puffs ? `${meta.puffs} puffs` : '', 'vape pod device'];
+      const searchQ = qParts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+
+      // Serper image search
+      const serperRes = await fetch('https://google.serper.dev/images', {
+        method: 'POST',
+        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: searchQ, num: 8 })
+      });
+      const serperData = await serperRes.json();
+      const imgs = (serperData.images || []).slice(0, 8);
+
+      if (imgs.length === 0) {
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: '0 images from Serper' });
+      }
+
+      // Download candidates
+      const cands = [];
+      for (const img of imgs) {
+        if (cands.length >= 5) break;
+        try {
+          const imgR = await fetch(img.imageUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'image/*' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!imgR.ok) continue;
+          const buf = Buffer.from(await imgR.arrayBuffer());
+          if (buf.length < 5000) continue;
+          cands.push({ buffer: buf, url: img.imageUrl, title: img.title || '' });
+        } catch (_) { continue; }
+      }
+
+      if (cands.length === 0) {
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: 'No valid candidates' });
+      }
+
+      // Vision ranking — detecta media_type real pelo magic bytes do buffer
+      function detectMediaType(buf) {
+        if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+        if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+        if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+        if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) return 'image/webp';
+        return 'image/jpeg'; // fallback
+      }
+      const vContent = [];
+      for (let i = 0; i < cands.length; i++) {
+        const mType = detectMediaType(cands[i].buffer);
+        vContent.push({ type: 'image', source: { type: 'base64', media_type: mType, data: cands[i].buffer.toString('base64') } });
+        vContent.push({ type: 'text', text: `Candidato ${i + 1}` });
+      }
+      let evalP = `Avalia ${cands.length} imagens candidatas pra FOTO DE REFERENCIA de um pod/vape. Foto IDEAL: dispositivo REAL de frente, fundo limpo, sem watermark. NAO ideal: so caixa, banner, lifestyle, render 3D.`;
+      const devDesc = meta.device_visual_detailed || meta.device_visual || '';
+      if (devDesc && devDesc.length > 20) evalP += `\nDESCRICAO DO PRODUTO: "${devDesc}"`;
+      evalP += `\nResponde SO JSON: { "ranking": [{"candidato":1,"score":0.0-1.0,"motivo":"breve"}], "melhor": numero ou null, "confianca": 0.0-1.0 }`;
+      vContent.push({ type: 'text', text: evalP });
+
+      const vRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: vContent }] })
+      });
+      const vData = await vRes.json();
+
+      // Debug: se a API retornou erro
+      if (vData.error) {
+        console.error('[busca-ref] Vision API error:', JSON.stringify(vData.error));
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: 'Vision API error', debug: vData.error });
+      }
+
+      const vText = (vData.content && vData.content[0] && vData.content[0].text) || '';
+      console.log('[busca-ref] Vision raw (first 200):', vText.substring(0, 200));
+      // Extrai JSON de qualquer formato (com ou sem ```, com texto antes/depois)
+      let cleanJ = vText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const jsonMatch = cleanJ.match(/\{[\s\S]*\}/);
+      cleanJ = jsonMatch ? jsonMatch[0] : cleanJ;
+
+      let ranking;
+      try { ranking = JSON.parse(cleanJ); } catch (parseErr) {
+        console.error('[busca-ref] JSON parse failed:', parseErr.message, '| raw:', vText.substring(0, 300));
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: 'Vision parse error v2', debug_text: vText.substring(0, 500), debug_clean: cleanJ.substring(0, 300) });
+      }
+
+      if (!ranking.melhor || (ranking.confianca || 0) < 0.35) {
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: `Low confidence: ${ranking.confianca}` });
+      }
+
+      // Upload winner — bucket correto: drope-product-images
+      const winner = cands[ranking.melhor - 1];
+      const winnerType = detectMediaType(winner.buffer);
+      const ext = winnerType === 'image/png' ? 'png' : 'jpg';
+      const fName = `references/ref-${buscaProd.id}.${ext}`;
+      const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/drope-product-images/${fName}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': winnerType,
+          'x-upsert': 'true',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+        body: winner.buffer,
+      });
+      if (!upRes.ok) {
+        const upErr = await upRes.text().catch(() => '');
+        await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_failed' });
+        return res.status(200).json({ ok: true, product_id: buscaProd.id, found: false, reason: 'Upload failed', debug: upErr.substring(0, 200) });
+      }
+
+      const pubUrl = `${SUPABASE_URL}/storage/v1/object/public/drope-product-images/${fName}`;
+      await sbUpdate('drope_products', `id=eq.${buscaProd.id}`, { ref_status: 'auto_found', reference_image_url: pubUrl });
+
+      console.log(`[busca-ref] ✅ #${buscaProd.id} → ${pubUrl} (conf=${ranking.confianca})`);
+      return res.status(200).json({
+        ok: true, product_id: buscaProd.id, found: true,
+        reference_url: pubUrl, confianca: ranking.confianca,
+        source_url: winner.url
+      });
+    }
+  } catch (buscaErr) {
+    console.error('[busca-ref] ERROR:', buscaErr.message);
+    return res.status(500).json({ error: buscaErr.message });
   }
 
   // ===== ROTA INTERNA: geração de arte em background =====
@@ -8097,7 +10967,49 @@ async function generateAll(){
     const chat = body.chat || {};
 
     if (msg.fromMe || msg.wasSentByApi) return res.status(200).send("ignored");
-    if (msg.isGroup || chat.wa_isGroup) return res.status(200).send("group ignored");
+
+    // FIX MAIO/2026 — DEDUP GLOBAL (top-level). UazAPI re-envia webhooks com mesmo msgId
+    // várias vezes. Antes o dedup vivia dentro de cada handler — uns tinham, outros nao,
+    // gerando duplicate (corrida 2x, mensagem 2x, etc). Agora pega TUDO no inicio.
+    const _msgIdGlobal = msg.id || msg.messageId || msg.key?.id;
+    if (_msgIdGlobal) {
+      if (alreadySeen(_msgIdGlobal)) {
+        console.log('[dedup-global] dup msgId ignored:', _msgIdGlobal);
+        return res.status(200).send("dup");
+      }
+      // Persistente cross-instance (Vercel cold-start): 30s window
+      if (await alreadySeenContentPersistent('webhook', _msgIdGlobal, 30)) {
+        console.log('[dedup-global-db] dup msgId persisted ignored:', _msgIdGlobal);
+        return res.status(200).send("dup-db");
+      }
+    }
+
+    // OSSO 35 — Roteamento de grupos WhatsApp
+    if (msg.isGroup || chat.wa_isGroup) {
+      // ATENCAO: chat.id e ID interno do UazAPI (ex: r2cd552794d445b),
+      // NAO e o JID. JID real esta em chat.wa_chatid ou msg.chatid.
+      const groupJid = chat.wa_chatid || msg.chatid || chat.jid || '';
+      // Grupo PDV — Yasmin/Pai/Tia mandam foto = venda (reusa handleAdminCaixa)
+      if (GRUPO_PDV_JID && groupJid === GRUPO_PDV_JID) {
+        console.log("[GROUP-PDV] mensagem no grupo PDV:", msg.type || 'text');
+        try {
+          await handleAdminCaixa(groupJid, msg, body);
+        } catch (e) {
+          console.error("[GROUP-PDV] erro:", e.message, e.stack);
+        }
+        return res.status(200).send("group-pdv");
+      }
+      // Grupo Motoboy — V2 implementado 07/05/2026
+      if (GRUPO_MOTOBOY_JID && groupJid === GRUPO_MOTOBOY_JID) {
+        console.log("[GROUP-MOTOBOY] mensagem no grupo motoboy:", msg.type || 'text');
+        try {
+          await handleMotoboyGroup(groupJid, msg, body);
+        } catch (e) { console.error("[GROUP-MOTOBOY] erro:", e.message, e.stack); }
+        return res.status(200).send("group-motoboy");
+      }
+      // Outro grupo: ignora
+      return res.status(200).send("group ignored: " + groupJid.slice(0, 20));
+    }
 
     const rawPhone = chat.phone || msg.chatid?.replace("@s.whatsapp.net", "") || "";
     const phone = rawPhone.replace(/[^0-9]/g, "");
@@ -8115,10 +11027,10 @@ async function generateAll(){
 
     // ========== ROTEAMENTO TRIPLO (OSSO 30 — 2026-05-03) ==========
     // ADMIN_LUCAS → cadastro/abastecimento/aprovação arte
-    // ADMIN_CAIXA → caixa remoto (placeholder por enquanto)
+    // PDV_PHONES  → baixa de estoque por foto (loja + Yasmin)
     // resto       → bot cliente (catálogo, pedido, sommelier)
     const _route = (phone === ADMIN_LUCAS) ? 'admin_lucas'
-                 : (ADMIN_CAIXA && phone === ADMIN_CAIXA) ? 'admin_caixa'
+                 : (PDV_PHONES.includes(phone)) ? 'admin_caixa'
                  : 'cliente';
     console.log("[ROUTE] →", _route, phone.slice(0, 6) + '***');
 
