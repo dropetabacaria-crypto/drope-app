@@ -2702,6 +2702,52 @@ function calculateQualityScore(meta, bufferLength) {
 
 // Busca imagens de referência via Serper Google Images, filtra por qualidade,
 // faz upload das boas pro Storage e salva no produto. Async — não bloqueia caller.
+// FIX REF QA (07/05/2026 - Andrade) — Compara candidato com a foto real da caixa
+// FOCANDO NO PRODUTO CENTRAL (ignora caixas/produtos secundarios do fundo).
+// Caso real: foto da caixa de ELFBAR BC15K Strawberry Kiwi tinha varias caixas
+// ELFBAR ao redor; Serper retornava refs corretas (Strawberry Kiwi) mas tambem
+// errados (modelos diferentes que pareciam com produtos secundarios). Sem essa
+// comparacao, ranking era so por resolucao = ref errada ganhava facil.
+// Retorna 0-100 ou null em erro. 0=totalmente diferente, 100=mesmo produto.
+async function _visionScoreCandidate(boxPhotoUrl, candidateUrl, brand, model, flavor) {
+  if (!CLAUDE_KEY || !boxPhotoUrl || !candidateUrl) return null;
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'x-api-key': CLAUDE_KEY, 'content-type': 'application/json', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 30,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: boxPhotoUrl.startsWith('data:')
+              ? { type: 'base64', media_type: boxPhotoUrl.match(/^data:([^;]+);/)?.[1] || 'image/jpeg', data: boxPhotoUrl.split(',', 2)[1] }
+              : { type: 'url', url: boxPhotoUrl } },
+            { type: 'image', source: candidateUrl.startsWith('data:')
+              ? { type: 'base64', media_type: candidateUrl.match(/^data:([^;]+);/)?.[1] || 'image/jpeg', data: candidateUrl.split(',', 2)[1] }
+              : { type: 'url', url: candidateUrl } },
+            { type: 'text', text: `Imagem 1: foto de caixas de pod (pode ter VARIAS caixas/produtos visiveis). O produto PRINCIPAL/CENTRAL e: ${brand} ${model} ${flavor}.\n\nImagem 2: candidato a referencia visual.\n\nQuao semelhante visualmente a Imagem 2 e ao produto CENTRAL da Imagem 1?\nIGNORE COMPLETAMENTE outros produtos do fundo/laterais da Imagem 1 — foque APENAS no produto que tem o sabor "${flavor}" no rotulo.\n\nCriterios:\n- Mesmo modelo de dispositivo (formato, tamanho, padrao do bocal)?\n- Mesma cor predominante e gradiente do sabor?\n- Mesmas estampas/grafismos do rotulo?\n- 100 = mesmo produto exato\n- 70-99 = mesmo modelo+sabor mas angulo/qualidade diferente\n- 40-69 = mesma marca+modelo mas sabor diferente\n- 10-39 = mesma marca apenas\n- 0-9 = totalmente diferente\n\nResponda APENAS um numero inteiro 0-100. SEM explicacao.` }
+          ]
+        }]
+      }),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const text = (data?.content?.[0]?.text || '').trim();
+    const match = text.match(/\d+/);
+    if (!match) return null;
+    const score = parseInt(match[0]);
+    return Math.max(0, Math.min(100, score));
+  } catch (e) {
+    console.warn('[visionScoreCandidate]', e.name === 'AbortError' ? 'timeout' : e.message);
+    return null;
+  } finally { clearTimeout(tid); }
+}
+
 async function searchProductReferences(productId, brand, model, flavor) {
   // OSSO 28 — logging detalhado pra diagnosticar Serper
   console.log(`[searchRefs] START productId=${productId} brand=${brand} model=${model} flavor=${flavor}`);
@@ -2794,7 +2840,44 @@ async function searchProductReferences(productId, brand, model, flavor) {
   }
   console.log(`[searchRefs] RESULT productId=${productId}: ${candidates.length}/${images.length} accepted. Skipped: ${skipReasons.join(' | ')}`);
 
-  candidates.sort((a, b) => b.quality_score - a.quality_score);
+  // FIX REF QA (07/05/2026): Vision compara cada candidato com a foto real da caixa
+  // FOCANDO no produto CENTRAL. Score combinado: vision_score (peso 70) + quality (30).
+  if (candidates.length > 0) {
+    try {
+      const prods = await sbGet('drope_products', `id=eq.${productId}&select=box_photo_url&limit=1`);
+      const boxUrl = prods?.[0]?.box_photo_url;
+      if (boxUrl) {
+        // Limita a 6 pra economizar tempo/Anthropic. Top quality_score primeiro.
+        candidates.sort((a, b) => b.quality_score - a.quality_score);
+        const top = candidates.slice(0, 6);
+        console.log(`[searchRefs] visionScore productId=${productId}: comparando ${top.length} candidatos com box_photo`);
+        const results = await Promise.allSettled(
+          top.map(c => _visionScoreCandidate(boxUrl, c.url, brand, model, flavor))
+        );
+        results.forEach((r, i) => {
+          const score = r.status === 'fulfilled' ? r.value : null;
+          if (score != null) top[i].vision_score = score;
+        });
+        // Score combinado (peso vision 70, quality 30)
+        candidates.forEach(c => {
+          const v = (typeof c.vision_score === 'number') ? c.vision_score : null;
+          c.combined_score = v != null
+            ? Math.round(v * 0.7 + c.quality_score * 0.3)
+            : c.quality_score;
+        });
+        candidates.sort((a, b) => b.combined_score - a.combined_score);
+        const summary = candidates.slice(0, 4).map(c => `vision=${c.vision_score ?? '?'} qty=${c.quality_score} comb=${c.combined_score}`).join(' | ');
+        console.log(`[searchRefs] visionScore productId=${productId} top4: ${summary}`);
+      } else {
+        console.log(`[searchRefs] sem box_photo_url productId=${productId} — pula visionScore`);
+        candidates.sort((a, b) => b.quality_score - a.quality_score);
+      }
+    } catch (e) {
+      console.warn('[searchRefs] visionScore err:', e.message);
+      candidates.sort((a, b) => b.quality_score - a.quality_score);
+    }
+  }
+
   await sbUpdate('drope_products', `id=eq.${productId}`, {
     reference_candidates: candidates,
     art_status: candidates.length > 0 ? 'pending_review' : 'needs_manual_photo',
@@ -9599,7 +9682,7 @@ if (token) {
                 <label class="ref-card${hasApprovedRef && p.reference_image_url === r.url ? ' selected' : ''}">
                   <input type="radio" name="ref-${p.id}" value="${esc(r.url)}" data-product-id="${p.id}" ${hasApprovedRef && p.reference_image_url === r.url ? 'checked' : ''} />
                   <img src="${esc(r.url)}" loading="lazy" alt="ref ${i+1}" />
-                  <span class="score">⭐${r.quality_score || 0}</span>
+                  <span class="score">${typeof r.combined_score === 'number' ? '🎯' + r.combined_score : '⭐' + (r.quality_score || 0)}</span>
                 </label>`).join('')}</div>`;
         // Status badge (texto curto + cor)
         const statusLabel =
@@ -10312,7 +10395,7 @@ async function notifyWhats(){
             <label class="ref-card${approved && p.reference_image_url === r.url ? ' selected' : ''}">
               <input type="radio" name="ref-${p.id}" value="${esc(r.url)}" data-product-id="${p.id}" ${approved && p.reference_image_url === r.url ? 'checked' : ''} />
               <img src="${esc(r.url)}" loading="lazy" alt="ref ${i+1}" />
-              <span class="score">⭐${r.quality_score || 0}</span>
+              <span class="score">${typeof r.combined_score === 'number' ? '🎯' + r.combined_score : '⭐' + (r.quality_score || 0)}</span>
             </label>`).join('');
         return `
         <div class="card" data-id="${p.id}" data-status="${esc(p.art_status)}">
