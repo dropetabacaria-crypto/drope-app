@@ -6539,12 +6539,12 @@ async function runArtGeneration(productId, phone, attempt) {
   }
 
   // Sucesso: atualiza banco com pending_art_url + status awaiting_approval
-  // OSSO 28C fix (01/05/2026): art_status='awaiting_approval' VIOLA check constraint
-  // (valores válidos: pending_reference, pending_review, needs_manual_photo,
-  // reference_approved, generating, complete, art_error). Postgres rejeita o UPDATE
-  // inteiro por atomicidade → image_status fica preso em 'generating'.
-  // Fix: art_status='complete' (= arte foi gerada com sucesso, semanticamente correto).
-  const newMeta = { ...meta, pending_art_url: pendingArtUrl, last_art_attempt: attempt };
+  // FIX 07/05/2026: re-lê metadata atualizado do banco (qcMeta foi escrito dentro
+  // do while loop). Antes spread do `meta` ORIGINAL apagava qc_score/qc_approved
+  // que tinham acabado de ser gravados.
+  const fresh = await sbGet('drope_products', `id=eq.${productId}&select=metadata&limit=1`);
+  const freshMeta = fresh?.[0]?.metadata || meta;
+  const newMeta = { ...freshMeta, pending_art_url: pendingArtUrl, last_art_attempt: attempt };
   await sbUpdate('drope_products', `id=eq.${productId}`, {
     image_status: 'awaiting_approval',
     art_status: 'complete',
