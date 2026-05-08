@@ -8452,6 +8452,19 @@ section{padding:16px;max-width:900px;margin:0 auto}
     <span class="phase-tag tag-2">📸 ${pending.length}</span>
   </div>
   <div class="section-helper">escolhe a referência boa, sobe foto manual ou pula. quem precisa de foto manual fica ambar.</div>
+  ${(() => {
+    const stuck = pending.filter(p => {
+      const refs = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+      return refs.length === 0 && p.art_status === 'pending_reference';
+    });
+    return stuck.length > 0
+      ? `<div style="background:rgba(255,184,0,.08);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+           <div style="flex:1;min-width:200px"><strong style="color:var(--amber)">⚠️ ${stuck.length} travados sem ref</strong><br/><span style="font-size:11px;color:var(--dim)">produto criado mas Serper nunca rodou. dispara em batch:</span></div>
+           <button class="btn primary" id="btn-mass-kickoff" style="flex:0 0 auto">🚀 disparar refs nos ${stuck.length}</button>
+           <span class="status" id="mass-kickoff-status" style="flex:1 0 100%;padding:0;font-size:12px"></span>
+         </div>`
+      : '';
+  })()}
   ${pending.length === 0
     ? '<div class="empty">✅ nada esperando ref/foto</div>'
     : `<div class="grid-pendentes">${pendentesCards}</div>`}
@@ -8638,6 +8651,27 @@ document.querySelectorAll('.card.gallery-card').forEach(card => {
 
 // Permite anchor #pendentes etc no load
 if (location.hash) setFilter(location.hash.slice(1));
+
+// ===== BOTÃO MASS KICKOFF (recupera 34 travados sem ref) =====
+const massBtn = document.getElementById('btn-mass-kickoff');
+if (massBtn) {
+  massBtn.onclick = async () => {
+    const st = document.getElementById('mass-kickoff-status');
+    if (!confirm('disparar busca de refs Serper pra TODOS os travados? (consome créditos Serper)')) return;
+    massBtn.disabled = true;
+    st.textContent = 'disparando...'; st.className = 'status';
+    try {
+      const data = await api('mass_kickoff_search', {});
+      st.className = 'status ok';
+      st.textContent = (data.message || '✓ disparado') + ' — recarregando em 60s...';
+      setTimeout(() => location.reload(), 60000);
+    } catch (e) {
+      st.className = 'status err';
+      st.textContent = 'erro: ' + e.message;
+      massBtn.disabled = false;
+    }
+  };
+}
 </script>
 </body></html>`;
 }
@@ -12778,6 +12812,68 @@ async function generateAll(){
       return res.status(200).json({ ok: true, dispatched });
     } catch (e) {
       console.error('[generate_arts_batch] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ===== MASS KICKOFF SEARCH (08/05/2026) =====
+  // Pega todos com art_status='pending_reference' + image_url null + sem refs (travados)
+  // e dispara busca Serper em background pra cada um, fire-and-forget.
+  // Useful pra recuperar de bug onde batch_photo flow esqueceu de disparar searchProductReferences.
+  // POST /api/webhook?action=mass_kickoff_search
+  // header x-admin-token: ADMIN_TOKEN
+  // returns: { ok, dispatched, products: [...] }
+  if (req.url && req.url.indexOf('action=mass_kickoff_search') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      // Pega travados: pending_reference + image_url null + sem refs (até 50)
+      const stuck = await sbGet('drope_products',
+        `art_status=eq.pending_reference&image_url=is.null&select=id,name,metadata,box_photo_url&limit=50`);
+      const filtered = (stuck || []).filter(p => {
+        const refs = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+        return refs.length === 0;
+      });
+      if (filtered.length === 0) return res.status(200).json({ ok: true, dispatched: 0, products: [] });
+
+      // Dispara fire-and-forget pra cada um — bate no próprio /api/webhook?action=retry_search
+      // Cada call inicia uma invocação serverless própria. Usamos AbortController com 1s
+      // timeout pra liberar essa invocação rápido — a tarefa real continua na invocação child.
+      const baseUrl = (req.headers['x-forwarded-host'] && req.headers['x-forwarded-proto'])
+        ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
+        : `https://${req.headers.host || 'drope-app.vercel.app'}`;
+      let dispatched = 0;
+      const products = [];
+      for (const p of filtered) {
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 1500);
+          fetch(`${baseUrl}/api/webhook?action=retry_search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-token': ADMIN_TOKEN },
+            body: JSON.stringify({ productId: p.id }),
+            signal: ctrl.signal,
+          }).catch(() => {}).finally(() => clearTimeout(tid));
+          dispatched++;
+          products.push({ id: p.id, name: p.name });
+        } catch (e) {
+          console.warn('[mass_kickoff_search] dispatch err for', p.id, e.message);
+        }
+      }
+      return res.status(200).json({
+        ok: true,
+        dispatched,
+        total_stuck: filtered.length,
+        message: `${dispatched} produtos disparados pra busca de refs (~30s cada). Recarrega em 1min pra ver resultado.`,
+        products,
+      });
+    } catch (e) {
+      console.error('[mass_kickoff_search] error:', e.message);
       return res.status(500).json({ error: e.message });
     }
   }
