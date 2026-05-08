@@ -4629,8 +4629,40 @@ async function getMediaUrl(msg, body) {
   if (typeof msg.media === 'string' && msg.media.startsWith('http')) return msg.media;
   if (msg.url && typeof msg.url === 'string' && msg.url.startsWith('http')) return msg.url;
 
+  // FIX 07/05/2026 (Andrade) — UazAPI dropepod (servidor dedicado pago) tem endpoint
+  // proprio: POST /message/download {id: msgId} retorna {fileURL, mimetype}.
+  // Resolve o caso do bad decrypt local: descriptografia AES-256-CBC falha em fotos
+  // com metadata de forward. Como o servidor UazAPI ja tem a foto descriptografada
+  // (pra UI/UX deles), basta pedir o fileURL direto. Mais rapido e confiavel.
+  const msgIdEarly = msg.id || msg.messageId || msg.key?.id;
+  if (msgIdEarly) {
+    try {
+      const serverUrl = body.BaseUrl || UAZAPI_SERVER;
+      const token = body.token || UAZAPI_TOKEN;
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(`${serverUrl}/message/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', token },
+        body: JSON.stringify({ id: msgIdEarly }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(tid);
+      if (r.ok) {
+        const data = await r.json();
+        if (data.fileURL) {
+          console.log("[Media] /message/download OK", data.cached ? '(cached)' : '(fresh)', data.mimetype || '?');
+          return data.fileURL;
+        }
+      } else {
+        console.log("[Media] /message/download status:", r.status);
+      }
+    } catch (e) { console.warn('[Media] /message/download err:', e.message); }
+  }
+
   // UazAPI/dropepod format: msg.content.URL eh encriptada com mediaKey.
   // Tenta desencriptar pra alta resolucao (1000x1000 typical).
+  // Nota: pode falhar (bad decrypt) em fotos forward — fallback continua pra thumbnail.
   if (msg.content?.URL && msg.content?.mediaKey) {
     try {
       const decrypted = await downloadAndDecryptWhatsappMedia(msg.content.URL, msg.content.mediaKey);
