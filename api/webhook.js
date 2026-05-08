@@ -842,6 +842,248 @@ async function handleArtStuckRecovery(req, res) {
   return res.status(200).json({ ok: true, found: arr.length, recovered });
 }
 
+// Painel HTML pra Andrade ver fotos do batch que ficaram sem sabor identificavel
+// (Vision viu marca/modelo mas nao leu o sabor) e completar via formulario web.
+async function handleUnidentifiedPhotos(req, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  if (!ADMIN_TOKEN || queryTok !== ADMIN_TOKEN) {
+    await new Promise(r => setTimeout(r, 600));
+    return res.status(401).send('unauthorized');
+  }
+
+  const rows = await sbGet('drope_batch_queue',
+    `select=id,batch_id,photo_index,photo_url,vision_response,error_message,created_at&decision=eq.unidentified_flavor&order=created_at.desc&limit=200`);
+  const arr = Array.isArray(rows) ? rows : [];
+
+  // Agrupa por batch_id e dedupa por photo_index
+  const seen = new Set();
+  const unique = [];
+  for (const r of arr) {
+    const k = `${r.batch_id}:${r.photo_index}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    if (r.photo_url) unique.push(r);
+  }
+
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const cards = unique.map(r => {
+    let brand = '?', model = '';
+    try {
+      const vis = typeof r.vision_response === 'string' ? JSON.parse(r.vision_response) : r.vision_response;
+      const p = vis?.products?.[0] || {};
+      brand = p.brand || '?';
+      model = p.model || '';
+    } catch (_) {}
+    return `
+      <div class="card" data-batch-id="${esc(r.batch_id)}" data-photo-idx="${esc(r.photo_index)}">
+        <div class="thumb"><img src="${esc(r.photo_url)}" loading="lazy" alt="foto"/></div>
+        <div class="meta">
+          <div class="info">
+            <span class="brand">${esc(brand)}</span>
+            <span class="model">${esc(model)}</span>
+            <span class="idx">foto #${esc(r.photo_index)}</span>
+          </div>
+          <input type="text" class="flavor-input" placeholder="digita o sabor (ex: Strawberry Kiwi)" />
+          <div class="actions">
+            <button class="btn complete">✅ cadastrar</button>
+            <button class="btn discard">🗑️ descartar</button>
+          </div>
+          <div class="status"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const html = `<!doctype html>
+<html lang="pt-br"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drope ✦ Fotos sem sabor</title>
+<style>
+:root { --bg:#0a0a14; --neon:#b026ff; --lime:#c0ff33; --pink:#ff2d95; --txt:#eaeaf2; --dim:#888; --card:#13131e; --border:#2a2a3e; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,system-ui,sans-serif;padding:16px}
+h1{color:var(--neon);margin:0 0 6px;font-size:20px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{aspect-ratio:1/1;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.meta{padding:12px;display:flex;flex-direction:column;gap:8px}
+.info{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--dim)}
+.brand{color:var(--lime);font-weight:600}
+.model{color:var(--neon)}
+.idx{margin-left:auto;color:var(--dim)}
+.flavor-input{padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:#1a1a2a;color:var(--txt);font-size:13px}
+.flavor-input:focus{outline:none;border-color:var(--neon)}
+.actions{display:flex;gap:6px}
+.btn{flex:1;padding:7px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--txt);font-size:12px;cursor:pointer}
+.btn.complete{border-color:var(--lime);color:var(--lime)}
+.btn.complete:hover{background:var(--lime);color:#0a0a14}
+.btn.discard{border-color:#ff6b6b;color:#ff6b6b}
+.btn.discard:hover{background:#ff6b6b;color:#0a0a14}
+.status{font-size:11px;min-height:14px}
+.status.ok{color:var(--lime)}
+.status.err{color:#ff6b6b}
+.empty{color:var(--dim);text-align:center;padding:40px;font-style:italic}
+.actions-top{margin:0 0 14px;display:flex;gap:8px}
+.actions-top a{padding:7px 12px;border-radius:6px;border:1px solid var(--neon);background:transparent;color:var(--neon);font-size:12px;text-decoration:none}
+</style>
+</head><body>
+<h1>📸 Fotos sem sabor identificável</h1>
+<div class="sub">Vision viu marca/modelo mas não leu o sabor. Digita o sabor e cadastra direto pelo navegador.</div>
+<div class="actions-top">
+  <a href="/api/webhook?action=admin_hub&token=${esc(queryTok)}">← admin hub</a>
+  <a href="/api/webhook?action=gallery&token=${esc(queryTok)}">🎨 gallery</a>
+</div>
+${unique.length === 0 ? '<div class="empty">✅ Nada pendente. Quando uma foto cair sem sabor, aparece aqui.</div>' : `<div class="grid">${cards}</div>`}
+<script>
+const TOKEN = ${JSON.stringify(queryTok)};
+document.querySelectorAll('.card').forEach(card => {
+  const batchId = card.dataset.batchId;
+  const photoIdx = parseInt(card.dataset.photoIdx);
+  const input = card.querySelector('.flavor-input');
+  const status = card.querySelector('.status');
+  const btnOK = card.querySelector('.complete');
+  const btnNo = card.querySelector('.discard');
+  btnOK.onclick = async () => {
+    const flavor = input.value.trim();
+    if (flavor.length < 2) { status.textContent = '⚠️ digita o sabor'; status.className = 'status err'; return; }
+    status.textContent = 'cadastrando...';
+    status.className = 'status';
+    try {
+      const r = await fetch('/api/webhook?action=complete_unidentified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+        body: JSON.stringify({ batch_id: batchId, photo_index: photoIdx, flavor }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        status.textContent = '✅ ' + (data.product_name || 'cadastrado');
+        status.className = 'status ok';
+        setTimeout(() => card.style.display='none', 2000);
+      } else {
+        status.textContent = '❌ ' + (data.error || 'erro');
+        status.className = 'status err';
+      }
+    } catch (e) { status.textContent = '❌ ' + e.message; status.className = 'status err'; }
+  };
+  btnNo.onclick = async () => {
+    if (!confirm('Descartar essa foto sem cadastrar?')) return;
+    try {
+      const r = await fetch('/api/webhook?action=complete_unidentified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+        body: JSON.stringify({ batch_id: batchId, photo_index: photoIdx, discard: true }),
+      });
+      const data = await r.json();
+      if (data.ok) { card.style.display='none'; }
+    } catch (_) {}
+  };
+});
+</script>
+</body></html>`;
+  return res.status(200).send(html);
+}
+
+// POST: completa flavor de uma foto unidentified ou descarta
+async function handleCompleteUnidentified(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }
+  catch (e) { return res.status(400).json({ error: 'invalid body' }); }
+  const { batch_id, photo_index, flavor, discard } = body;
+  if (!batch_id || photo_index == null) return res.status(400).json({ error: 'missing batch_id or photo_index' });
+
+  // Pega entry
+  const rows = await sbGet('drope_batch_queue',
+    `select=id,phone,photo_url,vision_response&batch_id=eq.${encodeURIComponent(batch_id)}&photo_index=eq.${parseInt(photo_index)}&decision=eq.unidentified_flavor&limit=1`);
+  const candidate = Array.isArray(rows) ? rows[0] : null;
+  if (!candidate) return res.status(404).json({ error: 'not found or already processed' });
+
+  if (discard) {
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, { decision: 'discarded' });
+    return res.status(200).json({ ok: true, discarded: true });
+  }
+
+  if (!flavor || flavor.trim().length < 2) return res.status(400).json({ error: 'flavor required' });
+
+  // Reusa logica do tryHandleManualFlavor
+  let visProduct = {};
+  try {
+    const vis = typeof candidate.vision_response === 'string' ? JSON.parse(candidate.vision_response) : candidate.vision_response;
+    visProduct = vis?.products?.[0] || {};
+  } catch (e) {}
+  const cBrand = _flcCanonBrand(visProduct.brand) || visProduct.brand || '';
+  const cModel = _flcCanonModel(visProduct.model) || visProduct.model || '';
+  const cFlavor = _flcCanonFlavor(flavor) || flavor.trim();
+  if (!cBrand) return res.status(400).json({ error: 'sem marca identificavel — refaz a foto' });
+  const name = [cBrand, cModel, cFlavor].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
+  const qty = Math.max(1, parseInt(visProduct.qty) || 1);
+
+  // Dedup pre-insert (TIER 1.2)
+  const safe = encodeURIComponent('%' + name + '%');
+  const dupes = await sbGet('drope_products', `name=ilike.${safe}&hidden=eq.false&select=id,name,qty_available,status&limit=1`);
+  if (Array.isArray(dupes) && dupes.length > 0) {
+    const dup = dupes[0];
+    const newQty = (dup.qty_available || 0) + qty;
+    await sbUpdate('drope_products', `id=eq.${dup.id}`, {
+      qty_available: newQty,
+      hidden: false,
+      status: dup.status === 'inactive' ? 'pending' : (dup.status || 'active'),
+      updated_at: new Date().toISOString(),
+    });
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, {
+      decision: 'matched_existing', matched_product_id: dup.id, qty_added: qty, matched_score: 100,
+    });
+    return res.status(200).json({ ok: true, product_id: dup.id, product_name: dup.name, action: 'matched_existing' });
+  }
+
+  const reconcil = await _findPendingSalesMatching(cBrand, cModel, cFlavor);
+  const qtyFinal = Math.max(0, qty - reconcil.qty_total);
+
+  try {
+    const inserted = await sbInsert('drope_products', {
+      slug, name,
+      qty_available: qtyFinal,
+      total_sold: reconcil.qty_total,
+      status: 'pending',
+      hidden: true,
+      price_cents: 0,
+      metadata: {
+        brand: cBrand, model: cModel, flavor: cFlavor,
+        flavor_en: cFlavor, flavor_pt: cFlavor,
+        created_via: 'manual_flavor_web',
+        created_at: new Date().toISOString(),
+        box_photo_url: candidate.photo_url,
+      },
+      box_photo_url: candidate.photo_url,
+    });
+    const newId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
+    if (newId && reconcil.sales.length > 0) {
+      await _resolvePendingSales(reconcil.sales.map(s => s.id), newId);
+    }
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, {
+      decision: 'created_new', created_product_id: newId, qty_added: qtyFinal,
+    });
+    if (newId) fireBackgroundEnrich(newId).catch(() => {});
+    return res.status(200).json({ ok: true, product_id: newId, product_name: name, action: 'created_new' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 async function handleSystemHealth(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (!checkCronAuth(req)) {
@@ -10289,6 +10531,14 @@ module.exports = async function handler(req, res) {
   if (req.url && req.url.indexOf('action=art_stuck_recovery') >= 0) {
     return await handleArtStuckRecovery(req, res);
   }
+  // Painel: fotos sem sabor identificavel (08/05/2026 - Andrade)
+  if (req.url && req.url.indexOf('action=unidentified_photos') >= 0) {
+    return await handleUnidentifiedPhotos(req, res);
+  }
+  // POST: completar sabor de uma foto via UI HTML
+  if (req.method === 'POST' && req.url && req.url.indexOf('action=complete_unidentified') >= 0) {
+    return await handleCompleteUnidentified(req, res);
+  }
   // Painel admin do balanço (07/05/2026 - Andrade) — historico + divergencias
   if (req.url && req.url.indexOf('action=balance_panel') >= 0) {
     return await handleBalancePanel(req, res);
@@ -10792,6 +11042,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
 // Login client-side: salva token em localStorage e propaga via URL params.
 const PAGES = [
   { id:'pendentes', icon:'📸', label:'pendentes', desc:'escolher refs e gerar arte', url:'/api/webhook?action=pending_pod_photos', countKey:'pending', badgeColor:'pink' },
+  { id:'sem-sabor', icon:'❓', label:'sem sabor',  desc:'fotos do batch sem sabor lido', url:'/api/webhook?action=unidentified_photos', countKey:null, badgeColor:'pink' },
   { id:'gallery',   icon:'🖼️', label:'gallery',   desc:'aprovar artes geradas',     url:'/api/webhook?action=gallery',            countKey:'gallery', badgeColor:'lime' },
   { id:'estoque',   icon:'📦', label:'estoque',   desc:'produtos cadastrados',      url:'/api/admin-list-stock',                  countKey:'stock', badgeColor:'amber' },
   { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
