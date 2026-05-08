@@ -3497,49 +3497,41 @@ async function searchProductReferences(productId, brand, model, flavor) {
   }
 
   // FIX REF QA v2 (07/05/2026 - Andrade) — Auto-select com 3 niveis de decisao:
-  //   combined >= 80 → AUTO-SELECT + dispara Grok automaticamente
-  //   combined 60-79 → pending_review (Andrade decide entre os 2-3 melhores)
-  //   combined < 60 ou zero → needs_manual_photo (Andrade manda foto manual)
-  // Antes: SEMPRE pending_review = Andrade tinha que escolher mesmo quando
-  // top candidato tinha 92% de confianca. Tempo perdido no obvio.
-  const AUTO_SELECT_THRESHOLD = 80;
-  const REVIEW_MIN = 60;
-  let nextStatus = 'needs_manual_photo';
+  // FIX 15 (08/05/2026 - Andrade) — sem painel de revisao manual.
+  // Andrade questionou: "se a propria IA vai decidir se a foto do Grok fica ou nao,
+  // e ja lança, nao é? nao vejo sentido nesse painel".
+  // Antes: pending_review aparecia no admin web pra Andrade escolher manualmente.
+  // Agora: TUDO dispara Grok auto. Vision QA da arte gerada eh o gatekeeper final
+  // (compara arte vs reference vs box_photo, score 0-10). Se QC reject 2x → notifica.
+  // Threshold rebaixado: combined >= 40 = aceita ref. Abaixo disso, dispara TEXT-ONLY.
+  const AUTO_SELECT_THRESHOLD = 40;
   let referenceImageUrl = null;
-  let autoSelected = false;
   if (candidates.length > 0) {
     const top = candidates[0];
     const topScore = (typeof top.combined_score === 'number') ? top.combined_score : top.quality_score;
     if (topScore >= AUTO_SELECT_THRESHOLD) {
-      // Confianca alta → escolhe sozinho
       referenceImageUrl = top.url;
-      nextStatus = 'reference_approved';
-      autoSelected = true;
       console.log(`[searchRefs] AUTO-SELECT productId=${productId} top.combined=${topScore} url=${top.url}`);
-    } else if (topScore >= REVIEW_MIN) {
-      nextStatus = 'pending_review';
-      console.log(`[searchRefs] PENDING_REVIEW productId=${productId} top.combined=${topScore} (<${AUTO_SELECT_THRESHOLD})`);
     } else {
-      nextStatus = 'needs_manual_photo';
-      console.log(`[searchRefs] NEEDS_MANUAL productId=${productId} top.combined=${topScore} (<${REVIEW_MIN})`);
+      console.log(`[searchRefs] sem ref boa productId=${productId} top.combined=${topScore} — vai TEXT-ONLY`);
     }
+  } else {
+    console.log(`[searchRefs] zero candidates productId=${productId} — vai TEXT-ONLY`);
   }
 
+  // SEMPRE dispara art generation: com ref (img2img) ou sem ref (text-only)
+  // Vision QA da arte filtra qualidade depois. Se ruim, retry interno; se reincide, manda WhatsApp.
   const updateData = {
     reference_candidates: candidates,
-    art_status: nextStatus,
+    art_status: 'reference_approved', // sempre aprova pra disparar Grok
   };
   if (referenceImageUrl) updateData.reference_image_url = referenceImageUrl;
   await sbUpdate('drope_products', `id=eq.${productId}`, updateData);
-  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas, status=${nextStatus}, autoSelected=${autoSelected}`);
+  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas, ref=${referenceImageUrl ? 'sim' : 'TEXT-ONLY'}, disparando Grok`);
 
-  // Auto-dispara pipeline de arte se selecionou sozinho
-  if (autoSelected) {
-    try {
-      console.log(`[searchRefs] disparando art generation auto productId=${productId}`);
-      await fireBackgroundArtGeneration(productId, ADMIN_LUCAS, 1);
-    } catch (e) { console.warn('[searchRefs] fireArt err:', e.message); }
-  }
+  try {
+    await fireBackgroundArtGeneration(productId, ADMIN_LUCAS, 1);
+  } catch (e) { console.warn('[searchRefs] fireArt err:', e.message); }
   return candidates;
 }
 
