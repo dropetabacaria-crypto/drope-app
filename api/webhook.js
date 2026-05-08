@@ -9522,10 +9522,12 @@ function bindStepUI(step, d, expand, row) {
             if (data.ean) {
               expand.querySelector('input[data-field="ean"]').value = data.ean;
               result.className = 'expand-status ok';
-              result.textContent = '✓ achei: ' + data.ean + ' (' + data.confidence + ' fonte' + (data.confidence>1?'s':'') + ')';
+              const sourceLabel = { 'open_food_facts': '🌾 Open Food Facts', 'upcitemdb': '📊 UPCitemDB', 'serper_google': '🔎 Google' }[data.source] || data.source;
+              result.textContent = '✓ ' + data.ean + ' · fonte: ' + sourceLabel + ' (' + data.confidence + ')';
             } else {
               result.className = 'expand-status err';
-              result.textContent = '⚠️ não achei EAN — coloca manual';
+              const tried = (data.all_tries || []).length;
+              result.textContent = '⚠️ não achei em ' + (tried || 3) + ' fontes — manda foto do código ou digita manual';
             }
           } catch (e) {
             result.className = 'expand-status err';
@@ -13938,7 +13940,6 @@ async function generateAll(){
       const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const productId = reqBody.productId;
       if (!productId) return res.status(400).json({ error: 'productId obrigatório' });
-      if (!SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY não configurada' });
 
       const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(productId)}&select=id,name,metadata&limit=1`);
       const prod = rows && rows[0];
@@ -13947,60 +13948,114 @@ async function generateAll(){
       const brand = m.brand || '';
       const model = m.model || '';
       const flavor = m.flavor_pt || m.flavor_en || m.flavor || '';
-      if (!brand || !model) return res.status(400).json({ error: 'produto sem brand/model no metadata' });
+      if (!brand) return res.status(400).json({ error: 'produto sem brand no metadata' });
 
-      // 3 queries em ordem de especificidade — a mais específica vem primeiro
-      const queries = [
-        `"${brand} ${model} ${flavor}" EAN barcode`,
-        `"${brand}" "${model}" "${flavor}" código de barras`,
-        `${brand} ${model} ${flavor} barcode`,
-      ];
+      const isValidEan = (ean) => {
+        if (!/^\d{12,13}$/.test(ean)) return false;
+        if (/^(19|20)\d{2}$/.test(ean)) return false;
+        if (/^0{8,}/.test(ean)) return false;
+        if (/^(\d)\1{10,}$/.test(ean)) return false;
+        return true;
+      };
 
-      const candidates = []; // { ean, snippet, source_url }
-      for (const q of queries) {
-        const data = await _serperSearch(q, 'search', 8);
-        if (!data) continue;
-        const organic = data.organic || [];
-        const blob = organic.map(o => ({
-          text: `${o.title || ''}. ${o.snippet || ''}`,
-          link: o.link || '',
-        }));
-        for (const item of blob) {
-          // Extrai todos os números de 12-13 dígitos que parecem EAN/UPC
-          // Aceita: "1234567890123", "1234 567 890 123", "1234-5678-9012-3" etc
-          const norm = item.text.replace(/[\s\-\.]/g, '');
-          const matches = norm.match(/\b\d{12,13}\b/g) || [];
-          for (const ean of matches) {
-            // Filtra anos (1990-2030), telefones (começa com 0 ou repetições óbvias)
-            if (/^(19|20)\d{2}$/.test(ean)) continue;
-            if (/^0{8,}/.test(ean)) continue;
-            if (/^(\d)\1{10,}$/.test(ean)) continue; // 12 ou 13 do mesmo dígito
-            candidates.push({
-              ean,
-              snippet: item.text.slice(0, 150),
-              source_url: item.link,
+      const tries = []; // { source, ean, confidence, snippet, source_url, ms }
+
+      // ===== TIER 1: Open Food Facts (grátis, sem chave) =====
+      const offT0 = Date.now();
+      try {
+        const offQuery = encodeURIComponent(`${brand} ${model} ${flavor}`.trim());
+        const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${offQuery}&search_simple=1&action=process&json=1&page_size=10`;
+        const offR = await fetch(offUrl, { signal: AbortSignal.timeout(6000) });
+        if (offR.ok) {
+          const offData = await offR.json();
+          const products = (offData.products || []).filter(p => p.code && isValidEan(p.code));
+          if (products.length > 0) {
+            tries.push({
+              source: 'open_food_facts',
+              ean: products[0].code,
+              confidence: products.length,
+              snippet: products[0].product_name || products[0].generic_name || '',
+              source_url: `https://world.openfoodfacts.org/product/${products[0].code}`,
+              ms: Date.now() - offT0,
             });
           }
         }
-        if (candidates.length > 0) break; // achou na 1ª query, não precisa das outras
+      } catch (e) { console.warn('[auto_search_ean] OFF err:', e.message); }
+
+      // ===== TIER 2: UPCDatabase pesquisa por nome (grátis sem chave em alguns endpoints) =====
+      const upcT0 = Date.now();
+      try {
+        const upcQuery = encodeURIComponent(`${brand} ${model} ${flavor}`.trim());
+        // upcitemdb.com tem endpoint trial sem chave (1 req/10s, mas pra teste serve)
+        const upcUrl = `https://api.upcitemdb.com/prod/trial/search?s=${upcQuery}&match_mode=0&type=product`;
+        const upcR = await fetch(upcUrl, { signal: AbortSignal.timeout(6000) });
+        if (upcR.ok) {
+          const upcData = await upcR.json();
+          const items = (upcData.items || []).filter(it => it.ean && isValidEan(it.ean));
+          if (items.length > 0) {
+            tries.push({
+              source: 'upcitemdb',
+              ean: items[0].ean,
+              confidence: items.length,
+              snippet: items[0].title || '',
+              source_url: items[0].images && items[0].images[0] ? items[0].images[0] : '',
+              ms: Date.now() - upcT0,
+            });
+          }
+        }
+      } catch (e) { console.warn('[auto_search_ean] UPC err:', e.message); }
+
+      // ===== TIER 3: Serper Google fallback =====
+      if (SERPER_API_KEY && tries.length === 0) {
+        const serperT0 = Date.now();
+        const queries = [
+          `"${brand} ${model} ${flavor}" EAN barcode`,
+          `"${brand}" "${model}" "${flavor}" código de barras`,
+          `${brand} ${model} ${flavor} barcode`,
+        ];
+        const candidates = [];
+        for (const q of queries) {
+          const data = await _serperSearch(q, 'search', 8);
+          if (!data) continue;
+          const organic = data.organic || [];
+          for (const o of organic) {
+            const text = `${o.title || ''}. ${o.snippet || ''}`;
+            const norm = text.replace(/[\s\-\.]/g, '');
+            const matches = norm.match(/\b\d{12,13}\b/g) || [];
+            for (const ean of matches) {
+              if (!isValidEan(ean)) continue;
+              candidates.push({ ean, snippet: text.slice(0, 150), source_url: o.link || '' });
+            }
+          }
+          if (candidates.length > 0) break;
+        }
+        const counts = {};
+        for (const c of candidates) counts[c.ean] = (counts[c.ean] || 0) + 1;
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        if (sorted[0]) {
+          const bestEan = sorted[0][0];
+          const bestEntry = candidates.find(c => c.ean === bestEan);
+          tries.push({
+            source: 'serper_google',
+            ean: bestEan,
+            confidence: sorted[0][1],
+            snippet: bestEntry ? bestEntry.snippet : '',
+            source_url: bestEntry ? bestEntry.source_url : '',
+            ms: Date.now() - serperT0,
+          });
+        }
       }
 
-      // Vota: o EAN que aparece em mais resultados é o "mais provável"
-      const counts = {};
-      for (const c of candidates) {
-        counts[c.ean] = (counts[c.ean] || 0) + 1;
-      }
-      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-      const bestEan = sorted[0] ? sorted[0][0] : null;
-      const bestEntry = candidates.find(c => c.ean === bestEan);
-
+      // Pega a primeira fonte que achou (cascade ordem importa)
+      const winner = tries[0] || null;
       return res.status(200).json({
         ok: true,
-        ean: bestEan,
-        confidence: sorted[0] ? sorted[0][1] : 0,
-        source_snippet: bestEntry ? bestEntry.snippet : null,
-        source_url: bestEntry ? bestEntry.source_url : null,
-        candidates: sorted.slice(0, 5).map(([ean, votes]) => ({ ean, votes })),
+        ean: winner ? winner.ean : null,
+        source: winner ? winner.source : null,
+        confidence: winner ? winner.confidence : 0,
+        source_snippet: winner ? winner.snippet : null,
+        source_url: winner ? winner.source_url : null,
+        all_tries: tries, // pra debug — mostra quem tentou e quem achou
         product: { id: prod.id, name: prod.name, brand, model, flavor },
       });
     } catch (e) {
