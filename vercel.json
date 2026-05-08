@@ -16,6 +16,8 @@
     { "src": "api/**/*.js", "use": "@vercel/node", "config": { "maxDuration": 60 } }
   ],
   "routes": [
+    { "src": "/api/infinitepay-checkout", "dest": "/api/webhook?action=infinitepay_checkout" },
+    { "src": "/api/infinitepay-webhook", "dest": "/api/webhook?action=infinitepay_webhook" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
     { "src": "/pdv.html", "dest": "/pdv.html" },
     { "src": "/receber.html", "dest": "/receber.html" },

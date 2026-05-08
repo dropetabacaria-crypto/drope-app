@@ -11357,6 +11357,166 @@ responde quando puder com preços e disponibilidade — fechamos hoje cedo.`;
 // ===== MERCADO PAGO PIX HANDLERS (05/05/2026) =====
 
 // Cria pagamento Pix via API do Mercado Pago, retorna QR code + copia-e-cola
+// ===== INFINITEPAY (migrado de api/infinitepay-*.js em 08/05/2026) =====
+async function handleInfinitePayCheckout(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+
+  try {
+    const { handle, items, total, order_id, customer } = req.body || {};
+    if (!handle || !items || !items.length) return res.status(400).json({ error: 'missing handle or items' });
+
+    const protocol = (req.headers['x-forwarded-proto'] || 'https');
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'drope-app.vercel.app';
+    const redirectUrl = `${protocol}://${host}/#success-pay`;
+    const webhookUrl = `${protocol}://${host}/api/webhook?action=infinitepay_webhook`;
+
+    const payload = {
+      handle,
+      order_nsu: order_id || `drope-${Date.now()}`,
+      redirect_url: redirectUrl,
+      webhook_url: webhookUrl,
+      items: items.map(i => ({ quantity: i.quantity, price: i.price, description: 'Tabacaria Drope' })),
+    };
+    if (customer && (customer.name || customer.email || customer.phone_number)) {
+      payload.customer = {};
+      if (customer.name) payload.customer.name = customer.name;
+      if (customer.email) payload.customer.email = customer.email;
+      if (customer.phone_number) payload.customer.phone_number = customer.phone_number;
+    }
+
+    console.log('[InfinitePay] payload:', JSON.stringify(payload).substring(0, 400));
+    const response = await fetch('https://api.infinitepay.io/invoices/public/checkout/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    console.log('[InfinitePay] status:', response.status, 'data:', JSON.stringify(data).substring(0, 300));
+
+    if (response.ok && data.url) {
+      return res.status(200).json({ url: data.url, id: data.id || data.invoice_slug });
+    }
+    if (handle && total) {
+      const fallbackUrl = `https://infinitepay.io/${handle}?amount=${total}`;
+      console.log('[InfinitePay] usando fallback URL:', fallbackUrl);
+      return res.status(200).json({ url: fallbackUrl, fallback: true });
+    }
+    return res.status(502).json({ error: 'infinitepay error', details: data });
+  } catch (err) {
+    console.error('[InfinitePay] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleInfinitePayWebhook(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+
+  const INFINITEPAY_WEBHOOK_SECRET = process.env.INFINITEPAY_WEBHOOK_SECRET || "";
+  const STORE_WHATS_NUMBER = process.env.STORE_WHATS_NUMBER || "5511924810126";
+
+  try {
+    if (INFINITEPAY_WEBHOOK_SECRET) {
+      const provided = req.headers['x-webhook-secret'] || req.headers['x-infinitepay-signature'];
+      if (provided !== INFINITEPAY_WEBHOOK_SECRET) {
+        console.warn('[InfinitePay Webhook] invalid secret');
+        return res.status(401).json({ error: 'unauthorized' });
+      }
+    }
+
+    const body = req.body || {};
+    console.log('[InfinitePay Webhook] payload:', JSON.stringify(body).substring(0, 400));
+
+    const event = body.event || body.type || 'unknown';
+    const transactionId = body.transaction_id || body.transactionId || body.id;
+    const orderNsu = body.order_nsu || body.orderNsu || body.nsu || '';
+    const amountCents = body.amount || body.total || 0;
+    const paymentMethod = body.payment_method || body.paymentMethod || 'pix';
+    const customer = body.customer || {};
+
+    const approvedEvents = ['payment.approved', 'payment.confirmed', 'transaction.approved', 'approved'];
+    if (!approvedEvents.includes(String(event).toLowerCase())) {
+      console.log('[InfinitePay Webhook] evento ignorado:', event);
+      return res.status(200).json({ ok: true, ignored: true, event });
+    }
+
+    let updatedCustomerId = null;
+    if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
+      try {
+        const updateRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation',
+            },
+            body: JSON.stringify({
+              status: 'paid',
+              payment_confirmed_at: new Date().toISOString(),
+              transaction_id: transactionId,
+              amount_paid_cents: amountCents,
+            }),
+          }
+        );
+        const updated = await updateRes.json();
+        console.log('[InfinitePay Webhook] Supabase update status:', updateRes.status, 'rows:', Array.isArray(updated) ? updated.length : 'n/a');
+        if (Array.isArray(updated) && updated[0] && updated[0].customer_id) {
+          updatedCustomerId = updated[0].customer_id;
+        }
+      } catch (e) {
+        console.error('[InfinitePay Webhook] Supabase update error:', e.message);
+      }
+    }
+
+    if (updatedCustomerId) {
+      const host = req.headers?.host || process.env.VERCEL_URL || '';
+      const proto = (req.headers?.['x-forwarded-proto'] || 'https');
+      if (host) {
+        const url = `${proto}://${host}/api/webhook?action=customer_profile&customer_id=${updatedCustomerId}`;
+        fetch(url).catch(e => console.error('[InfinitePay Webhook] flavor_profile refresh err:', e.message));
+      }
+    }
+
+    if (UAZAPI_TOKEN && STORE_WHATS_NUMBER) {
+      try {
+        const amountBRL = (amountCents / 100).toFixed(2).replace('.', ',');
+        const customerLine = customer.name
+          ? `${customer.name}${customer.phone_number ? ' · ' + customer.phone_number : ''}`
+          : 'cliente';
+        const lines = [
+          `💰 *PAGAMENTO CONFIRMADO* ✅`, ``,
+          `Pedido: *#${orderNsu}*`,
+          `Valor: *R$ ${amountBRL}*`,
+          `Método: ${paymentMethod}`, ``,
+          `👤 ${customerLine}`, ``,
+          `_Drope ✦ InfinitePay Webhook_`,
+        ];
+        await fetch(`${UAZAPI_SERVER}/send/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': UAZAPI_TOKEN },
+          body: JSON.stringify({ number: STORE_WHATS_NUMBER, text: lines.join('\n') }),
+        });
+        console.log('[InfinitePay Webhook] whatsapp loja notificado');
+      } catch (e) {
+        console.error('[InfinitePay Webhook] whatsapp err:', e.message);
+      }
+    }
+
+    return res.status(200).json({ ok: true, processed: true, orderNsu, transactionId });
+  } catch (err) {
+    console.error('[InfinitePay Webhook] ERROR:', err.message);
+    return res.status(200).json({ ok: false, error: err.message });
+  }
+}
+
 async function handleMPCreatePix(req, res) {
   // CORS
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
@@ -13748,6 +13908,17 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=mp_webhook') >= 0) {
     return await handleMPWebhook(req, res);
+  }
+
+  // ===== INFINITEPAY (08/05/2026) — migrado de api/infinitepay-*.js =====
+  // Vercel Hobby plan limita 12 funções; consolidamos no webhook.
+  // action=infinitepay_checkout — POST: gera link checkout
+  // action=infinitepay_webhook — POST: recebe notificação de pagamento
+  if (req.url && req.url.indexOf('action=infinitepay_checkout') >= 0) {
+    return await handleInfinitePayCheckout(req, res);
+  }
+  if (req.url && req.url.indexOf('action=infinitepay_webhook') >= 0) {
+    return await handleInfinitePayWebhook(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====
