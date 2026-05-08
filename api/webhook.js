@@ -8198,7 +8198,7 @@ async function handleEsteiraView(req, res) {
       }
     }
 
-    return res.status(200).send(esteiraHtml(unidentified, pendingRows || [], awaitingRows || [], specsRows || [], params.token));
+    return res.status(200).send(pipelineHtml(unidentified, pendingRows || [], awaitingRows || [], specsRows || [], params.token));
   } catch (e) {
     console.error('[esteira] error:', e.message);
     return res.status(500).send('<h1 style="color:#ff2d95;font-family:sans-serif">erro: ' + (e.message || '') + '</h1>');
@@ -8809,6 +8809,587 @@ if (massBtn) {
       massBtn.disabled = false;
     }
   };
+}
+</script>
+</body></html>`;
+}
+
+// ===== PIPELINE VISUAL HORIZONTAL (08/05/2026) =====
+// Andrade pediu: "pipeline visual com linha por produto mostrando progresso colorido,
+// click direto no step que falta — sem zigue-zague entre abas"
+// Substitui esteiraHtml. Cada produto = 1 linha com 5 steps clickable.
+function pipelineHtml(unidentified, pending, awaiting, specs, token) {
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  // Constrói rows unificadas — cada item vira 1 linha com 5 steps
+  const rows = [];
+
+  // Tipo 1: sem-sabor (sem produto criado ainda)
+  for (const u of unidentified) {
+    let brand = '?', model = '';
+    try {
+      const vis = typeof u.vision_response === 'string' ? JSON.parse(u.vision_response) : u.vision_response;
+      const p = vis?.products?.[0] || {};
+      brand = p.brand || '?';
+      model = p.model || '';
+    } catch (_) {}
+    rows.push({
+      kind: 'unidentified',
+      key: 'u-' + u.batch_id + '-' + u.photo_index,
+      batchId: u.batch_id,
+      photoIdx: u.photo_index,
+      photoUrl: u.photo_url,
+      arteUrl: null,
+      brand, model, flavor: null,
+      productId: null,
+      stepStates: { sabor: 'todo', ref: 'locked', arte: 'locked', preco: 'locked', ean: 'locked' },
+    });
+  }
+
+  // Tipo 2: pending (produto criado, sem arte)
+  for (const p of pending) {
+    const m = p.metadata || {};
+    const refs = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+    const hasRef = !!p.reference_image_url;
+    const isSearching = p.art_status === 'pending_reference' && refs.length === 0;
+    const refState = hasRef ? 'done' : (isSearching ? 'working' : 'todo');
+    rows.push({
+      kind: 'pending',
+      key: 'p-' + p.id,
+      productId: p.id,
+      brand: m.brand || '?',
+      model: m.model || '',
+      flavor: m.flavor_pt || m.flavor_en || m.flavor || null,
+      photoUrl: p.box_photo_url || m.box_photo_url || null,
+      arteUrl: null,
+      data: p,
+      stepStates: {
+        sabor: 'done',
+        ref: refState,
+        arte: 'locked',
+        preco: 'locked',
+        ean: 'locked',
+      },
+    });
+  }
+
+  // Tipo 3: awaiting (arte gerada, esperando aprovação)
+  for (const p of awaiting) {
+    const m = p.metadata || {};
+    const arteUrl = m.pending_art_url || p.image_url || null;
+    rows.push({
+      kind: 'awaiting',
+      key: 'a-' + p.id,
+      productId: p.id,
+      brand: m.brand || '?',
+      model: m.model || '',
+      flavor: m.flavor_pt || m.flavor_en || m.flavor || null,
+      photoUrl: p.box_photo_url || m.box_photo_url || null,
+      arteUrl,
+      data: p,
+      stepStates: {
+        sabor: 'done',
+        ref: 'done',
+        arte: 'todo',
+        preco: 'locked',
+        ean: 'locked',
+      },
+    });
+  }
+
+  // Tipo 4: specs (arte aprovada, falta preço/EAN)
+  for (const p of specs) {
+    const m = p.metadata || {};
+    rows.push({
+      kind: 'specs',
+      key: 's-' + p.id,
+      productId: p.id,
+      brand: m.brand || '?',
+      model: m.model || '',
+      flavor: m.flavor_pt || m.flavor_en || m.flavor || null,
+      photoUrl: p.box_photo_url || m.box_photo_url || null,
+      arteUrl: p.image_url,
+      data: p,
+      stepStates: {
+        sabor: 'done',
+        ref: 'done',
+        arte: 'done',
+        preco: (p.price_cents > 0) ? 'done' : 'todo',
+        ean: (p.barcode && p.barcode.length > 0) ? 'done' : 'todo',
+      },
+    });
+  }
+
+  const totalRows = rows.length;
+  const counts = {
+    sabor: rows.filter(r => r.stepStates.sabor === 'todo').length,
+    ref: rows.filter(r => r.stepStates.ref === 'todo' || r.stepStates.ref === 'working').length,
+    arte: rows.filter(r => r.stepStates.arte === 'todo').length,
+    preco: rows.filter(r => r.stepStates.preco === 'todo').length,
+    ean: rows.filter(r => r.stepStates.ean === 'todo').length,
+  };
+
+  const stepIcon = { done: '●', working: '◐', todo: '○', locked: '·' };
+  const stepLabel = { sabor: 'sabor', ref: 'ref', arte: 'arte', preco: 'preço', ean: 'EAN' };
+
+  const renderStep = (step, state, key) => {
+    const icon = stepIcon[state] || '○';
+    const cls = 'step state-' + state;
+    const clickable = (state === 'todo' || state === 'working');
+    return `<button class="${cls}" data-step="${step}" data-key="${esc(key)}" ${clickable ? '' : 'disabled'}><span class="dot">${icon}</span><span class="lbl">${stepLabel[step]}</span></button>`;
+  };
+
+  const renderRow = (row) => {
+    const thumb = row.arteUrl || row.photoUrl;
+    const subtitle = [row.brand, row.model, row.flavor].filter(Boolean).join(' · ');
+    const dataAttrs = `data-key="${esc(row.key)}" data-kind="${row.kind}" data-product-id="${esc(row.productId || '')}" data-batch-id="${esc(row.batchId || '')}" data-photo-idx="${esc(row.photoIdx ?? '')}"`;
+    return `
+      <div class="row" ${dataAttrs}>
+        <div class="row-main">
+          <div class="row-thumb">${thumb ? `<img src="${esc(thumb)}" loading="lazy" alt="">` : '<div class="no-thumb">?</div>'}</div>
+          <div class="row-info">
+            <div class="row-name">${esc(row.flavor || '(sem identificação)')}</div>
+            <div class="row-sub">${esc(subtitle)}</div>
+          </div>
+          <div class="row-steps">
+            ${renderStep('sabor', row.stepStates.sabor, row.key)}
+            ${renderStep('ref', row.stepStates.ref, row.key)}
+            ${renderStep('arte', row.stepStates.arte, row.key)}
+            ${renderStep('preco', row.stepStates.preco, row.key)}
+            ${renderStep('ean', row.stepStates.ean, row.key)}
+          </div>
+        </div>
+        <div class="row-expand" hidden></div>
+      </div>`;
+  };
+
+  // Embed dos dados das rows como JSON pra o JS frontend usar
+  const rowsJson = JSON.stringify(rows.map(r => ({
+    key: r.key,
+    kind: r.kind,
+    productId: r.productId,
+    batchId: r.batchId || null,
+    photoIdx: r.photoIdx ?? null,
+    name: r.flavor,
+    brand: r.brand,
+    model: r.model,
+    flavor: r.flavor,
+    arteUrl: r.arteUrl,
+    photoUrl: r.photoUrl,
+    refs: r.data && Array.isArray(r.data.reference_candidates) ? r.data.reference_candidates : [],
+    refUrl: r.data && r.data.reference_image_url ? r.data.reference_image_url : null,
+    barcode: r.data && r.data.barcode ? r.data.barcode : null,
+    priceCents: r.data && r.data.price_cents ? r.data.price_cents : 0,
+    artStatus: r.data && r.data.art_status ? r.data.art_status : null,
+    imageStatus: r.data && r.data.image_status ? r.data.image_status : null,
+    pendingArtUrl: r.data && r.data.metadata && r.data.metadata.pending_art_url ? r.data.metadata.pending_art_url : null,
+    qcScore: r.data && r.data.metadata && r.data.metadata.qc_score ? r.data.metadata.qc_score : null,
+  })));
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR" translate="no"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A0A14">
+<title>Pipeline ✦ Drope</title>
+<style>
+:root{--bg:#0A0A14;--bg2:#14141F;--bg3:#1d1d2c;--fg:#EAEAF2;--dim:#8A8AA3;--pink:#FF2D6F;--lime:#D4FF2E;--violet:#9D4EDD;--amber:#FFB800;--b:rgba(255,255,255,0.08)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:0 0 80px;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;font-size:14px}
+header{padding:14px 16px;border-bottom:1px solid var(--b);position:sticky;top:0;background:rgba(10,10,20,.97);backdrop-filter:blur(8px);z-index:10}
+.head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:18px}h1 em{color:var(--lime);font-style:normal}
+.subtitle{font-size:11px;color:var(--dim);margin-top:2px}
+.legend{display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--dim);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend .dot-done{color:var(--lime)}
+.legend .dot-todo{color:var(--pink)}
+.legend .dot-working{color:var(--violet)}
+.legend .dot-locked{color:var(--dim)}
+.topbtn{padding:6px 10px;border-radius:8px;background:var(--bg2);border:1px solid var(--b);color:var(--dim);font-size:12px;text-decoration:none;cursor:pointer;font-family:inherit}
+.filter-bar{display:flex;gap:6px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.filter{flex:0 0 auto;padding:5px 10px;border-radius:99px;border:1px solid var(--b);background:var(--bg2);color:var(--fg);font-size:11px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
+.filter.active{background:var(--lime);color:#000;border-color:var(--lime)}
+.filter .badge{background:rgba(0,0,0,.2);padding:0 6px;border-radius:99px;font-size:10px;font-weight:700}
+.filter.active .badge{background:rgba(0,0,0,.3)}
+
+.list{padding:8px 16px;max-width:980px;margin:0 auto}
+.row{background:var(--bg2);border:1px solid var(--b);border-radius:10px;margin-bottom:6px;overflow:hidden;transition:border-color .15s}
+.row:hover{border-color:rgba(212,255,46,.3)}
+.row-main{display:flex;align-items:center;gap:12px;padding:8px 10px}
+.row-thumb{flex:0 0 48px;width:48px;height:48px;background:#000;border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.row-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.no-thumb{color:var(--dim);font-size:18px;font-weight:bold}
+.row-info{flex:1;min-width:0}
+.row-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-steps{display:flex;gap:3px;flex-shrink:0}
+.step{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 7px;border-radius:6px;border:1px solid var(--b);background:transparent;color:var(--fg);font-family:inherit;font-size:9px;cursor:pointer;min-width:46px;transition:all .15s}
+.step:hover:not(:disabled){border-color:var(--lime);background:var(--bg3)}
+.step:disabled{cursor:default;opacity:.5}
+.step .dot{font-size:14px;line-height:1}
+.step .lbl{text-transform:lowercase;letter-spacing:.02em;font-size:9px;color:var(--dim)}
+.step.state-done .dot{color:var(--lime)}
+.step.state-done .lbl{color:var(--lime)}
+.step.state-todo .dot{color:var(--pink)}
+.step.state-todo{border-color:rgba(255,45,111,.4)}
+.step.state-todo:hover:not(:disabled){border-color:var(--pink);background:rgba(255,45,111,.1)}
+.step.state-working .dot{color:var(--violet);animation:pulse 1.4s ease-in-out infinite}
+.step.state-working{border-color:rgba(157,78,221,.4)}
+.step.state-locked .dot{color:var(--dim)}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+.row-expand{padding:0 12px 12px;border-top:1px solid var(--b);background:var(--bg)}
+.row-expand[hidden]{display:none}
+.expand-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--violet);margin:10px 0 8px;font-weight:700}
+.expand-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:600px){.expand-grid{grid-template-columns:1fr}}
+.expand-photos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.expand-photo{background:#000;border-radius:6px;overflow:hidden;aspect-ratio:1}
+.expand-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.expand-photo .lbl{position:absolute;background:rgba(0,0,0,.7);color:var(--fg);font-size:10px;padding:2px 6px;border-radius:4px;margin:4px}
+.input-group{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.input-group label{font-size:11px;color:var(--dim);min-width:42px;text-transform:uppercase;font-weight:600;letter-spacing:.04em}
+.input-group input{flex:1;padding:7px 9px;border-radius:6px;border:1px solid var(--b);background:var(--bg2);color:var(--fg);font-size:13px;font-family:inherit;min-width:0}
+.input-group input:focus{outline:none;border-color:var(--lime)}
+.btn{padding:7px 12px;border-radius:6px;border:1px solid var(--b);background:transparent;color:var(--fg);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn.primary{background:var(--lime);color:#000;border-color:var(--lime)}
+.btn.violet{background:transparent;border-color:var(--violet);color:var(--violet)}
+.btn.violet:hover{background:var(--violet);color:#fff}
+.btn.danger{border-color:var(--pink);color:var(--pink)}
+.btn.danger:hover{background:var(--pink);color:#fff}
+.btn:disabled{opacity:.5;cursor:wait}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.refs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;margin-bottom:10px}
+.ref-thumb{position:relative;aspect-ratio:1;background:#000;border:2px solid transparent;border-radius:6px;overflow:hidden;cursor:pointer}
+.ref-thumb input{position:absolute;opacity:0;pointer-events:none}
+.ref-thumb img{width:100%;height:100%;object-fit:cover}
+.ref-thumb:has(input:checked),.ref-thumb.checked{border-color:var(--lime)}
+.ref-score{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);color:var(--lime);font-size:9px;padding:1px 4px;border-radius:3px;font-weight:700}
+.expand-status{font-size:11px;color:var(--dim);min-height:14px;margin-top:8px}
+.expand-status.ok{color:var(--lime)}
+.expand-status.err{color:var(--pink)}
+.empty-list{text-align:center;padding:40px;color:var(--dim);font-style:italic}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--violet);border-top-color:transparent;border-radius:50%;animation:spinr .8s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes spinr{to{transform:rotate(360deg)}}
+.row.hidden-by-filter{display:none}
+.qc-badge{display:inline-block;padding:1px 6px;background:rgba(212,255,46,.15);color:var(--lime);border-radius:4px;font-size:10px;font-weight:700;margin-left:6px}
+.qc-badge.bad{background:rgba(255,184,0,.15);color:var(--amber)}
+</style>
+</head><body>
+
+<header>
+  <div class="head-row">
+    <div>
+      <h1><em>🦎</em> pipeline</h1>
+      <div class="subtitle">${totalRows} produtos · clica num bullet vermelho/cinza pra resolver</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <a class="topbtn" href="/api/webhook?action=admin_hub&token=${esc(token)}">← hub</a>
+      <button class="topbtn" onclick="location.reload()">↻</button>
+    </div>
+  </div>
+  <div class="legend">
+    <span class="dot-done">● feito</span>
+    <span class="dot-todo">○ falta</span>
+    <span class="dot-working">◐ rolando</span>
+    <span class="dot-locked">· trancado</span>
+  </div>
+  <div class="filter-bar">
+    <button class="filter active" data-filter="all">tudo <span class="badge">${totalRows}</span></button>
+    <button class="filter" data-filter="sabor">○ sabor <span class="badge">${counts.sabor}</span></button>
+    <button class="filter" data-filter="ref">○ ref <span class="badge">${counts.ref}</span></button>
+    <button class="filter" data-filter="arte">○ arte <span class="badge">${counts.arte}</span></button>
+    <button class="filter" data-filter="preco">○ preço <span class="badge">${counts.preco}</span></button>
+    <button class="filter" data-filter="ean">○ EAN <span class="badge">${counts.ean}</span></button>
+  </div>
+</header>
+
+<div class="list">
+  ${totalRows === 0
+    ? '<div class="empty-list">✅ tudo finalizado — nenhum produto pendente</div>'
+    : rows.map(renderRow).join('')}
+</div>
+
+<script>
+const TOKEN = ${JSON.stringify(token)};
+const ROWS = ${rowsJson};
+const ROWS_BY_KEY = Object.fromEntries(ROWS.map(r => [r.key, r]));
+
+async function api(action, body = {}) {
+  const r = await fetch('/api/webhook?action=' + action, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.ok === false) throw new Error(data.error || 'HTTP ' + r.status);
+  return data;
+}
+
+// ===== FILTROS =====
+document.querySelectorAll('.filter').forEach(f => {
+  f.onclick = () => {
+    document.querySelectorAll('.filter').forEach(x => x.classList.remove('active'));
+    f.classList.add('active');
+    const which = f.dataset.filter;
+    document.querySelectorAll('.row').forEach(row => {
+      if (which === 'all') {
+        row.classList.remove('hidden-by-filter');
+      } else {
+        const data = ROWS_BY_KEY[row.dataset.key];
+        if (!data) return;
+        const state = data.kind === 'unidentified' && which === 'sabor' ? 'todo' :
+                      data.kind === 'pending' && which === 'ref' ? (data.refUrl ? 'done' : (data.artStatus === 'pending_reference' && (!data.refs || data.refs.length === 0) ? 'working' : 'todo')) :
+                      data.kind === 'awaiting' && which === 'arte' ? 'todo' :
+                      data.kind === 'specs' && which === 'preco' ? (data.priceCents > 0 ? 'done' : 'todo') :
+                      data.kind === 'specs' && which === 'ean' ? (data.barcode ? 'done' : 'todo') :
+                      'locked';
+        if (state === 'todo' || state === 'working') row.classList.remove('hidden-by-filter');
+        else row.classList.add('hidden-by-filter');
+      }
+    });
+  };
+});
+
+// ===== STEP CLICK =====
+document.querySelectorAll('.step').forEach(btn => {
+  btn.onclick = () => {
+    if (btn.disabled) return;
+    const step = btn.dataset.step;
+    const key = btn.dataset.key;
+    const row = btn.closest('.row');
+    const data = ROWS_BY_KEY[key];
+    if (!data) return;
+    const expand = row.querySelector('.row-expand');
+    // Toggle: se já expandido nesse step, fecha
+    if (!expand.hidden && expand.dataset.step === step) {
+      expand.hidden = true; expand.innerHTML = ''; expand.dataset.step = '';
+      return;
+    }
+    expand.dataset.step = step;
+    expand.innerHTML = renderStepUI(step, data);
+    expand.hidden = false;
+    bindStepUI(step, data, expand, row);
+  };
+});
+
+function renderStepUI(step, d) {
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  if (step === 'sabor') {
+    return \`
+      <div class="expand-title">📝 informa o sabor</div>
+      <div class="expand-photos">
+        <div class="expand-photo"><img src="\${esc(d.photoUrl||'')}" alt=""></div>
+        <div></div>
+      </div>
+      <div class="input-group">
+        <label>sabor</label>
+        <input type="text" data-field="flavor" placeholder="ex: Strawberry Kiwi" autofocus>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="sabor-save">✓ cadastrar</button>
+        <button class="btn danger" data-act="sabor-discard">🗑️ descartar</button>
+      </div>
+      <div class="expand-status"></div>
+    \`;
+  }
+  if (step === 'ref') {
+    const refs = d.refs || [];
+    const refsHtml = refs.length === 0
+      ? '<div style="color:var(--dim);font-size:12px;padding:10px;text-align:center;border:1px dashed var(--b);border-radius:6px">⚠️ nenhuma referência ainda — clica buscar de novo ou manda foto manual</div>'
+      : \`<div class="refs-grid">\${refs.map((r, i) => \`
+          <label class="ref-thumb">
+            <input type="radio" name="ref-\${esc(d.key)}" value="\${esc(r.url)}" \${d.refUrl === r.url ? 'checked' : ''}>
+            <img src="\${esc(r.url)}" loading="lazy">
+            <span class="ref-score">\${r.combined_score ? '🎯'+r.combined_score : '⭐'+(r.quality_score||0)}</span>
+          </label>\`).join('')}</div>\`;
+    return \`
+      <div class="expand-title">🔎 escolher referência</div>
+      <div class="expand-photos">
+        <div class="expand-photo">\${d.photoUrl ? \`<img src="\${esc(d.photoUrl)}" alt="">\` : '<div style="color:var(--dim);text-align:center;padding-top:30%">sem caixa</div>'}</div>
+        <div style="font-size:11px;color:var(--dim);align-self:center">↑ sua foto da caixa</div>
+      </div>
+      \${refsHtml}
+      <div class="btn-row">
+        \${refs.length > 0 ? '<button class="btn primary" data-act="ref-approve">✓ usar selecionada</button>' : ''}
+        <label class="btn">📸 foto manual<input type="file" accept="image/*" capture="environment" data-act="ref-photo" hidden></label>
+        <button class="btn violet" data-act="ref-retry">🔄 buscar de novo</button>
+        <button class="btn" data-act="ref-skip">🎬 sem ref</button>
+        <button class="btn danger" data-act="ref-remove">🗑️ remover</button>
+      </div>
+      <div class="expand-status"></div>
+    \`;
+  }
+  if (step === 'arte') {
+    const qc = d.qcScore;
+    const qcBadge = qc ? \`<span class="qc-badge \${parseFloat(qc) < 7 ? 'bad' : ''}">QC \${qc}</span>\` : '';
+    return \`
+      <div class="expand-title">🎨 aprovar arte \${qcBadge}</div>
+      <div class="expand-photos">
+        <div class="expand-photo">\${d.photoUrl ? \`<img src="\${esc(d.photoUrl)}" alt="">\` : ''}</div>
+        <div class="expand-photo">\${d.arteUrl || d.pendingArtUrl ? \`<img src="\${esc(d.arteUrl||d.pendingArtUrl)}" alt="">\` : '<div style="color:var(--dim);text-align:center;padding-top:30%">sem arte</div>'}</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="arte-approve">✓ aprovar arte</button>
+        <button class="btn violet" data-act="arte-regen">🔄 regerar</button>
+        <button class="btn danger" data-act="arte-reject">✕ rejeitar</button>
+      </div>
+      <div class="expand-status"></div>
+    \`;
+  }
+  if (step === 'preco') {
+    const pv = d.priceCents ? (d.priceCents/100).toFixed(2) : '';
+    return \`
+      <div class="expand-title">💰 preço de venda</div>
+      <div class="input-group">
+        <label>R$</label>
+        <input type="number" step="0.01" min="0" data-field="price" placeholder="ex: 89.90" value="\${pv}" autofocus>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="preco-save">💾 salvar preço</button>
+      </div>
+      <div class="expand-status"></div>
+    \`;
+  }
+  if (step === 'ean') {
+    return \`
+      <div class="expand-title">🔢 código de barras (EAN)</div>
+      <div class="input-group">
+        <label>EAN</label>
+        <input type="text" data-field="ean" placeholder="13 dígitos" value="\${esc(d.barcode||'')}" maxlength="14" autofocus>
+        <button class="btn violet" data-act="ean-search">🔎 buscar</button>
+      </div>
+      <div class="expand-status" data-field="ean-result"></div>
+      <div class="btn-row">
+        <button class="btn primary" data-act="ean-save">💾 salvar EAN</button>
+      </div>
+    \`;
+  }
+  return '<div>step desconhecido</div>';
+}
+
+function bindStepUI(step, d, expand, row) {
+  const status = expand.querySelector('.expand-status');
+  const setS = (msg, cls) => { if(status){status.textContent = msg; status.className = 'expand-status' + (cls?' '+cls:'');} };
+  const setStepDone = (stepName) => {
+    const stepBtn = row.querySelector('.step[data-step="' + stepName + '"]');
+    if (stepBtn) {
+      stepBtn.className = 'step state-done';
+      stepBtn.querySelector('.dot').textContent = '●';
+    }
+  };
+
+  expand.querySelectorAll('[data-act]').forEach(el => {
+    const act = el.dataset.act;
+    el.addEventListener(el.tagName === 'INPUT' && el.type === 'file' ? 'change' : 'click', async (ev) => {
+      try {
+        if (act === 'sabor-save') {
+          const flavor = expand.querySelector('input[data-field="flavor"]').value.trim();
+          if (flavor.length < 2) { setS('⚠️ digita o sabor', 'err'); return; }
+          setS('cadastrando...');
+          await api('complete_unidentified', { batch_id: d.batchId, photo_index: d.photoIdx, flavor });
+          setS('✓ cadastrado — recarrega em 2s', 'ok');
+          setTimeout(() => location.reload(), 1500);
+        } else if (act === 'sabor-discard') {
+          if (!confirm('descartar essa foto?')) return;
+          setS('descartando...');
+          await api('complete_unidentified', { batch_id: d.batchId, photo_index: d.photoIdx, discard: true });
+          row.style.transition = 'opacity .4s'; row.style.opacity = '0';
+          setTimeout(() => row.remove(), 500);
+        } else if (act === 'ref-approve') {
+          const r = expand.querySelector('input[type="radio"]:checked');
+          if (!r) { setS('⚠️ seleciona uma ref', 'err'); return; }
+          setS('aprovando + gerando arte (~30s)...');
+          await api('approve_reference', { productId: d.productId, referenceUrl: r.value });
+          setS('✓ ref aprovada — gerando arte. recarrega em 2min.', 'ok');
+          setStepDone('ref');
+          setTimeout(() => location.reload(), 5000);
+        } else if (act === 'ref-photo') {
+          const file = ev.target.files[0]; if (!file) return;
+          setS('subindo foto + gerando arte...');
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              await api('upload_pod_photo', { productId: d.productId, podPhotoBase64: reader.result });
+              setS('✓ foto subida — gerando arte. recarrega.', 'ok');
+              setTimeout(() => location.reload(), 3000);
+            } catch (e) { setS('erro: ' + e.message, 'err'); }
+          };
+          reader.readAsDataURL(file);
+        } else if (act === 'ref-retry') {
+          setS('rebuscando refs...');
+          await api('retry_search', { productId: d.productId });
+          setS('✓ rebuscando — recarrega em 10s', 'ok');
+          setTimeout(() => location.reload(), 10000);
+        } else if (act === 'ref-skip') {
+          if (!confirm('gerar arte só com dados textuais (sem foto de referência)?')) return;
+          setS('gerando text-only...');
+          await api('skip_reference', { productId: d.productId });
+          setS('✓ gerando — recarrega em 1min', 'ok');
+          setTimeout(() => location.reload(), 5000);
+        } else if (act === 'ref-remove') {
+          if (!confirm('remover esse produto?')) return;
+          setS('removendo...');
+          await api('remove_pending', { productId: d.productId });
+          row.style.transition = 'opacity .4s'; row.style.opacity = '0';
+          setTimeout(() => row.remove(), 500);
+        } else if (act === 'arte-approve' || act === 'arte-regen' || act === 'arte-reject') {
+          const op = act === 'arte-approve' ? 'approve' : (act === 'arte-regen' ? 'regenerate' : 'reject');
+          setS('processando...');
+          const data = await api('gallery_action', { id: d.productId, op });
+          setS(data.message || '✓ ok', 'ok');
+          if (op === 'approve' || op === 'reject') {
+            setStepDone('arte');
+            setTimeout(() => location.reload(), 1500);
+          }
+        } else if (act === 'preco-save') {
+          const v = expand.querySelector('input[data-field="price"]').value;
+          if (!v || parseFloat(v) <= 0) { setS('⚠️ preço inválido', 'err'); return; }
+          setS('salvando...');
+          const data = await api('save_specs', { productId: d.productId, price_cents: Math.round(parseFloat(v) * 100) });
+          setS('✓ preço salvo' + (data.finalized ? ' — produto FINALIZADO!' : ''), 'ok');
+          setStepDone('preco');
+          d.priceCents = Math.round(parseFloat(v) * 100);
+          if (data.finalized) {
+            setTimeout(() => { row.style.transition='opacity .4s'; row.style.opacity='0'; setTimeout(()=>row.remove(),500); }, 1000);
+          }
+        } else if (act === 'ean-search') {
+          const result = expand.querySelector('[data-field="ean-result"]');
+          el.disabled = true;
+          result.textContent = '🔎 procurando no Google...';
+          result.className = 'expand-status';
+          try {
+            const data = await api('auto_search_ean', { productId: d.productId });
+            if (data.ean) {
+              expand.querySelector('input[data-field="ean"]').value = data.ean;
+              result.className = 'expand-status ok';
+              result.textContent = '✓ achei: ' + data.ean + ' (' + data.confidence + ' fonte' + (data.confidence>1?'s':'') + ')';
+            } else {
+              result.className = 'expand-status err';
+              result.textContent = '⚠️ não achei EAN — coloca manual';
+            }
+          } catch (e) {
+            result.className = 'expand-status err';
+            result.textContent = 'erro: ' + e.message;
+          } finally { el.disabled = false; }
+        } else if (act === 'ean-save') {
+          const ean = expand.querySelector('input[data-field="ean"]').value.trim().replace(/\\D/g,'');
+          if (!ean || ean.length < 8) { setS('⚠️ EAN inválido (precisa 8-13 dígitos)', 'err'); return; }
+          setS('salvando...');
+          const data = await api('save_specs', { productId: d.productId, barcode: ean });
+          setS('✓ EAN salvo' + (data.finalized ? ' — produto FINALIZADO!' : ''), 'ok');
+          setStepDone('ean');
+          d.barcode = ean;
+          if (data.finalized) {
+            setTimeout(() => { row.style.transition='opacity .4s'; row.style.opacity='0'; setTimeout(()=>row.remove(),500); }, 1000);
+          }
+        }
+      } catch (e) {
+        setS('erro: ' + e.message, 'err');
+      }
+    });
+  });
 }
 </script>
 </body></html>`;
