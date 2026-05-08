@@ -664,6 +664,138 @@ async function handleWeeklyImuneReport(req, res) {
   return res.status(200).json({ ok: true, pendentes: Object.keys(pendAgg).length, reconciliadas: Object.keys(recAgg).length });
 }
 
+// ============ PAINEL ADMIN DO BALANÇO (07/05/2026 - Andrade) ============
+// GET /api/webhook?action=balance_panel&token=ADMIN_TOKEN
+// Mostra: estoque atual com qty | balanços recentes | divergências históricas | taxa de acerto
+async function handleBalancePanel(req, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  if (!ADMIN_TOKEN || queryTok !== ADMIN_TOKEN) {
+    await new Promise(r => setTimeout(r, 600));
+    return res.status(401).send('unauthorized');
+  }
+
+  // 1) Estoque atual
+  const stock = await sbGet('drope_products',
+    'select=id,name,qty_available,total_sold,updated_at&hidden=eq.false&order=name.asc&limit=500');
+
+  // 2) Eventos de balanço aplicado (últimos 10) do system_log
+  const events = await sbGet('drope_system_log',
+    `select=detail,created_at&action=eq.inventory_applied&order=created_at.desc&limit=10`);
+
+  // 3) Contagens recentes de balanço (status applied) por batch_id
+  const countsHist = await sbGet('drope_inventory_count',
+    'select=batch_id,product_id,qty_counted,status,created_at&status=eq.applied&order=created_at.desc&limit=200');
+
+  // Agrega por batch_id
+  const batches = {};
+  for (const c of (countsHist || [])) {
+    if (!batches[c.batch_id]) batches[c.batch_id] = { batch_id: c.batch_id, total_items: 0, total_qty: 0, first_created: c.created_at, last_created: c.created_at };
+    batches[c.batch_id].total_items++;
+    batches[c.batch_id].total_qty += (c.qty_counted || 0);
+    if (c.created_at < batches[c.batch_id].first_created) batches[c.batch_id].first_created = c.created_at;
+    if (c.created_at > batches[c.batch_id].last_created) batches[c.batch_id].last_created = c.created_at;
+  }
+  const batchList = Object.values(batches).sort((a, b) => b.last_created.localeCompare(a.last_created));
+
+  // 4) Pendências (balanços em andamento que não foram aplicados nem descartados)
+  const pending = await sbGet('drope_inventory_count',
+    'select=batch_id,phone&status=eq.pending&order=created_at.desc&limit=200');
+  const pendingBatches = {};
+  for (const p of (pending || [])) {
+    if (!pendingBatches[p.batch_id]) pendingBatches[p.batch_id] = { phone: p.phone, count: 0 };
+    pendingBatches[p.batch_id].count++;
+  }
+
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const rowsStock = (stock || []).map(p => {
+    const qty = p.qty_available || 0;
+    const cls = qty === 0 ? 'zero' : (qty <= 2 ? 'low' : 'ok');
+    return `<tr class="${cls}"><td>${esc(p.id)}</td><td>${esc(p.name)}</td><td class="num">${qty}</td><td class="num">${p.total_sold || 0}</td><td class="dim">${esc((p.updated_at||'').slice(0,16).replace('T',' '))}</td></tr>`;
+  }).join('');
+
+  const rowsBatches = batchList.map(b => `<tr><td><code>${esc(b.batch_id.slice(0, 8))}</code></td><td class="num">${b.total_items}</td><td class="num">${b.total_qty}</td><td class="dim">${esc(b.first_created.slice(0,16).replace('T',' '))} → ${esc(b.last_created.slice(11,16))}</td></tr>`).join('');
+
+  const rowsPending = Object.entries(pendingBatches).map(([bid, info]) => `<tr><td><code>${esc(bid.slice(0, 8))}</code></td><td>${esc(info.phone.slice(0,6) + '***')}</td><td class="num">${info.count}</td></tr>`).join('');
+
+  const html = `<!doctype html>
+<html lang="pt-br"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drope ✦ Painel Balanço</title>
+<style>
+:root { --bg:#0a0a14; --neon:#b026ff; --lime:#c0ff33; --pink:#ff2d95; --txt:#eaeaf2; --dim:#888; --card:#13131e; --border:#2a2a3e; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,system-ui,sans-serif;padding:16px}
+h1{color:var(--neon);margin:0 0 6px;font-size:22px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:24px}
+.section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}
+.section h2{color:var(--lime);margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:1px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--dim);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}
+td{padding:8px;border-bottom:1px solid #1a1a2a}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.dim{color:var(--dim);font-size:12px}
+tr.zero td{color:#ff6b6b}
+tr.low td{color:#ffa500}
+code{background:#1a1a2a;padding:2px 6px;border-radius:4px;font-size:11px;color:var(--lime)}
+.empty{color:var(--dim);font-style:italic;padding:12px 0;text-align:center}
+.kpis{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.kpi{flex:1;min-width:140px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px}
+.kpi .v{font-size:24px;font-weight:700;color:var(--lime)}
+.kpi .l{font-size:11px;color:var(--dim);text-transform:uppercase;margin-top:4px}
+.kpi.warn .v{color:#ffa500}
+.kpi.zero .v{color:#ff6b6b}
+.actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid var(--neon);background:transparent;color:var(--neon);font-size:12px;text-decoration:none;cursor:pointer}
+.btn:hover{background:var(--neon);color:#0a0a14}
+</style>
+</head><body>
+<h1>📊 painel balanço — drope</h1>
+<div class="sub">conferência fisica vs digital — historico e estado atual</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">${(stock||[]).length}</div><div class="l">produtos visíveis</div></div>
+  <div class="kpi warn"><div class="v">${(stock||[]).filter(p => (p.qty_available||0) > 0 && (p.qty_available||0) <= 2).length}</div><div class="l">estoque baixo (≤2)</div></div>
+  <div class="kpi zero"><div class="v">${(stock||[]).filter(p => (p.qty_available||0) === 0).length}</div><div class="l">zerados</div></div>
+  <div class="kpi"><div class="v">${batchList.length}</div><div class="l">balanços aplicados</div></div>
+  <div class="kpi warn"><div class="v">${Object.keys(pendingBatches).length}</div><div class="l">balanços em aberto</div></div>
+</div>
+
+${Object.keys(pendingBatches).length > 0 ? `
+<div class="section">
+  <h2>⏳ balanços em andamento</h2>
+  <table><thead><tr><th>batch</th><th>phone</th><th>contagens</th></tr></thead>
+  <tbody>${rowsPending}</tbody></table>
+</div>` : ''}
+
+<div class="section">
+  <h2>📦 estoque atual</h2>
+  <table><thead><tr><th>id</th><th>nome</th><th>qty</th><th>vendidos</th><th>atualizado</th></tr></thead>
+  <tbody>${rowsStock || '<tr><td colspan="5" class="empty">sem produtos</td></tr>'}</tbody></table>
+</div>
+
+<div class="section">
+  <h2>🗂️ histórico de balanços aplicados</h2>
+  ${batchList.length ? `<table><thead><tr><th>batch</th><th>itens</th><th>qty total</th><th>quando</th></tr></thead><tbody>${rowsBatches}</tbody></table>` : '<div class="empty">nenhum balanço aplicado ainda. manda \'balanço\' no whats pra começar.</div>'}
+</div>
+
+<div class="actions">
+  <a class="btn" href="/api/webhook?action=admin_hub&token=${esc(queryTok)}">← admin hub</a>
+  <a class="btn" href="/api/webhook?action=admin_diag&token=${esc(queryTok)}">diag</a>
+</div>
+</body></html>`;
+  return res.status(200).send(html);
+}
+
 async function handleSystemHealth(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (!checkCronAuth(req)) {
@@ -9403,6 +9535,10 @@ module.exports = async function handler(req, res) {
   if (req.url && req.url.indexOf('action=admin_diag') >= 0) {
     return await handleAdminDiag(req, res);
   }
+  // Painel admin do balanço (07/05/2026 - Andrade) — historico + divergencias
+  if (req.url && req.url.indexOf('action=balance_panel') >= 0) {
+    return await handleBalancePanel(req, res);
+  }
   // FLC FASE 6 — auto-close manual de batches abandonados
   if (req.url && req.url.indexOf('action=auto_close_batches') >= 0) {
     return await handleAutoCloseBatches(req, res);
@@ -9909,6 +10045,7 @@ const PAGES = [
   { id:'refs',      icon:'🔎', label:'refs',      desc:'referências do Serper',     url:'/api/webhook?action=pending_references', countKey:null, badgeColor:'' },
   { id:'custos',    icon:'💰', label:'custos',    desc:'gastos com APIs (7d)',      url:'/api/webhook?action=cost_report&days=7', countKey:null, badgeColor:'' },
   { id:'saude',     icon:'🏥', label:'saúde',     desc:'system health',             url:'/api/webhook?action=system_health',      countKey:null, badgeColor:'' },
+  { id:'balanco',   icon:'📊', label:'balanço',   desc:'conferência fisica vs digital', url:'/api/webhook?action=balance_panel',  countKey:null, badgeColor:'lime' },
   { id:'feedback',  icon:'💬', label:'feedback',  desc:'bolinha admin',             url:'/api/webhook?action=feedback_list',      countKey:null, badgeColor:'' },
 ];
 function getToken() {
