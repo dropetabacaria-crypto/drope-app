@@ -3685,6 +3685,52 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
 
 // Analisa foto de mix (múltiplos produtos na bancada) pro fluxo de abastecimento.
 // Retorna array de produtos identificados com qty visível na foto.
+// FIX 13 (08/05/2026 - Andrade) — Crop central + upscale antes do Vision.
+// Padrão das fotos do Andrade: várias caixas no chão, central em foco mas TEXTO
+// pequeno demais pra OCR. 28 fotos do lote anterior caíram aqui — Vision viu marca/
+// modelo mas falhou em ler sabor (flavor_confidence=0).
+// Solução: sharp.extract crop 60% central + resize 1.6x → texto do rótulo fica grande
+// o suficiente pra Haiku ler.
+async function _preprocessForVision(imageUrl) {
+  let sharp;
+  try { sharp = require('sharp'); } catch (e) { return imageUrl; } // fallback: original
+
+  let buffer;
+  try {
+    if (imageUrl.startsWith('data:')) {
+      const m = imageUrl.match(/^data:[^;]+;base64,(.+)$/);
+      if (!m) return imageUrl;
+      buffer = Buffer.from(m[1], 'base64');
+    } else {
+      const r = await fetch(imageUrl);
+      if (!r.ok) return imageUrl;
+      buffer = Buffer.from(await r.arrayBuffer());
+    }
+    const meta = await sharp(buffer).metadata();
+    if (!meta.width || !meta.height) return imageUrl;
+
+    // Crop central 65% (deixa um pouco de margem pra Vision ainda ver bordas)
+    const cropW = Math.round(meta.width * 0.65);
+    const cropH = Math.round(meta.height * 0.65);
+    const left = Math.round((meta.width - cropW) / 2);
+    const top = Math.round((meta.height - cropH) / 2);
+
+    // Upscale pra 1.6x do crop (final fica ~104% da original, mas só com central + detalhes maiores)
+    const targetW = Math.round(cropW * 1.6);
+    const processed = await sharp(buffer)
+      .extract({ left, top, width: cropW, height: cropH })
+      .resize(targetW, null, { kernel: 'lanczos3', fit: 'inside' })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    const b64 = processed.toString('base64');
+    console.log(`[preprocess] crop+upscale ${meta.width}x${meta.height} → ${targetW}px (central 65%)`);
+    return `data:image/jpeg;base64,${b64}`;
+  } catch (e) {
+    console.warn('[preprocess] err:', e.message);
+    return imageUrl; // fallback: foto original
+  }
+}
+
 async function analyzeMixPhoto(imageUrl) {
   // FIX 11 (07/05/2026 - Andrade) — FOCO NO POD CENTRAL.
   // Antes o prompt pedia pra Vision identificar TODOS os pods da foto. Resultado:
@@ -3735,22 +3781,63 @@ REGRAS:
     return { type: "url", url };
   };
 
-  const source = makeSource(imageUrl);
+  // FIX 13: pré-processa imagem (crop central + upscale) antes do Vision pra
+  // melhorar legibilidade do texto do rótulo da caixa central.
+  const processedUrl = await _preprocessForVision(imageUrl);
+  const source = makeSource(processedUrl);
   if (!source) return null;
 
-  const result = await callClaude(
-    [{ role: "user", content: [
-      { type: "image", source },
-      { type: "text", text: "Identifica APENAS o pod CENTRAL/PRINCIPAL da foto (o que esta em foco/destaque). Ignore caixas do fundo. LEIA o sabor escrito na embalagem central. Retorna 1 produto so. Responde SO o JSON." }
-    ]}],
-    systemPrompt,
-    1500
-  );
-  if (!result) return null;
+  const userMsg = [{ role: "user", content: [
+    { type: "image", source },
+    { type: "text", text: "Identifica APENAS o pod CENTRAL/PRINCIPAL da foto (o que esta em foco/destaque). Ignore caixas do fundo. LEIA o sabor escrito na embalagem central. Retorna 1 produto so. Responde SO o JSON." }
+  ]}];
 
+  // 1ª passada: Haiku (rápido + barato)
+  let result = await callClaude(userMsg, systemPrompt, 1500);
+  let parsed = null;
   try {
-    const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(clean);
+    if (result) {
+      const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      parsed = JSON.parse(clean);
+    }
+  } catch (e) { console.error('[analyzeMixPhoto] parse Haiku err:', e.message); }
+
+  // FIX 14 (08/05/2026 - Andrade) — fallback Sonnet 4.5 quando Haiku falha em ler sabor.
+  // Sonnet tem visão mais detalhada — pega texto pequeno/em ângulo que Haiku não pega.
+  // Custa 5x mais por chamada mas só roda se Haiku falhou (~28% das fotos do batch passado).
+  const haikuFailed = !parsed || !Array.isArray(parsed.products) || parsed.products.length === 0 ||
+    parsed.products.every(p => !p.flavor_en && !p.flavor_pt);
+  if (haikuFailed && CLAUDE_KEY) {
+    console.log('[analyzeMixPhoto] Haiku falhou em sabor, retry com Sonnet 4.5');
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages: userMsg,
+        }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const sonnetResult = data?.content?.[0]?.text || '';
+        const clean = sonnetResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const sonnetParsed = JSON.parse(clean);
+        // Aceita Sonnet só se ele AGREGOU info (sabor onde Haiku faltou)
+        if (sonnetParsed?.products?.some(p => p.flavor_en || p.flavor_pt)) {
+          console.log('[analyzeMixPhoto] Sonnet 4.5 SUCESSO — leu sabor que Haiku falhou');
+          parsed = sonnetParsed;
+        }
+      } else {
+        console.warn('[analyzeMixPhoto] Sonnet status:', r.status);
+      }
+    } catch (e) { console.warn('[analyzeMixPhoto] Sonnet retry err:', e.message); }
+  }
+
+  if (!parsed) return null;
+  try {
     if (!Array.isArray(parsed.products)) return { products: [], alertas: parsed.alertas || [] };
     // Limpa placeholders textuais em cada produto
     parsed.products = parsed.products.map(p => ({
@@ -3764,7 +3851,7 @@ REGRAS:
     }));
     return parsed;
   } catch (e) {
-    console.error('[analyzeMixPhoto] parse error:', e.message);
+    console.error('[analyzeMixPhoto] post-process error:', e.message);
     return null;
   }
 }
