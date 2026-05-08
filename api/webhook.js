@@ -2446,7 +2446,12 @@ async function tryHandleBatchCommand(phone, msg, body, text, pending) {
   const lower = String(text || '').toLowerCase().trim();
   if (lower === 'lote' || lower === 'iniciar lote' || lower === 'comeca lote' || lower === 'começa lote' || lower === 'modo lote') {
     if (pending?.mode === 'batch_active') {
-      await sendText(phone, `📸 Lote ja esta ativo. ${pending.fotoCount || 0} fotos processadas. Manda mais ou "fechar lote".`, body);
+      await sendText(phone,
+        `📸 *Lote ativo*\n` +
+        `${pending.fotoCount || 0} fotos processadas\n\n` +
+        `Manda mais fotos\n` +
+        `*fechar lote* — finaliza`,
+        body);
       return true;
     }
     await setPending(phone, {
@@ -2459,7 +2464,14 @@ async function tryHandleBatchCommand(phone, msg, body, text, pending) {
       matched: [],
       novos: [],
     });
-    await sendText(phone, '📸 Modo lote ativado! Pode mandar todas as fotos.\nVou processar tudo e te respondo no final.\n\nQuando terminar, manda "fechar lote".', body);
+    await sendText(phone,
+      '📸 *Modo lote ativado*\n\n' +
+      'Manda todas as fotos\n' +
+      'Vou processar e te respondo no final\n\n' +
+      'Quando terminar:\n' +
+      '✅ *fechar lote* — finaliza\n' +
+      '❌ *cancela lote* — descarta',
+      body);
     return true;
   }
   if (pending?.mode === 'batch_active' && (lower === 'fechar lote' || lower === 'fechar' || lower === 'pronto' || lower === 'acabei' || lower === 'fim')) {
@@ -2468,7 +2480,11 @@ async function tryHandleBatchCommand(phone, msg, body, text, pending) {
   }
   if (pending?.mode === 'batch_active' && (lower === 'cancela lote' || lower === 'cancelar lote')) {
     await clearPending(phone);
-    await sendText(phone, '✅ Lote cancelado. Os produtos ja processados ficaram cadastrados (status=pending). Use Admin Hub pra revisar.', body);
+    await sendText(phone,
+      '✅ *Lote cancelado*\n\n' +
+      'Os produtos ja processados ficaram cadastrados (status=pending)\n' +
+      'Use o Admin Hub pra revisar',
+      body);
     return true;
   }
   return false;
@@ -2487,7 +2503,12 @@ async function tryHandleInventoryCommand(phone, msg, body, text, pending) {
   if (lower === 'balanço' || lower === 'balanco' || lower === 'conferencia' || lower === 'conferência' || lower === 'inventario' || lower === 'inventário') {
     if (pending && (pending.mode === 'inventory_active' || pending.mode === 'inventory_review')) {
       const fc = pending.fotoCount || 0;
-      await sendText(phone, `📊 Balanço já está ativo (${fc} foto${fc !== 1 ? 's' : ''} processadas). Manda mais ou *fechar balanço*.`, body);
+      await sendText(phone,
+        `📊 *Balanço ativo*\n` +
+        `${fc} foto${fc !== 1 ? 's' : ''} processadas\n\n` +
+        `Manda mais fotos\n` +
+        `✅ *fechar balanço* — vê divergências`,
+        body);
       return true;
     }
     await setPending(phone, {
@@ -2500,9 +2521,11 @@ async function tryHandleInventoryCommand(phone, msg, body, text, pending) {
     });
     await sendText(phone,
       '📊 *Modo balanço ativado*\n\n' +
-      'Manda fotos do que tem em estoque físico (1 ou várias com vários pods em cada).\n\n' +
-      '• *fechar balanço* — vê divergências\n' +
-      '• *cancela* — descarta',
+      'Manda fotos do que tem em estoque físico\n' +
+      '(1 ou várias com vários pods em cada)\n\n' +
+      'Quando terminar:\n' +
+      '✅ *fechar balanço* — vê divergências\n' +
+      '❌ *cancela* — descarta',
       body);
     return true;
   }
@@ -5050,7 +5073,15 @@ async function handleAdminLucas(phone, msg, body) {
                 `🎨 ${next.name}${qcLine ? '\n' + qcLine : ''}`,
                 body);
               await sendImage(phone, nextArtUrl, '', body);
-              await sendText(phone, "*Responde:*\n✅ aprova / 🔄 outra / 📸 manda foto / ⏰ depois / ❌ rejeita\n\n🚀 *aprova todos* — atalho pra publicar tudo de uma vez", body);
+              await sendText(phone,
+                "*Responde:*\n" +
+                "✅ *aprova* — publica no catálogo\n" +
+                "🔄 *outra* — gera de novo\n" +
+                "📸 *manda foto* — uso a tua imagem\n" +
+                "⏰ *depois* — fica pendente\n" +
+                "❌ *rejeita* — descarta\n\n" +
+                "🚀 *aprova todos* — publica tudo de uma vez",
+                body);
               return;
             }
           }
@@ -5074,7 +5105,12 @@ async function handleAdminLucas(phone, msg, body) {
           } catch (e) {
             console.error('[art_review outra] runArtGeneration EXCEPTION productId=' + pending.productId + ':', e.message, e.stack);
             await sbUpdate('drope_products', `id=eq.${pending.productId}`, { image_status: 'error' });
-            await sendText(phone, `⚠️ erro na tentativa ${nextAttempt}\n\n• 'outra' — tenta de novo\n• manda uma foto\n• 'depois' — resolve depois`, body);
+            await sendText(phone,
+              `⚠️ *erro na tentativa ${nextAttempt}*\n\n` +
+              "🔄 *outra* — tenta de novo\n" +
+              "📸 *manda foto* — uso a tua\n" +
+              "⏰ *depois* — resolve depois",
+              body);
           }
           return;
         }
@@ -5082,8 +5118,16 @@ async function handleAdminLucas(phone, msg, body) {
 
       // Default em ambos os modes: instrução
       const helpMsg = pending.mode === 'art_review'
-        ? "*Responde aqui:*\n✅ *aprova* — publica no app\n🔄 *outra* — gera de novo\n📸 *manda foto* — uso a tua\n⏰ *depois* — fica pendente\n❌ *rejeita* — descarta esta arte"
-        : "*Arte falhou.* Responde:\n📸 *manda foto* — uso a tua\n⏰ *depois* — resolvo no Admin Hub";
+        ? "*Responde:*\n" +
+          "✅ *aprova* — publica no app\n" +
+          "🔄 *outra* — gera de novo\n" +
+          "📸 *manda foto* — uso a tua\n" +
+          "⏰ *depois* — fica pendente\n" +
+          "❌ *rejeita* — descarta\n\n" +
+          "🚀 *aprova todos* — publica tudo de uma vez"
+        : "*Arte falhou.* Responde:\n" +
+          "📸 *manda foto* — uso a tua\n" +
+          "⏰ *depois* — resolvo no Admin Hub";
       await sendText(phone, helpMsg, body);
       return;
     }
