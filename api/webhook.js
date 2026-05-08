@@ -993,6 +993,139 @@ document.querySelectorAll('.card').forEach(card => {
 }
 
 // POST: completa flavor de uma foto unidentified ou descarta
+// REANALYZE UNIDENTIFIED (08/05/2026) — Andrade pediu:
+// "não tem sentido digitar sabor manual se eu vou mandar foto melhor"
+// Aceita nova foto da caixa, sobe pro storage, re-roda Vision, e se identificar
+// tudo (brand+model+flavor), cria o produto direto sem input manual.
+async function handleReanalyzeUnidentified(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }
+  catch (e) { return res.status(400).json({ error: 'invalid body' }); }
+  const { batch_id, photo_index, newPhotoBase64 } = body;
+  if (!batch_id || photo_index == null || !newPhotoBase64) {
+    return res.status(400).json({ error: 'batch_id, photo_index, newPhotoBase64 obrigatórios' });
+  }
+
+  // Pega entry
+  const rows = await sbGet('drope_batch_queue',
+    `select=id,phone,photo_url,vision_response&batch_id=eq.${encodeURIComponent(batch_id)}&photo_index=eq.${parseInt(photo_index)}&decision=eq.unidentified_flavor&limit=1`);
+  const candidate = Array.isArray(rows) ? rows[0] : null;
+  if (!candidate) return res.status(404).json({ error: 'not found or already processed' });
+
+  // 1) Sobe a nova foto
+  let newPhotoUrl = null;
+  try {
+    const cleanB64 = newPhotoBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buf = Buffer.from(cleanB64, 'base64');
+    const path = `box-photos/reanalyze-${batch_id}-${photo_index}-${Date.now()}.jpg`;
+    newPhotoUrl = await uploadToStorage(path, buf, 'image/jpeg');
+  } catch (e) {
+    return res.status(500).json({ error: 'upload falhou: ' + e.message });
+  }
+  if (!newPhotoUrl) return res.status(500).json({ error: 'upload retornou null' });
+
+  // 2) Roda Vision na nova foto (sem podPhoto, só box)
+  let visionData = null;
+  try {
+    visionData = await analyzeProductImage(newPhotoUrl, null);
+  } catch (e) {
+    return res.status(500).json({ error: 'vision falhou: ' + e.message });
+  }
+
+  const visProduct = visionData?.products?.[0] || {};
+  const cBrand = _flcCanonBrand(visProduct.brand) || visProduct.brand || '';
+  const cModel = _flcCanonModel(visProduct.model) || visProduct.model || '';
+  const cFlavor = _flcCanonFlavor(visProduct.flavor_pt || visProduct.flavor_en || visProduct.flavor) || (visProduct.flavor_pt || visProduct.flavor_en || visProduct.flavor || '');
+
+  // 3) Atualiza batch_queue com nova foto + vision (mesmo se ainda sem flavor)
+  await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, {
+    photo_url: newPhotoUrl,
+    vision_response: typeof visionData === 'string' ? visionData : JSON.stringify(visionData || {}),
+  });
+
+  // 4) Se Vision não identificou brand → erro
+  if (!cBrand) {
+    return res.status(200).json({
+      ok: false,
+      identified: false,
+      reason: 'vision não conseguiu ler a marca nem na foto nova — coloca o sabor manual ou tenta outra foto',
+      newPhotoUrl,
+    });
+  }
+
+  // 5) Se identificou brand+model mas SEM flavor → ainda fica em unidentified_flavor (mas com foto+meta melhores)
+  if (!cFlavor) {
+    return res.status(200).json({
+      ok: false,
+      identified_partial: true,
+      brand: cBrand, model: cModel,
+      reason: `Vision leu ${cBrand} ${cModel} mas não o sabor — coloca manual`,
+      newPhotoUrl,
+    });
+  }
+
+  // 6) Vision identificou tudo → cria produto via mesmo flow do complete_unidentified
+  const name = [cBrand, cModel, cFlavor].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
+  const qty = Math.max(1, parseInt(visProduct.qty) || 1);
+
+  // Dedup
+  const safe = encodeURIComponent('%' + name + '%');
+  const dupes = await sbGet('drope_products', `name=ilike.${safe}&hidden=eq.false&select=id,name,qty_available,status&limit=1`);
+  if (Array.isArray(dupes) && dupes.length > 0) {
+    const dup = dupes[0];
+    const newQty = (dup.qty_available || 0) + qty;
+    await sbUpdate('drope_products', `id=eq.${dup.id}`, {
+      qty_available: newQty, hidden: false,
+      status: dup.status === 'inactive' ? 'pending' : (dup.status || 'active'),
+      updated_at: new Date().toISOString(),
+    });
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, {
+      decision: 'matched_existing', matched_product_id: dup.id, qty_added: qty, matched_score: 100,
+    });
+    return res.status(200).json({ ok: true, identified: true, action: 'matched_existing', product_id: dup.id, product_name: dup.name, brand: cBrand, model: cModel, flavor: cFlavor });
+  }
+
+  const reconcil = await _findPendingSalesMatching(cBrand, cModel, cFlavor);
+  const qtyFinal = Math.max(0, qty - reconcil.qty_total);
+
+  try {
+    const inserted = await sbInsert('drope_products', {
+      slug, name,
+      qty_available: qtyFinal,
+      total_sold: reconcil.qty_total,
+      status: 'pending', hidden: true, price_cents: 0,
+      metadata: {
+        brand: cBrand, model: cModel, flavor: cFlavor,
+        flavor_en: cFlavor, flavor_pt: cFlavor,
+        created_via: 'reanalyze_unidentified_web',
+        created_at: new Date().toISOString(),
+        box_photo_url: newPhotoUrl,
+        device_visual: visProduct.device_visual,
+        device_visual_detailed: visProduct.device_visual_detailed,
+        device_color: visProduct.device_color,
+      },
+      box_photo_url: newPhotoUrl,
+    });
+    const newId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
+    if (newId && reconcil.sales.length > 0) {
+      await _resolvePendingSales(reconcil.sales.map(s => s.id), newId);
+    }
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id}`, {
+      decision: 'created_new', created_product_id: newId, qty_added: qtyFinal,
+    });
+    if (newId) fireBackgroundEnrich(newId).catch(() => {});
+    return res.status(200).json({ ok: true, identified: true, action: 'created_new', product_id: newId, product_name: name, brand: cBrand, model: cModel, flavor: cFlavor });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 async function handleCompleteUnidentified(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
@@ -8645,7 +8778,7 @@ document.querySelectorAll('.card.pendente').forEach(card => {
       reader.onload = async () => {
         try {
           // upload_pod_photo espera { productId, podPhotoBase64 }
-          await api('upload_pod_photo', { productId: parseInt(id), podPhotoBase64: reader.result });
+          await api('upload_pod_photo', { productId: parseInt(id), podBase64: reader.result });
           setStatus('✓ foto subida — gerando arte', 'ok');
           setTimeout(() => location.reload(), 2500);
         } catch (e) { setStatus(e.message, 'err'); }
@@ -9181,14 +9314,15 @@ function renderStepUI(step, d) {
       <div class="expand-title">📝 informa o sabor</div>
       <div class="expand-photos">
         <div class="expand-photo"><img src="\${esc(d.photoUrl||'')}" alt=""></div>
-        <div></div>
+        <div style="font-size:11px;color:var(--dim);align-self:center;padding:0 8px">↑ foto que o Vision não conseguiu ler<br/><br/>2 caminhos:<br/>• digita o sabor manual abaixo<br/>• <strong>OU</strong> manda foto melhor — IA tenta identificar tudo sozinha</div>
       </div>
       <div class="input-group">
         <label>sabor</label>
-        <input type="text" data-field="flavor" placeholder="ex: Strawberry Kiwi" autofocus>
+        <input type="text" data-field="flavor" placeholder="ex: Strawberry Kiwi">
       </div>
       <div class="btn-row">
-        <button class="btn primary" data-act="sabor-save">✓ cadastrar</button>
+        <button class="btn primary" data-act="sabor-save">✓ cadastrar manual</button>
+        <label class="btn violet">📸 foto melhor (auto)<input type="file" accept="image/*" capture="environment" data-act="sabor-rephoto" hidden></label>
         <button class="btn danger" data-act="sabor-discard">🗑️ descartar</button>
       </div>
       <div class="expand-status"></div>
@@ -9291,6 +9425,30 @@ function bindStepUI(step, d, expand, row) {
           await api('complete_unidentified', { batch_id: d.batchId, photo_index: d.photoIdx, flavor });
           setS('✓ cadastrado — recarrega em 2s', 'ok');
           setTimeout(() => location.reload(), 1500);
+        } else if (act === 'sabor-rephoto') {
+          const file = ev.target.files[0]; if (!file) return;
+          setS('subindo + reanalisando com Vision (~10s)...');
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              const data = await api('reanalyze_unidentified', {
+                batch_id: d.batchId,
+                photo_index: d.photoIdx,
+                newPhotoBase64: reader.result,
+              });
+              if (data.identified) {
+                setS('✓ ' + (data.brand + ' ' + (data.model || '') + ' ' + (data.flavor || '')) + ' — produto criado!', 'ok');
+                row.style.transition = 'opacity .4s'; row.style.opacity = '0';
+                setTimeout(() => location.reload(), 1500);
+              } else if (data.identified_partial) {
+                setS('⚠️ ' + data.reason + '. coloca o sabor manual abaixo agora.', 'err');
+                // Atualiza brand/model na linha pra refletir
+              } else {
+                setS('⚠️ ' + (data.reason || 'vision falhou de novo'), 'err');
+              }
+            } catch (e) { setS('erro: ' + e.message, 'err'); }
+          };
+          reader.readAsDataURL(file);
         } else if (act === 'sabor-discard') {
           if (!confirm('descartar essa foto?')) return;
           setS('descartando...');
@@ -9311,7 +9469,7 @@ function bindStepUI(step, d, expand, row) {
           const reader = new FileReader();
           reader.onload = async () => {
             try {
-              await api('upload_pod_photo', { productId: d.productId, podPhotoBase64: reader.result });
+              await api('upload_pod_photo', { productId: d.productId, podBase64: reader.result });
               setS('✓ foto subida — gerando arte. recarrega.', 'ok');
               setTimeout(() => location.reload(), 3000);
             } catch (e) { setS('erro: ' + e.message, 'err'); }
@@ -11969,6 +12127,10 @@ module.exports = async function handler(req, res) {
   // POST: completar sabor de uma foto via UI HTML
   if (req.method === 'POST' && req.url && req.url.indexOf('action=complete_unidentified') >= 0) {
     return await handleCompleteUnidentified(req, res);
+  }
+  // 08/05/2026 — Reanalyze foto melhor: se Vision identifica tudo, cria produto direto
+  if (req.method === 'POST' && req.url && req.url.indexOf('action=reanalyze_unidentified') >= 0) {
+    return await handleReanalyzeUnidentified(req, res);
   }
   // Painel admin do balanço (07/05/2026 - Andrade) — historico + divergencias
   if (req.url && req.url.indexOf('action=balance_panel') >= 0) {
