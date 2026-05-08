@@ -4770,7 +4770,13 @@ async function handleAdminLucas(phone, msg, body) {
   const contentSig = hasImage
     ? `img:${imgFingerprint || msgId || ''}`
     : `txt:${(text || '').trim().slice(0, 60).toLowerCase()}`;
-  if (alreadySeenContent(phone, contentSig)) {
+  // FIX 07/05/2026 (Andrade) — Skip dedup pra comandos de art_review.
+  // Andrade aprova varias artes em sequencia mandando "aprova" varias vezes em <15s.
+  // Dedup TTL 15s estava bloqueando do 2o em diante. Cada "aprova" precisa ser unica
+  // pra avançar pro proximo produto pendente.
+  const _isArtReviewCmd = !hasImage && (text || '').trim().length > 0 &&
+    /^(aprova|aprovar|aprovo|aprova\s+todos|aprova\s+tudo|sim|ok|publica|manda|outra|proxima|próxima|de\s+novo|gera\s+de\s+novo|depois|mais\s+tarde|pra\s+depois|cancela|sai|rejeita|rejeitar|descarta|lixo|ruim)$/i.test((text || '').trim());
+  if (!_isArtReviewCmd && alreadySeenContent(phone, contentSig)) {
     console.log("[handleAdminLucas] ignored duplicate content (in-mem):", contentSig);
     return;
   }
@@ -4778,7 +4784,7 @@ async function handleAdminLucas(phone, msg, body) {
   // de cold-start onde 2 invocações simultâneas pegam instances diferentes.
   // FIX TARDE 7 BUG 2: TTL 5→15s. UazAPI às vezes reenvia evento >5s depois, passando pelo
   // dedup persistente antigo e gerando preview duplicado (sintoma reportado pelo Andrade).
-  if (await alreadySeenContentPersistent(phone, contentSig, 15)) {
+  if (!_isArtReviewCmd && await alreadySeenContentPersistent(phone, contentSig, 15)) {
     console.log("[handleAdminLucas] ignored duplicate content (db):", contentSig);
     return;
   }
@@ -4941,6 +4947,30 @@ async function handleAdminLucas(phone, msg, body) {
       return;
     }
 
+    // FIX 07/05/2026 (Andrade) — 'aprova todos' aprova TODAS as awaiting_approval em loop.
+    // Atalho pra quando Andrade tem fila de artes e nao quer aprovar uma a uma.
+    if (pending?.mode === 'art_review' && (lower === 'aprova todos' || lower === 'aprova tudo' || lower === 'aprovar todos' || lower === 'aprovar tudo' || lower === 'todas')) {
+      const allPending = await sbGet('drope_products',
+        `image_status=eq.awaiting_approval&hidden=eq.false&select=id,name,metadata&order=id.asc&limit=50`);
+      if (!Array.isArray(allPending) || allPending.length === 0) {
+        await clearPending(phone);
+        await sendText(phone, '✅ nenhuma arte aguardando aprovacao.', body);
+        return;
+      }
+      let ok = 0, err = 0;
+      for (const p of allPending) {
+        const artUrl = (p.metadata || {}).pending_art_url;
+        if (!artUrl) { err++; continue; }
+        try {
+          await sbUpdate('drope_products', `id=eq.${p.id}`, { image_url: artUrl, image_status: 'ok' });
+          ok++;
+        } catch (e) { err++; console.warn('[aprova-todos]', p.id, e.message); }
+      }
+      await clearPending(phone);
+      await sendText(phone, `✅ *${ok} artes aprovadas* de uma vez 🦎${err > 0 ? `\n⚠️ ${err} com erro` : ''}\n\nJa aparecem no app.`, body);
+      return;
+    }
+
     // FLUXO APROVAÇÃO DE ARTE — comandos texto durante mode 'art_review' / 'art_review_failed'
     if (pending?.mode === 'art_review' || pending?.mode === 'art_review_failed') {
       // 'depois' funciona em ambos os modes — Lucas resolve no /admin
@@ -4985,12 +5015,40 @@ async function handleAdminLucas(phone, msg, body) {
             image_url: artUrl,
             image_status: 'ok',
           });
-          await clearPending(phone);
-          await sendText(phone, `✅ *${pending.fullName}* aprovado 🦎\n\nJa aparece no app com arte oficial.\n\n• 'pendentes' — outras pendencias\n• 'estoque' — ver tudo`, body);
-          // Vídeo em background (fire-and-forget) — Lucas vai testar o resultado depois.
-          // Não pode bloquear a resposta do webhook (Grok video pode demorar >30s).
+          // Vídeo em background — não bloqueia resposta
           const videoSlug = slugify(pending.brand || 'pod', pending.model || '', pending.flavor || pending.fullName || 'video');
           fireBackgroundVideoGeneration(artUrl, videoSlug, phone, body, pending.fullName);
+
+          // FIX 07/05/2026 (Andrade) — Avança automaticamente pra próxima arte pendente.
+          // Antes: clearPending + msg "outras pendencias". Agora: se tem mais artes
+          // awaiting_approval, mostra a próxima sem precisar Andrade abrir admin.
+          const restantes = await sbGet('drope_products',
+            `image_status=eq.awaiting_approval&hidden=eq.false&id=neq.${pending.productId}&select=id,name,metadata&order=id.asc&limit=20`);
+          if (Array.isArray(restantes) && restantes.length > 0) {
+            const next = restantes[0];
+            const nextMeta = next.metadata || {};
+            const nextArtUrl = nextMeta.pending_art_url;
+            if (nextArtUrl) {
+              await setPending(phone, {
+                mode: 'art_review',
+                productId: next.id,
+                fullName: next.name,
+                attempts: 1,
+                brand: nextMeta.brand,
+                model: nextMeta.model,
+                flavor: nextMeta.flavor_en || nextMeta.flavor_pt,
+              });
+              const qc = nextMeta.qc_score != null ? `🎯 QC=${Math.round(nextMeta.qc_score*10)/10}/10` : '';
+              const restantesCount = restantes.length;
+              await sendText(phone, `✅ *${pending.fullName}* aprovado 🦎\n\nProxima na fila (${restantesCount} restando):`, body);
+              await sendImage(phone, nextArtUrl, [`🎨 *${next.name}*`, qc].filter(Boolean).join('\n'), body);
+              await sendText(phone, "*Responde aqui:*\n✅ aprova / 🔄 outra / 📸 manda foto / ⏰ depois / ❌ rejeita\n\n🚀 *aprova todos* — atalho pra publicar tudo de uma vez", body);
+              return;
+            }
+          }
+          // Sem mais pendentes
+          await clearPending(phone);
+          await sendText(phone, `✅ *${pending.fullName}* aprovado 🦎\n\n🎉 Sem mais artes na fila.\n\n• 'pendentes' — outras pendencias\n• 'estoque' — ver tudo`, body);
           return;
         }
         // 'outra' → gera nova arte INLINE (FIX TARDE 7 — antes era fire-and-forget que falhava)
