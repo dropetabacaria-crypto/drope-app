@@ -1598,7 +1598,24 @@ async function tryHandleBatchPhoto(phone, msg, body, pending) {
     } else {
       // Cadastra novo com status='pending'
       const name = [cBrand, cModel, cFlavor].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-      if (!cBrand || !cFlavor || name.length < 4 || /undefined/i.test(name)) continue; // ignora se faltou info essencial
+      // FIX 10A (07/05/2026 - Andrade) — Antes ignorava silenciosamente quando
+      // flavor=null. 55 de 65 fotos do batch caiam aqui = perdidos sem aviso.
+      // Agora salva como decision='unidentified_flavor' com info parcial pra
+      // Andrade revisar depois via 'revisa lote' ou completar manualmente.
+      if (!cBrand || !cFlavor || name.length < 4 || /undefined/i.test(name)) {
+        if (queueId) {
+          const motivo = !cBrand ? 'sem_marca'
+                       : !cFlavor ? 'sem_sabor'
+                       : 'nome_invalido';
+          const alertas = (vis.alertas || []).concat(p.alertas || []).slice(0, 5);
+          await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+            decision: 'unidentified_flavor',
+            qty_added: qty,
+            error_message: motivo + (alertas.length ? ': ' + alertas.join(' | ').slice(0, 400) : ''),
+          }).catch(() => {});
+        }
+        continue;
+      }
       const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
 
       // SISTEMA IMUNE 07/05/2026: busca pending_sales matching (Yasmin vendeu antes
@@ -1677,9 +1694,26 @@ async function tryHandleBatchPhoto(phone, msg, body, pending) {
   pending.lastPhotoAt = Date.now();
   await setPending(phone, pending);
 
-  // A cada 10 fotos manda update silencioso
+  // FIX 10D (07/05/2026 - Andrade) — Progresso silencioso a cada 10 fotos com
+  // contador detalhado pra Andrade saber em tempo real o que tá rolando.
   if (fotoIndex % 10 === 0) {
-    sendText(phone, `⏳ Processando... ${fotoIndex} fotos analisadas`, body).catch(() => {});
+    try {
+      const counts = await sbGet('drope_batch_queue',
+        `select=decision&phone=eq.${encodeURIComponent(phone)}&batch_id=eq.${encodeURIComponent(pending.batch_id)}&limit=500`);
+      const arr = Array.isArray(counts) ? counts : [];
+      const matched = arr.filter(r => r.decision === 'matched_existing').length;
+      const novos = arr.filter(r => r.decision === 'created_new').length;
+      const semSabor = arr.filter(r => r.decision === 'unidentified_flavor').length;
+      sendText(phone,
+        `⏳ *Progresso: ${fotoIndex} fotos*\n` +
+        `✅ ${matched} atualizados\n` +
+        `📦 ${novos} novos\n` +
+        (semSabor > 0 ? `⚠️ ${semSabor} sem sabor (revisar depois)\n` : '') +
+        `\nManda mais ou *fechar lote*`,
+        body).catch(() => {});
+    } catch (_) {
+      sendText(phone, `⏳ Processando... ${fotoIndex} fotos analisadas`, body).catch(() => {});
+    }
   }
   return true;
 }
@@ -1699,6 +1733,8 @@ async function closeBatch(phone, pending, body) {
   const errorCount = queueRows.filter(r => r.status === 'error').length;
   const matchedRows = queueRows.filter(r => r.decision === 'matched_existing' && r.matched_product_id);
   const novoRows = queueRows.filter(r => r.decision === 'created_new' && r.created_product_id);
+  // FIX 10B (07/05/2026 - Andrade): identifica fotos onde Vision falhou em ler sabor
+  const unidentifiedRows = queueRows.filter(r => r.decision === 'unidentified_flavor');
 
   // Busca dados dos produtos referenciados pra montar nomes/modelos
   const allRefIds = [...new Set([...matchedRows.map(r => r.matched_product_id), ...novoRows.map(r => r.created_product_id)])];
@@ -1766,7 +1802,31 @@ async function closeBatch(phone, pending, body) {
     }
     resumo += `\n`;
   }
-  if (errorCount) resumo += `❌ ${errorCount} fotos com erro\n\n`;
+  if (errorCount) resumo += `❌ ${errorCount} fotos com erro de download\n\n`;
+
+  // FIX 10B (07/05/2026 - Andrade): mostra fotos sem sabor agrupadas por marca/modelo.
+  // Andrade pode rever no admin ou refazer fotos com mais luz/angulo melhor.
+  if (unidentifiedRows.length > 0) {
+    // Agrega por brand+model extraido do error_message ou vision_response
+    const semSaborAgg = {};
+    for (const r of unidentifiedRows) {
+      let key = '?';
+      try {
+        const vis = typeof r.vision_response === 'string' ? JSON.parse(r.vision_response) : r.vision_response;
+        const p = vis?.products?.[0] || {};
+        key = [p.brand || '?', p.model || ''].filter(Boolean).join(' ').trim() || '?';
+      } catch (_) {}
+      semSaborAgg[key] = (semSaborAgg[key] || 0) + 1;
+    }
+    resumo += `⚠️ *${unidentifiedRows.length} fotos sem sabor identificável*\n`;
+    resumo += `(Vision viu marca/modelo mas não leu o sabor — foto borrada/ângulo)\n`;
+    for (const [key, n] of Object.entries(semSaborAgg)) {
+      resumo += `• ${key}: ${n} foto${n > 1 ? 's' : ''}\n`;
+    }
+    resumo += `\nPra resolver:\n`;
+    resumo += `📸 Refaz essas fotos com luz/ângulo melhor\n`;
+    resumo += `📋 Ou abre o painel \\'pendentes\\' pra completar manual\n\n`;
+  }
 
   // FLC FASE 4 — Pipeline arte é disparado por _flcEnrichProduct (apos ter referencia).
   // Aqui só informa o usuário no resumo.
@@ -2445,6 +2505,98 @@ async function _motoboyHandleLifecycle(grupoJid, body, motoboy, cmd, text) {
     await sendText(grupoJid, `❌ ${motoboy.nome} cancelou corrida #${corrida.order_id}. Quem pega? Manda *PEGO*.`, body);
     return;
   }
+}
+
+// FIX 10C (07/05/2026 - Andrade) — Completa manualmente o sabor de uma foto que
+// Vision identificou marca+modelo mas falhou em ler sabor. Cadastra o produto novo
+// com brand/model do Vision + flavor que Andrade digitou via WhatsApp.
+async function tryHandleManualFlavor(phone, msg, body, photoIdx, flavorText) {
+  // Pega LAST batch do phone (independente de status — pode estar fechado)
+  const recentBatches = await sbGet('drope_batch_queue',
+    `select=batch_id,photo_index,vision_response,decision,photo_url&phone=eq.${encodeURIComponent(phone)}&order=created_at.desc&limit=200`);
+  if (!Array.isArray(recentBatches) || recentBatches.length === 0) {
+    await sendText(phone, '⚠️ Nao encontrei lote recente.', body);
+    return true;
+  }
+  // Pega o batch_id mais recente
+  const lastBatchId = recentBatches[0].batch_id;
+  // Filtra fotos do ultimo batch, photo_index match, decision='unidentified_flavor'
+  const candidate = recentBatches.find(r =>
+    r.batch_id === lastBatchId && r.photo_index === photoIdx && r.decision === 'unidentified_flavor');
+  if (!candidate) {
+    await sendText(phone,
+      `⚠️ Foto ${photoIdx} nao encontrada no ultimo lote (ou ja foi cadastrada).\n\n` +
+      `Use *fechar lote* primeiro pra ver as fotos sem sabor.`,
+      body);
+    return true;
+  }
+
+  // Extrai brand/model do vision_response
+  let cBrand = '', cModel = '', visProduct = {};
+  try {
+    const vis = typeof candidate.vision_response === 'string' ? JSON.parse(candidate.vision_response) : candidate.vision_response;
+    visProduct = vis?.products?.[0] || {};
+    cBrand = _flcCanonBrand(visProduct.brand) || visProduct.brand || '';
+    cModel = _flcCanonModel(visProduct.model) || visProduct.model || '';
+  } catch (e) { console.warn('[manual-flavor] parse vis:', e.message); }
+  if (!cBrand) {
+    await sendText(phone, `⚠️ Foto ${photoIdx} sem marca identificavel. Refaz a foto melhor.`, body);
+    return true;
+  }
+  const cFlavor = _flcCanonFlavor(flavorText) || flavorText.trim();
+  const name = [cBrand, cModel, cFlavor].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
+  const qty = Math.max(1, parseInt(visProduct.qty) || 1);
+
+  // Reconciliação retroativa (sistema imune)
+  const reconcil = await _findPendingSalesMatching(cBrand, cModel, cFlavor);
+  const qtyFinal = Math.max(0, qty - reconcil.qty_total);
+
+  try {
+    const inserted = await sbInsert('drope_products', {
+      slug, name,
+      qty_available: qtyFinal,
+      total_sold: reconcil.qty_total,
+      status: 'pending',
+      hidden: true,
+      price_cents: 0,
+      metadata: {
+        brand: cBrand, model: cModel, flavor: cFlavor,
+        flavor_en: cFlavor, flavor_pt: cFlavor,
+        created_via: 'manual_flavor_completion',
+        created_at: new Date().toISOString(),
+        box_photo_url: candidate.photo_url,
+        manual_flavor_input: flavorText,
+      },
+      box_photo_url: candidate.photo_url,
+    });
+    const newId = Array.isArray(inserted) ? inserted[0]?.id : inserted?.id;
+    // Marca queue como resolvida
+    await sbUpdate('drope_batch_queue', `id=eq.${candidate.id || photoIdx}&batch_id=eq.${lastBatchId}`, {
+      decision: 'created_new',
+      created_product_id: newId,
+      qty_added: qtyFinal,
+    }).catch(() => {});
+    if (reconcil.sales.length > 0 && newId) {
+      await _resolvePendingSales(reconcil.sales.map(s => s.id), newId);
+    }
+    if (newId) {
+      fireBackgroundEnrich(newId).catch((e) => console.warn('[manual-flavor enrich]', e.message));
+    }
+    const reconLine = reconcil.qty_total > 0
+      ? `\n⏪ Baixa retroativa: ${qty} - ${reconcil.qty_total} venda${reconcil.qty_total>1?'s':''} = ${qtyFinal}`
+      : '';
+    await sendText(phone,
+      `✅ Cadastrado: *${name}*\n` +
+      `qty=${qtyFinal}${reconLine}\n\n` +
+      `🎨 Pipeline arte rodando em background.\n\n` +
+      `Pra completar mais: *sabor N: <texto>*`,
+      body);
+  } catch (e) {
+    console.error('[manual-flavor] insert err:', e.message);
+    await sendText(phone, `⚠️ Erro ao cadastrar: ${e.message}`, body);
+  }
+  return true;
 }
 
 // Detecta comandos de lote (ativar / fechar)
@@ -4888,6 +5040,22 @@ async function handleAdminLucas(phone, msg, body) {
       const consumed = text && await tryHandleInventoryCommand(phone, msg, body, text, _pendingI);
       if (consumed) { console.log('[admin-router] consumed by tryHandleInventoryCommand'); return; }
     } catch (e) { console.warn('[BAL] tryHandleInventoryCommand:', e.message); }
+
+    // FIX 10C (07/05/2026 - Andrade) — comando 'sabor N: <texto>' completa foto sem sabor.
+    // Quando Vision detecta marca+modelo mas falha no sabor (foto borrada), salva como
+    // unidentified_flavor. Andrade pode completar com 'sabor 5: Strawberry Kiwi' que cria
+    // o produto com brand/model do Vision + flavor que ele digitou.
+    try {
+      const sm = (text || '').trim().match(/^sabor\s+(\d+)\s*[:=]?\s*(.+)$/i);
+      if (sm) {
+        const photoIdx = parseInt(sm[1]);
+        const flavorText = sm[2].trim();
+        if (await tryHandleManualFlavor(phone, msg, body, photoIdx, flavorText)) {
+          console.log('[admin-router] consumed by tryHandleManualFlavor');
+          return;
+        }
+      }
+    } catch (e) { console.warn('[FIX10C] manual flavor:', e.message); }
 
     // FLC FASE 1 — Comando "zerar estoque" tem PRIORIDADE absoluta entre os handlers de texto.
     // Comando claro do admin nunca pode ser confundido com correção/briefing/cadastro.
