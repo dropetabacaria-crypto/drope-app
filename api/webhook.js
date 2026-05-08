@@ -12280,6 +12280,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
 
   if (req.url && req.url.indexOf('action=admin_hub') >= 0) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (req.method === 'OPTIONS') return res.status(200).end();
     // Hub é HTML estático com lógica client-side. Não valida token server-side
     // (cada tela filha valida o seu). HTML idêntico pra "logado" ou "logout" —
