@@ -3655,35 +3655,45 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
 // Analisa foto de mix (múltiplos produtos na bancada) pro fluxo de abastecimento.
 // Retorna array de produtos identificados com qty visível na foto.
 async function analyzeMixPhoto(imageUrl) {
-  const systemPrompt = `Voce identifica MULTIPLOS pods descartaveis na mesma foto (bancada de loja).
-Lucas tira foto da entrada de estoque com varios produtos misturados.
+  // FIX 11 (07/05/2026 - Andrade) — FOCO NO POD CENTRAL.
+  // Antes o prompt pedia pra Vision identificar TODOS os pods da foto. Resultado:
+  // em fotos com 4-5 caixas (forma como Andrade fotografa — coloca todas no chao
+  // e tira foto), Vision se confundia, lia sabores cruzados, ou retornava null em
+  // muitas porque tentava ler o texto de TODAS ao mesmo tempo.
+  // Agora: foca APENAS no pod CENTRAL/PRINCIPAL da foto. Ignora os demais como ruido.
+  // Andrade tira UMA FOTO POR PRODUTO e o que importa eh o que esta na frente/centro.
+  const systemPrompt = `Voce identifica UM pod descartavel — APENAS o produto CENTRAL/PRINCIPAL da foto.
 
-REGRA #1 — IMPORTANTISSIMA — LER TEXTO IMPRESSO:
-Voce DEVE LER literalmente o texto/rotulo escrito na embalagem. NAO adivinhe o sabor pela cor da caixa, pelo desenho ou pelo visual. O nome do sabor esta IMPRESSO em texto na propria caixa (ex: "Banana Ice", "Pineapple Ice", "Strawberry Watermelon"). LEIA esse texto. Se nao conseguir LER claramente (foto borrada, angulo ruim, texto pequeno, embalagem dobrada, reflexo), retorna flavor_en=null e flavor_confidence=0 e adiciona em alertas o porque.
+CONTEXTO: Lucas (Andrade) tira foto da caixa do pod pra cadastrar no sistema. As vezes tem outras caixas no fundo/lado da foto (estoque empilhado), mas o que importa eh APENAS o produto que esta na frente/centro/em foco.
+
+REGRA CRUCIAL — IGNORE PRODUTOS DO FUNDO:
+Foque 100% na caixa CENTRAL/PRINCIPAL da foto (a que esta mais em destaque, em foco, na frente). As outras caixas atras/laterais sao APENAS ruido — nao tente identificar elas. Se a foto tem 5 caixas, voce identifica APENAS 1 (a central).
+
+REGRA #2 — LER TEXTO IMPRESSO:
+LEIA literalmente o texto/rotulo escrito na embalagem CENTRAL. NAO adivinhe pela cor. O nome do sabor esta IMPRESSO em texto (ex: "Banana Ice", "Strawberry Kiwi", "Watermelon Ice"). LEIA esse texto.
 
 Responde JSON valido (sem markdown):
 {
   "products": [
     {
-      "barcode": "OCR dos digitos IMPRESSOS embaixo do codigo de barras (NAO decodifica as listras — le o numero em texto). Se nao ver claramente, null. NAO inventa.",
-      "brand": "marca em maiusculo (IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER). LOST MARY=LOSTMARY",
-      "model": "linha/modelo. Se nao ler, null. NUNCA 'unknown'. Catalogo:\n        IGNITE: V155/V250/V300/V55/Boost\n        ELFBAR: BC15K/BC Pro/Trio/Iceking/TE 30K/GH 23K\n        BLACKSHEEP: Cyber Tank Pro/Cybertank/Spherex/Spherex Plus\n        LOSTMARY: MO5000/MO10000/MO20000/MT15000/OS5000/BM6000/PSYBER/Cosmic Edition/Tappo\n        DOJO: Fresh/Frosty/Splash\n        GEEKBAR: Frozen/White Peach/Stone Freeze/Pulse\n        ADALYA: AD5000/AD40K\n        VANTHER: 30K/Cool Mint Edition",
-      "flavor_en": "sabor LIDO no texto da embalagem em ingles, ou null se nao conseguiu ler. Exemplo de leitura correta: na caixa esta escrito 'Banana Ice' -> flavor_en='Banana Ice'. NAO chuta pela cor amarela da caixa.",
-      "flavor_pt": "traducao do sabor lido pra portugues, ou null",
-      "flavor_confidence": "numero 0.0 a 1.0 que indica o quao confiante voce esta de que LEU corretamente o sabor no texto. 1.0 = li perfeitamente o texto. 0.5 = li parcialmente / texto cortado. 0.0 = chutei ou nao consegui ler.",
-      "qty": "numero inteiro de unidades VISIVEIS desse produto na foto (caixas iguais empilhadas conta. minimo 1)"
+      "barcode": "OCR dos digitos IMPRESSOS embaixo do codigo de barras da caixa central. null se nao ler.",
+      "brand": "marca em maiusculo (IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER, OXBAR, NIKBAR). LOST MARY=LOSTMARY",
+      "model": "linha/modelo da caixa central. Se nao ler, null. NUNCA 'unknown'. Catalogo:\\n        IGNITE: V155/V250/V300/V55/Boost\\n        ELFBAR: BC15K/BC Pro/Trio/Iceking/TE 30K/GH 23K\\n        BLACKSHEEP: Cyber Tank Pro/Cybertank/Spherex/Spherex Plus\\n        LOSTMARY: MO5000/MO10000/MO20000/MT15000/OS5000/BM6000/PSYBER/Cosmic Edition/Tappo\\n        DOJO: Fresh/Frosty/Splash\\n        GEEKBAR: Frozen/White Peach/Stone Freeze/Pulse\\n        ADALYA: AD5000/AD40K\\n        VANTHER: 30K/Cool Mint Edition\\n        OXBAR: Magic Maze\\n        NIKBAR: 50K",
+      "flavor_en": "sabor LIDO no texto da embalagem CENTRAL em ingles, ou null se nao conseguiu ler.",
+      "flavor_pt": "traducao do sabor pra portugues, ou null",
+      "flavor_confidence": "0.0 a 1.0 — quao confiante voce esta de que LEU corretamente o sabor no texto da CAIXA CENTRAL.",
+      "qty": "1 (sempre 1 — uma foto, um produto identificado)"
     }
   ],
   "alertas": ["lista de strings se algo confuso (texto borrado, angulo, etc)"]
 }
 
 REGRAS:
-- Se ver 3 caixas iguais lado a lado, qty=3.
-- Se ver 1 sabor diferente sozinho, qty=1.
-- Cada SABOR + MODELO + MARCA distintos vira UM item da lista.
-- NUNCA inventa barcode. Se nao ler, null.
-- LEIA o sabor no texto. Se nao conseguir ler, flavor_en=null e flavor_confidence=0.
-- Se a foto nao tem pod, retorna {"products":[], "alertas":["nao parece pod"]}.`;
+- SEMPRE retorna no maximo 1 produto (o central). Se nao ver pod nenhum, retorna products vazio.
+- Ignore caixas do fundo, laterais, em segundo plano.
+- LEIA o sabor no texto da CAIXA CENTRAL. Se nao conseguir ler, flavor_en=null, flavor_confidence=0.
+- NUNCA inventa barcode.
+- qty sempre 1 (uma foto = um produto).`;
 
   const makeSource = (url) => {
     if (url.startsWith('data:')) {
@@ -3700,7 +3710,7 @@ REGRAS:
   const result = await callClaude(
     [{ role: "user", content: [
       { type: "image", source },
-      { type: "text", text: "Lista todos os pods que ve na foto, com qty de cada um. Responde SO o JSON." }
+      { type: "text", text: "Identifica APENAS o pod CENTRAL/PRINCIPAL da foto (o que esta em foco/destaque). Ignore caixas do fundo. LEIA o sabor escrito na embalagem central. Retorna 1 produto so. Responde SO o JSON." }
     ]}],
     systemPrompt,
     1500
