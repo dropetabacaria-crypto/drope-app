@@ -5038,11 +5038,19 @@ async function handleAdminLucas(phone, msg, body) {
                 model: nextMeta.model,
                 flavor: nextMeta.flavor_en || nextMeta.flavor_pt,
               });
-              const qc = nextMeta.qc_score != null ? `🎯 QC=${Math.round(nextMeta.qc_score*10)/10}/10` : '';
+              const qcScore = nextMeta.qc_score;
+              const qcLine = qcScore != null ? `🎯 QC=${Math.round(qcScore*10)/10}/10` : '';
               const restantesCount = restantes.length;
-              await sendText(phone, `✅ *${pending.fullName}* aprovado 🦎\n\nProxima na fila (${restantesCount} restando):`, body);
-              await sendImage(phone, nextArtUrl, [`🎨 *${next.name}*`, qc].filter(Boolean).join('\n'), body);
-              await sendText(phone, "*Responde aqui:*\n✅ aprova / 🔄 outra / 📸 manda foto / ⏰ depois / ❌ rejeita\n\n🚀 *aprova todos* — atalho pra publicar tudo de uma vez", body);
+              // FIX 07/05/2026 (Andrade) — manda nome do produto NO TEXTO antes da imagem.
+              // Antes mandava imagem com caption mas WhatsApp Web nao renderiza bem
+              // → Andrade ficava sem saber qual produto estava aprovando.
+              await sendText(phone,
+                `✅ *${pending.fullName}* aprovado 🦎\n\n` +
+                `📦 *Próxima (${restantesCount} na fila):*\n` +
+                `🎨 ${next.name}${qcLine ? '\n' + qcLine : ''}`,
+                body);
+              await sendImage(phone, nextArtUrl, '', body);
+              await sendText(phone, "*Responde:*\n✅ aprova / 🔄 outra / 📸 manda foto / ⏰ depois / ❌ rejeita\n\n🚀 *aprova todos* — atalho pra publicar tudo de uma vez", body);
               return;
             }
           }
@@ -7036,26 +7044,28 @@ async function runArtGeneration(productId, phone, attempt) {
     brand, model, flavor, cores, deviceVisual,
   });
 
-  // Manda URL do Supabase Storage pro WhatsApp
-  // FIX 07/05/2026 (Andrade) — caption inclui QC score visual pra confianca,
-  // e texto separado lista opcoes claras pra responder.
+  // Manda mensagem pro WhatsApp em 3 partes: TEXTO (nome+QC) → IMAGEM → TEXTO (opções).
+  // FIX 07/05/2026 (Andrade) — antes nome vinha como caption da imagem, mas WhatsApp Web
+  // não renderiza caption → Andrade não sabia qual produto aprovar. Agora nome no texto antes.
   const imageToSend = pendingArtUrl;
   const lastQc = (await sbGet('drope_products', `id=eq.${productId}&select=metadata&limit=1`))?.[0]?.metadata || {};
   const qcScore = typeof lastQc.qc_score === 'number' ? Math.round(lastQc.qc_score * 10) / 10 : null;
-  const qcLine = qcScore != null ? `🎯 QC=${qcScore}/10 (${lastQc.qc_approved ? '✅ aprovou auto' : '⚠️ duvidoso'})` : '';
-  const versionLine = attempt > 1 ? `🔄 versao ${attempt}` : '';
-  const caption = [
-    `🎨 *${fullName}*`,
+  const qcLine = qcScore != null ? `🎯 QC=${qcScore}/10${lastQc.qc_approved ? ' (✅ auto-aprovou)' : ' (⚠️ duvidoso)'}` : '';
+  const versionLine = attempt > 1 ? `🔄 versão ${attempt}` : '';
+  const introMsg = [
+    `🎨 *Arte gerada:* ${fullName}`,
     versionLine, qcLine,
   ].filter(Boolean).join('\n');
-  await sendImage(phone, imageToSend, caption, {});
+  await sendText(phone, introMsg, {});
+  await sendImage(phone, imageToSend, '', {});
   await sendText(phone,
-    "*Responde aqui:*\n" +
-    "✅ *aprova* — publica no catálogo (vira oficial)\n" +
+    "*Responde:*\n" +
+    "✅ *aprova* — publica no catálogo\n" +
     "🔄 *outra* — gera de novo (variação)\n" +
-    "📸 *manda foto* — uso a tua imagem como arte\n" +
-    "⏰ *depois* — fica pendente, resolve no Admin\n" +
-    "❌ *rejeita* — descarta esta arte (pra tentar de novo manualmente)",
+    "📸 *manda foto* — uso a tua imagem\n" +
+    "⏰ *depois* — fica pendente no Admin\n" +
+    "❌ *rejeita* — descarta esta arte\n\n" +
+    "🚀 *aprova todos* — publica todas as pendentes de uma vez",
     {});
 }
 
