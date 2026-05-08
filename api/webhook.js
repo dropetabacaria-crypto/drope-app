@@ -2593,6 +2593,160 @@ async function _motoboyHandleLifecycle(grupoJid, body, motoboy, cmd, text) {
   }
 }
 
+// TIER 2 (08/05/2026 - Andrade) — Comandos admin pra editar produtos via WhatsApp.
+// Resolve o cenário comum: Andrade quer mudar preço de produto cadastrado, ajustar
+// qty, renomear, etc — sem ir no Admin Hub web.
+
+// Helper: busca produto por nome fuzzy (último cadastrado se múltiplos)
+async function _findProductByFuzzyName(query) {
+  const q = String(query || '').trim();
+  if (q.length < 3) return null;
+  // Tenta ilike primeiro (mais permissivo)
+  const safe = encodeURIComponent('%' + q + '%');
+  const rows = await sbGet('drope_products',
+    `name=ilike.${safe}&hidden=eq.false&select=id,name,price_cents,qty_available,status,metadata,slug,description&order=updated_at.desc&limit=5`);
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows;
+}
+
+// TIER 2.1 — comando 'preço NOME 89.90' / 'preco NOME 89.90'
+async function tryHandlePriceCommand(phone, msg, body, text) {
+  const t = String(text || '').trim();
+  // Match: 'preço/preco/price NOME PRECO' (preço pode ter , ou .)
+  const m = t.match(/^pre[çc]o?\s+(.+?)\s+(\d+(?:[,.]\d+)?)\s*$/i) || t.match(/^price\s+(.+?)\s+(\d+(?:[,.]\d+)?)\s*$/i);
+  if (!m) return false;
+  const nameQuery = m[1].trim();
+  const priceReais = parseFloat(m[2].replace(',', '.'));
+  if (priceReais < 0.50 || priceReais > 9999.99) {
+    await sendText(phone, `⚠️ Preço fora do permitido (R$ 0.50 — R$ 9999.99).`, body);
+    return true;
+  }
+  const rows = await _findProductByFuzzyName(nameQuery);
+  if (!rows || rows.length === 0) {
+    await sendText(phone, `⚠️ Não achei produto com "${nameQuery}".`, body);
+    return true;
+  }
+  if (rows.length > 1) {
+    const lista = rows.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (R$ ${(p.price_cents/100).toFixed(2)})`).join('\n');
+    await sendText(phone,
+      `⚠️ Mais de um produto bate com "${nameQuery}":\n\n${lista}\n\nDigita mais específico.`, body);
+    return true;
+  }
+  const p = rows[0];
+  const oldPrice = p.price_cents || 0;
+  const newPriceCents = Math.round(priceReais * 100);
+  const newMeta = { ...(p.metadata || {}), last_changed_by: phone, price_change_source: 'whatsapp_command' };
+  await sbUpdate('drope_products', `id=eq.${p.id}`, {
+    price_cents: newPriceCents,
+    status: 'active',
+    hidden: false,
+    metadata: newMeta,
+    updated_at: new Date().toISOString(),
+  });
+  await sendText(phone,
+    `✅ *${p.name}*\n\n` +
+    `R$ ${(oldPrice/100).toFixed(2)} → R$ ${priceReais.toFixed(2)}\n` +
+    `Status: active`,
+    body);
+  return true;
+}
+
+// TIER 2.2 — comando 'editar NOME campo valor'
+async function tryHandleEditCommand(phone, msg, body, text) {
+  const t = String(text || '').trim();
+  // Match: 'editar/edita NOME CAMPO VALOR' onde CAMPO é qty/nome/sabor/modelo/marca/descricao
+  const m = t.match(/^edit(?:ar|a)?\s+(.+?)\s+(qty|estoque|nome|name|sabor|flavor|modelo|model|marca|brand|descricao|descrição|description)\s+(.+)$/i);
+  if (!m) return false;
+  const nameQuery = m[1].trim();
+  const field = m[2].toLowerCase();
+  const valueRaw = m[3].trim();
+  const rows = await _findProductByFuzzyName(nameQuery);
+  if (!rows || rows.length === 0) {
+    await sendText(phone, `⚠️ Não achei produto com "${nameQuery}".`, body);
+    return true;
+  }
+  if (rows.length > 1) {
+    const lista = rows.slice(0, 5).map((p, i) => `${i+1}. ${p.name}`).join('\n');
+    await sendText(phone, `⚠️ Mais de um produto bate:\n\n${lista}\n\nDigita mais específico.`, body);
+    return true;
+  }
+  const p = rows[0];
+  const update = { updated_at: new Date().toISOString() };
+  const meta = p.metadata || {};
+  let humanField = field;
+
+  if (field === 'qty' || field === 'estoque') {
+    const n = parseInt(valueRaw);
+    if (isNaN(n) || n < 0 || n > 9999) {
+      await sendText(phone, '⚠️ Qty inválida (0-9999).', body); return true;
+    }
+    update.qty_available = n;
+    humanField = 'qty';
+  } else if (field === 'nome' || field === 'name') {
+    if (valueRaw.length < 4) { await sendText(phone, '⚠️ Nome muito curto.', body); return true; }
+    update.name = valueRaw.slice(0, 200);
+    humanField = 'nome';
+  } else if (field === 'sabor' || field === 'flavor') {
+    update.metadata = { ...meta, flavor: valueRaw, flavor_en: valueRaw, flavor_pt: valueRaw, last_changed_by: phone };
+    humanField = 'sabor';
+  } else if (field === 'modelo' || field === 'model') {
+    update.metadata = { ...meta, model: valueRaw, last_changed_by: phone };
+    humanField = 'modelo';
+  } else if (field === 'marca' || field === 'brand') {
+    update.metadata = { ...meta, brand: valueRaw.toUpperCase(), last_changed_by: phone };
+    humanField = 'marca';
+  } else if (field === 'descricao' || field === 'descrição' || field === 'description') {
+    update.description = valueRaw.slice(0, 500);
+    humanField = 'descrição';
+  }
+
+  await sbUpdate('drope_products', `id=eq.${p.id}`, update);
+  try { await logSystemEvent('product_edited', { product_id: p.id, name: p.name, field: humanField, new_value: valueRaw.slice(0, 100) }, phone); } catch (_) {}
+  await sendText(phone, `✅ *${p.name}*\n\n${humanField}: ${valueRaw}`, body);
+  return true;
+}
+
+// TIER 2.3 — comando 'desfaz lote' / 'desfazer lote'
+async function tryHandleUndoBatch(phone, msg, body, text) {
+  const lower = String(text || '').toLowerCase().trim();
+  if (lower !== 'desfaz lote' && lower !== 'desfazer lote' && lower !== 'undo lote' && lower !== 'rollback lote') return false;
+
+  // Pega último batch finalizado do phone (último 'created_new' do drope_batch_queue)
+  const recent = await sbGet('drope_batch_queue',
+    `select=batch_id,created_product_id,created_at&phone=eq.${encodeURIComponent(phone)}&decision=eq.created_new&created_product_id=not.is.null&order=created_at.desc&limit=200`);
+  if (!Array.isArray(recent) || recent.length === 0) {
+    await sendText(phone, '⚠️ Nenhum lote recente pra desfazer.', body);
+    return true;
+  }
+  const lastBatchId = recent[0].batch_id;
+  const productIds = [...new Set(recent.filter(r => r.batch_id === lastBatchId).map(r => r.created_product_id))];
+  if (productIds.length === 0) {
+    await sendText(phone, '⚠️ Lote sem produtos cadastrados pra desfazer.', body);
+    return true;
+  }
+
+  // Busca nomes pra mostrar
+  const prods = await sbGet('drope_products',
+    `select=id,name&id=in.(${productIds.join(',')})&limit=200`);
+  const arr = Array.isArray(prods) ? prods : [];
+
+  // Marca todos como hidden=true + status=inactive (não deleta — preserva histórico)
+  await sbUpdate('drope_products', `id=in.(${productIds.join(',')})`, {
+    hidden: true,
+    status: 'inactive',
+    updated_at: new Date().toISOString(),
+  });
+  try { await logSystemEvent('batch_undo', { batch_id: lastBatchId, product_count: productIds.length, product_ids: productIds }, phone); } catch (_) {}
+  await sendText(phone,
+    `🔄 *Lote desfeito*\n\n` +
+    `${arr.length} produtos marcados como inativos:\n` +
+    arr.slice(0, 10).map(p => `• ${p.name}`).join('\n') +
+    (arr.length > 10 ? `\n... +${arr.length - 10} outros` : '') +
+    `\n\nProdutos preservados (não deletados). Pra restaurar: contata o admin.`,
+    body);
+  return true;
+}
+
 // FIX 10C (07/05/2026 - Andrade) — Completa manualmente o sabor de uma foto que
 // Vision identificou marca+modelo mas falhou em ler sabor. Cadastra o produto novo
 // com brand/model do Vision + flavor que Andrade digitou via WhatsApp.
@@ -5263,6 +5417,27 @@ async function handleAdminLucas(phone, msg, body) {
       }
     } catch (e) { console.warn('[FIX10C] manual flavor:', e.message); }
 
+    // TIER 2 (08/05/2026 - Andrade) — comandos de edição de produto via WhatsApp:
+    // 'preço NOME 89.90', 'editar NOME campo valor', 'desfaz lote'.
+    try {
+      if (text && await tryHandlePriceCommand(phone, msg, body, text)) {
+        console.log('[admin-router] consumed by tryHandlePriceCommand');
+        return;
+      }
+    } catch (e) { console.warn('[TIER2] price:', e.message); }
+    try {
+      if (text && await tryHandleEditCommand(phone, msg, body, text)) {
+        console.log('[admin-router] consumed by tryHandleEditCommand');
+        return;
+      }
+    } catch (e) { console.warn('[TIER2] edit:', e.message); }
+    try {
+      if (text && await tryHandleUndoBatch(phone, msg, body, text)) {
+        console.log('[admin-router] consumed by tryHandleUndoBatch');
+        return;
+      }
+    } catch (e) { console.warn('[TIER2] undo:', e.message); }
+
     // FLC FASE 1 — Comando "zerar estoque" tem PRIORIDADE absoluta entre os handlers de texto.
     // Comando claro do admin nunca pode ser confundido com correção/briefing/cadastro.
     try {
@@ -6013,23 +6188,30 @@ async function handleAdminLucas(phone, msg, body) {
 
     await sendText(phone,
       "🦎 *comandos drope*\n\n" +
-      "📦 *estoque*\n" +
-      "• 'lote' → cadastrar/abastecer (manda fotos, processa todas)\n" +
-      "• 'fechar lote' → finaliza lote em andamento\n" +
-      "• 'estoque' → lista do que tem\n" +
-      "• 'pendentes' → pods sem foto/arte\n" +
-      "• 'zerar estoque' → marca tudo inactive (cuidado)\n\n" +
-      "📊 *balanço/conferência*\n" +
-      "• 'balanço' → ativa modo contagem física\n" +
-      "• manda fotos do que tem físico\n" +
-      "• 'fechar balanço' → vê divergências\n" +
-      "• 'aplica' → atualiza estoque pra bater físico\n" +
-      "• 'edita N qty' → ajusta item específico (ex: edita 3 12)\n\n" +
+      "📦 *cadastro/estoque*\n" +
+      "• *lote* → cadastrar/abastecer (manda fotos)\n" +
+      "• *status* → progresso do lote atual\n" +
+      "• *fechar lote* → finaliza\n" +
+      "• *estoque* → lista do que tem\n" +
+      "• *pendentes* → sem foto/arte\n" +
+      "• *zerar estoque* → marca tudo inactive\n\n" +
+      "✏️ *editar produto* (NOVO)\n" +
+      "• *preço NOME 89.90* → muda preço\n" +
+      "• *editar NOME qty 5* → muda qty\n" +
+      "• *editar NOME nome XXXX* → renomeia\n" +
+      "• *editar NOME sabor XXX* → muda sabor\n" +
+      "• *editar NOME marca XXX* → muda marca\n" +
+      "• *desfaz lote* → desfaz último cadastro\n\n" +
+      "📊 *balanço*\n" +
+      "• *balanço* → modo contagem física\n" +
+      "• *fechar balanço* → vê divergências\n" +
+      "• *aplica* → atualiza estoque\n" +
+      "• *edita N qty* → ajusta item\n\n" +
       "🏍️ *motoboys*\n" +
-      "• 'motoboys' → lista whitelist\n" +
-      "• 'motoboys briefing' → orienta no grupo\n" +
-      "• 'motoboy add 5511XXX Nome' → cadastra novo\n" +
-      "• 'corrida #N' → posta corrida no grupo",
+      "• *motoboys* → lista whitelist\n" +
+      "• *motoboys briefing* → orienta no grupo\n" +
+      "• *motoboy add 5511XXX Nome* → cadastra\n" +
+      "• *corrida #N* → posta corrida",
       body);
     return;
   }
