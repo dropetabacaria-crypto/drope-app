@@ -2602,6 +2602,37 @@ async function tryHandleManualFlavor(phone, msg, body, photoIdx, flavorText) {
 // Detecta comandos de lote (ativar / fechar)
 async function tryHandleBatchCommand(phone, msg, body, text, pending) {
   const lower = String(text || '').toLowerCase().trim();
+
+  // FIX 12 (08/05/2026 - Andrade) — comando 'status' / 'quanto' / '?' mostra
+  // quantas fotos foram processadas no batch atual + breakdown de decision.
+  // Antes Andrade tinha que adivinhar se sistema parou de processar ou ainda tá rodando.
+  if (pending?.mode === 'batch_active' && (lower === 'status' || lower === 'quanto' || lower === 'quantas' || lower === '?' || lower === 'pronto?' || lower === 'progresso')) {
+    try {
+      const counts = await sbGet('drope_batch_queue',
+        `select=decision,status&phone=eq.${encodeURIComponent(phone)}&batch_id=eq.${encodeURIComponent(pending.batch_id)}&limit=1000`);
+      const arr = Array.isArray(counts) ? counts : [];
+      const matched = arr.filter(r => r.decision === 'matched_existing').length;
+      const novos = arr.filter(r => r.decision === 'created_new').length;
+      const semSabor = arr.filter(r => r.decision === 'unidentified_flavor').length;
+      const erros = arr.filter(r => r.status === 'error').length;
+      const processing = arr.filter(r => r.status === 'processing').length;
+      const fotoCount = pending.fotoCount || 0;
+      let msgStatus = `📊 *Status do lote*\n\n` +
+        `📸 ${fotoCount} fotos enviadas\n` +
+        `✅ ${matched} atualizados\n` +
+        `📦 ${novos} novos\n` +
+        (semSabor > 0 ? `⚠️ ${semSabor} sem sabor (revisar depois)\n` : '') +
+        (erros > 0 ? `❌ ${erros} erros\n` : '');
+      if (processing > 0) {
+        msgStatus += `\n⏳ ${processing} ainda processando, aguarda uns segs`;
+      } else {
+        msgStatus += `\n✅ Tudo processado.\n\n*fechar lote* — finaliza`;
+      }
+      await sendText(phone, msgStatus, body);
+      return true;
+    } catch (e) { console.warn('[batch status]', e.message); }
+  }
+
   if (lower === 'lote' || lower === 'iniciar lote' || lower === 'comeca lote' || lower === 'começa lote' || lower === 'modo lote') {
     if (pending?.mode === 'batch_active') {
       await sendText(phone,
