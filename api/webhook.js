@@ -8156,8 +8156,8 @@ async function handleEsteiraView(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   try {
-    // 3 queries em paralelo
-    const [unidentifiedRows, pendingRows, awaitingRows] = await Promise.all([
+    // 4 queries em paralelo (sem-sabor + pendentes + gallery + completar-specs)
+    const [unidentifiedRows, pendingRows, awaitingRows, specsRows] = await Promise.all([
       sbGet('drope_batch_queue',
         `select=id,batch_id,photo_index,photo_url,vision_response,error_message,created_at&decision=eq.unidentified_flavor&order=created_at.desc&limit=200`),
       sbGet('drope_products',
@@ -8167,6 +8167,11 @@ async function handleEsteiraView(req, res) {
         `&order=created_at.desc&limit=200`),
       sbGet('drope_products',
         'or=(image_status.eq.awaiting_approval,and(art_status.eq.complete,image_url.is.null))&order=updated_at.desc&limit=200'),
+      // FASE 4 (08/05/2026) — produtos aprovados (image_status=ok + image_url not null) MAS sem preço ou EAN
+      sbGet('drope_products',
+        `image_status=eq.ok&image_url=not.is.null&or=(price_cents.eq.0,price_cents.is.null,barcode.is.null,barcode.eq.)` +
+        `&select=id,name,barcode,box_photo_url,image_url,price_cents,metadata,qty_available,updated_at` +
+        `&order=updated_at.desc&limit=200`),
     ]);
 
     // Dedup sem-sabor por (batch_id, photo_index) e exige photo_url
@@ -8193,14 +8198,14 @@ async function handleEsteiraView(req, res) {
       }
     }
 
-    return res.status(200).send(esteiraHtml(unidentified, pendingRows || [], awaitingRows || [], params.token));
+    return res.status(200).send(esteiraHtml(unidentified, pendingRows || [], awaitingRows || [], specsRows || [], params.token));
   } catch (e) {
     console.error('[esteira] error:', e.message);
     return res.status(500).send('<h1 style="color:#ff2d95;font-family:sans-serif">erro: ' + (e.message || '') + '</h1>');
   }
 }
 
-function esteiraHtml(unidentified, pending, awaiting, token) {
+function esteiraHtml(unidentified, pending, awaiting, specs, token) {
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   // === FASE 1: SEM SABOR (cards do batch_queue) ===
@@ -8286,6 +8291,42 @@ function esteiraHtml(unidentified, pending, awaiting, token) {
       </div>`;
   }).join('');
 
+  // === FASE 4: COMPLETAR SPECS (preço + EAN) — produtos com arte aprovada mas sem dados ===
+  const specsCards = specs.map(p => {
+    const m = p.metadata || {};
+    const fullName = esc(p.name || '');
+    const subtitle = [m.brand, m.model, m.flavor_pt || m.flavor_en || m.flavor].filter(Boolean).join(' ✦ ');
+    const priceVal = p.price_cents ? (p.price_cents / 100).toFixed(2) : '';
+    const barcode = esc(p.barcode || '');
+    const arte = esc(p.image_url || '');
+    const semPreco = !p.price_cents || p.price_cents === 0;
+    const semEan = !p.barcode || p.barcode === '';
+    return `
+      <div class="card specs-card" data-id="${esc(p.id)}">
+        <div class="thumb">${arte ? `<img src="${arte}" alt="${fullName}">` : '<div class="no-photo">sem arte</div>'}</div>
+        <div class="meta">
+          <div class="name">${fullName}</div>
+          <div class="sub">${esc(subtitle)} ${semPreco ? '<span class="missing">⚠️ sem preço</span>' : ''} ${semEan ? '<span class="missing">⚠️ sem EAN</span>' : ''}</div>
+          <div class="inputs-stack">
+            <div class="input-row">
+              <label>R$</label>
+              <input type="number" step="0.01" min="0" data-field="price" placeholder="venda" value="${priceVal}">
+            </div>
+            <div class="input-row">
+              <label>EAN</label>
+              <input type="text" data-field="barcode" placeholder="13 dígitos" value="${barcode}" maxlength="14">
+              <button class="btn ean-search" data-op="ean-search" type="button">🔎 buscar</button>
+            </div>
+            <div class="ean-result" style="font-size:11px;color:var(--dim);min-height:14px"></div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" data-op="save-finalize">💾 salvar e finalizar</button>
+          </div>
+          <div class="status"></div>
+        </div>
+      </div>`;
+  }).join('');
+
   // === FASE 3: GALLERY (artes geradas esperando aprovação) ===
   const galleryCards = awaiting.map(p => {
     const m = p.metadata || {};
@@ -8343,6 +8384,7 @@ section{padding:16px;max-width:900px;margin:0 auto}
 .tag-1{background:rgba(255,184,0,.15);color:var(--amber);border:1px solid var(--amber)}
 .tag-2{background:rgba(157,78,221,.15);color:var(--violet);border:1px solid var(--violet)}
 .tag-3{background:rgba(212,255,46,.15);color:var(--lime);border:1px solid var(--lime)}
+.tag-4{background:rgba(255,45,111,.15);color:var(--pink);border:1px solid var(--pink)}
 .section-helper{color:var(--dim);font-size:12px;margin-bottom:14px}
 .empty{color:var(--dim);text-align:center;padding:30px;font-style:italic;font-size:13px;border:1px dashed var(--b);border-radius:10px}
 
@@ -8397,6 +8439,23 @@ section{padding:16px;max-width:900px;margin:0 auto}
 .card.gallery-card .inputs{display:flex;gap:6px}
 .card.gallery-card .inputs input{flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--b);background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;min-width:0}
 
+/* Specs card (FASE 4) */
+.card.specs-card .thumb{aspect-ratio:1;background:#000;overflow:hidden}
+.card.specs-card .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.card.specs-card .meta{padding:10px;display:flex;flex-direction:column;gap:8px}
+.card.specs-card .name{font-weight:700;font-size:13px}
+.card.specs-card .sub{font-size:11px;color:var(--dim)}
+.card.specs-card .missing{color:var(--pink);font-weight:600;margin-left:4px;font-size:10px}
+.card.specs-card .inputs-stack{display:flex;flex-direction:column;gap:6px}
+.input-row{display:flex;align-items:center;gap:6px}
+.input-row label{font-size:11px;color:var(--dim);width:32px;flex:0 0 32px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.input-row input{flex:1;padding:7px 9px;border-radius:6px;border:1px solid var(--b);background:var(--bg);color:var(--fg);font-size:13px;font-family:inherit;min-width:0}
+.input-row input:focus{outline:none;border-color:var(--lime)}
+.btn.ean-search{flex:0 0 auto;padding:6px 8px;font-size:11px;background:transparent;border:1px solid var(--violet);color:var(--violet)}
+.btn.ean-search:hover{background:var(--violet);color:#fff}
+.ean-result.match{color:var(--lime)}
+.ean-result.fail{color:var(--amber)}
+
 /* Botões compartilhados */
 .actions{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 12px}
 .card.sem-sabor .actions,.card.gallery-card .actions{padding:0}
@@ -8428,10 +8487,11 @@ section{padding:16px;max-width:900px;margin:0 auto}
     </div>
   </div>
   <div class="tabs">
-    <a class="tab active" href="#all" onclick="setFilter('all')">tudo <span class="count">${unidentified.length + pending.length + awaiting.length}</span></a>
+    <a class="tab active" href="#all" onclick="setFilter('all')">tudo <span class="count">${unidentified.length + pending.length + awaiting.length + specs.length}</span></a>
     <a class="tab" href="#sem-sabor" onclick="setFilter('sem-sabor')">❓ sem sabor <span class="count">${unidentified.length}</span></a>
     <a class="tab" href="#pendentes" onclick="setFilter('pendentes')">📸 pendentes <span class="count">${pending.length}</span></a>
     <a class="tab" href="#gallery" onclick="setFilter('gallery')">🖼️ gallery <span class="count">${awaiting.length}</span></a>
+    <a class="tab" href="#specs" onclick="setFilter('specs')">💰 specs <span class="count">${specs.length}</span></a>
   </div>
 </header>
 
@@ -8475,10 +8535,21 @@ section{padding:16px;max-width:900px;margin:0 auto}
     <h2 id="gallery">fase 3 — gallery (aprovar arte)</h2>
     <span class="phase-tag tag-3">🖼️ ${awaiting.length}</span>
   </div>
-  <div class="section-helper">arte gerada, lê preço/EAN, aprova. ao aprovar, vai pro app.</div>
+  <div class="section-helper">arte gerada, aprova → vai pra fase 4 (preço/EAN).</div>
   ${awaiting.length === 0
     ? '<div class="empty">✅ nada esperando aprovação</div>'
     : `<div class="grid-gallery">${galleryCards}</div>`}
+</section>
+
+<section id="sec-specs" data-phase="specs">
+  <div class="section-head">
+    <h2 id="specs">fase 4 — completar specs (preço + EAN)</h2>
+    <span class="phase-tag tag-4">💰 ${specs.length}</span>
+  </div>
+  <div class="section-helper">arte aprovada mas falta preço ou EAN. clica 🔎 buscar pra IA achar EAN no Google. ao salvar com os 2 campos preenchidos, produto vira visível no app.</div>
+  ${specs.length === 0
+    ? '<div class="empty">✅ tudo finalizado — sem produtos pendentes de specs</div>'
+    : `<div class="grid-gallery">${specsCards}</div>`}
 </section>
 
 <script>
@@ -8647,6 +8718,73 @@ document.querySelectorAll('.card.gallery-card').forEach(card => {
       }
     };
   });
+});
+
+// ===== FASE 4: COMPLETAR SPECS =====
+document.querySelectorAll('.card.specs-card').forEach(card => {
+  const id = card.dataset.id;
+  const status = card.querySelector('.status');
+  const eanResult = card.querySelector('.ean-result');
+  const priceInput = card.querySelector('input[data-field="price"]');
+  const eanInput = card.querySelector('input[data-field="barcode"]');
+
+  // Botão buscar EAN auto
+  const searchBtn = card.querySelector('[data-op="ean-search"]');
+  if (searchBtn) searchBtn.onclick = async () => {
+    searchBtn.disabled = true;
+    eanResult.className = 'ean-result';
+    eanResult.textContent = '🔎 procurando no Google...';
+    try {
+      const data = await api('auto_search_ean', { productId: parseInt(id) });
+      if (data.ean) {
+        eanInput.value = data.ean;
+        eanResult.className = 'ean-result match';
+        eanResult.textContent = '✓ achei: ' + data.ean + ' (' + data.confidence + ' fonte' + (data.confidence > 1 ? 's' : '') + ')';
+      } else {
+        eanResult.className = 'ean-result fail';
+        eanResult.textContent = '⚠️ não achei EAN — coloca manual';
+      }
+    } catch (e) {
+      eanResult.className = 'ean-result fail';
+      eanResult.textContent = 'erro: ' + e.message;
+    } finally {
+      searchBtn.disabled = false;
+    }
+  };
+
+  // Botão salvar e finalizar
+  const saveBtn = card.querySelector('[data-op="save-finalize"]');
+  if (saveBtn) saveBtn.onclick = async () => {
+    const priceReais = priceInput.value;
+    const price_cents = priceReais ? Math.round(parseFloat(priceReais) * 100) : null;
+    const barcode = eanInput.value.trim().replace(/\\D/g, '');
+    if (!price_cents && !barcode) {
+      status.className = 'status err'; status.textContent = '⚠️ preenche pelo menos 1 campo';
+      return;
+    }
+    saveBtn.disabled = true;
+    status.className = 'status'; status.textContent = 'salvando...';
+    try {
+      const data = await api('save_specs', {
+        productId: parseInt(id),
+        price_cents,
+        barcode: barcode || null,
+      });
+      status.className = 'status ok';
+      status.textContent = data.message || '✓ salvo';
+      if (data.finalized) {
+        card.style.transition = 'opacity .4s';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 500);
+      } else {
+        saveBtn.disabled = false;
+      }
+    } catch (e) {
+      status.className = 'status err';
+      status.textContent = 'erro: ' + e.message;
+      saveBtn.disabled = false;
+    }
+  };
 });
 
 // Permite anchor #pendentes etc no load
@@ -11530,11 +11668,12 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
           `image_status=eq.awaiting_approval&select=id&limit=300`);
         count = (rows || []).length;
       } else if (type === 'esteira') {
-        // Esteira (08/05/2026): soma sem-sabor + pendentes + gallery numa badge só
-        const [unident, pending, gallery] = await Promise.all([
+        // Esteira (08/05/2026): soma sem-sabor + pendentes + gallery + specs numa badge só
+        const [unident, pending, gallery, specs] = await Promise.all([
           sbGet('drope_batch_queue', `decision=eq.unidentified_flavor&select=id,batch_id,photo_index&limit=300`),
           sbGet('drope_products', `or=(image_status.eq.pending_pod_photo,art_status.in.(pending_review,needs_manual_photo,pending_reference),image_url.is.null)&image_status=neq.removed&select=id&limit=300`),
           sbGet('drope_products', `image_status=eq.awaiting_approval&select=id&limit=300`),
+          sbGet('drope_products', `image_status=eq.ok&image_url=not.is.null&or=(price_cents.eq.0,price_cents.is.null,barcode.is.null,barcode.eq.)&select=id&limit=300`),
         ]);
         // Dedup unidentified por batch+photo
         const seen = new Set();
@@ -11543,7 +11682,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
           const k = `${r.batch_id}:${r.photo_index}`;
           if (!seen.has(k)) { seen.add(k); unidentCount++; }
         }
-        count = unidentCount + (pending || []).length + (gallery || []).length;
+        count = unidentCount + (pending || []).length + (gallery || []).length + (specs || []).length;
       } else if (type === 'stock') {
         const rows = await sbGet('drope_products', `select=id&limit=1000`);
         count = (rows || []).length;
@@ -12874,6 +13013,143 @@ async function generateAll(){
       });
     } catch (e) {
       console.error('[mass_kickoff_search] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ===== AUTO SEARCH EAN (08/05/2026) =====
+  // Busca EAN/barcode do produto no Google via Serper.
+  // POST /api/webhook?action=auto_search_ean
+  // body { productId } | header x-admin-token
+  // returns { ok, ean, source_snippet, candidates: [...] }
+  if (req.url && req.url.indexOf('action=auto_search_ean') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const productId = reqBody.productId;
+      if (!productId) return res.status(400).json({ error: 'productId obrigatório' });
+      if (!SERPER_API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY não configurada' });
+
+      const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(productId)}&select=id,name,metadata&limit=1`);
+      const prod = rows && rows[0];
+      if (!prod) return res.status(404).json({ error: 'produto não encontrado' });
+      const m = prod.metadata || {};
+      const brand = m.brand || '';
+      const model = m.model || '';
+      const flavor = m.flavor_pt || m.flavor_en || m.flavor || '';
+      if (!brand || !model) return res.status(400).json({ error: 'produto sem brand/model no metadata' });
+
+      // 3 queries em ordem de especificidade — a mais específica vem primeiro
+      const queries = [
+        `"${brand} ${model} ${flavor}" EAN barcode`,
+        `"${brand}" "${model}" "${flavor}" código de barras`,
+        `${brand} ${model} ${flavor} barcode`,
+      ];
+
+      const candidates = []; // { ean, snippet, source_url }
+      for (const q of queries) {
+        const data = await _serperSearch(q, 'search', 8);
+        if (!data) continue;
+        const organic = data.organic || [];
+        const blob = organic.map(o => ({
+          text: `${o.title || ''}. ${o.snippet || ''}`,
+          link: o.link || '',
+        }));
+        for (const item of blob) {
+          // Extrai todos os números de 12-13 dígitos que parecem EAN/UPC
+          // Aceita: "1234567890123", "1234 567 890 123", "1234-5678-9012-3" etc
+          const norm = item.text.replace(/[\s\-\.]/g, '');
+          const matches = norm.match(/\b\d{12,13}\b/g) || [];
+          for (const ean of matches) {
+            // Filtra anos (1990-2030), telefones (começa com 0 ou repetições óbvias)
+            if (/^(19|20)\d{2}$/.test(ean)) continue;
+            if (/^0{8,}/.test(ean)) continue;
+            if (/^(\d)\1{10,}$/.test(ean)) continue; // 12 ou 13 do mesmo dígito
+            candidates.push({
+              ean,
+              snippet: item.text.slice(0, 150),
+              source_url: item.link,
+            });
+          }
+        }
+        if (candidates.length > 0) break; // achou na 1ª query, não precisa das outras
+      }
+
+      // Vota: o EAN que aparece em mais resultados é o "mais provável"
+      const counts = {};
+      for (const c of candidates) {
+        counts[c.ean] = (counts[c.ean] || 0) + 1;
+      }
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const bestEan = sorted[0] ? sorted[0][0] : null;
+      const bestEntry = candidates.find(c => c.ean === bestEan);
+
+      return res.status(200).json({
+        ok: true,
+        ean: bestEan,
+        confidence: sorted[0] ? sorted[0][1] : 0,
+        source_snippet: bestEntry ? bestEntry.snippet : null,
+        source_url: bestEntry ? bestEntry.source_url : null,
+        candidates: sorted.slice(0, 5).map(([ean, votes]) => ({ ean, votes })),
+        product: { id: prod.id, name: prod.name, brand, model, flavor },
+      });
+    } catch (e) {
+      console.error('[auto_search_ean] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ===== SAVE SPECS (08/05/2026) =====
+  // Salva preço + EAN do produto direto na esteira FASE 4.
+  // POST /api/webhook?action=save_specs
+  // body { productId, price_cents, barcode } | header x-admin-token
+  if (req.url && req.url.indexOf('action=save_specs') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const { productId, price_cents, barcode } = reqBody;
+      if (!productId) return res.status(400).json({ error: 'productId obrigatório' });
+
+      const update = {};
+      if (typeof price_cents === 'number' && price_cents > 0) {
+        update.price_cents = price_cents;
+      }
+      if (typeof barcode === 'string' && barcode.trim()) {
+        update.barcode = barcode.trim().replace(/\D/g, ''); // só dígitos
+      }
+      // Se finalizou ambos, descondena o produto (hidden=false pra aparecer no app)
+      if (update.price_cents && update.barcode) {
+        update.hidden = false;
+        update.status = 'active';
+      }
+      if (Object.keys(update).length === 0) {
+        return res.status(400).json({ error: 'nada pra atualizar' });
+      }
+      update.updated_at = new Date().toISOString();
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, update);
+      return res.status(200).json({
+        ok: true,
+        productId,
+        updated: Object.keys(update),
+        finalized: !!(update.price_cents && update.barcode),
+        message: (update.price_cents && update.barcode)
+          ? '✓ produto finalizado e visível no app'
+          : '✓ salvo (faltam outros campos)',
+      });
+    } catch (e) {
+      console.error('[save_specs] error:', e.message);
       return res.status(500).json({ error: e.message });
     }
   }
