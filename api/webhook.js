@@ -802,6 +802,46 @@ ${Object.keys(pendingBatches).length > 0 ? `
   return res.status(200).send(html);
 }
 
+// TIER 1.4 (08/05/2026 - Andrade) — Recovery de produtos travados em "generating".
+// Cenário: Grok demora >60s, Vercel mata invocação, image_status fica 'generating'
+// permanente. Antes: produto morto pra sempre. Agora: cron diário detecta e re-dispara.
+async function handleArtStuckRecovery(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  if (!checkCronAuth(req)) {
+    await new Promise(r => setTimeout(r, 600));
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  const stuck = await sbGet('drope_products',
+    `select=id,name,updated_at&image_status=eq.generating&updated_at=lt.${encodeURIComponent(new Date(Date.now() - 5*60*1000).toISOString())}&limit=20`);
+  const arr = Array.isArray(stuck) ? stuck : [];
+  if (arr.length === 0) {
+    return res.status(200).json({ ok: true, found: 0 });
+  }
+  console.log(`[art-stuck-recovery] found ${arr.length} produtos travados em 'generating'`);
+  let recovered = 0;
+  for (const p of arr) {
+    try {
+      await sbUpdate('drope_products', `id=eq.${p.id}`, {
+        image_status: 'pending_art',
+        art_status: 'reference_approved',
+      });
+      // Re-dispara em invocacao Vercel separada (nao bloqueia esse cron)
+      await fireBackgroundArtGeneration(p.id, ADMIN_LUCAS, 1);
+      recovered++;
+      console.log(`[art-stuck-recovery] re-disparado productId=${p.id} ${p.name}`);
+    } catch (e) { console.warn('[art-stuck-recovery]', p.id, e.message); }
+  }
+  try { await logSystemEvent('art_stuck_recovered', { found: arr.length, recovered }, ADMIN_LUCAS); } catch (_) {}
+  if (recovered > 0) {
+    try {
+      await sendText(ADMIN_LUCAS,
+        `🔧 *Recovery automático*\n\n${recovered} produtos travados em 'generating' foram destravados e re-disparados pra Grok.`,
+        {});
+    } catch (_) {}
+  }
+  return res.status(200).json({ ok: true, found: arr.length, recovered });
+}
+
 async function handleSystemHealth(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (!checkCronAuth(req)) {
@@ -1618,6 +1658,38 @@ async function tryHandleBatchPhoto(phone, msg, body, pending) {
       }
       const slug = slugify(cBrand, cModel || '', cFlavor) + '-' + Date.now().toString(36);
 
+      // FIX TIER 1.2 (08/05/2026 - Andrade) — Detecção de duplicata cross-sessão.
+      // _matchScore busca por similaridade mas pode ter passado threshold 80 sem ser
+      // exato. Antes de criar produto novo, faz check final por nome canonical:
+      // se ja existe produto com mesmo (cBrand + cModel + cFlavor), trata como
+      // matched_existing (incrementa qty no existente em vez de duplicar).
+      try {
+        const namePattern = encodeURIComponent(`${cBrand} ${cModel || ''} ${cFlavor}`.replace(/\s+/g, ' ').trim());
+        const dupes = await sbGet('drope_products',
+          `name=ilike.${namePattern}&hidden=eq.false&select=id,name,qty_available,total_sold,status&limit=3`);
+        if (Array.isArray(dupes) && dupes.length > 0) {
+          // Achou duplicata — matched_existing em vez de criar
+          const dup = dupes[0];
+          const newQty = (dup.qty_available || 0) + qty;
+          await sbUpdate('drope_products', `id=eq.${dup.id}`, {
+            qty_available: newQty,
+            hidden: false,
+            status: dup.status === 'inactive' ? 'pending' : (dup.status || 'active'),
+            updated_at: new Date().toISOString(),
+          });
+          if (queueId) await sbUpdate('drope_batch_queue', `id=eq.${queueId}`, {
+            matched_product_id: dup.id,
+            matched_score: 100, // exact name match
+            decision: 'matched_existing',
+            qty_added: qty,
+          }).catch(() => {});
+          // Adiciona no productsArr in-memory pra dedup live no resto do loop
+          productsArr.push({ ...dup, qty_available: newQty });
+          console.log(`[FLC dup-check] productId=${dup.id} matched by name "${dup.name}", +${qty} qty`);
+          continue;
+        }
+      } catch (e) { console.warn('[FLC dup-check]', e.message); }
+
       // SISTEMA IMUNE 07/05/2026: busca pending_sales matching (Yasmin vendeu antes
       // de cadastrar). Aplica baixa retroativa no qty inicial.
       const reconcil = await _findPendingSalesMatching(cBrand, cModel, cFlavor);
@@ -1876,7 +1948,21 @@ async function tryHandleBatchPricing(phone, msg, body, text, pending) {
     return true;
   }
 
-  const updates = matches.map(m => ({ idx: parseInt(m[1]), price: parseFloat(m[2].replace(',', '.')) })).filter(u => u.idx > 0 && u.price > 0);
+  // FIX TIER 1.1 (08/05/2026 - Andrade) — Validação rigorosa de preço.
+  // Antes: aceitava price > 0 mas sem ceiling. Agora: rejeita preços fora de
+  // (0.50, 9999.99) — protege contra erro digitação tipo '1. 0' (gratis) ou '1. 89999' (zero extra).
+  const PRICE_MIN = 0.50;
+  const PRICE_MAX = 9999.99;
+  const allParsed = matches.map(m => ({ idx: parseInt(m[1]), price: parseFloat(m[2].replace(',', '.')) }));
+  const invalid = allParsed.filter(u => u.idx > 0 && (u.price < PRICE_MIN || u.price > PRICE_MAX));
+  if (invalid.length > 0) {
+    const lista = invalid.map(u => `${u.idx}. R$ ${u.price.toFixed(2)}`).join(', ');
+    await sendText(phone,
+      `⚠️ *Preço fora do permitido* (entre R$ ${PRICE_MIN.toFixed(2)} e R$ ${PRICE_MAX.toFixed(2)}):\n${lista}\n\nDigite de novo o lote inteiro de preços.`,
+      body);
+    return true;
+  }
+  const updates = allParsed.filter(u => u.idx > 0 && u.price >= PRICE_MIN && u.price <= PRICE_MAX);
   // FLC FASE 2.2 — Le array ordenado (resiliente a reorder de jsonb).
   // Backwards-compat: se for pending velho com novosByModel obj, converte na hora.
   const novosOrdered = Array.isArray(pending.novosOrdered)
@@ -7372,7 +7458,13 @@ async function runArtGeneration(productId, phone, attempt) {
     const qcResult = await evaluateArtQuality(imgData, fullName, flavor, qcDeviceDesc, product.reference_image_url, product.box_photo_url);
     console.log(`[runArtGeneration] QC productId=${productId}: approved=${qcResult.approved}, score=${qcResult.score}`);
 
-    if (qcResult.approved || qcAttempt >= maxQcAttempts) {
+    // FIX TIER 1.3 (08/05/2026 - Andrade) — QC threshold rigoroso.
+    // Antes: qcAttempt >= maxAttempts FORÇAVA aprovação mesmo com score 5.5 (arte
+    // ruim entrava no app). Agora: se score < 5 mesmo após maxAttempts, NAO aprova
+    // — vira needs_manual_photo e Andrade decide via WhatsApp.
+    const QC_HARD_FLOOR = 5; // abaixo disso, nunca aceita
+    const shouldAccept = qcResult.approved || (qcAttempt >= maxQcAttempts && qcResult.score >= QC_HARD_FLOOR);
+    if (shouldAccept) {
       const uploadName = currentAttempt > 1 ? `${slug}-v${currentAttempt}` : slug;
       const sealedImgData = await applyDropeSeal(imgData);
       pendingArtUrl = await uploadToStorage(uploadName, sealedImgData, 'image/png');
@@ -7386,6 +7478,30 @@ async function runArtGeneration(productId, phone, attempt) {
       await sbUpdate('drope_products', `id=eq.${productId}`, {
         metadata: { ...meta, ...qcMeta, last_art_attempt: currentAttempt }
       });
+    } else if (qcAttempt >= maxQcAttempts) {
+      // Score < 5 mesmo apos maxAttempts → arte ruim, nao aceita
+      console.warn(`[runArtGeneration] HARD REJECT productId=${productId}: score=${qcResult.score} < ${QC_HARD_FLOOR} apos ${qcAttempt} attempts`);
+      const qcMeta = {
+        qc_score: qcResult.score, qc_approved: false, qc_attempts: qcAttempt,
+        qc_hard_rejected: true,
+        qc_issues: qcResult.issues || [],
+        art_mode: product.reference_image_url ? 'img2img' : 'text_only',
+      };
+      await sbUpdate('drope_products', `id=eq.${productId}`, {
+        image_status: 'needs_manual_photo',
+        art_status: 'needs_manual_photo',
+        metadata: { ...meta, ...qcMeta },
+      });
+      // Notifica Andrade via WhatsApp em vez de apenas log silencioso
+      try {
+        await sendText(phone || ADMIN_LUCAS,
+          `⚠️ *${fullName}*\n\n` +
+          `Grok não conseguiu gerar arte boa (QC ${qcResult.score}/10 após ${qcAttempt} tentativas)\n\n` +
+          `Issues: ${(qcResult.issues || []).slice(0, 2).join('; ').slice(0, 200)}\n\n` +
+          `📸 *Manda foto manual* desse produto que eu uso direto`,
+          {});
+      } catch (_) {}
+      return;
     } else {
       qcFeedback = qcResult.feedback || (qcResult.issues || []).join('. ');
       console.log(`[runArtGeneration] QC REJECTED productId=${productId}, feedback: ${qcFeedback}`);
@@ -9986,6 +10102,10 @@ module.exports = async function handler(req, res) {
   // Diagnostico admin (debug rapido sem precisar de logs Vercel)
   if (req.url && req.url.indexOf('action=admin_diag') >= 0) {
     return await handleAdminDiag(req, res);
+  }
+  // TIER 1.4 — Recovery de produtos travados em image_status='generating' (timeout Grok)
+  if (req.url && req.url.indexOf('action=art_stuck_recovery') >= 0) {
+    return await handleArtStuckRecovery(req, res);
   }
   // Painel admin do balanço (07/05/2026 - Andrade) — historico + divergencias
   if (req.url && req.url.indexOf('action=balance_panel') >= 0) {
