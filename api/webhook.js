@@ -4628,14 +4628,14 @@ Respond ONLY JSON:
     const vData = await vRes.json();
     if (vData.error) {
       console.error('[QC] Vision API error:', JSON.stringify(vData.error));
-      return { approved: true, score: 0.5, issues: ['QC Vision API error — auto-approved'] };
+      return { approved: false, score: 0, issues: ['QC Vision API error — manda pra retry/manual'], _api_error: true };
     }
 
     const vText = (vData.content && vData.content[0] && vData.content[0].text) || '';
     const jsonMatch = vText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim().match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.warn('[QC] parse failed, raw:', vText.substring(0, 200));
-      return { approved: true, score: 0.5, issues: ['QC parse failed — auto-approved'] };
+      return { approved: false, score: 0, issues: ['QC parse failed — manda pra retry/manual'], _api_error: true };
     }
 
     const result = JSON.parse(jsonMatch[0]);
@@ -4648,7 +4648,7 @@ Respond ONLY JSON:
     };
   } catch (e) {
     console.error('[QC] exception:', e.message);
-    return { approved: true, score: 0.5, issues: [`QC exception: ${e.message}`] };
+    return { approved: false, score: 0, issues: [`QC exception: ${e.message}`], _api_error: true };
   }
 }
 
@@ -8131,6 +8131,517 @@ document.querySelectorAll('.card').forEach(card => {
 </body></html>`;
 }
 
+// ===== ESTEIRA (08/05/2026) =====
+// Tela única que junta sem-sabor + pendentes + gallery numa esteira contínua.
+// Andrade pediu: "podiam ficar todos numa tela só, em apenas uma tela eu faria tudo".
+// Reaproveita endpoints POST existentes:
+//   - complete_unidentified (sem-sabor → cria produto)
+//   - admin-approve-product (pendentes → approve / regenerate / reject)
+//   - gallery_action (gallery → approve / regenerate / reject)
+async function handleEsteiraView(req, res) {
+  const qs = req.url.includes('?') ? req.url.split('?')[1] : '';
+  const params = {};
+  qs.split('&').forEach(p => {
+    const [k, v] = p.split('=');
+    if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+  });
+  if (!ADMIN_TOKEN || params.token !== ADMIN_TOKEN) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(401).send('<h1 style="color:#ff2d95;font-family:sans-serif">unauthorized</h1>');
+  }
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return res.status(500).send('supabase not configured');
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+
+  try {
+    // 3 queries em paralelo
+    const [unidentifiedRows, pendingRows, awaitingRows] = await Promise.all([
+      sbGet('drope_batch_queue',
+        `select=id,batch_id,photo_index,photo_url,vision_response,error_message,created_at&decision=eq.unidentified_flavor&order=created_at.desc&limit=200`),
+      sbGet('drope_products',
+        `or=(image_status.eq.pending_pod_photo,art_status.in.(pending_review,needs_manual_photo,pending_reference),image_url.is.null)` +
+        `&image_status=neq.removed` +
+        `&select=id,name,barcode,box_photo_url,reference_image_url,reference_candidates,image_status,art_status,metadata,updated_at,image_url,price_cents,qty_available` +
+        `&order=created_at.desc&limit=200`),
+      sbGet('drope_products',
+        'or=(image_status.eq.awaiting_approval,and(art_status.eq.complete,image_url.is.null))&order=updated_at.desc&limit=200'),
+    ]);
+
+    // Dedup sem-sabor por (batch_id, photo_index) e exige photo_url
+    const seenK = new Set();
+    const unidentified = [];
+    for (const r of (unidentifiedRows || [])) {
+      const k = `${r.batch_id}:${r.photo_index}`;
+      if (seenK.has(k)) continue;
+      seenK.add(k);
+      if (r.photo_url) unidentified.push(r);
+    }
+
+    // Stale ref guard pros pendentes (mesma lógica do pending_pod_photos)
+    const STALE_REF_MS = 3 * 60 * 1000;
+    const now = Date.now();
+    for (const p of (pendingRows || [])) {
+      if (p.art_status === 'pending_reference') {
+        const refsLen = Array.isArray(p.reference_candidates) ? p.reference_candidates.length : 0;
+        const ageMs = p.updated_at ? (now - new Date(p.updated_at).getTime()) : Infinity;
+        if (refsLen === 0 && ageMs > STALE_REF_MS) {
+          p.art_status = 'needs_manual_photo';
+          p._stale_search = true;
+        }
+      }
+    }
+
+    return res.status(200).send(esteiraHtml(unidentified, pendingRows || [], awaitingRows || [], params.token));
+  } catch (e) {
+    console.error('[esteira] error:', e.message);
+    return res.status(500).send('<h1 style="color:#ff2d95;font-family:sans-serif">erro: ' + (e.message || '') + '</h1>');
+  }
+}
+
+function esteiraHtml(unidentified, pending, awaiting, token) {
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  // === FASE 1: SEM SABOR (cards do batch_queue) ===
+  const semSaborCards = unidentified.map(r => {
+    let brand = '?', model = '';
+    try {
+      const vis = typeof r.vision_response === 'string' ? JSON.parse(r.vision_response) : r.vision_response;
+      const p = vis?.products?.[0] || {};
+      brand = p.brand || '?';
+      model = p.model || '';
+    } catch (_) {}
+    return `
+      <div class="card sem-sabor" data-batch-id="${esc(r.batch_id)}" data-photo-idx="${esc(r.photo_index)}">
+        <div class="thumb"><img src="${esc(r.photo_url)}" loading="lazy" alt="foto"/></div>
+        <div class="meta">
+          <div class="info"><span class="brand">${esc(brand)}</span> <span class="model">${esc(model)}</span></div>
+          <input type="text" class="flavor-input" placeholder="digita o sabor (ex: Strawberry Kiwi)" />
+          <div class="actions">
+            <button class="btn complete" data-op="ss-complete">✅ cadastrar</button>
+            <button class="btn discard" data-op="ss-discard">🗑️ descartar</button>
+          </div>
+          <div class="status"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // === FASE 2: PENDENTES (cards de drope_products esperando ref/foto/arte) ===
+  const pendentesCards = pending.map(p => {
+    const m = p.metadata || {};
+    const boxUrl = p.box_photo_url || m.box_photo_url || '';
+    const subtitle = [m.brand, m.model, m.flavor_pt || m.flavor_en || m.flavor].filter(Boolean).join(' ✦ ');
+    const refs = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+    const hasApprovedRef = !!p.reference_image_url;
+    const isSearching = p.art_status === 'pending_reference';
+    const needsManual = p.art_status === 'needs_manual_photo';
+    const refsHtml = isSearching
+      ? '<div class="refs-loading"><span class="spin"></span> buscando referências…</div>'
+      : refs.length === 0
+        ? '<div class="empty-refs">⚠️ sem referência boa<br/><span style="opacity:0.7">manda foto manual ou pula ref</span></div>'
+        : `<div class="refs">${refs.map((r, i) => `
+            <label class="ref-card${hasApprovedRef && p.reference_image_url === r.url ? ' selected' : ''}">
+              <input type="radio" name="ref-${esc(p.id)}" value="${esc(r.url)}" data-product-id="${esc(p.id)}" ${hasApprovedRef && p.reference_image_url === r.url ? 'checked' : ''} />
+              <img src="${esc(r.url)}" loading="lazy" alt="ref ${i+1}" />
+              <span class="score">${typeof r.combined_score === 'number' ? '🎯' + r.combined_score : '⭐' + (r.quality_score || 0)}</span>
+            </label>`).join('')}</div>`;
+    const statusLabel =
+      isSearching ? 'buscando refs' :
+      needsManual ? 'sem refs' :
+      p.art_status === 'pending_review' ? `${refs.length} refs` :
+      p.art_status === 'reference_approved' ? 'ref aprovada' :
+      p.image_status === 'pending_pod_photo' ? 'esperando foto' :
+                    esc(p.art_status || p.image_status || '');
+    return `
+      <div class="card pendente" data-id="${esc(p.id)}" data-status="${esc(p.art_status || '')}">
+        <div class="hd">
+          <div class="name">${esc(p.name)}</div>
+          <div class="sub">${esc(subtitle)}</div>
+          <div class="status-badge status-${esc(p.art_status || p.image_status || '')}">${esc(statusLabel)}</div>
+        </div>
+        <div class="card-grid">
+          <div class="col">
+            <div class="lbl">📦 caixa</div>
+            ${boxUrl
+              ? `<a href="${esc(boxUrl)}" target="_blank"><img class="box-photo" src="${esc(boxUrl)}" loading="lazy" alt="caixa" /></a>`
+              : '<div class="no-photo">sem foto</div>'}
+          </div>
+          <div class="col">
+            <div class="lbl">🔎 referências</div>
+            ${refsHtml}
+          </div>
+        </div>
+        <div class="actions">
+          ${refs.length > 0 ? `<button type="button" class="btn primary" data-op="p-approve-ref" data-id="${esc(p.id)}">✅ usar ref selecionada</button>` : ''}
+          <label class="btn">
+            📸 foto manual
+            <input type="file" accept="image/*" capture="environment" data-op="p-pod-photo" data-id="${esc(p.id)}" hidden />
+          </label>
+          ${needsManual ? `<button type="button" class="btn" data-op="p-retry" data-id="${esc(p.id)}">🔄 buscar de novo</button>` : ''}
+          <button type="button" class="btn ghost" data-op="p-skip" data-id="${esc(p.id)}">🎬 sem ref</button>
+          <button type="button" class="btn ghost danger" data-op="p-remove" data-id="${esc(p.id)}">🗑️ remover</button>
+        </div>
+        <div class="status" id="st-p-${esc(p.id)}"></div>
+      </div>`;
+  }).join('');
+
+  // === FASE 3: GALLERY (artes geradas esperando aprovação) ===
+  const galleryCards = awaiting.map(p => {
+    const m = p.metadata || {};
+    const thumb = m.pending_art_url || p.image_url || '';
+    const fullName = esc(p.name || '');
+    const subtitle = [m.brand, m.model, m.flavor_pt || m.flavor_en || m.flavor].filter(Boolean).join(' ✦ ');
+    const priceVal = p.price_cents ? (p.price_cents / 100).toFixed(2) : '';
+    const barcode = esc(p.barcode || '');
+    return `
+      <div class="card gallery-card" data-id="${esc(p.id)}">
+        <div class="thumb">${thumb ? `<img src="${esc(thumb)}" alt="${fullName}">` : '<div class="no-photo">sem arte</div>'}</div>
+        <div class="meta">
+          <div class="name">${fullName}</div>
+          <div class="sub">${esc(subtitle)}</div>
+          <div class="inputs">
+            <input type="text" data-field="barcode" placeholder="EAN" value="${barcode}">
+            <input type="number" step="0.01" data-field="price" placeholder="R$" value="${priceVal}">
+          </div>
+          <div class="actions">
+            <button class="btn primary" data-op="g-approve">✓ aprovar</button>
+            <button class="btn" data-op="g-regen">🔄 regerar</button>
+            <button class="btn ghost danger" data-op="g-reject">✕ rejeitar</button>
+          </div>
+          <div class="status"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR" translate="no"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A0A14">
+<meta name="google" content="notranslate">
+<title>Esteira ✦ Drope</title>
+<style>
+:root{--bg:#0A0A14;--bg2:#14141F;--fg:#EAEAF2;--dim:#8A8AA3;--pink:#FF2D6F;--lime:#D4FF2E;--violet:#9D4EDD;--amber:#FFB800;--b:rgba(255,255,255,0.08)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:0 0 80px;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif}
+header{padding:14px 16px;border-bottom:1px solid var(--b);position:sticky;top:0;background:rgba(10,10,20,.95);backdrop-filter:blur(8px);z-index:10}
+.head-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:18px}h1 em{color:var(--lime);font-style:normal}
+.subtitle{font-size:11px;color:var(--dim);margin-top:2px}
+.tabs{display:flex;gap:8px;margin-top:12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:0 0 auto;padding:8px 14px;border-radius:99px;border:1px solid var(--b);background:var(--bg2);color:var(--fg);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;text-decoration:none}
+.tab:hover{border-color:var(--lime)}
+.tab.active{background:var(--lime);color:#000;border-color:var(--lime)}
+.tab .count{background:rgba(0,0,0,.2);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.tab.active .count{background:rgba(0,0,0,.3)}
+.topbtn{padding:6px 10px;border-radius:8px;background:var(--bg2);border:1px solid var(--b);color:var(--dim);font-size:12px;text-decoration:none;cursor:pointer;font-family:inherit}
+section{padding:16px;max-width:900px;margin:0 auto}
+.section-head{margin:8px 0 12px;display:flex;align-items:center;gap:10px}
+.section-head h2{margin:0;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);font-weight:700}
+.phase-tag{padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.tag-1{background:rgba(255,184,0,.15);color:var(--amber);border:1px solid var(--amber)}
+.tag-2{background:rgba(157,78,221,.15);color:var(--violet);border:1px solid var(--violet)}
+.tag-3{background:rgba(212,255,46,.15);color:var(--lime);border:1px solid var(--lime)}
+.section-helper{color:var(--dim);font-size:12px;margin-bottom:14px}
+.empty{color:var(--dim);text-align:center;padding:30px;font-style:italic;font-size:13px;border:1px dashed var(--b);border-radius:10px}
+
+/* Grids por fase */
+.grid-sem-sabor{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.grid-pendentes{display:grid;grid-template-columns:1fr;gap:14px}
+.grid-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+
+/* Card base */
+.card{background:var(--bg2);border:1px solid var(--b);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+
+/* Sem-sabor card */
+.card.sem-sabor .thumb{aspect-ratio:1;background:#000;overflow:hidden}
+.card.sem-sabor .thumb img{width:100%;height:100%;object-fit:cover}
+.card.sem-sabor .meta{padding:10px;display:flex;flex-direction:column;gap:8px}
+.card.sem-sabor .info{display:flex;gap:8px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.card.sem-sabor .brand{color:var(--lime);font-weight:700}
+.card.sem-sabor .model{color:var(--violet)}
+.flavor-input{padding:8px 10px;border-radius:8px;border:1px solid var(--b);background:var(--bg);color:var(--fg);font-size:13px;font-family:inherit}
+.flavor-input:focus{outline:none;border-color:var(--lime)}
+
+/* Pendente card */
+.card.pendente .hd{padding:12px 14px;border-bottom:1px solid var(--b);position:relative}
+.card.pendente .name{font-weight:700;font-size:14px;margin-bottom:2px}
+.card.pendente .sub{font-size:11px;color:var(--dim)}
+.status-badge{position:absolute;top:12px;right:14px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--b);color:var(--dim);white-space:nowrap}
+.status-pending_review{color:var(--lime);border-color:var(--lime)}
+.status-needs_manual_photo{color:var(--amber);border-color:var(--amber)}
+.status-pending_reference{color:var(--violet);border-color:var(--violet)}
+.status-reference_approved{color:var(--lime);border-color:var(--lime)}
+.card-grid{display:grid;grid-template-columns:140px 1fr;gap:12px;padding:12px}
+@media(max-width:520px){.card-grid{grid-template-columns:1fr}}
+.col .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.box-photo{width:100%;border-radius:8px;border:1px solid var(--b);max-height:140px;object-fit:cover;display:block}
+.no-photo{padding:30px;text-align:center;color:var(--dim);font-size:11px;border:1px dashed var(--b);border-radius:8px;font-style:italic}
+.refs{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px}
+.ref-card{position:relative;cursor:pointer;border:2px solid transparent;border-radius:6px;overflow:hidden;background:var(--bg)}
+.ref-card.selected,.ref-card:has(input:checked){border-color:var(--lime)}
+.ref-card input{position:absolute;opacity:0;pointer-events:none}
+.ref-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.ref-card .score{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);color:var(--lime);font-size:9px;padding:1px 4px;border-radius:3px;font-weight:700}
+.refs-loading,.empty-refs{padding:14px;text-align:center;color:var(--dim);font-size:11px;border:1px dashed var(--b);border-radius:8px}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--violet);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:4px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Gallery card */
+.card.gallery-card .thumb{aspect-ratio:1;background:#000;overflow:hidden}
+.card.gallery-card .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.card.gallery-card .meta{padding:10px;display:flex;flex-direction:column;gap:8px}
+.card.gallery-card .name{font-weight:700;font-size:13px}
+.card.gallery-card .sub{font-size:11px;color:var(--dim)}
+.card.gallery-card .inputs{display:flex;gap:6px}
+.card.gallery-card .inputs input{flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--b);background:var(--bg);color:var(--fg);font-size:12px;font-family:inherit;min-width:0}
+
+/* Botões compartilhados */
+.actions{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 12px}
+.card.sem-sabor .actions,.card.gallery-card .actions{padding:0}
+.btn{flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid var(--b);background:transparent;color:var(--fg);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center}
+.btn:hover{border-color:var(--lime)}
+.btn.primary{background:var(--lime);color:#000;border-color:var(--lime)}
+.btn.complete{border-color:var(--lime);color:var(--lime)}
+.btn.complete:hover{background:var(--lime);color:#000}
+.btn.discard,.btn.danger{border-color:var(--pink);color:var(--pink)}
+.btn.discard:hover,.btn.danger:hover{background:var(--pink);color:#fff}
+.btn.ghost{background:transparent;border-color:var(--b);color:var(--dim)}
+.btn:disabled{opacity:.5;cursor:wait}
+.status{padding:0 12px 10px;font-size:11px;min-height:14px}
+.card.sem-sabor .status,.card.gallery-card .status{padding:0;min-height:0}
+.status.ok{color:var(--lime)}
+.status.err{color:var(--pink)}
+</style>
+</head><body>
+
+<header>
+  <div class="head-row">
+    <div>
+      <h1><em>🦎</em> esteira</h1>
+      <div class="subtitle">tudo numa tela só — sem-sabor → pendentes → gallery</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <a class="topbtn" href="/api/webhook?action=admin_hub&token=${esc(token)}">← hub</a>
+      <button class="topbtn" onclick="location.reload()">↻</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <a class="tab active" href="#all" onclick="setFilter('all')">tudo <span class="count">${unidentified.length + pending.length + awaiting.length}</span></a>
+    <a class="tab" href="#sem-sabor" onclick="setFilter('sem-sabor')">❓ sem sabor <span class="count">${unidentified.length}</span></a>
+    <a class="tab" href="#pendentes" onclick="setFilter('pendentes')">📸 pendentes <span class="count">${pending.length}</span></a>
+    <a class="tab" href="#gallery" onclick="setFilter('gallery')">🖼️ gallery <span class="count">${awaiting.length}</span></a>
+  </div>
+</header>
+
+<section id="sec-sem-sabor" data-phase="sem-sabor">
+  <div class="section-head">
+    <h2 id="sem-sabor">fase 1 — sem sabor</h2>
+    <span class="phase-tag tag-1">❓ ${unidentified.length}</span>
+  </div>
+  <div class="section-helper">vision viu marca/modelo mas não leu o sabor. digita e cadastra.</div>
+  ${unidentified.length === 0
+    ? '<div class="empty">✅ nada pendente</div>'
+    : `<div class="grid-sem-sabor">${semSaborCards}</div>`}
+</section>
+
+<section id="sec-pendentes" data-phase="pendentes">
+  <div class="section-head">
+    <h2 id="pendentes">fase 2 — pendentes (refs + arte)</h2>
+    <span class="phase-tag tag-2">📸 ${pending.length}</span>
+  </div>
+  <div class="section-helper">escolhe a referência boa, sobe foto manual ou pula. quem precisa de foto manual fica ambar.</div>
+  ${pending.length === 0
+    ? '<div class="empty">✅ nada esperando ref/foto</div>'
+    : `<div class="grid-pendentes">${pendentesCards}</div>`}
+</section>
+
+<section id="sec-gallery" data-phase="gallery">
+  <div class="section-head">
+    <h2 id="gallery">fase 3 — gallery (aprovar arte)</h2>
+    <span class="phase-tag tag-3">🖼️ ${awaiting.length}</span>
+  </div>
+  <div class="section-helper">arte gerada, lê preço/EAN, aprova. ao aprovar, vai pro app.</div>
+  ${awaiting.length === 0
+    ? '<div class="empty">✅ nada esperando aprovação</div>'
+    : `<div class="grid-gallery">${galleryCards}</div>`}
+</section>
+
+<script>
+const TOKEN = ${JSON.stringify(token)};
+
+function setFilter(which) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tab = document.querySelector('.tab[href="#' + which + '"]') || document.querySelector('.tab[href="#all"]');
+  tab.classList.add('active');
+  const sections = document.querySelectorAll('section[data-phase]');
+  sections.forEach(s => {
+    if (which === 'all') s.style.display = '';
+    else s.style.display = (s.dataset.phase === which) ? '' : 'none';
+  });
+}
+
+async function api(action, body, method = 'POST') {
+  const r = await fetch('/api/webhook?action=' + action, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+async function adminApi(path, body, method = 'POST') {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = path + sep + 'token=' + encodeURIComponent(TOKEN);
+  const r = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+// ===== FASE 1: SEM SABOR =====
+document.querySelectorAll('.card.sem-sabor').forEach(card => {
+  const batchId = card.dataset.batchId;
+  const photoIdx = parseInt(card.dataset.photoIdx);
+  const input = card.querySelector('.flavor-input');
+  const status = card.querySelector('.status');
+  card.querySelector('[data-op="ss-complete"]').onclick = async () => {
+    const flavor = input.value.trim();
+    if (flavor.length < 2) { status.textContent = '⚠️ digita o sabor'; status.className = 'status err'; return; }
+    status.textContent = 'cadastrando...'; status.className = 'status';
+    try {
+      const data = await api('complete_unidentified', { batch_id: batchId, photo_index: photoIdx, flavor });
+      status.className = 'status ok'; status.textContent = data.message || '✓ cadastrado';
+      card.style.transition = 'opacity .4s'; card.style.opacity = '0';
+      setTimeout(() => card.remove(), 500);
+    } catch (e) { status.className = 'status err'; status.textContent = e.message; }
+  };
+  card.querySelector('[data-op="ss-discard"]').onclick = async () => {
+    if (!confirm('descartar essa foto?')) return;
+    status.textContent = 'descartando...';
+    try {
+      const data = await api('complete_unidentified', { batch_id: batchId, photo_index: photoIdx, discard: true });
+      card.style.transition = 'opacity .4s'; card.style.opacity = '0';
+      setTimeout(() => card.remove(), 500);
+    } catch (e) { status.className = 'status err'; status.textContent = e.message; }
+  };
+});
+
+// ===== FASE 2: PENDENTES =====
+document.querySelectorAll('.card.pendente').forEach(card => {
+  const id = card.dataset.id;
+  const status = document.getElementById('st-p-' + id);
+  const setStatus = (msg, cls) => { status.textContent = msg; status.className = 'status' + (cls ? ' ' + cls : ''); };
+
+  const approveBtn = card.querySelector('[data-op="p-approve-ref"]');
+  if (approveBtn) approveBtn.onclick = async () => {
+    const checked = card.querySelector('input[type="radio"]:checked');
+    if (!checked) { setStatus('⚠️ seleciona uma ref', 'err'); return; }
+    setStatus('aprovando ref + gerando arte (~30s)...');
+    try {
+      await api('approve_reference', { productId: parseInt(id), referenceUrl: checked.value });
+      setStatus('✓ ref aprovada — gerando arte', 'ok');
+      setTimeout(() => location.reload(), 2500);
+    } catch (e) { setStatus(e.message, 'err'); }
+  };
+
+  const fileInput = card.querySelector('[data-op="p-pod-photo"]');
+  if (fileInput) fileInput.onchange = async (ev) => {
+    const file = ev.target.files[0]; if (!file) return;
+    setStatus('analisando foto + gerando arte...');
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          // upload_pod_photo espera { productId, podPhotoBase64 }
+          await api('upload_pod_photo', { productId: parseInt(id), podPhotoBase64: reader.result });
+          setStatus('✓ foto subida — gerando arte', 'ok');
+          setTimeout(() => location.reload(), 2500);
+        } catch (e) { setStatus(e.message, 'err'); }
+      };
+      reader.readAsDataURL(file);
+    } catch (e) { setStatus(e.message, 'err'); }
+  };
+
+  const retryBtn = card.querySelector('[data-op="p-retry"]');
+  if (retryBtn) retryBtn.onclick = async () => {
+    setStatus('rebuscando referências...');
+    try {
+      await api('retry_search', { productId: parseInt(id) });
+      setStatus('✓ rebuscando — recarrega em 10s', 'ok');
+      setTimeout(() => location.reload(), 10000);
+    }
+    catch (e) { setStatus(e.message, 'err'); }
+  };
+
+  const skipBtn = card.querySelector('[data-op="p-skip"]');
+  if (skipBtn) skipBtn.onclick = async () => {
+    if (!confirm('gerar arte só com dados textuais (sem foto de referência)?')) return;
+    setStatus('gerando arte text-only...');
+    try {
+      await api('skip_reference', { productId: parseInt(id) });
+      setStatus('✓ gerando (~30s)', 'ok');
+      setTimeout(() => location.reload(), 2500);
+    }
+    catch (e) { setStatus(e.message, 'err'); }
+  };
+
+  const removeBtn = card.querySelector('[data-op="p-remove"]');
+  if (removeBtn) removeBtn.onclick = async () => {
+    if (!confirm('remover esse produto?')) return;
+    setStatus('removendo...');
+    try {
+      await api('remove_pending', { productId: parseInt(id) });
+      card.style.transition = 'opacity .4s'; card.style.opacity = '0';
+      setTimeout(() => card.remove(), 500);
+    } catch (e) { setStatus(e.message, 'err'); }
+  };
+});
+
+// ===== FASE 3: GALLERY =====
+document.querySelectorAll('.card.gallery-card').forEach(card => {
+  const id = card.dataset.id;
+  const status = card.querySelector('.status');
+  card.querySelectorAll('.btn').forEach(btn => {
+    btn.onclick = async () => {
+      const op = btn.dataset.op;
+      const map = { 'g-approve':'approve', 'g-regen':'regenerate', 'g-reject':'reject' };
+      const realOp = map[op]; if (!realOp) return;
+      const barcode = card.querySelector('input[data-field="barcode"]')?.value.trim() || null;
+      const priceReais = card.querySelector('input[data-field="price"]')?.value;
+      const price_cents = priceReais ? Math.round(parseFloat(priceReais) * 100) : null;
+      card.querySelectorAll('.btn').forEach(b => b.disabled = true);
+      status.className = 'status'; status.textContent = 'processando...';
+      try {
+        const data = await api('gallery_action', { id, op: realOp, barcode, price_cents });
+        status.className = 'status ok'; status.textContent = data.message || '✓ ok';
+        if (realOp === 'approve' || realOp === 'reject') {
+          card.style.transition = 'opacity .4s'; card.style.opacity = '0';
+          setTimeout(() => card.remove(), 500);
+        } else {
+          card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+        }
+      } catch (e) {
+        status.className = 'status err'; status.textContent = 'erro: ' + e.message;
+        card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+      }
+    };
+  });
+});
+
+// Permite anchor #pendentes etc no load
+if (location.hash) setFilter(location.hash.slice(1));
+</script>
+</body></html>`;
+}
+
 async function handleGalleryView(req, res) {
   const qs = req.url.includes('?') ? req.url.split('?')[1] : '';
   const params = {};
@@ -10472,6 +10983,13 @@ async function handleTestClaude(req, res) {
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
 
+  // ===== ROTA: ESTEIRA (08/05/2026) — TELA ÚNICA: sem-sabor + pendentes + gallery =====
+  // GET /api/webhook?action=esteira&token=ADMIN_TOKEN → HTML com 3 fases numa só tela
+  // Andrade: "podiam ficar todos numa tela só, em apenas uma tela eu faria tudo"
+  if (req.url && req.url.indexOf('action=esteira') >= 0) {
+    return await handleEsteiraView(req, res);
+  }
+
   // ===== ROTA: ADMIN GALLERY (BLOCO 1) =====
   // GET  /api/webhook?action=gallery&token=ADMIN_TOKEN          → HTML com cards
   // POST /api/webhook?action=gallery_action                     → ações em JSON
@@ -10977,6 +11495,21 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
         const rows = await sbGet('drope_products',
           `image_status=eq.awaiting_approval&select=id&limit=300`);
         count = (rows || []).length;
+      } else if (type === 'esteira') {
+        // Esteira (08/05/2026): soma sem-sabor + pendentes + gallery numa badge só
+        const [unident, pending, gallery] = await Promise.all([
+          sbGet('drope_batch_queue', `decision=eq.unidentified_flavor&select=id,batch_id,photo_index&limit=300`),
+          sbGet('drope_products', `or=(image_status.eq.pending_pod_photo,art_status.in.(pending_review,needs_manual_photo,pending_reference),image_url.is.null)&image_status=neq.removed&select=id&limit=300`),
+          sbGet('drope_products', `image_status=eq.awaiting_approval&select=id&limit=300`),
+        ]);
+        // Dedup unidentified por batch+photo
+        const seen = new Set();
+        let unidentCount = 0;
+        for (const r of (unident || [])) {
+          const k = `${r.batch_id}:${r.photo_index}`;
+          if (!seen.has(k)) { seen.add(k); unidentCount++; }
+        }
+        count = unidentCount + (pending || []).length + (gallery || []).length;
       } else if (type === 'stock') {
         const rows = await sbGet('drope_products', `select=id&limit=1000`);
         count = (rows || []).length;
@@ -11041,9 +11574,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
 // OSSO 29 — Admin Hub. Centraliza acesso a todas as telas /admin.
 // Login client-side: salva token em localStorage e propaga via URL params.
 const PAGES = [
-  { id:'pendentes', icon:'📸', label:'pendentes', desc:'escolher refs e gerar arte', url:'/api/webhook?action=pending_pod_photos', countKey:'pending', badgeColor:'pink' },
-  { id:'sem-sabor', icon:'❓', label:'sem sabor',  desc:'fotos do batch sem sabor lido', url:'/api/webhook?action=unidentified_photos', countKey:null, badgeColor:'pink' },
-  { id:'gallery',   icon:'🖼️', label:'gallery',   desc:'aprovar artes geradas',     url:'/api/webhook?action=gallery',            countKey:'gallery', badgeColor:'lime' },
+  { id:'esteira',   icon:'🎯', label:'esteira',   desc:'sem-sabor → pendentes → gallery numa tela só', url:'/api/webhook?action=esteira', countKey:'esteira', badgeColor:'lime' },
   { id:'estoque',   icon:'📦', label:'estoque',   desc:'produtos cadastrados',      url:'/api/admin-list-stock',                  countKey:'stock', badgeColor:'amber' },
   { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
   { id:'pedidos',   icon:'📋', label:'pedidos',   desc:'orders e status',           url:'/api/admin-orders',                       countKey:'orders', badgeColor:'violet' },
@@ -11103,7 +11634,7 @@ function renderHub(token) {
   loadCounts(token);
 }
 async function loadCounts(token) {
-  const types = ['pending', 'gallery', 'stock', 'customers', 'orders'];
+  const types = ['esteira', 'stock', 'customers', 'orders'];
   await Promise.all(types.map(async (t) => {
     try {
       const r = await fetch('/api/webhook?action=admin_counts&type=' + t + '&token=' + encodeURIComponent(token));
