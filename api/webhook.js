@@ -2342,6 +2342,271 @@ async function tryHandleBatchCommand(phone, msg, body, text, pending) {
   return false;
 }
 
+// ============ MODO BALANÇO (07/05/2026 - Andrade) ============
+// Andrade manda fotos do estoque FISICO (uma por uma ou caixas com multiples).
+// Vision conta cada produto. Sistema compara com qty_available digital.
+// Comando 'fechar balanço' mostra divergencias. 'aplica' atualiza qty.
+// 'edita N qty' ajusta um item especifico. 'cancela' descarta tudo.
+
+async function tryHandleInventoryCommand(phone, msg, body, text, pending) {
+  const lower = String(text || '').toLowerCase().trim();
+
+  // Trigger: ativar modo balanço
+  if (lower === 'balanço' || lower === 'balanco' || lower === 'conferencia' || lower === 'conferência' || lower === 'inventario' || lower === 'inventário') {
+    if (pending && (pending.mode === 'inventory_active' || pending.mode === 'inventory_review')) {
+      const fc = pending.fotoCount || 0;
+      await sendText(phone, `📊 Balanço já está ativo (${fc} foto${fc !== 1 ? 's' : ''} processadas). Manda mais ou *fechar balanço*.`, body);
+      return true;
+    }
+    await setPending(phone, {
+      mode: 'inventory_active',
+      batch_id: _flcUuid(),
+      startedAt: Date.now(),
+      lastPhotoAt: Date.now(),
+      fotoCount: 0,
+      errorCount: 0,
+    });
+    await sendText(phone,
+      '📊 *Modo balanço ativado*\n\n' +
+      'Manda fotos do que tem em estoque físico (1 ou várias com vários pods em cada).\n\n' +
+      '• *fechar balanço* — vê divergências\n' +
+      '• *cancela* — descarta',
+      body);
+    return true;
+  }
+
+  // Fechar balanço (modo active)
+  if (pending?.mode === 'inventory_active' && (lower === 'fechar balanço' || lower === 'fechar balanco' || lower === 'fechar conferencia' || lower === 'fechar conferência' || lower === 'fechar inventario' || lower === 'fechar inventário')) {
+    await closeInventory(phone, pending, body);
+    return true;
+  }
+
+  // Cancela balanço (modo active ou review)
+  if ((pending?.mode === 'inventory_active' || pending?.mode === 'inventory_review') &&
+      (lower === 'cancela' || lower === 'cancelar' || lower === 'cancela balanço' || lower === 'cancela balanco')) {
+    // Marca todas as contagens desse batch como discarded
+    await sbUpdate('drope_inventory_count', `phone=eq.${phone}&batch_id=eq.${pending.batch_id}&status=eq.pending`, { status: 'discarded' }).catch(() => {});
+    await clearPending(phone);
+    await sendText(phone, '✅ Balanço cancelado. Estoque digital permanece como estava.', body);
+    return true;
+  }
+
+  // Aplica balanço (modo review)
+  if (pending?.mode === 'inventory_review' && (lower === 'aplica' || lower === 'aplicar' || lower === 'aplica balanço' || lower === 'sim' || lower === 'confirma' || lower === 'confirmar')) {
+    await applyInventory(phone, pending, body);
+    return true;
+  }
+
+  // Edita item específico: 'edita N qty' ou 'edita N: qty' ou 'corrige N qty'
+  if (pending?.mode === 'inventory_review') {
+    const m = lower.match(/^(?:edita|edit|corrige|corrigir|ajusta|ajustar|set)\s+(\d+)\s*[:=]?\s*(\d+)$/);
+    if (m) {
+      const idx = parseInt(m[1]);
+      const newQty = parseInt(m[2]);
+      await editInventoryItem(phone, pending, body, idx, newQty);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Processa foto no modo balanço — Vision identifica + qty, salva em drope_inventory_count
+async function tryHandleInventoryPhoto(phone, msg, body, pending) {
+  if (!pending || pending.mode !== 'inventory_active') return false;
+
+  const fotoIndex = (pending.fotoCount || 0) + 1;
+  const imageUrl = await getMediaUrl(msg, body).catch(() => null);
+  if (!imageUrl) {
+    pending.fotoCount = fotoIndex;
+    pending.errorCount = (pending.errorCount || 0) + 1;
+    await setPending(phone, pending);
+    await sendText(phone, `⚠️ Foto ${fotoIndex}: não consegui baixar. Tenta de novo.`, body).catch(() => {});
+    return true;
+  }
+
+  // Vision analyzeMixPhoto identifica multiplos produtos + qty por foto
+  let vis = null;
+  try { vis = await analyzeMixPhoto(imageUrl); } catch (e) { console.warn('[inventory] vision:', e.message); }
+  if (!vis || !Array.isArray(vis.products) || vis.products.length === 0) {
+    pending.fotoCount = fotoIndex;
+    pending.errorCount = (pending.errorCount || 0) + 1;
+    await setPending(phone, pending);
+    return true;
+  }
+
+  // Match cada produto identificado contra catalogo
+  const allProducts = await sbGet('drope_products', 'select=id,name,slug,qty_available,metadata,status,hidden&hidden=eq.false&limit=1000');
+  const productsArr = Array.isArray(allProducts) ? allProducts : [];
+
+  let counted = 0, notFound = 0;
+  const msgId = msg.id || msg.messageId || msg.key?.id || null;
+  for (const p of vis.products) {
+    const cBrand = _flcCanonBrand(p.brand);
+    const cModel = _flcCanonModel(p.model);
+    const cFlavor = _flcCanonFlavor(p.flavor_en || p.flavor_pt);
+    const visionTerms = { brand: cBrand, model: cModel, flavor_en: cFlavor || p.flavor_en, flavor_pt: p.flavor_pt };
+    const ranking = productsArr.map(prod => ({ prod, score: _matchScore(visionTerms, prod) })).sort((a, b) => b.score - a.score);
+    const top1 = ranking[0] || { prod: null, score: 0 };
+    const qty = Math.max(1, parseInt(p.qty) || 1);
+
+    if (top1.prod && top1.score >= 70) {
+      // Match: insere contagem
+      try {
+        await sbInsert('drope_inventory_count', {
+          phone, batch_id: pending.batch_id,
+          product_id: top1.prod.id,
+          qty_counted: qty,
+          vision_terms: visionTerms,
+          match_score: top1.score,
+          photo_index: fotoIndex,
+          msg_id: msgId,
+          status: 'pending',
+        });
+        counted++;
+      } catch (e) { console.warn('[inventory insert]', e.message); }
+    } else {
+      // Sem match: regista pra debug mas nao conta (poderia entrar em pending_sales mas evita confusao)
+      notFound++;
+    }
+  }
+
+  pending.fotoCount = fotoIndex;
+  pending.lastPhotoAt = Date.now();
+  pending.totalCounted = (pending.totalCounted || 0) + counted;
+  pending.totalNotFound = (pending.totalNotFound || 0) + notFound;
+  await setPending(phone, pending);
+
+  // A cada 5 fotos manda update silencioso
+  if (fotoIndex % 5 === 0) {
+    sendText(phone, `📊 ${fotoIndex} fotos | ${pending.totalCounted} contadas | ${pending.totalNotFound} sem match`, body).catch(() => {});
+  }
+  return true;
+}
+
+// Fecha balanço — agrega contagens, compara com digital, mostra divergencias
+async function closeInventory(phone, pending, body) {
+  // Le todas as contagens pendentes do batch
+  const counts = await sbGet('drope_inventory_count',
+    `select=product_id,qty_counted&phone=eq.${phone}&batch_id=eq.${pending.batch_id}&status=eq.pending&limit=2000`);
+  const arr = Array.isArray(counts) ? counts : [];
+
+  // Agrega qty por product_id
+  const counted = {};
+  for (const r of arr) {
+    if (!r.product_id) continue;
+    counted[r.product_id] = (counted[r.product_id] || 0) + (r.qty_counted || 1);
+  }
+
+  if (Object.keys(counted).length === 0) {
+    await clearPending(phone);
+    await sendText(phone, '⚠️ Balanço sem produtos contados. Manda fotos primeiro ou *cancela*.', body);
+    return;
+  }
+
+  // Busca produtos pra comparar
+  const productIds = Object.keys(counted);
+  const products = await sbGet('drope_products', `select=id,name,qty_available&id=in.(${productIds.join(',')})&limit=500`);
+  const prodById = {};
+  for (const p of (products || [])) prodById[p.id] = p;
+
+  // Calcula divergencias
+  const divergences = [];
+  for (const pid of productIds) {
+    const p = prodById[pid];
+    if (!p) continue;
+    const digital = p.qty_available || 0;
+    const fisico = counted[pid];
+    const diff = fisico - digital;
+    divergences.push({ id: p.id, name: p.name, digital, fisico, diff });
+  }
+  // Ordena: maior delta absoluto primeiro
+  divergences.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+  // Detecta produtos NÃO contados (digital > 0 mas zerado no físico)
+  const allActive = await sbGet('drope_products', 'select=id,name,qty_available&hidden=eq.false&qty_available=gt.0&limit=500');
+  const notCounted = (allActive || []).filter(p => !counted[p.id] && p.qty_available > 0)
+    .map(p => ({ id: p.id, name: p.name, digital: p.qty_available, fisico: 0, diff: -p.qty_available }));
+
+  let resumo = `📊 *BALANÇO* — ${pending.fotoCount} fotos\n\n`;
+  if (divergences.length === 0 && notCounted.length === 0) {
+    resumo += '✅ Tudo bate. Estoque digital == físico.\n';
+    await sbUpdate('drope_inventory_count', `phone=eq.${phone}&batch_id=eq.${pending.batch_id}&status=eq.pending`, { status: 'applied' }).catch(() => {});
+    await clearPending(phone);
+    await sendText(phone, resumo, body);
+    return;
+  }
+
+  // Lista numerada pra Andrade poder editar item N
+  const items = [...divergences, ...notCounted];
+  resumo += `Achei ${items.length} ${items.length > 1 ? 'divergências' : 'divergência'}:\n\n`;
+  items.slice(0, 30).forEach((it, i) => {
+    const sign = it.diff > 0 ? `+${it.diff}` : (it.diff < 0 ? `${it.diff}` : '0');
+    const emoji = it.diff > 0 ? '⬆️' : (it.diff < 0 ? '⬇️' : '✅');
+    resumo += `${i + 1}. ${emoji} ${it.name}: digital=${it.digital} | físico=${it.fisico} (${sign})\n`;
+  });
+  if (items.length > 30) resumo += `... +${items.length - 30} outras\n`;
+  resumo += '\n*Responde aqui:*\n' +
+    '✅ *aplica* — atualiza tudo (digital = físico)\n' +
+    '✏️ *edita N qty* — ajusta item N pra qty (ex: edita 3 12)\n' +
+    '❌ *cancela* — descarta tudo';
+
+  await setPending(phone, {
+    mode: 'inventory_review',
+    batch_id: pending.batch_id,
+    startedAt: pending.startedAt,
+    fotoCount: pending.fotoCount,
+    items, // lista pra editar por índice
+  });
+  await sendText(phone, resumo, body);
+}
+
+// Aplica todas as divergencias do balanço
+async function applyInventory(phone, pending, body) {
+  const items = pending.items || [];
+  if (items.length === 0) {
+    await clearPending(phone);
+    await sendText(phone, '⚠️ Nada pra aplicar.', body);
+    return;
+  }
+  let ok = 0, err = 0;
+  for (const it of items) {
+    try {
+      await sbUpdate('drope_products', `id=eq.${it.id}`, {
+        qty_available: it.fisico,
+        updated_at: new Date().toISOString(),
+      });
+      ok++;
+    } catch (e) { console.warn('[inventory apply]', e.message); err++; }
+  }
+  // Marca contagens como aplicadas
+  await sbUpdate('drope_inventory_count', `phone=eq.${phone}&batch_id=eq.${pending.batch_id}&status=eq.pending`, {
+    status: 'applied',
+  }).catch(() => {});
+  try { await logSystemEvent('inventory_applied', { phone, items_count: items.length, ok, err }, phone); } catch (_) {}
+  await clearPending(phone);
+  await sendText(phone, `✅ Balanço aplicado.\n\n${ok} produtos atualizados${err > 0 ? `, ${err} erros` : ''}.\n\n• 'estoque' — ver tudo`, body);
+}
+
+// Edita 1 item específico do balanço
+async function editInventoryItem(phone, pending, body, idx, newQty) {
+  const items = pending.items || [];
+  if (idx < 1 || idx > items.length) {
+    await sendText(phone, `⚠️ Item ${idx} não existe (1-${items.length}).`, body);
+    return;
+  }
+  if (newQty < 0 || newQty > 9999) {
+    await sendText(phone, '⚠️ Qty inválida (0-9999).', body);
+    return;
+  }
+  const it = items[idx - 1];
+  it.fisico = newQty;
+  it.diff = newQty - it.digital;
+  await setPending(phone, pending);
+  const sign = it.diff > 0 ? `+${it.diff}` : (it.diff < 0 ? `${it.diff}` : '0');
+  await sendText(phone, `✏️ Item ${idx} atualizado: ${it.name} = ${newQty} (${sign}).\n\n• *aplica* pra publicar tudo\n• *edita N qty* pra ajustar mais`, body);
+}
+
 // ============ STORAGE HELPERS ============
 function slugify(brand, model, flavor) {
   const raw = `${brand}-${model}-${flavor}`.toLowerCase();
@@ -4404,6 +4669,13 @@ async function handleAdminLucas(phone, msg, body) {
       if (consumed) { console.log('[admin-router] consumed by tryHandleBatchCommand'); return; }
     } catch (e) { console.warn('[FLC] tryHandleBatchCommand:', e.message); }
 
+    // BALANÇO 07/05/2026 — Comandos de balanço (balanço / fechar balanço / aplica / edita N qty / cancela).
+    try {
+      const _pendingI = await getPending(phone);
+      const consumed = text && await tryHandleInventoryCommand(phone, msg, body, text, _pendingI);
+      if (consumed) { console.log('[admin-router] consumed by tryHandleInventoryCommand'); return; }
+    } catch (e) { console.warn('[BAL] tryHandleInventoryCommand:', e.message); }
+
     // FLC FASE 1 — Comando "zerar estoque" tem PRIORIDADE absoluta entre os handlers de texto.
     // Comando claro do admin nunca pode ser confundido com correção/briefing/cadastro.
     try {
@@ -5079,6 +5351,12 @@ async function handleAdminLucas(phone, msg, body) {
       "• 'estoque' → lista do que tem\n" +
       "• 'pendentes' → pods sem foto/arte\n" +
       "• 'zerar estoque' → marca tudo inactive (cuidado)\n\n" +
+      "📊 *balanço/conferência*\n" +
+      "• 'balanço' → ativa modo contagem física\n" +
+      "• manda fotos do que tem físico\n" +
+      "• 'fechar balanço' → vê divergências\n" +
+      "• 'aplica' → atualiza estoque pra bater físico\n" +
+      "• 'edita N qty' → ajusta item específico (ex: edita 3 12)\n\n" +
       "🏍️ *motoboys*\n" +
       "• 'motoboys' → lista whitelist\n" +
       "• 'motoboys briefing' → orienta no grupo\n" +
@@ -5090,15 +5368,24 @@ async function handleAdminLucas(phone, msg, body) {
 
   // ========== FOTO RECEBIDA ==========
 
+  // BALANÇO 07/05/2026 — Foto durante mode='inventory_active' = contagem de balanço.
+  // Tem prioridade sobre batch porque o user explicitamente entrou nesse modo.
+  try {
+    const _pendingInv = await getPending(phone);
+    if (_pendingInv?.mode === 'inventory_active') {
+      if (await tryHandleInventoryPhoto(phone, msg, body, _pendingInv)) return;
+    }
+  } catch (e) { console.warn('[BAL] tryHandleInventoryPhoto:', e.message); }
+
   // FLC FASE 2 (07/05/2026 - Andrade) — TODO cadastro de produto e abastecimento via foto
   // passa pelo modo lote. Sem flow legacy de single-photo cadastro_2_fotos.
   // Regras:
   //   - Se já tem batch_active OU não tem pending nenhum → modo lote (cria auto se necessario)
-  //   - Se há outro pending especifico (cadastro_3photos, abastecimento, art_review, etc) →
+  //   - Se há outro pending especifico (batch_pricing, stock_entry, art_review, inventory) →
   //     respeita o pending atual (Lucas iniciou um fluxo formal)
   {
     let _pendingBatch = await getPending(phone);
-    const SPECIFIC_FLOWS = ['cadastro_3photos', 'abastecimento', 'art_review', 'art_review_failed', 'awaiting_zero_confirm', 'batch_pricing', 'stock_entry'];
+    const SPECIFIC_FLOWS = ['cadastro_3photos', 'abastecimento', 'art_review', 'art_review_failed', 'awaiting_zero_confirm', 'batch_pricing', 'stock_entry', 'inventory_active', 'inventory_review'];
     const inSpecificFlow = _pendingBatch && SPECIFIC_FLOWS.includes(_pendingBatch.mode);
 
     if (!inSpecificFlow) {
