@@ -65,6 +65,12 @@ const RATE_LIMIT_WINDOW = 5 * 60 * 1000;
 const RATE_LIMIT_MAX = 20;
 
 function isRateLimited(phone) {
+  // FIX 07/05/2026 (Andrade) — bypass rate limit pra ADMIN_LUCAS e PDV.
+  // Admin manda lotes de 50+ fotos por natureza; rate limit estava bloqueando
+  // 'fechar lote' silenciosamente quando Andrade mandava muitas fotos rapido.
+  // PDV (Yasmin/Pai/Tia) tambem manda muitas fotos durante venda intensa.
+  if (phone === ADMIN_LUCAS) return false;
+  if (PDV_PHONES.includes(phone)) return false;
   const now = Date.now();
   const entry = rateLimits.get(phone);
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
@@ -4634,30 +4640,44 @@ async function getMediaUrl(msg, body) {
   // Resolve o caso do bad decrypt local: descriptografia AES-256-CBC falha em fotos
   // com metadata de forward. Como o servidor UazAPI ja tem a foto descriptografada
   // (pra UI/UX deles), basta pedir o fileURL direto. Mais rapido e confiavel.
+  // Retry ate 2x com backoff em caso de 500 (servidor UazAPI as vezes responde
+  // 500 em fotos novas que ainda nao processou).
   const msgIdEarly = msg.id || msg.messageId || msg.key?.id;
   if (msgIdEarly) {
-    try {
-      const serverUrl = body.BaseUrl || UAZAPI_SERVER;
-      const token = body.token || UAZAPI_TOKEN;
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 8000);
-      const r = await fetch(`${serverUrl}/message/download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', token },
-        body: JSON.stringify({ id: msgIdEarly }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(tid);
-      if (r.ok) {
-        const data = await r.json();
-        if (data.fileURL) {
-          console.log("[Media] /message/download OK", data.cached ? '(cached)' : '(fresh)', data.mimetype || '?');
-          return data.fileURL;
+    const serverUrl = body.BaseUrl || UAZAPI_SERVER;
+    const token = body.token || UAZAPI_TOKEN;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 10000);
+        const r = await fetch(`${serverUrl}/message/download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', token },
+          body: JSON.stringify({ id: msgIdEarly }),
+          signal: ctrl.signal,
+        });
+        clearTimeout(tid);
+        if (r.ok) {
+          const data = await r.json();
+          if (data.fileURL) {
+            console.log(`[Media] /message/download OK (attempt ${attempt})`, data.cached ? '(cached)' : '(fresh)');
+            return data.fileURL;
+          }
+          break; // 200 mas sem fileURL — algo errado, nao adianta retry
         }
-      } else {
-        console.log("[Media] /message/download status:", r.status);
+        if (r.status === 500 && attempt < 3) {
+          // Backoff: 500ms, 1500ms
+          console.log(`[Media] /message/download 500 attempt ${attempt}/3, retry...`);
+          await new Promise(r2 => setTimeout(r2, 500 * attempt));
+          continue;
+        }
+        console.log("[Media] /message/download status:", r.status, "(after attempt", attempt + ")");
+        break;
+      } catch (e) {
+        console.warn(`[Media] /message/download err attempt ${attempt}:`, e.message);
+        if (attempt < 3) await new Promise(r2 => setTimeout(r2, 500 * attempt));
       }
-    } catch (e) { console.warn('[Media] /message/download err:', e.message); }
+    }
   }
 
   // UazAPI/dropepod format: msg.content.URL eh encriptada com mediaKey.
