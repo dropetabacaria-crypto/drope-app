@@ -4290,6 +4290,135 @@ NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"
   }
 }
 
+// VISION READ EAN (08/05/2026) — Le APENAS o codigo de barras de uma foto.
+// Mais focado/barato que analyzeProductImage. Retorna { ean, confidence, raw_text }.
+// Usa Haiku — OCR de numeros impressos sob barras eh tarefa simples.
+async function _visionReadEan(imageBase64OrUrl) {
+  const systemPrompt = `Voce eh um OCR especialista em codigos de barras EAN/UPC.
+Olha a foto e extrai APENAS os numeros impressos sob/ao lado do codigo de barras (linhas pretas/brancas).
+NAO decodifica as listras — LE o numero TEXTUAL impresso ali, igual OCR comum.
+
+Le digito por digito, esquerda pra direita. EAN-13=13 digitos, UPC-A=12, EAN-8=8.
+
+ATENCAO em digitos parecidos: 2/5/7, 0/8, 3/8, 1/7, 6/9. Se UM SO digito for ambíguo, retorna null pra esse e marca confidence baixa.
+
+Responde SO em JSON valido (sem markdown):
+{
+  "ean": "13 digitos como string OU null se ilegivel/borrado/cortado",
+  "confidence": "high" | "medium" | "low",
+  "raw_text": "texto bruto que voce viu na foto, pra debug",
+  "alertas": ["lista de strings com qualquer ambiguidade"]
+}
+
+Se a foto NAO tem codigo de barras visivel, retorna {"ean": null, "confidence": "low", "raw_text": "sem codigo"}.`;
+
+  const makeSource = (url) => {
+    if (url.startsWith('data:')) {
+      const m = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (m) return { type: "base64", media_type: m[1], data: m[2] };
+      return null;
+    }
+    return { type: "url", url };
+  };
+
+  const source = makeSource(imageBase64OrUrl);
+  if (!source) return null;
+
+  const messages = [{
+    role: "user",
+    content: [
+      { type: "image", source },
+      { type: "text", text: "Le o codigo de barras da foto e responde SO o JSON." },
+    ],
+  }];
+
+  const result = await callClaude(messages, systemPrompt, 400);
+  if (!result) return null;
+  try {
+    const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+    // Valida EAN: deve ter 12-13 digitos numericos
+    if (parsed.ean && /^\d{12,13}$/.test(parsed.ean)) return parsed;
+    return { ean: null, confidence: 'low', raw_text: parsed.raw_text || '', alertas: parsed.alertas || ['ean invalido ou null'] };
+  } catch (e) {
+    console.error('[_visionReadEan] parse err:', e.message, 'raw:', result.slice(0, 200));
+    return null;
+  }
+}
+
+// COLLECT EAN CANDIDATES (08/05/2026) — cascade OFF + UPCitemDB + Serper pra UM produto
+// Reusa logica do handler auto_search_ean. Retorna array de candidatos { ean, source, confidence }.
+async function _collectEanCandidates(brand, model, flavor) {
+  const isValidEan = (ean) => {
+    if (!/^\d{12,13}$/.test(ean)) return false;
+    if (/^(19|20)\d{2}$/.test(ean)) return false;
+    if (/^0{8,}/.test(ean)) return false;
+    if (/^(\d)\1{10,}$/.test(ean)) return false;
+    return true;
+  };
+  const candidates = [];
+  const query = `${brand} ${model} ${flavor}`.trim();
+  if (!query) return candidates;
+
+  // Tier 1: Open Food Facts
+  try {
+    const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10`;
+    const r = await fetch(offUrl, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) {
+      const d = await r.json();
+      for (const p of (d.products || [])) {
+        if (p.code && isValidEan(p.code)) {
+          candidates.push({ ean: p.code, source: 'open_food_facts', confidence: 'medium' });
+        }
+      }
+    }
+  } catch (e) { /* skip */ }
+
+  // Tier 2: UPCitemDB trial
+  try {
+    const upcUrl = `https://api.upcitemdb.com/prod/trial/search?s=${encodeURIComponent(query)}&match_mode=0&type=product`;
+    const r = await fetch(upcUrl, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) {
+      const d = await r.json();
+      for (const it of (d.items || [])) {
+        if (it.ean && isValidEan(it.ean)) {
+          candidates.push({ ean: it.ean, source: 'upcitemdb', confidence: 'medium' });
+        }
+      }
+    }
+  } catch (e) { /* skip */ }
+
+  // Tier 3: Serper Google
+  if (SERPER_API_KEY) {
+    const queries = [
+      `"${brand} ${model} ${flavor}" EAN barcode`,
+      `${brand} ${model} ${flavor} barcode`,
+    ];
+    for (const q of queries) {
+      const data = await _serperSearch(q, 'search', 6);
+      if (!data) continue;
+      for (const o of (data.organic || [])) {
+        const text = `${o.title || ''}. ${o.snippet || ''}`;
+        const norm = text.replace(/[\s\-\.]/g, '');
+        const matches = norm.match(/\b\d{12,13}\b/g) || [];
+        for (const ean of matches) {
+          if (isValidEan(ean)) {
+            candidates.push({ ean, source: 'serper_google', confidence: 'low', snippet: text.slice(0, 100) });
+          }
+        }
+      }
+      if (candidates.filter(c => c.source === 'serper_google').length > 0) break;
+    }
+  }
+
+  // Dedup por EAN — mantem o de maior confidence
+  const seen = new Map();
+  for (const c of candidates) {
+    if (!seen.has(c.ean)) seen.set(c.ean, c);
+  }
+  return Array.from(seen.values());
+}
+
 // Analisa foto de mix (múltiplos produtos na bancada) pro fluxo de abastecimento.
 // Retorna array de produtos identificados com qty visível na foto.
 // FIX 13 (08/05/2026 - Andrade) — Crop central + upscale antes do Vision.
@@ -8920,6 +9049,147 @@ document.querySelectorAll('.card.specs-card').forEach(card => {
   };
 });
 
+// ===== BOTÃO LOTE EAN (08/05/2026) =====
+const btnLoteEan = document.getElementById('btn-lote-ean');
+if (btnLoteEan) btnLoteEan.onclick = () => {
+  // Abre modal
+  const modal = document.createElement('div');
+  modal.id = 'modal-lote-ean';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto';
+  modal.innerHTML = \`
+    <div style="background:var(--bg2);border:1px solid var(--violet);border-radius:14px;padding:20px;max-width:760px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="color:var(--violet);margin:0;font-size:18px">📸 lote EAN — cruza com cascade online</h2>
+        <button id="modal-close" style="background:transparent;border:1px solid var(--b);color:var(--fg);padding:5px 10px;border-radius:6px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.5;margin-bottom:14px">
+        Manda fotos dos códigos de barras (qualquer ordem). Vision lê cada um. Em paralelo, cascade online (Open Food Facts → UPCitemDB → Serper) busca candidatos pra cada produto pendente. Cruza:<br/>
+        <span style="color:var(--lime)">✅ matched</span> = EAN da foto bate com candidato online → linka automático<br/>
+        <span style="color:var(--amber)">📸 órfão</span> = EAN não achou online → você clica num produto pra linkar<br/>
+        <span style="color:var(--pink)">⚠️ conflito</span> = mesmo EAN aparece em 2 produtos online → escolhe
+      </div>
+      <input type="file" id="lote-ean-files" accept="image/*" multiple style="margin-bottom:10px;width:100%;padding:10px;background:var(--bg);border:1px dashed var(--violet);border-radius:8px;color:var(--fg)">
+      <div id="lote-ean-preview" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:14px;max-height:200px;overflow:auto"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button id="lote-ean-go" class="btn primary" style="flex:1" disabled>🚀 processar 0 fotos</button>
+        <button id="lote-ean-clear" class="btn ghost">limpar</button>
+      </div>
+      <div id="lote-ean-progress" style="font-size:12px;color:var(--dim);min-height:18px"></div>
+      <div id="lote-ean-result"></div>
+    </div>
+  \`;
+  document.body.appendChild(modal);
+
+  const fileInput = modal.querySelector('#lote-ean-files');
+  const preview = modal.querySelector('#lote-ean-preview');
+  const goBtn = modal.querySelector('#lote-ean-go');
+  const clearBtn = modal.querySelector('#lote-ean-clear');
+  const closeBtn = modal.querySelector('#modal-close');
+  const progress = modal.querySelector('#lote-ean-progress');
+  const resultDiv = modal.querySelector('#lote-ean-result');
+  let selectedFiles = [];
+
+  closeBtn.onclick = () => modal.remove();
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  clearBtn.onclick = () => {
+    fileInput.value = '';
+    selectedFiles = [];
+    preview.innerHTML = '';
+    goBtn.disabled = true;
+    goBtn.textContent = '🚀 processar 0 fotos';
+    resultDiv.innerHTML = '';
+  };
+
+  fileInput.onchange = () => {
+    selectedFiles = Array.from(fileInput.files);
+    preview.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const img = document.createElement('img');
+      img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;border:1px solid var(--b)';
+      img.src = URL.createObjectURL(f);
+      preview.appendChild(img);
+    });
+    goBtn.disabled = selectedFiles.length === 0;
+    goBtn.textContent = '🚀 processar ' + selectedFiles.length + ' foto' + (selectedFiles.length === 1 ? '' : 's');
+  };
+
+  goBtn.onclick = async () => {
+    if (selectedFiles.length === 0) return;
+    goBtn.disabled = true;
+    progress.textContent = '⏳ convertendo ' + selectedFiles.length + ' fotos pra base64...';
+    resultDiv.innerHTML = '';
+
+    try {
+      // Converte todas em paralelo
+      const photos = await Promise.all(selectedFiles.map(async (f, i) => {
+        const b64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(f);
+        });
+        return { name: f.name, base64: b64 };
+      }));
+
+      progress.textContent = '🔎 Vision lendo EANs + cascade online dos produtos pendentes (~1min)...';
+      const data = await api('cross_ean_batch', { photos });
+
+      // Renderiza resumo + tabela
+      const s = data.summary || {};
+      progress.innerHTML = '✅ processado: ' +
+        '<span style="color:var(--lime)">' + (s.matched||0) + ' matched</span> · ' +
+        '<span style="color:var(--amber)">' + (s.orphan||0) + ' órfãos</span> · ' +
+        '<span style="color:var(--pink)">' + (s.conflict||0) + ' conflitos</span> · ' +
+        '<span style="color:var(--dim)">' + (s.unreadable||0) + ' ilegíveis</span> · ' +
+        '<strong style="color:var(--lime)">' + (s.linked||0) + ' linkados auto!</strong>';
+
+      const renderResultRow = (r, idx) => {
+        const eanDisp = r.ean_lido ? '<code style="color:var(--lime)">' + r.ean_lido + '</code>' : '<span style="color:var(--pink)">—</span>';
+        let action = '';
+        if (r.status === 'matched') {
+          action = '<span style="color:var(--lime)">✅ ' + (r.product?.name || '') + '</span>';
+        } else if (r.status === 'orphan') {
+          // Select pra Andrade escolher produto
+          const opts = (data.unmatched_products || []).map(p => '<option value="' + p.id + '">' + p.name + '</option>').join('');
+          action = '<select data-orphan-idx="' + idx + '" style="background:var(--bg);color:var(--fg);border:1px solid var(--amber);padding:4px;border-radius:4px;font-size:11px;max-width:180px"><option value="">📸 escolhe produto...</option>' + opts + '</select> <button class="btn" data-link-orphan="' + idx + '" style="font-size:11px;padding:4px 8px">🔗</button>';
+        } else if (r.status === 'conflict') {
+          action = '<span style="color:var(--pink)">⚠️ ' + r.matches.map(m=>m.name).slice(0,2).join(' / ') + '</span>';
+        } else {
+          action = '<span style="color:var(--dim)">' + r.detail + '</span>';
+        }
+        return '<tr style="border-bottom:1px solid var(--b)"><td style="padding:6px;font-size:11px;color:var(--dim)">' + (idx+1) + '</td><td style="padding:6px;font-size:11px">' + eanDisp + '</td><td style="padding:6px;font-size:11px">' + action + '</td></tr>';
+      };
+
+      const tableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:12px"><thead><tr style="background:var(--bg);border-bottom:2px solid var(--violet)"><th style="padding:6px;text-align:left;color:var(--dim);font-size:11px">#</th><th style="padding:6px;text-align:left;color:var(--dim);font-size:11px">EAN lido</th><th style="padding:6px;text-align:left;color:var(--dim);font-size:11px">resultado</th></tr></thead><tbody>' + (data.results || []).map(renderResultRow).join('') + '</tbody></table>';
+      resultDiv.innerHTML = tableHtml;
+
+      // Bind handlers pros botões "linkar órfão"
+      resultDiv.querySelectorAll('[data-link-orphan]').forEach(btn => {
+        btn.onclick = async () => {
+          const idx = parseInt(btn.dataset.linkOrphan);
+          const sel = resultDiv.querySelector('select[data-orphan-idx="' + idx + '"]');
+          const productId = sel.value;
+          if (!productId) { alert('escolhe um produto primeiro'); return; }
+          const result = data.results[idx];
+          btn.disabled = true; btn.textContent = '...';
+          try {
+            await api('link_orphan_ean', { productId: parseInt(productId), barcode: result.ean_lido });
+            btn.textContent = '✓';
+            btn.style.background = 'var(--lime)'; btn.style.color = '#000';
+          } catch (e) {
+            btn.disabled = false; btn.textContent = '🔗';
+            alert('erro: ' + e.message);
+          }
+        };
+      });
+      goBtn.disabled = false;
+    } catch (e) {
+      progress.textContent = '❌ erro: ' + e.message;
+      goBtn.disabled = false;
+    }
+  };
+};
+
 // Permite anchor #pendentes etc no load
 if (location.hash) setFilter(location.hash.slice(1));
 
@@ -9217,7 +9487,8 @@ h1{margin:0;font-size:18px}h1 em{color:var(--lime);font-style:normal}
       <h1><em>🦎</em> pipeline</h1>
       <div class="subtitle">${totalRows} produtos · clica num bullet vermelho/cinza pra resolver</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="topbtn" id="btn-lote-ean" style="background:var(--violet);color:#fff;border-color:var(--violet);font-weight:700">📸 lote EAN</button>
       <a class="topbtn" href="/api/webhook?action=admin_hub&token=${esc(token)}">← hub</a>
       <button class="topbtn" onclick="location.reload()">↻</button>
     </div>
@@ -14060,6 +14331,179 @@ async function generateAll(){
       });
     } catch (e) {
       console.error('[auto_search_ean] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ===== CROSS EAN BATCH (08/05/2026) — Andrade pediu cruzamento foto + online =====
+  // Recebe N fotos de codigos de barras + array de productIds (ou pega pendentes auto).
+  // Pra cada foto, Vision le o EAN. Pra cada produto, dispara cascade online em paralelo.
+  // Cruza: EAN da foto bate com candidato online de algum produto?
+  //   - SIM unico match → linka automatico
+  //   - SIM multiplos → conflito (Andrade decide)
+  //   - NAO → orfao (Andrade clica produto pra linkar)
+  // POST /api/webhook?action=cross_ean_batch
+  // body: { photos: [{ name, base64 }], productIds?: [num] }
+  // header x-admin-token
+  if (req.url && req.url.indexOf('action=cross_ean_batch') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const photos = Array.isArray(reqBody.photos) ? reqBody.photos : [];
+      if (photos.length === 0) return res.status(400).json({ error: 'fotos vazias' });
+      if (photos.length > 60) return res.status(400).json({ error: 'maximo 60 fotos por lote' });
+
+      // 1) Pega produtos pendentes de EAN (image_status=ok + sem barcode)
+      let pendingProducts;
+      if (Array.isArray(reqBody.productIds) && reqBody.productIds.length > 0) {
+        const idsList = reqBody.productIds.map(x => parseInt(x)).filter(Boolean).join(',');
+        pendingProducts = await sbGet('drope_products',
+          `id=in.(${idsList})&select=id,name,barcode,metadata`);
+      } else {
+        pendingProducts = await sbGet('drope_products',
+          `image_status=eq.ok&image_url=not.is.null&or=(barcode.is.null,barcode.eq.)&select=id,name,barcode,metadata&limit=200`);
+      }
+      pendingProducts = pendingProducts || [];
+
+      // 2) Em paralelo: lê EAN de cada foto + busca candidatos online de cada produto
+      const photoReadsP = photos.map(async (ph, idx) => {
+        try {
+          const result = await _visionReadEan(ph.base64);
+          return { idx, name: ph.name || ('foto_' + idx), result };
+        } catch (e) {
+          return { idx, name: ph.name || ('foto_' + idx), result: null, error: e.message };
+        }
+      });
+
+      const candidatesP = pendingProducts.map(async (p) => {
+        const m = p.metadata || {};
+        const brand = m.brand || '', model = m.model || '', flavor = m.flavor_pt || m.flavor_en || m.flavor || '';
+        const cands = await _collectEanCandidates(brand, model, flavor);
+        return { productId: p.id, name: p.name, brand, model, flavor, candidates: cands };
+      });
+
+      const [photoReads, productCandidates] = await Promise.all([
+        Promise.all(photoReadsP),
+        Promise.all(candidatesP),
+      ]);
+
+      // 3) Cruza: pra cada EAN lido, em qual produto bate?
+      // Index reverso: ean → array de productIds que tem esse ean nos candidates
+      const eanToProducts = {};
+      for (const pc of productCandidates) {
+        for (const cand of pc.candidates) {
+          if (!eanToProducts[cand.ean]) eanToProducts[cand.ean] = [];
+          eanToProducts[cand.ean].push({
+            productId: pc.productId, name: pc.name, source: cand.source,
+          });
+        }
+      }
+
+      // 4) Pra cada foto, gera resultado
+      const results = [];
+      const linksToApply = []; // { productId, barcode } pra salvar
+      const usedProductIds = new Set();
+
+      for (const pr of photoReads) {
+        const r = { foto: pr.name, foto_idx: pr.idx };
+        if (!pr.result || !pr.result.ean) {
+          r.status = 'unreadable';
+          r.detail = pr.result ? (pr.result.alertas || []).join('; ') : 'vision falhou';
+          results.push(r);
+          continue;
+        }
+        r.ean_lido = pr.result.ean;
+        r.confidence_vision = pr.result.confidence;
+        const matches = eanToProducts[pr.result.ean] || [];
+        if (matches.length === 0) {
+          r.status = 'orphan';
+          r.detail = 'EAN não encontrado nos candidatos online de nenhum produto pendente';
+        } else if (matches.length === 1) {
+          const productId = matches[0].productId;
+          if (usedProductIds.has(productId)) {
+            r.status = 'duplicate';
+            r.detail = 'produto já linkado por outra foto deste lote';
+          } else {
+            r.status = 'matched';
+            r.product = matches[0];
+            r.detail = 'cruzou com cascade online (' + matches[0].source + ')';
+            linksToApply.push({ productId, barcode: pr.result.ean });
+            usedProductIds.add(productId);
+          }
+        } else {
+          r.status = 'conflict';
+          r.matches = matches;
+          r.detail = 'EAN aparece em ' + matches.length + ' produtos online — escolhe manual';
+        }
+        results.push(r);
+      }
+
+      // 5) Aplica os links (em paralelo)
+      let linked = 0;
+      await Promise.all(linksToApply.map(async (l) => {
+        try {
+          await sbUpdate('drope_products', `id=eq.${encodeURIComponent(l.productId)}`, {
+            barcode: l.barcode,
+            updated_at: new Date().toISOString(),
+          });
+          linked++;
+        } catch (e) { console.warn('[cross_ean] link err:', l.productId, e.message); }
+      }));
+
+      // 6) Sumario
+      const summary = {
+        total_photos: photos.length,
+        total_pending_products: pendingProducts.length,
+        ean_read_ok: photoReads.filter(r => r.result && r.result.ean).length,
+        ean_unreadable: results.filter(r => r.status === 'unreadable').length,
+        matched: results.filter(r => r.status === 'matched').length,
+        orphan: results.filter(r => r.status === 'orphan').length,
+        conflict: results.filter(r => r.status === 'conflict').length,
+        duplicate: results.filter(r => r.status === 'duplicate').length,
+        linked,
+      };
+      return res.status(200).json({
+        ok: true,
+        summary,
+        results,
+        unmatched_products: pendingProducts.filter(p => !usedProductIds.has(p.id)).map(p => ({
+          id: p.id, name: p.name,
+          candidates: (productCandidates.find(pc => pc.productId === p.id) || {}).candidates || [],
+        })),
+      });
+    } catch (e) {
+      console.error('[cross_ean_batch] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ===== LINK ORPHAN EAN (08/05/2026) =====
+  // Andrade clicou num produto pra linkar EAN órfão (que não bateu cruzamento online)
+  // POST /api/webhook?action=link_orphan_ean
+  // body: { productId, barcode }
+  if (req.url && req.url.indexOf('action=link_orphan_ean') >= 0) {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const { productId, barcode } = reqBody;
+      if (!productId || !barcode) return res.status(400).json({ error: 'productId e barcode obrigatórios' });
+      const cleanBc = String(barcode).replace(/\D/g, '');
+      if (!/^\d{8,13}$/.test(cleanBc)) return res.status(400).json({ error: 'EAN inválido' });
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, {
+        barcode: cleanBc, updated_at: new Date().toISOString(),
+      });
+      return res.status(200).json({ ok: true, productId, barcode: cleanBc });
+    } catch (e) {
+      console.error('[link_orphan_ean] error:', e.message);
       return res.status(500).json({ error: e.message });
     }
   }
