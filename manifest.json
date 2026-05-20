@@ -2,7 +2,7 @@
   "name": "Drope ✦ pods em minutos",
   "short_name": "Drope",
   "description": "Pods e tabacaria, pedido no Pix, entrega ou retirada. Só pra maiores de 18.",
-  "start_url": "./drope-app.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

@@ -1,0 +1,22 @@
+# Drope — normalização de line endings (vindo do Windows pro Mac)
+# Garante LF em todos os arquivos de texto, independente do SO.
+
+* text=auto eol=lf
+
+# Forçar LF explicitamente em tipos que sempre são texto
+*.js   text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.sql  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Binários — nunca mexer
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary

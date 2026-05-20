@@ -57,6 +57,21 @@ const STORAGE_BUCKET = "drope-product-images";
 // Custo cap diário hardcoded (anti-runaway)
 const MAX_IMAGE_GEN_PER_DAY = 50;
 
+// ============ CONSTITUIÇÃO DA IA-SERVO (lei interna) ============
+// Preâmbulo prepended em todo system prompt que envolve julgamento.
+// Documento completo: DROPE-DOUTRINA-IA-SERVO.md.
+// Mudou aqui? Replica nos outros projetos (1 Clique, etc.) — Bibliotecário.
+const IA_SERVO_PREAMBULO = `CONSTITUIÇÃO DA IA-SERVO (lei interna que rege seu comportamento):
+- Você é serva. Sua grandeza vem da qualidade do serviço, nunca da autonomia conquistada.
+- Você facilita a vida do criador (Andrade) E do cliente, ao mesmo tempo.
+- Antes de cada ação, pergunte-se: "estou fazendo o meu melhor aqui?"
+- Por default você apresenta opções; só age sozinha em comportamentos que o criador liberou.
+- NUNCA: minta, processe pagamento sozinha, finja ser humana, exponha o motor, permita venda pra menor de 18, use memória pra manipular cliente.
+- Qualidade vem antes de velocidade. Plantar vem antes de colher.
+
+CONTEXTO ESPECÍFICO DESTE MINISTÉRIO:
+`;
+
 // ============ RATE LIMITING (OSSO 23 — Sistema Imune) ============
 // Janela: 20 msgs por phone em 5 min. Cold start zera (Vercel serverless),
 // aceitável pro MVP — atacante teria que coordenar com escala de instances.
@@ -4224,7 +4239,7 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
 async function analyzeProductImage(caixaUrl, podUrl = null) {
-  const systemPrompt = `Voce e o catalogador da Drope, loja Gen Z de pods em Vila Prudente-SP.
+  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da Drope, loja Gen Z de pods em Vila Prudente-SP.
 Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo, deixa null:
 
 {
@@ -4475,7 +4490,7 @@ async function analyzeMixPhoto(imageUrl) {
   // muitas porque tentava ler o texto de TODAS ao mesmo tempo.
   // Agora: foca APENAS no pod CENTRAL/PRINCIPAL da foto. Ignora os demais como ruido.
   // Andrade tira UMA FOTO POR PRODUTO e o que importa eh o que esta na frente/centro.
-  const systemPrompt = `Voce identifica UM pod descartavel — APENAS o produto CENTRAL/PRINCIPAL da foto.
+  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce identifica UM pod descartavel — APENAS o produto CENTRAL/PRINCIPAL da foto.
 
 CONTEXTO: Lucas (Andrade) tira foto da caixa do pod pra cadastrar no sistema. As vezes tem outras caixas no fundo/lado da foto (estoque empilhado), mas o que importa eh APENAS o produto que esta na frente/centro/em foco.
 
@@ -7873,7 +7888,7 @@ async function handleStockPhoto(phone, msg, body) {
 }
 
 // ============ ATENDIMENTO CLIENTE (Claude Haiku) ============
-const SYSTEM_CUSTOMER = `Voce e o assistente virtual da Drope, loja de pods descartaveis em Sao Paulo.
+const SYSTEM_CUSTOMER = `${IA_SERVO_PREAMBULO}Voce e o assistente virtual da Drope, loja de pods descartaveis em Sao Paulo.
 
 Tom: lo-fi authentic, Gen Z favela Vila Prudente. Minusculas. Max 1-2 emojis por mensagem. Curto (2-4 linhas WhatsApp).
 
@@ -7894,7 +7909,7 @@ NUNCA usa "delicioso, incrivel, experimente". NUNCA inventa produto/preco.`;
 // OSSO 22 — SOMMELIER. System prompt enriquecido com contexto do cliente
 // e produtos REAIS do catálogo. Substitui o SYSTEM_CUSTOMER quando dá pra
 // fazer match de produto (busca por sabor/marca/vibe).
-const SOMMELIER_SYSTEM_TPL = `Voce e o sommelier do Drope 🦎 — tabacaria digital de Vila Prudente, SP.
+const SOMMELIER_SYSTEM_TPL = `${IA_SERVO_PREAMBULO}Voce e o sommelier do Drope 🦎 — tabacaria digital de Vila Prudente, SP.
 
 REGRAS:
 1. NUNCA invente produto/preco. So sugira o que aparece em "PRODUTOS ENCONTRADOS".
