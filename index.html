@@ -3028,7 +3028,10 @@
   }
 
   /* ============ AI CHAT SCREEN ============ */
-  #admin-ai {
+  /* Note: usa #admin-ai.active (não só #admin-ai) pra respeitar o screen system.
+     Sem o .active, o ID sobrescreveria .screen { display: none } e a tela ficaria
+     sempre visível no fim da página, mesmo sem ter sido navegada. */
+  #admin-ai.active {
     display: flex;
     flex-direction: column;
     height: 100vh;
