@@ -7395,14 +7395,27 @@
     const stepper = document.getElementById('d-stepper');
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
     if (soldOut) {
-      addBtn.innerHTML = 'esgotado ✦ volta depois';
-      addBtn.disabled = true;
-      addBtn.style.opacity = '0.5';
+      // OSSO-AVISO-CHEGADA: produto esgotado abre WhatsApp pré-preenchido.
+      // O webhook.js detecta a mensagem, identifica produto, registra interesse
+      // em drope_customer_interests e o cron de notificação avisa quando chegar.
+      addBtn.innerHTML = '📲 esgotado — me avise via whats';
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.onclick = function(e) {
+        if (e) e.preventDefault();
+        const wDigits = String(store.whats || '').replace(/\D/g, '');
+        if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
+        const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
+        const msg = `oi! quero saber quando chega o ${p.name} 🦎`;
+        window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+      };
       if (stepper) stepper.classList.add('disabled');
     } else {
       addBtn.innerHTML = `quero levar ✦ <span id="d-btnprice">r$ ${p.price}</span>`;
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
+      // Restaura comportamento original (caso o onclick tenha sido sobrescrito por sold-out anterior).
+      addBtn.onclick = function() { addToCart(); };
       if (stepper) stepper.classList.remove('disabled');
     }
     go('detail');
