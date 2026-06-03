@@ -10080,6 +10080,18 @@ async function handleRefGalleryAction(req, res) {
       return res.status(200).json({ ok: true, message: 'buscando novas referências... aguarda ~30s e recarrega' });
     }
 
+    // OSSO-2PORTOES: set_ref_url cola URL externa (do Google Images, etc) como referência
+    // User abre Google Images via botão, copia URL da imagem, cola aqui.
+    if (op === 'set_ref_url') {
+      const url = (b.url || '').trim();
+      if (!url || !/^https?:\/\//i.test(url)) {
+        return res.status(400).json({ ok: false, error: 'URL inválida (precisa começar com http/https)' });
+      }
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`,
+        { reference_image_url: url });
+      return res.status(200).json({ ok: true, message: 'URL setada como referência — recarrega' });
+    }
+
     // OSSO-2PORTOES: use_box_as_ref usa a foto da caixa (scanner) como referência
     // Útil quando SERPER não acha referência boa: o pod geralmente aparece desenhado
     // no design da caixa, então Grok pode usar como base. Resultado: hit-or-miss.
@@ -10141,11 +10153,31 @@ function refGalleryHtml(awaiting, token) {
     // Aviso quando não tem ref (precisa decidir o que fazer)
     const noRefWarning = !hasRef ? `
       <div class="warn">
-        ⚠️ <b>Sem referência encontrada</b> — SERPER não achou foto boa pra esse produto. Escolha:
-        <br>• <b>📸 usar foto da caixa</b> (pod desenhado na caixa serve de ref)
-        <br>• <b>🔄 buscar novas referências</b> (tenta de novo com queries diferentes)
-        <br>• <b>aceitar text-only</b> (Grok gera só pela descrição)
+        ⚠️ <b>Sem referência encontrada</b> — SERPER não achou foto boa pra esse produto.
       </div>` : '';
+    // OSSO-2PORTOES (03/06 v6): botões pra abrir Google Images com queries variadas.
+    // User abre, escolhe imagem, copia URL, cola no campo "URL externa" abaixo.
+    const googleQueries = [
+      { lbl: '🔍 EN', q: `${brand} ${model} ${flavor} vape pod` },
+      { lbl: '🔍 EN simples', q: `${brand} ${flavor} pod` },
+      { lbl: '🔍 PT', q: `${brand} ${flavor} pod descartável` },
+      { lbl: '🔍 Brasil', q: `${brand} ${model} ${flavor} vape brasil` },
+      { lbl: '🔍 Paraguai', q: `${brand} ${flavor} comprasparaguai` },
+    ].filter(g => g.q.replace(/\s+/g, '').length > 4);
+    const googleBtns = `
+      <div class="google-row">
+        <div class="google-label">🌐 buscar no Google Imagens (abre em nova aba):</div>
+        <div class="google-grid">
+          ${googleQueries.map(g => {
+            const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(g.q)}`;
+            return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="google-btn">${escapeHtml(g.lbl)}</a>`;
+          }).join('')}
+        </div>
+        <div class="url-paste-row">
+          <input type="url" class="url-paste-input" placeholder="cola URL da imagem do Google aqui" data-id="${id}">
+          <button class="btn use-url" data-op="set_ref_url">✓ usar URL como referência</button>
+        </div>
+      </div>`;
     // OSSO-2PORTOES (03/06): lista candidatos do SERPER pra user trocar de ref
     const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
     const candidatesHtml = candidates.length > 0 ? `
@@ -10180,6 +10212,7 @@ function refGalleryHtml(awaiting, token) {
         </div>
         ${noRefWarning}
         ${candidatesHtml}
+        ${googleBtns}
         <input type="file" accept="image/*" class="upload-input" data-id="${id}" style="display:none">
         <div class="actions">
           ${!hasRef ? '<button class="btn use-box" data-op="use_box_as_ref">📸 usar foto da caixa como referência</button>' : ''}
@@ -10240,6 +10273,16 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .candidate.active { border-color: var(--lime); }
 .candidate:hover { border-color: var(--neon); }
 .candidate-badge { position: absolute; bottom: 0; left: 0; right: 0; background: var(--lime); color: #000; font-size: 8px; text-align: center; padding: 1px 0; font-weight: 700; }
+/* OSSO-2PORTOES v6: botões Google + paste URL */
+.google-row { padding: 10px 12px; border-top: 1px solid #222; background: rgba(0, 200, 255, 0.04); }
+.google-label { color: var(--dim); font-size: 11px; margin-bottom: 6px; }
+.google-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.google-btn { background: #1a3a4a; color: #6fdcff; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-decoration: none; border: 1px solid #2a5a7a; }
+.google-btn:hover { background: #2a4a5a; }
+.url-paste-row { display: flex; gap: 4px; }
+.url-paste-input { flex: 1; background: #000; border: 1px solid #2a5a7a; color: var(--txt); border-radius: 4px; padding: 6px 8px; font-size: 11px; }
+.url-paste-input:focus { outline: none; border-color: #6fdcff; }
+.use-url { flex: 0 0 auto !important; min-width: auto !important; padding: 6px 10px !important; font-size: 11px !important; background: #6fdcff; color: #000; }
 </style>
 </head><body>
 <h1>🟡 Portão 1 — Aprovar Referência</h1>
@@ -10293,6 +10336,17 @@ document.querySelectorAll('.card').forEach(card => {
       if (op === 'trigger_upload') {
         // Aciona o file input invisível pra abrir o file picker do OS
         card.querySelector('.upload-input').click();
+      } else if (op === 'set_ref_url') {
+        // Lê URL do input ao lado
+        const input = card.querySelector('.url-paste-input');
+        const url = (input?.value || '').trim();
+        if (!url) {
+          const status = card.querySelector('.status');
+          status.className = 'status err';
+          status.textContent = '❌ cola uma URL primeiro';
+          return;
+        }
+        doAction(card, 'set_ref_url', { url });
       } else {
         doAction(card, op);
       }
