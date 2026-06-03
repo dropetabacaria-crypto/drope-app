@@ -8173,7 +8173,18 @@ async function runArtGeneration(productId, phone, attempt) {
   let pendingArtUrl = null;
   const maxQcAttempts = 2;
   let qcAttempt = 0;
-  let qcFeedback = '';
+  // OSSO-GALLERY-V2: feedback do user no Portão 2 (regenerate) entra como
+  // qcFeedback inicial. Grok recebe instrução explícita pra corrigir o que tava ruim.
+  let qcFeedback = meta.feedback_for_grok || '';
+  if (qcFeedback) {
+    console.log(`[runArtGeneration] productId=${productId}: feedback do user = "${qcFeedback.slice(0, 100)}"`);
+    // Limpa o feedback do metadata pra não reusar em próxima regenerate
+    try {
+      const cleanMeta = { ...meta };
+      delete cleanMeta.feedback_for_grok;
+      await sbUpdate('drope_products', `id=eq.${productId}`, { metadata: cleanMeta });
+    } catch (e) { console.warn('[runArtGeneration] clear feedback err:', e.message); }
+  }
 
   while (qcAttempt < maxQcAttempts && !pendingArtUrl) {
     qcAttempt++;
@@ -8323,10 +8334,11 @@ function galleryHtml(awaiting, approved, token) {
   const renderCard = (p, isApproved) => {
     const m = p.metadata || {};
     const generatedArt = isApproved ? p.image_url : (m.pending_art_url || p.image_url || '');
-    // OSSO-GALLERY-SIDE-BY-SIDE (03/06/2026): pra aprovação, mostra foto da caixa
-    // que o Andrade tirou no scanner LADO A LADO com a arte do Grok. Permite
-    // validação visual: "essa arte realmente representa o produto que tirei foto?"
+    // OSSO-GALLERY-V2 (03/06): 3 colunas pra validação completa.
+    // 📸 sua foto (caixa scanner) × 🔍 referência usada × ✨ arte Grok
+    // Permite ver se Grok seguiu a referência fielmente.
     const boxPhoto = p.box_photo_url || m.box_photo_url || '';
+    const refPhoto = p.reference_image_url || '';
     const fullName = escapeHtml(p.name || '');
     const brand = escapeHtml(m.brand || '');
     const model = escapeHtml(m.model || '');
@@ -8334,13 +8346,29 @@ function galleryHtml(awaiting, approved, token) {
     const priceVal = p.price_cents ? (p.price_cents / 100).toFixed(2) : '';
     const barcode = escapeHtml(p.barcode || '');
     const id = escapeHtml(p.id);
-    // Approved: só arte final (histórico). Awaiting: side-by-side pra validação.
+    // Histórico de tentativas (artes anteriores regeneradas)
+    const artHistory = Array.isArray(m.art_attempts) ? m.art_attempts : [];
+    const historyHtml = (artHistory.length > 0 && !isApproved) ? `
+      <div class="history-row">
+        <div class="history-label">🕐 tentativas anteriores (${artHistory.length}):</div>
+        <div class="history-grid">
+          ${artHistory.map((att, idx) => `<div class="history-item" title="${escapeHtml(att.feedback || 'sem feedback')}">
+            <img src="${escapeHtml(att.url || '')}" alt="tentativa ${idx + 1}" loading="lazy">
+            <div class="history-badge">#${idx + 1}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : '';
+    // Approved: só arte final. Awaiting: 3 colunas (foto + ref + arte).
     const thumbBlock = isApproved
       ? `<div class="thumb">${generatedArt ? `<img src="${escapeHtml(generatedArt)}" alt="${fullName}">` : '<div class="no-art">sem arte</div>'}</div>`
-      : `<div class="compare">
+      : `<div class="compare three-col">
            <div class="compare-side">
              <div class="compare-label">📸 sua foto</div>
              ${boxPhoto ? `<img src="${escapeHtml(boxPhoto)}" alt="foto da caixa">` : '<div class="no-art">sem foto</div>'}
+           </div>
+           <div class="compare-side">
+             <div class="compare-label">🔍 referência usada</div>
+             ${refPhoto ? `<img src="${escapeHtml(refPhoto)}" alt="referência">` : '<div class="no-art">text-only<br>(sem ref)</div>'}
            </div>
            <div class="compare-side">
              <div class="compare-label">✨ arte Grok</div>
@@ -8355,14 +8383,18 @@ function galleryHtml(awaiting, approved, token) {
           <div class="meta">${brand} ${model} ${flavor}</div>
         </div>
         ${isApproved ? '' : `
+        ${historyHtml}
         <div class="inputs">
           <input type="text" data-field="barcode" placeholder="EAN do produto" value="${barcode}">
           <input type="number" step="0.01" data-field="price" placeholder="Preço em R$" value="${priceVal}">
         </div>
+        <div class="feedback-row">
+          <textarea class="feedback-input" data-id="${id}" placeholder="opcional: descreve o que tá errado pra Grok corrigir (ex: 'muito escuro', 'cor errada', 'falta a tela LED')"></textarea>
+        </div>
         <div class="actions">
           <button class="btn approve" data-op="approve">aprovar ✓</button>
-          <button class="btn regen" data-op="regenerate">regenerar 🔄</button>
-          <button class="btn reject" data-op="reject">rejeitar ✕</button>
+          <button class="btn regen" data-op="regenerate">🔄 regenerar (usa feedback ↑)</button>
+          <button class="btn back-p1" data-op="reject">↩️ voltar pro Portão 1 (mudar referência)</button>
         </div>
         <div class="status"></div>
         `}
@@ -8387,6 +8419,7 @@ h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: up
 .no-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 13px; padding: 8px; text-align: center; }
 /* OSSO-GALLERY-SIDE-BY-SIDE: layout 2 col pra validação foto real vs arte gerada */
 .compare { display: grid; grid-template-columns: 1fr 1fr; background: #000; }
+.compare.three-col { grid-template-columns: 1fr 1fr 1fr; }
 .compare-side { aspect-ratio: 1; position: relative; overflow: hidden; border-right: 1px solid rgba(176,38,255,.3); }
 .compare-side:last-child { border-right: none; }
 .compare-side img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -8397,10 +8430,21 @@ h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: up
 .inputs { padding: 0 12px 8px; display: flex; gap: 8px; flex-direction: column; }
 .inputs input { background: #000; border: 1px solid #333; color: var(--txt); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
 .inputs input:focus { outline: none; border-color: var(--neon); }
+.feedback-row { padding: 0 12px 8px; }
+.feedback-input { width: 100%; background: #000; border: 1px solid #333; color: var(--txt); border-radius: 6px; padding: 8px 10px; font-size: 12px; font-family: inherit; min-height: 50px; resize: vertical; box-sizing: border-box; }
+.feedback-input:focus { outline: none; border-color: var(--neon); }
+.feedback-input::placeholder { color: #555; font-style: italic; }
+.history-row { padding: 8px 12px; border-top: 1px solid #222; background: rgba(176,38,255,.04); }
+.history-label { color: var(--dim); font-size: 10px; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 4px; }
+.history-item { aspect-ratio: 1; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #333; }
+.history-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.history-badge { position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,.85); color: var(--pink); font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 700; }
 .actions { padding: 0 12px 12px; display: flex; gap: 6px; flex-wrap: wrap; }
 .btn { flex: 1; min-width: 90px; padding: 9px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .approve { background: var(--lime); color: #000; }
 .regen { background: var(--neon); color: #fff; }
+.back-p1 { background: #ff8c00; color: #000; }
 .reject { background: #333; color: #fff; }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: .5; cursor: wait; }
@@ -8436,6 +8480,8 @@ document.querySelectorAll('.card').forEach(card => {
       const barcode = card.querySelector('input[data-field="barcode"]')?.value.trim() || null;
       const priceReais = card.querySelector('input[data-field="price"]')?.value;
       const price_cents = priceReais ? Math.round(parseFloat(priceReais) * 100) : null;
+      // OSSO-GALLERY-V2: feedback do user no Portão 2 (campo livre)
+      const feedback = card.querySelector('.feedback-input')?.value.trim() || null;
 
       card.querySelectorAll('.btn').forEach(b => b.disabled = true);
       status.className = 'status';
@@ -8444,7 +8490,7 @@ document.querySelectorAll('.card').forEach(card => {
         const r = await fetch('/api/webhook?action=gallery_action', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
-          body: JSON.stringify({ id, op, barcode, price_cents }),
+          body: JSON.stringify({ id, op, barcode, price_cents, feedback }),
         });
         const data = await r.json();
         if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
@@ -9939,7 +9985,7 @@ async function handleGalleryAction(req, res) {
     return res.status(401).json({ ok: false, error: 'unauthorized' });
   }
   const b = req.body || {};
-  const { id, op, barcode, price_cents } = b;
+  const { id, op, barcode, price_cents, feedback } = b;
   if (!id || !op) return res.status(400).json({ ok: false, error: 'missing id or op' });
 
   try {
@@ -9956,6 +10002,20 @@ async function handleGalleryAction(req, res) {
       update.image_url = artUrl;
       update.image_status = 'ok';
     } else if (op === 'regenerate') {
+      // OSSO-GALLERY-V2 (03/06): captura arte atual no histórico antes de regerar,
+      // e salva feedback do user na metadata pra runArtGeneration ler.
+      const currentArtUrl = meta.pending_art_url || null;
+      const history = Array.isArray(meta.art_attempts) ? meta.art_attempts.slice(0, 9) : [];
+      if (currentArtUrl) {
+        history.unshift({
+          url: currentArtUrl,
+          generated_at: new Date().toISOString(),
+          feedback: b.feedback || null,
+        });
+      }
+      const newMeta = { ...meta, art_attempts: history };
+      if (b.feedback) newMeta.feedback_for_grok = b.feedback;
+      update.metadata = newMeta;
       update.image_status = 'pending_regeneration';
     } else if (op === 'reject') {
       // OSSO-2PORTOES-CICLO (03/06): rejeitar no Portão 2 manda produto de volta
