@@ -10042,6 +10042,19 @@ async function handleRefGalleryAction(req, res) {
       return res.status(200).json({ ok: true, message: 'buscando novas referências... aguarda ~30s e recarrega' });
     }
 
+    // OSSO-2PORTOES: use_box_as_ref usa a foto da caixa (scanner) como referência
+    // Útil quando SERPER não acha referência boa: o pod geralmente aparece desenhado
+    // no design da caixa, então Grok pode usar como base. Resultado: hit-or-miss.
+    if (op === 'use_box_as_ref') {
+      const rows2 = await sbGet('drope_products',
+        `id=eq.${encodeURIComponent(id)}&select=box_photo_url&limit=1`);
+      const boxUrl = rows2?.[0]?.box_photo_url;
+      if (!boxUrl) return res.status(400).json({ ok: false, error: 'produto sem foto da caixa pra usar como ref' });
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`,
+        { reference_image_url: boxUrl });
+      return res.status(200).json({ ok: true, message: 'foto da caixa setada como referência — recarrega pra confirmar e aprovar' });
+    }
+
     if (op === 'approve') {
       // Aprovou a referência (ou aceitou text-only). Marca como aprovada e dispara Grok.
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`, {
@@ -10087,6 +10100,14 @@ function refGalleryHtml(awaiting, token) {
     const flavor = escapeHtml(m.flavor_en || m.flavor_pt || '');
     const id = escapeHtml(p.id);
     const hasRef = !!refPhoto;
+    // Aviso quando não tem ref (precisa decidir o que fazer)
+    const noRefWarning = !hasRef ? `
+      <div class="warn">
+        ⚠️ <b>Sem referência encontrada</b> — SERPER não achou foto boa pra esse produto. Escolha:
+        <br>• <b>📸 usar foto da caixa</b> (pod desenhado na caixa serve de ref)
+        <br>• <b>🔄 buscar novas referências</b> (tenta de novo com queries diferentes)
+        <br>• <b>aceitar text-only</b> (Grok gera só pela descrição)
+      </div>` : '';
     // OSSO-2PORTOES (03/06): lista candidatos do SERPER pra user trocar de ref
     const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
     const candidatesHtml = candidates.length > 0 ? `
@@ -10119,8 +10140,10 @@ function refGalleryHtml(awaiting, token) {
           <div class="name">${fullName}</div>
           <div class="meta">${brand} ${model} ${flavor}</div>
         </div>
+        ${noRefWarning}
         ${candidatesHtml}
         <div class="actions">
+          ${!hasRef ? '<button class="btn use-box" data-op="use_box_as_ref">📸 usar foto da caixa como referência</button>' : ''}
           <button class="btn approve" data-op="approve">${hasRef ? 'aprovar referência ✓ (vai pro Grok)' : 'aceitar text-only ✓'}</button>
           <button class="btn research" data-op="research_refs">🔄 buscar novas referências</button>
           ${hasRef ? '<button class="btn text-only" data-op="reject_text_only">rejeitar — usar text-only</button>' : ''}
@@ -10155,8 +10178,11 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .btn { flex: 1; min-width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .approve { background: var(--lime); color: #000; }
 .research { background: var(--neon); color: #fff; }
+.use-box { background: var(--pink); color: #fff; }
 .text-only { background: #444; color: #fff; }
 .skip { background: #222; color: #999; }
+.warn { background: rgba(255,45,149,.1); border-left: 3px solid var(--pink); padding: 10px 12px; margin: 0 12px 8px; border-radius: 4px; font-size: 12px; color: var(--txt); line-height: 1.5; }
+.warn b { color: var(--pink); }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: .5; cursor: wait; }
 .status { padding: 0 12px 10px; font-size: 12px; min-height: 16px; }
