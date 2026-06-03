@@ -10007,13 +10007,35 @@ async function handleRefGalleryAction(req, res) {
     return res.status(401).json({ ok: false, error: 'unauthorized' });
   }
   const b = req.body || {};
-  const { id, op } = b;
+  const { id, op, candidate_url } = b;
   if (!id || !op) return res.status(400).json({ ok: false, error: 'missing id or op' });
 
   try {
-    const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&select=id,name,reference_image_url&limit=1`);
+    const rows = await sbGet('drope_products',
+      `id=eq.${encodeURIComponent(id)}&select=id,name,reference_image_url,metadata&limit=1`);
     const product = rows[0];
     if (!product) return res.status(404).json({ ok: false, error: 'product not found' });
+
+    // OSSO-2PORTOES: switch_ref troca a ref atual pra outro candidato do SERPER
+    if (op === 'switch_ref') {
+      if (!candidate_url) return res.status(400).json({ ok: false, error: 'candidate_url obrigatório' });
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`,
+        { reference_image_url: candidate_url });
+      return res.status(200).json({ ok: true, message: 'referência trocada — recarrega a página' });
+    }
+
+    // OSSO-2PORTOES: research_refs roda SERPER+Vision de novo (busca novas opções)
+    if (op === 'research_refs') {
+      const meta = product.metadata || {};
+      const brand = meta.brand || '';
+      const model = meta.model || '';
+      const flavor = meta.flavor_en || meta.flavor_pt || '';
+      if (!brand) return res.status(400).json({ ok: false, error: 'produto sem marca, não dá pra buscar' });
+      // Fire-and-forget: leva 20-40s, não bloqueia. Vai sobrescrever candidates + reference.
+      searchProductReferences(id, brand, model, flavor)
+        .catch(e => console.warn('[ref_gallery research] err:', e.message));
+      return res.status(200).json({ ok: true, message: 'buscando novas referências... aguarda ~30s e recarrega' });
+    }
 
     if (op === 'approve') {
       // Aprovou a referência (ou aceitou text-only). Marca como aprovada e dispara Grok.
@@ -10060,6 +10082,21 @@ function refGalleryHtml(awaiting, token) {
     const flavor = escapeHtml(m.flavor_en || m.flavor_pt || '');
     const id = escapeHtml(p.id);
     const hasRef = !!refPhoto;
+    // OSSO-2PORTOES (03/06): lista candidatos do SERPER pra user trocar de ref
+    const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+    const candidatesHtml = candidates.length > 0 ? `
+      <div class="candidates-row">
+        <div class="candidates-label">outras opções (${candidates.length})</div>
+        <div class="candidates-grid">
+          ${candidates.map(c => {
+            const isActive = c.url === refPhoto;
+            return `<div class="candidate ${isActive ? 'active' : ''}" data-url="${escapeHtml(c.url || '')}">
+              <img src="${escapeHtml(c.url || '')}" alt="candidato" loading="lazy">
+              ${isActive ? '<div class="candidate-badge">atual</div>' : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
     return `
       <div class="card" data-id="${id}">
         <div class="compare">
@@ -10068,16 +10105,19 @@ function refGalleryHtml(awaiting, token) {
             ${boxPhoto ? `<img src="${escapeHtml(boxPhoto)}" alt="foto da caixa">` : '<div class="no-art">sem foto</div>'}
           </div>
           <div class="compare-side">
-            <div class="compare-label">🔍 referência (Google)</div>
-            ${refPhoto ? `<img src="${escapeHtml(refPhoto)}" alt="referência">` : '<div class="no-art">SEM REFERÊNCIA — vai text-only</div>'}
+            <div class="compare-label">🔍 referência ativa</div>
+            <img class="ref-active" src="${escapeHtml(refPhoto || '')}" alt="referência" style="${refPhoto ? '' : 'display:none'}">
+            <div class="no-art" style="${refPhoto ? 'display:none' : ''}">SEM REFERÊNCIA — text-only</div>
           </div>
         </div>
         <div class="info">
           <div class="name">${fullName}</div>
           <div class="meta">${brand} ${model} ${flavor}</div>
         </div>
+        ${candidatesHtml}
         <div class="actions">
           <button class="btn approve" data-op="approve">${hasRef ? 'aprovar referência ✓ (vai pro Grok)' : 'aceitar text-only ✓'}</button>
+          <button class="btn research" data-op="research_refs">🔄 buscar novas referências</button>
           ${hasRef ? '<button class="btn text-only" data-op="reject_text_only">rejeitar — usar text-only</button>' : ''}
           <button class="btn skip" data-op="reject_skip">pular (resolvo depois)</button>
         </div>
@@ -10109,6 +10149,7 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .actions { padding: 0 12px 12px; display: flex; gap: 6px; flex-wrap: wrap; }
 .btn { flex: 1; min-width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .approve { background: var(--lime); color: #000; }
+.research { background: var(--neon); color: #fff; }
 .text-only { background: #444; color: #fff; }
 .skip { background: #222; color: #999; }
 .btn:hover { filter: brightness(1.1); }
@@ -10118,6 +10159,15 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .status.err { color: var(--pink); }
 .empty { color: var(--dim); padding: 24px; text-align: center; font-style: italic; }
 .nav-links a { color: var(--neon); margin-right: 12px; text-decoration: none; font-size: 12px; }
+/* OSSO-2PORTOES candidates: lista de opções pra user trocar referência ativa */
+.candidates-row { padding: 8px 12px; border-top: 1px solid #222; }
+.candidates-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.candidates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 4px; }
+.candidate { aspect-ratio: 1; cursor: pointer; border: 2px solid transparent; border-radius: 4px; overflow: hidden; position: relative; }
+.candidate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.candidate.active { border-color: var(--lime); }
+.candidate:hover { border-color: var(--neon); }
+.candidate-badge { position: absolute; bottom: 0; left: 0; right: 0; background: var(--lime); color: #000; font-size: 8px; text-align: center; padding: 1px 0; font-weight: 700; }
 </style>
 </head><body>
 <h1>🟡 Portão 1 — Aprovar Referência</h1>
@@ -10131,32 +10181,49 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 
 <script>
 const TOKEN = ${JSON.stringify(token)};
+// Helper: chama ref_gallery_action e atualiza UI
+async function doAction(card, op, extraBody) {
+  const id = card.dataset.id;
+  const status = card.querySelector('.status');
+  card.querySelectorAll('.btn').forEach(b => b.disabled = true);
+  status.className = 'status';
+  status.textContent = 'processando...';
+  try {
+    const r = await fetch('/api/webhook?action=ref_gallery_action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ id, op, ...(extraBody || {}) }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    status.className = 'status ok';
+    status.textContent = data.message || 'ok';
+    // Approve/reject_text_only/reject_skip removem do dashboard. Switch_ref e research_refs ficam.
+    if (['approve','reject_text_only','reject_skip'].includes(op)) {
+      card.style.transition = 'opacity .4s';
+      setTimeout(() => { card.style.opacity = '0.3'; }, 200);
+    } else {
+      // switch_ref ou research_refs: reabilita botões
+      setTimeout(() => { card.querySelectorAll('.btn').forEach(b => b.disabled = false); }, 600);
+    }
+  } catch (e) {
+    status.className = 'status err';
+    status.textContent = '❌ ' + e.message;
+    card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+  }
+}
+
 document.querySelectorAll('.card').forEach(card => {
+  // Botões de ação principal
   card.querySelectorAll('.btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = card.dataset.id;
-      const op = btn.dataset.op;
-      const status = card.querySelector('.status');
-      card.querySelectorAll('.btn').forEach(b => b.disabled = true);
-      status.className = 'status';
-      status.textContent = 'processando...';
-      try {
-        const r = await fetch('/api/webhook?action=ref_gallery_action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
-          body: JSON.stringify({ id, op }),
-        });
-        const data = await r.json();
-        if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
-        status.className = 'status ok';
-        status.textContent = data.message || 'ok';
-        card.style.transition = 'opacity .4s';
-        setTimeout(() => { card.style.opacity = '0.3'; }, 200);
-      } catch (e) {
-        status.className = 'status err';
-        status.textContent = '❌ ' + e.message;
-        card.querySelectorAll('.btn').forEach(b => b.disabled = false);
-      }
+    btn.addEventListener('click', () => doAction(card, btn.dataset.op));
+  });
+  // Clique em candidatos pra trocar referência ativa
+  card.querySelectorAll('.candidate').forEach(cand => {
+    cand.addEventListener('click', () => {
+      const url = cand.dataset.url;
+      if (!url) return;
+      doAction(card, 'switch_ref', { candidate_url: url });
     });
   });
 });
