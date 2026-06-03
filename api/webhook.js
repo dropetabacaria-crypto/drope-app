@@ -4010,20 +4010,26 @@ async function searchProductReferences(productId, brand, model, flavor) {
     ean = erows?.[0]?.barcode || '';
   } catch (_) {}
 
+  // FIX REF QA v5 (03/06/2026 - Andrade): queries SIMPLIFICADAS.
+  // v4 tinha queries muito específicas ("device standalone no box white background")
+  // que retornavam pouco resultado. Andrade demonstrou que busca simples no Google
+  // ("pod dinner lady") retorna muitas imagens. Replicamos isso: queries amplas
+  // primeiro (volume), específicas depois (refino).
   const queries = [
-    // Inglês — pod standalone (anti-caixa)
-    `"${baseTerms}" device standalone no box white background`,
-    `"${baseTerms}" pod only product render`,
-    `${brand || ''} ${flavor || ''} vape device studio shot`.trim(),
-    // Português — mercado BR
-    `"${baseTerms}" pod descartável foto produto`,
-    `${brand || ''} ${flavor || ''} vape brasil`.trim(),
-    // Site-specific — lojas vape BR (geralmente têm imagens limpas)
-    `${baseTerms} site:vaporonbr.com OR site:tabakkatabacaria.com OR site:pineapplerec.com OR site:vapetvupt.com`,
-    // EAN como busca direta (algumas listagens indexam por código)
-    ean ? `${ean} vape pod` : null,
-    // Fallback genérico — só brand+sabor (caso modelo seja muito específico/quebrado)
-    baseTermsNoModel ? `"${baseTermsNoModel}" vape pod` : null,
+    // CAMADA 1 — queries simples e amplas (vai trazer MUITA opção)
+    `pod ${brand || ''} ${flavor || ''}`.trim(),
+    `${brand || ''} ${model || ''} ${flavor || ''}`.trim(),
+    `${brand || ''} vape ${flavor || ''}`.trim(),
+    `${baseTermsNoModel || baseTerms}`.trim(),
+    // CAMADA 2 — focadas em pod standalone (anti-caixa)
+    `"${baseTerms}" device standalone`,
+    `"${baseTerms}" pod product`,
+    // CAMADA 3 — português / mercado BR
+    `pod descartável ${brand || ''} ${flavor || ''}`.trim(),
+    // CAMADA 4 — sites brasileiros / Paraguai (lojas geralmente têm imagens limpas)
+    `${baseTerms} site:comprasparaguai.com.br OR site:vaporonbr.com OR site:tabakkatabacaria.com OR site:pineapplerec.com OR site:vapetvupt.com`,
+    // CAMADA 5 — EAN como busca direta (algumas listagens indexam por código)
+    ean ? `${ean}` : null,
   ].filter(q => q && q.replace(/[^a-z0-9]/gi, '').length > 5);
   console.log(`[searchRefs] queries=${JSON.stringify(queries)}`);
 
@@ -4053,12 +4059,13 @@ async function searchProductReferences(productId, brand, model, flavor) {
   try { sharp = require('sharp'); } catch (e) { sharp = null; }
 
   const candidates = [];
-  const images = (serperData.images || []).slice(0, 15);
-  // FIX REF QA v4 (03/06): thresholds AINDA mais generosos pra produtos de nicho.
-  // Andrade pediu "intensificar busca" — relaxa filtros pra Vision filtrar depois.
-  const MIN_DIM = 150;   // era 200 (aceita fotos menores)
+  const images = (serperData.images || []).slice(0, 20);
+  // FIX REF QA v5 (03/06): thresholds ainda mais permissivos pra MAX volume.
+  // Andrade demonstrou que tem MUITA imagem disponível — só estávamos filtrando
+  // demais. Vision pontua e ordena depois — deixa volume vir, refine depois.
+  const MIN_DIM = 100;   // era 150 (aceita fotos pequenas tbm — Vision filtra qualidade)
   const MAX_DIM = 4000;
-  const MIN_SCORE = 10;  // era 15 (aceita qualidade média)
+  const MIN_SCORE = 5;   // era 10 (quase aceita tudo pra Vision avaliar)
   const skipReasons = []; // pra debug
   for (let i = 0; i < images.length; i++) {
     const img = images[i];
