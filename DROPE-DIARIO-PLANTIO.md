@@ -8,6 +8,25 @@ A regra: voltar aqui semanalmente. Ler entradas anteriores ANTES de fazer a nova
 
 ---
 
+## #001-ADENDO — 02/06/2026 (3 dias depois)
+
+**Quebra consciente do Plantio #001.**
+
+Hoje, fazendo teste E2E do app, Andrade identificou 9 itens (2 bugs reais + 6 melhorias + 1 cosmético). Frente à escolha entre:
+- (a) só bloqueadores, lançar quarta como prometido
+- (b) bloqueadores + 1 amarelo vital, lançar sexta
+- (c) tudo, postergar lançamento
+
+Andrade escolheu **(c)** depois de ser confrontado explicitamente pelo Arquiteto sobre estar repetindo a armadilha que o Conselheiro tinha identificado 3 horas antes (*"usa 'terminar o Drope' como muralha contra 'lançar o Drope'"*).
+
+A escolha foi feita com plena consciência da contradição. Está documentada pra ser revisitada nas próximas sessões de Plantio Semanal. Não é falha — é dado.
+
+**Nova meta provisória:** lançar até 12/06/2026 (1 semana depois do prometido original). Se essa data também for adiada, é sinal forte de padrão estrutural a confrontar.
+
+**Pergunta pro próximo Conselheiro:** "Por que mesmo depois de nomear a armadilha, eu escolhi entrar nela de novo?"
+
+---
+
 ## #001 — 29/05/2026
 
 **Plantio:**

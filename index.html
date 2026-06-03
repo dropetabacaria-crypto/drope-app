@@ -3340,6 +3340,10 @@
       <button onclick="changeQty(1)">+</button>
     </div>
 
+    <!-- OSSO-INDICADOR-ESTOQUE: mostra quanto tem disponível, dando ao cliente
+         informação clara antes de tentar levar mais do que existe. -->
+    <div id="d-stock-info" style="text-align:center; font-size:13px; color:var(--text-dim); margin-top:8px;"></div>
+
     <div style="height: 100px"></div>
 
     <div class="sticky-cta">
@@ -3692,7 +3696,20 @@
         </div>
         <div style="flex: 1">
           <div class="lab">uf</div>
-          <input id="af-uf" placeholder="sp" maxlength="2">
+          <!-- OSSO-UF-SELECT: trocado input livre por select dos 27 estados.
+               Evita typo, força padronização e abre caminho pra validação por região. -->
+          <select id="af-uf" style="width:100%; padding:14px; background:var(--card); border:1px solid var(--border); border-radius:14px; color:var(--text); font-size:15px;">
+            <option value="">UF</option>
+            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+            <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+            <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+            <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+            <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+            <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+            <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+            <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+            <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+          </select>
         </div>
       </div>
     </div>
@@ -6405,7 +6422,12 @@
       delBtn.style.display = 'block';
       fields.forEach(f => {
         const el = document.getElementById('af-' + f);
-        if (el) el.value = a[f] || '';
+        if (!el) return;
+        // OSSO-UF-SELECT-COMPAT: UF agora é <select> com options em maiúsculo (SP,
+        // RJ, ...). Endereços salvos antes (com 'sp', 'rj') precisam ser uppercased
+        // antes de setar no select, senão não casa nenhuma option e fica em branco.
+        if (f === 'uf') el.value = String(a[f] || '').toUpperCase();
+        else el.value = a[f] || '';
       });
     } else {
       title.textContent = 'Novo endereço';
@@ -6431,17 +6453,28 @@
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const data = await res.json();
-      if (data.erro) return;
+      if (data.erro) {
+        toast('CEP não encontrado — confira o número');
+        return;
+      }
       const street = document.getElementById('af-street');
       const neigh = document.getElementById('af-neigh');
       const city = document.getElementById('af-city');
       const uf = document.getElementById('af-uf');
-      if (data.logradouro && street && !street.value) street.value = data.logradouro;
-      if (data.bairro && neigh && !neigh.value) neigh.value = data.bairro;
-      if (data.localidade && city && !city.value) city.value = data.localidade;
-      if (data.uf && uf && !uf.value) uf.value = data.uf;
+      // OSSO-VIACEP-OVERWRITE: antes, só preenchia se o campo estivesse vazio.
+      // Resultado: se cliente digitou rua errada antes do CEP, ViaCEP não corrigia.
+      // Agora SEMPRE sobrescreve quando CEP é completo — cliente pode editar depois
+      // se for caso especial (sem número, condomínio fechado, etc).
+      if (street && data.logradouro) street.value = data.logradouro;
+      if (neigh && data.bairro) neigh.value = data.bairro;
+      if (city && data.localidade) city.value = data.localidade;
+      // UF é select agora — selecionar a option certa em vez de só setar value.
+      if (uf && data.uf) uf.value = data.uf;
       toast('endereço preenchido pelo CEP ✦');
-    } catch(e) { console.warn('[ViaCEP]', e); }
+    } catch(e) {
+      console.warn('[ViaCEP]', e);
+      toast('falha ao buscar CEP — preencha manual');
+    }
   }
 
   function saveAddress() {
@@ -6703,12 +6736,16 @@
       ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '🦎').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
+    // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
+    // "preço a confirmar" em vez de "r$ 0" pro cliente.
+    const hasValidPrice = typeof p.price === 'number' && p.price > 0;
+    const priceLabel = hasValidPrice ? `r$ ${p.price}` : 'preço a confirmar';
     return `
       <div class="tile ${soldOut ? 'sold-out' : ''}" onclick="openProduct(${idx})">
         ${visual}
         <div class="flavor">${escapeHtml(labels.hero)}</div>
         ${labels.muted ? `<div class="brand">${escapeHtml(labels.muted)}</div>` : ''}
-        <div class="price">r$ ${p.price}</div>
+        <div class="price">${priceLabel}</div>
         ${stockBadge}
       </div>
     `;
@@ -7364,23 +7401,35 @@
       emojiEl.textContent = p.emoji;
     }
     document.getElementById('d-name').textContent = p.name;
-    // Meta pills: marca, puffs, sabor
+    // Meta pills: marca, puffs, sabor — só renderiza pills com valores válidos.
+    // OSSO-FIX-NULLPUFFS: antes, p.puffs null/undefined renderizava "null puffs"
+    // porque p.puffs >= 1000 era false e caía em null + ' puffs' = "null puffs".
     const metaEl = document.getElementById('d-meta');
     if (metaEl && p.cat === 'pod') {
-      const puffsLabel = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
-      metaEl.innerHTML = `
-        <span class="meta-pill">${p.marca || ''}</span>
-        <span class="meta-pill puffs">${puffsLabel}</span>
-        <span class="meta-pill">${p.sabor || ''}</span>
-      `;
-      metaEl.style.display = 'flex';
+      const pills = [];
+      if (p.marca) pills.push(`<span class="meta-pill">${escapeHtml(p.marca)}</span>`);
+      if (typeof p.puffs === 'number' && p.puffs > 0) {
+        const puffsLabel = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
+        pills.push(`<span class="meta-pill puffs">${puffsLabel}</span>`);
+      }
+      if (p.sabor) pills.push(`<span class="meta-pill">${escapeHtml(p.sabor)}</span>`);
+      if (pills.length > 0) {
+        metaEl.innerHTML = pills.join('');
+        metaEl.style.display = 'flex';
+      } else {
+        metaEl.style.display = 'none';
+      }
     } else if (metaEl) {
       metaEl.style.display = 'none';
     }
     document.getElementById('d-desc').textContent = p.desc;
-    document.getElementById('d-price').textContent = `r$ ${p.price}`;
+    // OSSO-FIX-PRECO-ZERO: produto sem preço (0/null/undefined) não pode vazar
+    // pro cliente como "r$ 0". Mostra placeholder e mais à frente desabilita o
+    // botão de compra (caindo no fluxo de WhatsApp pra cliente perguntar).
+    const hasValidPrice = typeof p.price === 'number' && p.price > 0;
+    document.getElementById('d-price').textContent = hasValidPrice ? `r$ ${p.price}` : 'preço a confirmar';
     document.getElementById('qty').textContent = '1';
-    document.getElementById('d-btnprice').textContent = `r$ ${p.price}`;
+    document.getElementById('d-btnprice').textContent = hasValidPrice ? `r$ ${p.price}` : '';
     const heart = document.getElementById('heart-btn');
     heart.classList.toggle('liked', favorites.has(p.name));
     const badge = document.getElementById('d-paybadge');
@@ -7394,7 +7443,43 @@
     const addBtn = document.getElementById('d-addbtn');
     const stepper = document.getElementById('d-stepper');
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
-    if (soldOut) {
+
+    // OSSO-INDICADOR-ESTOQUE: alimenta #d-stock-info baseado no estoque do produto.
+    // Cliente vê com clareza quanto pode levar antes de tentar.
+    const stockInfo = document.getElementById('d-stock-info');
+    if (stockInfo) {
+      if (typeof p.stock !== 'number') {
+        stockInfo.textContent = '';
+      } else if (p.stock <= 0) {
+        stockInfo.textContent = ''; // botão já comunica esgotado
+      } else if (p.stock === 1) {
+        stockInfo.textContent = '🔥 última unidade disponível';
+        stockInfo.style.color = 'var(--pink)';
+      } else if (p.stock <= 3) {
+        stockInfo.textContent = `🔥 últimas ${p.stock} unidades`;
+        stockInfo.style.color = 'var(--pink)';
+      } else {
+        stockInfo.textContent = `${p.stock} em estoque`;
+        stockInfo.style.color = 'var(--text-dim)';
+      }
+    }
+
+    // OSSO-FIX-PRECO-ZERO (parte 2): se preço inválido, trata como caso especial.
+    // Cliente não pode adicionar ao carrinho um produto sem preço — vira WhatsApp.
+    if (!hasValidPrice) {
+      addBtn.innerHTML = '📲 preço a confirmar — fala no whats';
+      addBtn.disabled = false;
+      addBtn.style.opacity = '1';
+      addBtn.onclick = function(e) {
+        if (e) e.preventDefault();
+        const wDigits = String(store.whats || '').replace(/\D/g, '');
+        if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
+        const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
+        const msg = `oi! qual o preço do ${p.name}? 🦎`;
+        window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+      };
+      if (stepper) stepper.classList.add('disabled');
+    } else if (soldOut) {
       // OSSO-AVISO-CHEGADA: produto esgotado abre WhatsApp pré-preenchido.
       // O webhook.js detecta a mensagem, identifica produto, registra interesse
       // em drope_customer_interests e o cron de notificação avisa quando chegar.
