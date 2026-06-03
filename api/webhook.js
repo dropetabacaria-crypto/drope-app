@@ -9988,8 +9988,13 @@ async function handleRefGalleryView(req, res) {
     return res.status(500).send('supabase not configured');
   }
   try {
+    // OSSO-2PORTOES (03/06 fix): mostra produtos em AMBOS estados:
+    // - awaiting_ref_approval: SERPER achou candidatos, user revisa/aprova
+    // - needs_manual_photo: SERPER não achou nada, user pode aceitar text-only,
+    //   buscar novamente, ou pular
+    // Ambos têm box_photo_url (foto que user tirou), então sempre dá pra mostrar lado-a-lado.
     const awaiting = await sbGet('drope_products',
-      'art_status=eq.awaiting_ref_approval&order=updated_at.desc&limit=200');
+      'art_status=in.(awaiting_ref_approval,needs_manual_photo)&image_url=is.null&order=updated_at.desc&limit=200');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(refGalleryHtml(awaiting || [], ADMIN_TOKEN));
   } catch (e) {
