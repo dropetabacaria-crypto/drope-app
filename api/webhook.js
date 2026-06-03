@@ -4149,19 +4149,23 @@ async function searchProductReferences(productId, brand, model, flavor) {
     console.log(`[searchRefs] zero candidates productId=${productId} — vai TEXT-ONLY`);
   }
 
-  // SEMPRE dispara art generation: com ref (img2img) ou sem ref (text-only)
-  // Vision QA da arte filtra qualidade depois. Se ruim, retry interno; se reincide, manda WhatsApp.
+  // OSSO-2PORTOES (03/06/2026 - Andrade): NÃO dispara Grok automaticamente.
+  // Andrade pediu fluxo de 2 portões de aprovação:
+  //   PORTÃO 1 (NOVO): user aprova foto de referência (esta etapa)
+  //   PORTÃO 2 (já existe): user aprova arte final do Grok (gallery)
+  // Razão: economiza chamada Grok se referência ruim; valida visualmente.
+  //
+  // - Se ACHOU referência boa: status=awaiting_ref_approval (espera user no /ref_gallery)
+  // - Se NÃO achou (text-only seria opção): também espera user decidir → awaiting_ref_approval com ref=null
   const updateData = {
     reference_candidates: candidates,
-    art_status: 'reference_approved', // sempre aprova pra disparar Grok
+    art_status: 'awaiting_ref_approval', // user precisa aprovar antes de Grok rodar
   };
   if (referenceImageUrl) updateData.reference_image_url = referenceImageUrl;
   await sbUpdate('drope_products', `id=eq.${productId}`, updateData);
-  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas, ref=${referenceImageUrl ? 'sim' : 'TEXT-ONLY'}, disparando Grok`);
+  console.log(`[searchRefs] productId=${productId} → ${candidates.length} candidatas, ref=${referenceImageUrl ? 'sim' : 'TEXT-ONLY'}, AGUARDANDO APROVAÇÃO no portão 1`);
 
-  try {
-    await fireBackgroundArtGeneration(productId, ADMIN_LUCAS, 1);
-  } catch (e) { console.warn('[searchRefs] fireArt err:', e.message); }
+  // Grok será disparado quando user aprovar no /ref_gallery (handleRefGalleryAction).
   return candidates;
 }
 
@@ -9960,6 +9964,206 @@ async function handleGalleryAction(req, res) {
   }
 }
 
+// ============ REF GALLERY (PORTÃO 1) — OSSO-2PORTOES (03/06/2026) ============
+// GET /api/webhook?action=ref_gallery&token=ADMIN_TOKEN → tela HTML que mostra
+// produtos aguardando aprovação da REFERÊNCIA (foto do SERPER/Google) antes do
+// Grok rodar. Mostra side-by-side: foto da caixa (scanner) × foto de referência.
+//
+// POST /api/webhook?action=ref_gallery_action → aprova/rejeita/text-only
+//   - approve: dispara fireBackgroundArtGeneration → produto vira pending_art
+//   - reject_use_text_only: zera reference_image_url, dispara Grok text-only
+//   - reject_no_action: marca art_status='manual_skip', user resolve manual depois
+async function handleRefGalleryView(req, res) {
+  const qs = req.url.includes('?') ? req.url.split('?')[1] : '';
+  const params = {};
+  qs.split('&').forEach(p => {
+    const [k, v] = p.split('=');
+    if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+  });
+  if (!ADMIN_TOKEN || params.token !== ADMIN_TOKEN) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(401).send('<h1 style="color:#ff2d95;font-family:sans-serif">unauthorized</h1>');
+  }
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return res.status(500).send('supabase not configured');
+  }
+  try {
+    const awaiting = await sbGet('drope_products',
+      'art_status=eq.awaiting_ref_approval&order=updated_at.desc&limit=200');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(refGalleryHtml(awaiting || [], ADMIN_TOKEN));
+  } catch (e) {
+    console.error('[ref_gallery view] error:', e.message);
+    return res.status(500).send('error: ' + e.message);
+  }
+}
+
+async function handleRefGalleryAction(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) {
+    await new Promise(r => setTimeout(r, 800));
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  const b = req.body || {};
+  const { id, op } = b;
+  if (!id || !op) return res.status(400).json({ ok: false, error: 'missing id or op' });
+
+  try {
+    const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&select=id,name,reference_image_url&limit=1`);
+    const product = rows[0];
+    if (!product) return res.status(404).json({ ok: false, error: 'product not found' });
+
+    if (op === 'approve') {
+      // Aprovou a referência (ou aceitou text-only). Marca como aprovada e dispara Grok.
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`, {
+        art_status: 'reference_approved',
+        image_status: 'pending_art',
+      });
+      // Fire-and-forget: Grok roda em background
+      fireBackgroundArtGeneration(id, ADMIN_LUCAS, 1)
+        .catch(e => console.warn('[ref_gallery_action approve] fireArt:', e.message));
+      return res.status(200).json({ ok: true, message: 'aprovada ✓ — Grok rodando, vê gallery em ~30-60s' });
+    } else if (op === 'reject_text_only') {
+      // Rejeitou referência, mas quer ir pra Grok text-only (sem foto de ref)
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`, {
+        reference_image_url: null,
+        art_status: 'reference_approved',
+        image_status: 'pending_art',
+      });
+      fireBackgroundArtGeneration(id, ADMIN_LUCAS, 1)
+        .catch(e => console.warn('[ref_gallery_action text_only] fireArt:', e.message));
+      return res.status(200).json({ ok: true, message: 'sem referência ✓ — Grok text-only rodando' });
+    } else if (op === 'reject_skip') {
+      // Rejeitou e quer pular esse produto agora (resolve manual depois)
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`, {
+        art_status: 'manual_skip',
+      });
+      return res.status(200).json({ ok: true, message: 'pulado — resolve manual depois' });
+    }
+    return res.status(400).json({ ok: false, error: 'invalid op' });
+  } catch (e) {
+    console.error('[ref_gallery action] error:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+function refGalleryHtml(awaiting, token) {
+  const renderCard = (p) => {
+    const m = p.metadata || {};
+    const boxPhoto = p.box_photo_url || m.box_photo_url || '';
+    const refPhoto = p.reference_image_url || '';
+    const fullName = escapeHtml(p.name || '');
+    const brand = escapeHtml(m.brand || '');
+    const model = escapeHtml(m.model || '');
+    const flavor = escapeHtml(m.flavor_en || m.flavor_pt || '');
+    const id = escapeHtml(p.id);
+    const hasRef = !!refPhoto;
+    return `
+      <div class="card" data-id="${id}">
+        <div class="compare">
+          <div class="compare-side">
+            <div class="compare-label">📸 sua foto</div>
+            ${boxPhoto ? `<img src="${escapeHtml(boxPhoto)}" alt="foto da caixa">` : '<div class="no-art">sem foto</div>'}
+          </div>
+          <div class="compare-side">
+            <div class="compare-label">🔍 referência (Google)</div>
+            ${refPhoto ? `<img src="${escapeHtml(refPhoto)}" alt="referência">` : '<div class="no-art">SEM REFERÊNCIA — vai text-only</div>'}
+          </div>
+        </div>
+        <div class="info">
+          <div class="name">${fullName}</div>
+          <div class="meta">${brand} ${model} ${flavor}</div>
+        </div>
+        <div class="actions">
+          <button class="btn approve" data-op="approve">${hasRef ? 'aprovar referência ✓ (vai pro Grok)' : 'aceitar text-only ✓'}</button>
+          ${hasRef ? '<button class="btn text-only" data-op="reject_text_only">rejeitar — usar text-only</button>' : ''}
+          <button class="btn skip" data-op="reject_skip">pular (resolvo depois)</button>
+        </div>
+        <div class="status"></div>
+      </div>`;
+  };
+
+  return `<!doctype html>
+<html lang="pt-br"><head>
+<meta charset="utf-8">
+<title>Drope ✦ Portão 1 — Aprovar Referência</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root { --bg: #0a0a0a; --neon: #b026ff; --lime: #c0ff33; --pink: #ff2d95; --txt: #fff; --dim: #888; --card: #111; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--txt); font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
+h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; box-shadow: 0 0 18px rgba(176,38,255,.15); display: flex; flex-direction: column; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; background: #000; }
+.compare-side { aspect-ratio: 1; position: relative; overflow: hidden; border-right: 1px solid rgba(176,38,255,.3); }
+.compare-side:last-child { border-right: none; }
+.compare-side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.compare-label { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.75); color: var(--lime); padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; z-index: 2; letter-spacing: 0.3px; }
+.no-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 11px; padding: 8px; text-align: center; }
+.info { padding: 10px 12px; }
+.name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.meta { color: var(--dim); font-size: 12px; }
+.actions { padding: 0 12px 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { flex: 1; min-width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.approve { background: var(--lime); color: #000; }
+.text-only { background: #444; color: #fff; }
+.skip { background: #222; color: #999; }
+.btn:hover { filter: brightness(1.1); }
+.btn:disabled { opacity: .5; cursor: wait; }
+.status { padding: 0 12px 10px; font-size: 12px; min-height: 16px; }
+.status.ok { color: var(--lime); }
+.status.err { color: var(--pink); }
+.empty { color: var(--dim); padding: 24px; text-align: center; font-style: italic; }
+.nav-links a { color: var(--neon); margin-right: 12px; text-decoration: none; font-size: 12px; }
+</style>
+</head><body>
+<h1>🟡 Portão 1 — Aprovar Referência</h1>
+<div class="nav-links" style="margin-bottom:8px">
+  <a href="?action=ref_gallery&token=${escapeHtml(token || '')}">ref gallery</a>
+  <a href="?action=gallery&token=${escapeHtml(token || '')}">gallery (portão 2) →</a>
+</div>
+<p style="color:var(--dim);font-size:12px;margin:0 0 16px">${awaiting.length} aguardando aprovação de referência</p>
+
+<div class="grid" id="grid-pending">${awaiting.length ? awaiting.map(p => renderCard(p)).join('') : '<div class="empty">nada esperando ✦</div>'}</div>
+
+<script>
+const TOKEN = ${JSON.stringify(token)};
+document.querySelectorAll('.card').forEach(card => {
+  card.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = card.dataset.id;
+      const op = btn.dataset.op;
+      const status = card.querySelector('.status');
+      card.querySelectorAll('.btn').forEach(b => b.disabled = true);
+      status.className = 'status';
+      status.textContent = 'processando...';
+      try {
+        const r = await fetch('/api/webhook?action=ref_gallery_action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+          body: JSON.stringify({ id, op }),
+        });
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        status.className = 'status ok';
+        status.textContent = data.message || 'ok';
+        card.style.transition = 'opacity .4s';
+        setTimeout(() => { card.style.opacity = '0.3'; }, 200);
+      } catch (e) {
+        status.className = 'status err';
+        status.textContent = '❌ ' + e.message;
+        card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+      }
+    });
+  });
+});
+</script>
+</body></html>`;
+}
+
 // ============ CATALOG (REFATOR 30/04/2026 tarde 5) ============
 // GET /api/webhook?action=catalog → JSON com produtos visíveis do drope_products
 // Substitui o array hardcoded `let products = [...]` que vivia em index.html (66 produtos
@@ -12373,15 +12577,25 @@ module.exports = async function handler(req, res) {
   }
 
   // ===== ROTA: ADMIN GALLERY (BLOCO 1) =====
-  // GET  /api/webhook?action=gallery&token=ADMIN_TOKEN          → HTML com cards
+  // GET  /api/webhook?action=gallery&token=ADMIN_TOKEN          → HTML com cards (PORTÃO 2)
   // POST /api/webhook?action=gallery_action                     → ações em JSON
   //   header x-admin-token: ADMIN_TOKEN
   //   body { id, op: 'approve'|'reject'|'regenerate', barcode?, price_cents? }
-  if (req.url && req.url.indexOf('action=gallery') >= 0 && req.url.indexOf('gallery_action') < 0) {
-    return await handleGalleryView(req, res);
+  //
+  // GET  /api/webhook?action=ref_gallery&token=ADMIN_TOKEN      → HTML (PORTÃO 1 — referência)
+  // POST /api/webhook?action=ref_gallery_action                 → aprovar/rejeitar ref
+  //   body { id, op: 'approve'|'reject_text_only'|'reject_skip' }
+  if (req.url && req.url.indexOf('action=ref_gallery_action') >= 0) {
+    return await handleRefGalleryAction(req, res);
+  }
+  if (req.url && req.url.indexOf('action=ref_gallery') >= 0) {
+    return await handleRefGalleryView(req, res);
   }
   if (req.url && req.url.indexOf('action=gallery_action') >= 0) {
     return await handleGalleryAction(req, res);
+  }
+  if (req.url && req.url.indexOf('action=gallery') >= 0 && req.url.indexOf('gallery_action') < 0 && req.url.indexOf('ref_gallery') < 0) {
+    return await handleGalleryView(req, res);
   }
 
   // ===== ROTA: ADMIN CUSTOMERS (FEATURE 4 — 30/04/2026 tarde) =====
