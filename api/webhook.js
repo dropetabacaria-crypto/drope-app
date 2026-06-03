@@ -13428,9 +13428,14 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
           `or=(image_status.eq.pending_pod_photo,art_status.in.(pending_review,needs_manual_photo,pending_reference))&select=id&limit=300`);
         count = (rows || []).length;
       } else if (type === 'gallery') {
-        // Gallery pendente = artes geradas esperando aprovação
+        // Gallery pendente = artes geradas esperando aprovação (PORTÃO 2)
         const rows = await sbGet('drope_products',
           `image_status=eq.awaiting_approval&select=id&limit=300`);
+        count = (rows || []).length;
+      } else if (type === 'ref_gallery') {
+        // PORTÃO 1 = referência aguardando aprovação OU precisando foto manual
+        const rows = await sbGet('drope_products',
+          `art_status=in.(awaiting_ref_approval,needs_manual_photo)&select=id&limit=300`);
         count = (rows || []).length;
       } else if (type === 'esteira') {
         // Esteira (08/05/2026): soma sem-sabor + pendentes + gallery + specs numa badge só
@@ -13513,6 +13518,8 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
 // OSSO 29 — Admin Hub. Centraliza acesso a todas as telas /admin.
 // Login client-side: salva token em localStorage e propaga via URL params.
 const PAGES = [
+  { id:'portao1',   icon:'🚪', label:'portão 1',  desc:'aprovar referência (antes do Grok)', url:'/api/webhook?action=ref_gallery', countKey:'ref_gallery', badgeColor:'amber' },
+  { id:'portao2',   icon:'🎨', label:'portão 2',  desc:'aprovar arte do Grok',      url:'/api/webhook?action=gallery',            countKey:'gallery', badgeColor:'violet' },
   { id:'esteira',   icon:'🎯', label:'esteira',   desc:'sem-sabor → pendentes → gallery numa tela só', url:'/api/webhook?action=esteira', countKey:'esteira', badgeColor:'lime' },
   { id:'estoque',   icon:'📦', label:'estoque',   desc:'produtos cadastrados',      url:'/api/admin-list-stock',                  countKey:'stock', badgeColor:'amber' },
   { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
@@ -13573,7 +13580,7 @@ function renderHub(token) {
   loadCounts(token);
 }
 async function loadCounts(token) {
-  const types = ['esteira', 'stock', 'customers', 'orders'];
+  const types = ['ref_gallery', 'gallery', 'esteira', 'stock', 'customers', 'orders'];
   await Promise.all(types.map(async (t) => {
     try {
       const r = await fetch('/api/webhook?action=admin_counts&type=' + t + '&token=' + encodeURIComponent(token));
