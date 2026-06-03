@@ -3969,7 +3969,7 @@ async function _visionScoreCandidate(boxPhotoUrl, candidateUrl, brand, model, fl
             { type: 'image', source: candidateUrl.startsWith('data:')
               ? { type: 'base64', media_type: candidateUrl.match(/^data:([^;]+);/)?.[1] || 'image/jpeg', data: candidateUrl.split(',', 2)[1] }
               : { type: 'url', url: candidateUrl } },
-            { type: 'text', text: `Imagem 1: foto de caixas de pod (pode ter VARIAS caixas/produtos visiveis). O produto PRINCIPAL/CENTRAL e: ${brand} ${model} ${flavor}.\n\nImagem 2: candidato a referencia visual.\n\nQuao semelhante visualmente a Imagem 2 e ao produto CENTRAL da Imagem 1?\nIGNORE COMPLETAMENTE outros produtos do fundo/laterais da Imagem 1 — foque APENAS no produto que tem o sabor "${flavor}" no rotulo.\n\nCriterios:\n- Mesmo modelo de dispositivo (formato, tamanho, padrao do bocal)?\n- Mesma cor predominante e gradiente do sabor?\n- Mesmas estampas/grafismos do rotulo?\n- 100 = mesmo produto exato\n- 70-99 = mesmo modelo+sabor mas angulo/qualidade diferente\n- 40-69 = mesma marca+modelo mas sabor diferente\n- 10-39 = mesma marca apenas\n- 0-9 = totalmente diferente\n\nResponda APENAS um numero inteiro 0-100. SEM explicacao.` }
+            { type: 'text', text: `Imagem 1: foto de caixas de pod (pode ter VARIAS caixas/produtos visiveis). O produto PRINCIPAL/CENTRAL e: ${brand} ${model} ${flavor}.\n\nImagem 2: candidato a referencia visual.\n\nQuao semelhante visualmente a Imagem 2 e ao DEVICE/POD PROPRIAMENTE DITO (NAO a caixa) do produto CENTRAL da Imagem 1?\nIGNORE COMPLETAMENTE outros produtos do fundo/laterais da Imagem 1 — foque APENAS no produto que tem o sabor "${flavor}" no rotulo.\n\n⚠️ CRITICO: queremos referencia do DEVICE (pod fisico standalone) — NAO da caixa/embalagem.\n- Se Imagem 2 mostra SOMENTE o device (sem caixa): bonus +20\n- Se Imagem 2 mostra device + caixa lado a lado: nota normal\n- Se Imagem 2 mostra SOMENTE a caixa (sem o device standalone visivel): penalidade -30, max 40\n\nCriterios de similaridade (depois do bonus/penalidade):\n- Mesmo modelo de dispositivo (formato, tamanho, padrao do bocal)?\n- Mesma cor predominante e gradiente do sabor?\n- Mesmas estampas/grafismos do device?\n- 100 = mesmo device exato standalone\n- 70-99 = mesmo modelo+sabor mas angulo/qualidade diferente\n- 40-69 = mesma marca+modelo mas sabor diferente\n- 10-39 = mesma marca apenas OU so caixa\n- 0-9 = totalmente diferente\n\nResponda APENAS um numero inteiro 0-100. SEM explicacao.` }
           ]
         }]
       }),
@@ -3996,14 +3996,16 @@ async function searchProductReferences(productId, brand, model, flavor) {
     return [];
   }
 
-  // FIX REF QA v2 (07/05/2026 - Andrade) — 3 queries em paralelo pra pescar
-  // pack-shot puro (fundo branco, foto oficial). Antes 1 query só pegava muita
-  // foto de loja/mosaico que confundia Grok img2img depois.
+  // FIX REF QA v3 (03/06/2026 - Andrade): queries anti-bias caixa.
+  // Andrade reclamou que SERPER trazia muita foto de CAIXA/PACKAGING,
+  // mas queremos POD SOZINHO (device standalone). Queries reformuladas
+  // pra forçar "device only" / "no packaging" / "standalone product".
   const baseTerms = [brand, model, flavor].filter(Boolean).join(' ');
   const queries = [
-    `"${baseTerms}" official product photo white background`,
-    `"${baseTerms}" pod disposable vape`,
-    `${brand || ''} ${flavor || ''} pack shot`.trim(),
+    `"${baseTerms}" device standalone no box white background`,
+    `"${baseTerms}" pod only product render`,
+    `"${baseTerms}" disposable vape device transparent background`,
+    `${brand || ''} ${flavor || ''} vape device studio shot`.trim(),
   ].filter(q => q.replace(/[^a-z0-9]/gi, '').length > 5);
   console.log(`[searchRefs] queries=${JSON.stringify(queries)}`);
 
@@ -5279,9 +5281,12 @@ async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, dev
 
   if (useImg2Img) {
     // ═══ IMG2IMG: Grok recebe a foto real → transforma CENÁRIO, preserva DEVICE ═══
+    // OSSO-2PORTOES (03/06 - Andrade): instrução explícita pra ignorar caixa/embalagem
+    // se ela aparecer na ref. Foco no DEVICE STANDALONE.
     prompt = [
       `Transform this product photo into a cinematic dark premium e-commerce hero shot.`,
-      `KEEP THE DEVICE EXACTLY AS IT IS — same shape, same proportions, same colors, same brand markings. Do NOT change the product itself.`,
+      `IMPORTANT: focus ONLY on the POD DEVICE itself. If the reference image shows any packaging, box, or carton — IGNORE IT COMPLETELY. Extract and render ONLY the standalone vape pod device. Do NOT include any box or packaging in the final art.`,
+      `KEEP THE DEVICE EXACTLY AS IT IS (or as shown printed on the box artwork if device not separately visible) — same shape, same proportions, same colors, same brand markings, same flavor identity. Do NOT change the device itself.`,
 
       `${ART_QUALITY_RULES.position}.`,
       `${ART_QUALITY_RULES.deviceMaxSize}.`,
@@ -9923,8 +9928,14 @@ async function handleGalleryAction(req, res) {
       if (!artUrl) return res.status(400).json({ ok: false, error: 'no pending_art_url to approve' });
       update.image_url = artUrl;
       update.image_status = 'ok';
-    } else if (op === 'reject' || op === 'regenerate') {
+    } else if (op === 'regenerate') {
       update.image_status = 'pending_regeneration';
+    } else if (op === 'reject') {
+      // OSSO-2PORTOES-CICLO (03/06): rejeitar no Portão 2 manda produto de volta
+      // pro Portão 1, onde user pode trocar referência (candidato/upload/box/etc)
+      // e re-disparar Grok. Fecha o loop: P1 → Grok → P2 → reject → P1 → loop.
+      update.image_status = 'pending_pod_photo';
+      update.art_status = 'awaiting_ref_approval';
     } else {
       return res.status(400).json({ ok: false, error: 'invalid op' });
     }
@@ -10142,8 +10153,10 @@ function refGalleryHtml(awaiting, token) {
         </div>
         ${noRefWarning}
         ${candidatesHtml}
+        <input type="file" accept="image/*" class="upload-input" data-id="${id}" style="display:none">
         <div class="actions">
           ${!hasRef ? '<button class="btn use-box" data-op="use_box_as_ref">📸 usar foto da caixa como referência</button>' : ''}
+          <button class="btn upload" data-op="trigger_upload">📤 upload nova foto de referência</button>
           <button class="btn approve" data-op="approve">${hasRef ? 'aprovar referência ✓ (vai pro Grok)' : 'aceitar text-only ✓'}</button>
           <button class="btn research" data-op="research_refs">🔄 buscar novas referências</button>
           ${hasRef ? '<button class="btn text-only" data-op="reject_text_only">rejeitar — usar text-only</button>' : ''}
@@ -10179,6 +10192,7 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .approve { background: var(--lime); color: #000; }
 .research { background: var(--neon); color: #fff; }
 .use-box { background: var(--pink); color: #fff; }
+.upload { background: #00c8ff; color: #000; }
 .text-only { background: #444; color: #fff; }
 .skip { background: #222; color: #999; }
 .warn { background: rgba(255,45,149,.1); border-left: 3px solid var(--pink); padding: 10px 12px; margin: 0 12px 8px; border-radius: 4px; font-size: 12px; color: var(--txt); line-height: 1.5; }
@@ -10247,8 +10261,56 @@ async function doAction(card, op, extraBody) {
 document.querySelectorAll('.card').forEach(card => {
   // Botões de ação principal
   card.querySelectorAll('.btn').forEach(btn => {
-    btn.addEventListener('click', () => doAction(card, btn.dataset.op));
+    btn.addEventListener('click', () => {
+      const op = btn.dataset.op;
+      if (op === 'trigger_upload') {
+        // Aciona o file input invisível pra abrir o file picker do OS
+        card.querySelector('.upload-input').click();
+      } else {
+        doAction(card, op);
+      }
+    });
   });
+  // Upload manual: lê arquivo, converte base64, chama admin_upload_reference
+  const fileInput = card.querySelector('.upload-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const id = card.dataset.id;
+      const status = card.querySelector('.status');
+      status.className = 'status';
+      status.textContent = 'subindo foto... aguarda';
+      card.querySelectorAll('.btn').forEach(b => b.disabled = true);
+      try {
+        // Lê arquivo como base64
+        const b64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result || '';
+            const clean = result.replace(/^data:image\\/[a-z]+;base64,/, '');
+            resolve(clean);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const r = await fetch('/api/webhook?action=admin_upload_reference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+          body: JSON.stringify({ productId: id, imageBase64: b64, mimeType: file.type || 'image/jpeg' }),
+        });
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        status.className = 'status ok';
+        status.textContent = '✓ foto setada como referência — recarrega pra confirmar';
+        setTimeout(() => location.reload(), 1200);
+      } catch (e) {
+        status.className = 'status err';
+        status.textContent = '❌ ' + e.message;
+        card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+      }
+    });
+  }
   // Clique em candidatos pra trocar referência ativa
   card.querySelectorAll('.candidate').forEach(cand => {
     cand.addEventListener('click', () => {
