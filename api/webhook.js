@@ -3996,24 +3996,43 @@ async function searchProductReferences(productId, brand, model, flavor) {
     return [];
   }
 
-  // FIX REF QA v3 (03/06/2026 - Andrade): queries anti-bias caixa.
-  // Andrade reclamou que SERPER trazia muita foto de CAIXA/PACKAGING,
-  // mas queremos POD SOZINHO (device standalone). Queries reformuladas
-  // pra forçar "device only" / "no packaging" / "standalone product".
+  // FIX REF QA v4 (03/06/2026 - Andrade): busca INTENSIFICADA.
+  // - Queries em inglês (anti-bias caixa) + português (mercado BR) + site-specific (lojas BR)
+  // - Inclui EAN se disponível (alguns sites indexam por código)
+  // - Mais candidatos por query pra Vision escolher
   const baseTerms = [brand, model, flavor].filter(Boolean).join(' ');
+  const baseTermsNoModel = [brand, flavor].filter(Boolean).join(' ');
+
+  // Tenta pegar EAN do banco pra adicionar nas queries
+  let ean = '';
+  try {
+    const erows = await sbGet('drope_products', `id=eq.${productId}&select=barcode&limit=1`);
+    ean = erows?.[0]?.barcode || '';
+  } catch (_) {}
+
   const queries = [
+    // Inglês — pod standalone (anti-caixa)
     `"${baseTerms}" device standalone no box white background`,
     `"${baseTerms}" pod only product render`,
-    `"${baseTerms}" disposable vape device transparent background`,
     `${brand || ''} ${flavor || ''} vape device studio shot`.trim(),
-  ].filter(q => q.replace(/[^a-z0-9]/gi, '').length > 5);
+    // Português — mercado BR
+    `"${baseTerms}" pod descartável foto produto`,
+    `${brand || ''} ${flavor || ''} vape brasil`.trim(),
+    // Site-specific — lojas vape BR (geralmente têm imagens limpas)
+    `${baseTerms} site:vaporonbr.com OR site:tabakkatabacaria.com OR site:pineapplerec.com OR site:vapetvupt.com`,
+    // EAN como busca direta (algumas listagens indexam por código)
+    ean ? `${ean} vape pod` : null,
+    // Fallback genérico — só brand+sabor (caso modelo seja muito específico/quebrado)
+    baseTermsNoModel ? `"${baseTermsNoModel}" vape pod` : null,
+  ].filter(q => q && q.replace(/[^a-z0-9]/gi, '').length > 5);
   console.log(`[searchRefs] queries=${JSON.stringify(queries)}`);
 
   // Roda paralelo, junta resultados, dedupa por URL
+  // FIX REF QA v4: num=10 por query (era 6) → mais variedade. Top 20 final (era 12).
   const responses = await Promise.allSettled(queries.map(q => fetch('https://google.serper.dev/images', {
     method: 'POST',
     headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q, num: 6 }),
+    body: JSON.stringify({ q, num: 10 }),
   }).then(r => r.ok ? r.json() : null)));
 
   const allImagesMap = new Map(); // url -> img (dedupa por URL)
@@ -4023,7 +4042,7 @@ async function searchProductReferences(productId, brand, model, flavor) {
       if (img.imageUrl && !allImagesMap.has(img.imageUrl)) allImagesMap.set(img.imageUrl, img);
     }
   }
-  const serperData = { images: Array.from(allImagesMap.values()).slice(0, 12) };
+  const serperData = { images: Array.from(allImagesMap.values()).slice(0, 20) };
   console.log(`[searchRefs] Serper merged ${serperData.images.length} unique images from ${queries.length} queries`);
   if (serperData.images.length === 0) {
     await sbUpdate('drope_products', `id=eq.${productId}`, { art_status: 'needs_manual_photo' });
@@ -4034,11 +4053,12 @@ async function searchProductReferences(productId, brand, model, flavor) {
   try { sharp = require('sharp'); } catch (e) { sharp = null; }
 
   const candidates = [];
-  const images = (serperData.images || []).slice(0, 8);
-  // OSSO 28 — thresholds mais generosos: produtos de nicho têm fotos pequenas no Google
-  const MIN_DIM = 200;   // era 400
+  const images = (serperData.images || []).slice(0, 15);
+  // FIX REF QA v4 (03/06): thresholds AINDA mais generosos pra produtos de nicho.
+  // Andrade pediu "intensificar busca" — relaxa filtros pra Vision filtrar depois.
+  const MIN_DIM = 150;   // era 200 (aceita fotos menores)
   const MAX_DIM = 4000;
-  const MIN_SCORE = 15;  // era 30
+  const MIN_SCORE = 10;  // era 15 (aceita qualidade média)
   const skipReasons = []; // pra debug
   for (let i = 0; i < images.length; i++) {
     const img = images[i];
@@ -4097,9 +4117,9 @@ async function searchProductReferences(productId, brand, model, flavor) {
       const prods = await sbGet('drope_products', `id=eq.${productId}&select=box_photo_url&limit=1`);
       const boxUrl = prods?.[0]?.box_photo_url;
       if (boxUrl) {
-        // Limita a 6 pra economizar tempo/Anthropic. Top quality_score primeiro.
+        // FIX REF QA v4: top 10 (era 6) pra Vision avaliar mais candidatos.
         candidates.sort((a, b) => b.quality_score - a.quality_score);
-        const top = candidates.slice(0, 6);
+        const top = candidates.slice(0, 10);
         console.log(`[searchRefs] visionScore productId=${productId}: comparando ${top.length} candidatos com box_photo`);
         const results = await Promise.allSettled(
           top.map(c => _visionScoreCandidate(boxUrl, c.url, brand, model, flavor))
@@ -4136,7 +4156,7 @@ async function searchProductReferences(productId, brand, model, flavor) {
   // Agora: TUDO dispara Grok auto. Vision QA da arte gerada eh o gatekeeper final
   // (compara arte vs reference vs box_photo, score 0-10). Se QC reject 2x → notifica.
   // Threshold rebaixado: combined >= 40 = aceita ref. Abaixo disso, dispara TEXT-ONLY.
-  const AUTO_SELECT_THRESHOLD = 40;
+  const AUTO_SELECT_THRESHOLD = 30; // era 40 (v4: mais generoso pra produtos de nicho)
   let referenceImageUrl = null;
   if (candidates.length > 0) {
     const top = candidates[0];
