@@ -10174,8 +10174,13 @@ function refGalleryHtml(awaiting, token) {
           }).join('')}
         </div>
         <div class="url-paste-row">
-          <input type="url" class="url-paste-input" placeholder="cola URL da imagem do Google aqui" data-id="${id}">
+          <input type="url" class="url-paste-input" placeholder="cola URL da IMAGEM (não da página)" data-id="${id}">
           <button class="btn use-url" data-op="set_ref_url">✓ usar URL como referência</button>
+        </div>
+        <div class="url-preview-row" style="display:none">
+          <div class="url-preview-label">preview:</div>
+          <img class="url-preview-img" src="" alt="preview">
+          <div class="url-preview-err" style="display:none">⚠️ não carregou — confere se é URL de IMAGEM (termina em .jpg/.png/.webp), não de página</div>
         </div>
       </div>`;
     // OSSO-2PORTOES (03/06): lista candidatos do SERPER pra user trocar de ref
@@ -10283,6 +10288,10 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .url-paste-input { flex: 1; background: #000; border: 1px solid #2a5a7a; color: var(--txt); border-radius: 4px; padding: 6px 8px; font-size: 11px; }
 .url-paste-input:focus { outline: none; border-color: #6fdcff; }
 .use-url { flex: 0 0 auto !important; min-width: auto !important; padding: 6px 10px !important; font-size: 11px !important; background: #6fdcff; color: #000; }
+.url-preview-row { margin-top: 8px; padding: 8px; background: #000; border: 1px solid #2a5a7a; border-radius: 4px; }
+.url-preview-label { color: var(--dim); font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+.url-preview-img { max-width: 100%; max-height: 200px; display: block; border-radius: 4px; object-fit: contain; background: #111; }
+.url-preview-err { color: var(--pink); font-size: 11px; padding: 4px; line-height: 1.4; }
 </style>
 </head><body>
 <h1>🟡 Portão 1 — Aprovar Referência</h1>
@@ -10352,6 +10361,33 @@ document.querySelectorAll('.card').forEach(card => {
       }
     });
   });
+  // Preview da URL colada (mostra <img> antes de aprovar)
+  const urlInput = card.querySelector('.url-paste-input');
+  const urlPreviewRow = card.querySelector('.url-preview-row');
+  const urlPreviewImg = card.querySelector('.url-preview-img');
+  const urlPreviewErr = card.querySelector('.url-preview-err');
+  if (urlInput && urlPreviewRow) {
+    const onUrlChange = () => {
+      const url = (urlInput.value || '').trim();
+      if (!url) {
+        urlPreviewRow.style.display = 'none';
+        return;
+      }
+      urlPreviewRow.style.display = 'block';
+      urlPreviewImg.style.display = 'block';
+      urlPreviewErr.style.display = 'none';
+      urlPreviewImg.onload = () => {
+        urlPreviewErr.style.display = 'none';
+      };
+      urlPreviewImg.onerror = () => {
+        urlPreviewImg.style.display = 'none';
+        urlPreviewErr.style.display = 'block';
+      };
+      urlPreviewImg.src = url;
+    };
+    urlInput.addEventListener('input', onUrlChange);
+    urlInput.addEventListener('paste', () => setTimeout(onUrlChange, 50));
+  }
   // Upload manual: lê arquivo, converte base64, chama admin_upload_reference
   const fileInput = card.querySelector('.upload-input');
   if (fileInput) {
