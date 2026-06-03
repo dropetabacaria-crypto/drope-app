@@ -8286,7 +8286,11 @@ function escapeHtml(s) {
 function galleryHtml(awaiting, approved, token) {
   const renderCard = (p, isApproved) => {
     const m = p.metadata || {};
-    const thumb = isApproved ? p.image_url : (m.pending_art_url || p.image_url || '');
+    const generatedArt = isApproved ? p.image_url : (m.pending_art_url || p.image_url || '');
+    // OSSO-GALLERY-SIDE-BY-SIDE (03/06/2026): pra aprovação, mostra foto da caixa
+    // que o Andrade tirou no scanner LADO A LADO com a arte do Grok. Permite
+    // validação visual: "essa arte realmente representa o produto que tirei foto?"
+    const boxPhoto = p.box_photo_url || m.box_photo_url || '';
     const fullName = escapeHtml(p.name || '');
     const brand = escapeHtml(m.brand || '');
     const model = escapeHtml(m.model || '');
@@ -8294,9 +8298,22 @@ function galleryHtml(awaiting, approved, token) {
     const priceVal = p.price_cents ? (p.price_cents / 100).toFixed(2) : '';
     const barcode = escapeHtml(p.barcode || '');
     const id = escapeHtml(p.id);
+    // Approved: só arte final (histórico). Awaiting: side-by-side pra validação.
+    const thumbBlock = isApproved
+      ? `<div class="thumb">${generatedArt ? `<img src="${escapeHtml(generatedArt)}" alt="${fullName}">` : '<div class="no-art">sem arte</div>'}</div>`
+      : `<div class="compare">
+           <div class="compare-side">
+             <div class="compare-label">📸 sua foto</div>
+             ${boxPhoto ? `<img src="${escapeHtml(boxPhoto)}" alt="foto da caixa">` : '<div class="no-art">sem foto</div>'}
+           </div>
+           <div class="compare-side">
+             <div class="compare-label">✨ arte Grok</div>
+             ${generatedArt ? `<img src="${escapeHtml(generatedArt)}" alt="${fullName}">` : '<div class="no-art">sem arte</div>'}
+           </div>
+         </div>`;
     return `
       <div class="card" data-id="${id}">
-        <div class="thumb">${thumb ? `<img src="${escapeHtml(thumb)}" alt="${fullName}">` : '<div class="no-art">sem arte</div>'}</div>
+        ${thumbBlock}
         <div class="info">
           <div class="name">${fullName}</div>
           <div class="meta">${brand} ${model} ${flavor}</div>
@@ -8327,11 +8344,17 @@ function galleryHtml(awaiting, approved, token) {
 body { margin: 0; background: var(--bg); color: var(--txt); font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
 h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
 .card { background: var(--card); border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; box-shadow: 0 0 18px rgba(176,38,255,.15); display: flex; flex-direction: column; }
 .thumb { aspect-ratio: 1; background: #000; overflow: hidden; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.no-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 13px; }
+.no-art { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 13px; padding: 8px; text-align: center; }
+/* OSSO-GALLERY-SIDE-BY-SIDE: layout 2 col pra validação foto real vs arte gerada */
+.compare { display: grid; grid-template-columns: 1fr 1fr; background: #000; }
+.compare-side { aspect-ratio: 1; position: relative; overflow: hidden; border-right: 1px solid rgba(176,38,255,.3); }
+.compare-side:last-child { border-right: none; }
+.compare-side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.compare-label { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.75); color: var(--lime); padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; z-index: 2; letter-spacing: 0.3px; }
 .info { padding: 10px 12px; }
 .name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
 .meta { color: var(--dim); font-size: 12px; }
