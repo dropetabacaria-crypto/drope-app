@@ -8397,9 +8397,14 @@ function galleryHtml(awaiting, approved, token) {
           <textarea class="feedback-input" data-id="${id}" placeholder="opcional: descreve o que tá errado pra Grok corrigir (ex: 'muito escuro', 'cor errada', 'falta a tela LED')"></textarea>
         </div>
         <div class="actions">
-          <button class="btn approve" data-op="approve">aprovar ✓</button>
-          <button class="btn regen" data-op="regenerate">🔄 regenerar (usa feedback ↑)</button>
-          <button class="btn back-p1" data-op="reject">↩️ voltar pro Portão 1 (mudar referência)</button>
+          <button class="btn approve" data-op="approve" title="Salva esta arte como definitiva no catálogo. Card some daqui.">aprovar ✓</button>
+          <button class="btn regen" data-op="regenerate" title="Grok refaz a arte usando o feedback acima. Demora ~60s. Card auto-atualiza com a nova arte.">🔄 regenerar (usa feedback ↑)</button>
+          <button class="btn back-p1" data-op="reject" title="Devolve pro Portão 1 pra tu escolher OUTRA imagem de referência. Use quando a ref tava errada.">↩️ voltar pro Portão 1 (mudar referência)</button>
+        </div>
+        <div class="legend">
+          <div><b style="color:var(--lime)">✓</b> = entra no catálogo</div>
+          <div><b style="color:var(--neon)">🔄</b> = Grok refaz (~60s, atualiza sozinho)</div>
+          <div><b style="color:#ff8c00">↩️</b> = trocar a referência no P1</div>
         </div>
         <div class="status"></div>
         `}
@@ -8454,6 +8459,13 @@ h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: up
 .reject { background: #333; color: #fff; }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: .5; cursor: wait; }
+.legend { padding: 6px 12px 4px; font-size: 10px; color: var(--dim); line-height: 1.5; border-top: 1px dashed #222; }
+.legend div { display: inline-block; margin-right: 10px; }
+.regenerating-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.88); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; color: var(--lime); font-size: 14px; font-weight: 600; text-align: center; padding: 16px; }
+.regenerating-overlay .spinner { width: 32px; height: 32px; border: 3px solid var(--neon); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.regenerating-overlay .timer { font-size: 11px; color: var(--dim); margin-top: 8px; }
+.card { position: relative; }
 .status { padding: 0 12px 10px; font-size: 12px; min-height: 16px; }
 .status.ok { color: var(--lime); }
 .status.err { color: var(--pink); }
@@ -8506,6 +8518,10 @@ document.querySelectorAll('.card').forEach(card => {
           card.style.transition = 'opacity .4s';
           card.style.opacity = '0';
           setTimeout(() => card.remove(), 500);
+        } else if (op === 'regenerate') {
+          // UX FIX 04/06 (Andrade): overlay com spinner + timer + polling automático
+          // pra atualizar a arte sem precisar F5
+          showRegenOverlay(card, id);
         }
       } catch (e) {
         status.className = 'status err';
@@ -8515,6 +8531,50 @@ document.querySelectorAll('.card').forEach(card => {
     });
   });
 });
+
+function showRegenOverlay(card, productId) {
+  const thumbBlock = card.querySelector('.compare') || card.querySelector('.thumb');
+  if (!thumbBlock) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'regenerating-overlay';
+  overlay.innerHTML = '<div class="spinner"></div><div>🎨 Grok regenerando...</div><div class="timer">aguarda ~60s</div>';
+  thumbBlock.appendChild(overlay);
+  let elapsed = 0;
+  const timer = overlay.querySelector('.timer');
+  const tick = setInterval(() => {
+    elapsed += 1;
+    if (timer) timer.textContent = elapsed + 's de ~60s';
+  }, 1000);
+
+  // Começa polling após 30s, checa a cada 5s, max 120s
+  setTimeout(() => pollNewArt(card, productId, overlay, tick, 0), 30000);
+}
+
+async function pollNewArt(card, productId, overlay, tick, attempts) {
+  if (attempts > 18) { // 30 + 18*5 = 120s total
+    overlay.innerHTML = '<div>⚠️ demorou demais</div><div class="timer" style="margin-top:8px"><a href="javascript:location.reload()" style="color:var(--neon)">recarregar página</a></div>';
+    clearInterval(tick);
+    return;
+  }
+  try {
+    const r = await fetch('/api/webhook?action=admin_product_status&id=' + productId + '&token=' + encodeURIComponent(TOKEN));
+    if (r.ok) {
+      const d = await r.json();
+      if (d.image_status === 'awaiting_approval' && d.pending_art_url) {
+        // Nova arte pronta! Substitui a imagem do card.
+        clearInterval(tick);
+        const artImg = card.querySelector('.compare-side:last-child img, .thumb img');
+        if (artImg) artImg.src = d.pending_art_url;
+        overlay.remove();
+        card.querySelectorAll('.btn').forEach(b => b.disabled = false);
+        const statusEl = card.querySelector('.status');
+        if (statusEl) { statusEl.className = 'status ok'; statusEl.textContent = '✨ nova arte carregada — revise e aprove'; }
+        return;
+      }
+    }
+  } catch (e) {}
+  setTimeout(() => pollNewArt(card, productId, overlay, tick, attempts + 1), 5000);
+}
 </script>
 </body></html>`;
 }
@@ -13491,6 +13551,35 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       }
     } catch (e) { console.error('[admin_counts] err:', e.message); }
     return res.status(200).json({ type, count });
+  }
+
+  // GET /api/webhook?action=admin_product_status&id=X&token= → status atual do produto
+  // Usado pelo Portão 2 pra fazer polling após clicar regenerar (UX FIX 04/06 Andrade).
+  if (req.url && req.url.indexOf('action=admin_product_status') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const qs = (req.url || '').split('?')[1] || '';
+    const params = {};
+    qs.split('&').forEach(p => {
+      const [k, v] = p.split('=');
+      if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+    });
+    if (!ADMIN_TOKEN || params.token !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    const pid = params.id;
+    if (!pid) return res.status(400).json({ error: 'missing id' });
+    try {
+      const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(pid)}&select=id,image_status,art_status,image_url,metadata&limit=1`);
+      const p = rows[0];
+      if (!p) return res.status(404).json({ error: 'not found' });
+      return res.status(200).json({
+        id: p.id,
+        image_status: p.image_status,
+        art_status: p.art_status,
+        image_url: p.image_url,
+        pending_art_url: (p.metadata || {}).pending_art_url || null,
+      });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
   if (req.url && req.url.indexOf('action=admin_hub') >= 0) {
