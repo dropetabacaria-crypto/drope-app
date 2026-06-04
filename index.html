@@ -7000,15 +7000,44 @@
     }
   }
 
-  // Andrade 04/06: taxa motoboy automática via Haversine no backend.
-  // Retorna Promise pra permitir encadeamento (cache + re-render no checkout).
+  // OTIMIZADO 04/06 (Andrade): cache localStorage + timeout 4s.
+  // 1ª vez: ~400ms (AwesomeAPI). 2ª vez mesmo CEP: 0ms (cache local).
+  function _quoteCacheKey(cep) { return 'drope_quote_' + cep; }
+  function _loadQuoteCache(cep) {
+    try {
+      const s = localStorage.getItem(_quoteCacheKey(cep));
+      if (!s) return null;
+      const d = JSON.parse(s);
+      // Cache válido por 24h
+      if (Date.now() - (d.cachedAt || 0) > 24 * 60 * 60 * 1000) return null;
+      return d;
+    } catch (_) { return null; }
+  }
+  function _saveQuoteCache(cep, data) {
+    try { localStorage.setItem(_quoteCacheKey(cep), JSON.stringify({ ...data, cachedAt: Date.now() })); } catch (_) {}
+  }
+
   async function fetchDeliveryQuote(cep) {
     const cleanCep = (cep || '').replace(/\D/g, '');
     if (cleanCep.length !== 8) return null;
     const quoteEl = document.getElementById('af-quote');
-    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">🛵 calculando taxa de entrega…</div>';
+
+    // 1️⃣ Cache local — 0ms
+    const cached = _loadQuoteCache(cleanCep);
+    if (cached && cached.ok) {
+      window._deliveryQuote = { ...cached, cep: cleanCep };
+      _renderQuoteBox(quoteEl, cached);
+      return cached;
+    }
+
+    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">🛵 calculando taxa…</div>';
+
+    // 2️⃣ Backend com timeout 4s
     try {
-      const r = await fetch(`/api/webhook?action=delivery_quote&cep=${cleanCep}`);
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 4500);
+      const r = await fetch(`/api/webhook?action=delivery_quote&cep=${cleanCep}`, { signal: ctrl.signal });
+      clearTimeout(tid);
       const data = await r.json();
       if (!data.ok) {
         window._deliveryQuote = null;
@@ -7016,16 +7045,23 @@
         return data;
       }
       window._deliveryQuote = { ...data, cep: cleanCep };
-      if (data.out_of_range) {
-        if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);border-radius:10px;color:#FFB800;font-size:13px;line-height:1.5">⚠️ <b>${data.message}</b><br><span style="font-size:11px;color:var(--text-dim)">~${data.km}km até a loja</span></div>`;
-      } else {
-        if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">🛵 taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
-      }
+      _saveQuoteCache(cleanCep, data);
+      _renderQuoteBox(quoteEl, data);
       return data;
     } catch (e) {
       console.warn('[deliveryQuote]', e);
       window._deliveryQuote = null;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5">⚠️ <b>demorou demais</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats depois — o pedido segue normal</span></div>`;
       return null;
+    }
+  }
+
+  function _renderQuoteBox(el, data) {
+    if (!el) return;
+    if (data.out_of_range) {
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);border-radius:10px;color:#FFB800;font-size:13px;line-height:1.5">⚠️ <b>${data.message}</b><br><span style="font-size:11px;color:var(--text-dim)">~${data.km}km até a loja</span></div>`;
+    } else {
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">🛵 taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
     }
   }
 

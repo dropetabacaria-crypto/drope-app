@@ -13870,39 +13870,88 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
     const MAX_KM = 35;
 
     try {
-      // 1) Tenta BrasilAPI v2 (retorna lat/lng direto se tem)
-      let lat = null, lng = null, city = '', neigh = '';
+      // OTIMIZAÇÃO 04/06 (Andrade): 3 camadas
+      // 1️⃣ Cache Supabase (50ms se já viu esse CEP)
+      // 2️⃣ AwesomeAPI primária (350ms, retorna lat/lng direto)
+      // 3️⃣ BrasilAPI + Nominatim só como fallback raro
+      let lat = null, lng = null, city = '', neigh = '', street = '';
+      let source = '';
+
+      // 1️⃣ Cache Supabase
       try {
-        const r1 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`, { signal: AbortSignal.timeout(5000) });
-        if (r1.ok) {
-          const d = await r1.json();
-          city = d.city || '';
-          neigh = d.neighborhood || '';
-          const c = d.location?.coordinates;
-          if (c && typeof c.latitude === 'number' && typeof c.longitude === 'number') {
-            lat = c.latitude; lng = c.longitude;
-          } else if (c && c.latitude && c.longitude) {
-            lat = parseFloat(c.latitude); lng = parseFloat(c.longitude);
-          }
-          // Fallback: geocoda via Nominatim se BrasilAPI não teve lat/lng
-          if ((!lat || !lng) && d.street && d.neighborhood && d.city) {
-            const q = encodeURIComponent(`${d.street}, ${d.neighborhood}, ${d.city}, SP, Brasil`);
-            try {
-              const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
-                headers: { 'User-Agent': 'drope-app/1.0' },
-                signal: AbortSignal.timeout(5000),
-              });
-              if (r2.ok) {
-                const arr = await r2.json();
-                if (arr && arr[0]) { lat = parseFloat(arr[0].lat); lng = parseFloat(arr[0].lon); }
-              }
-            } catch (_) {}
-          }
+        const cached = await sbGet('drope_cep_cache', `cep=eq.${cep}&select=lat,lng,city,neigh,street&limit=1`);
+        if (Array.isArray(cached) && cached[0]) {
+          lat = cached[0].lat;
+          lng = cached[0].lng;
+          city = cached[0].city || '';
+          neigh = cached[0].neigh || '';
+          street = cached[0].street || '';
+          source = 'cache';
         }
       } catch (_) {}
 
+      // 2️⃣ AwesomeAPI (rápida, retorna lat/lng direto)
+      if (!lat || !lng) {
+        try {
+          const r = await fetch(`https://cep.awesomeapi.com.br/json/${cep}`, { signal: AbortSignal.timeout(4000) });
+          if (r.ok) {
+            const d = await r.json();
+            if (d.lat && d.lng) {
+              lat = parseFloat(d.lat);
+              lng = parseFloat(d.lng);
+              city = d.city || '';
+              neigh = d.district || '';
+              street = d.address || '';
+              source = 'awesomeapi';
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3️⃣ Fallback: BrasilAPI v2 + Nominatim (lento mas cobre CEPs raros)
+      if (!lat || !lng) {
+        try {
+          const r1 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`, { signal: AbortSignal.timeout(4000) });
+          if (r1.ok) {
+            const d = await r1.json();
+            city = city || d.city || '';
+            neigh = neigh || d.neighborhood || '';
+            street = street || d.street || '';
+            const c = d.location?.coordinates;
+            if (c && c.latitude && c.longitude) {
+              lat = typeof c.latitude === 'number' ? c.latitude : parseFloat(c.latitude);
+              lng = typeof c.longitude === 'number' ? c.longitude : parseFloat(c.longitude);
+              source = 'brasilapi';
+            } else if (d.street && d.neighborhood && d.city) {
+              const q = encodeURIComponent(`${d.street}, ${d.neighborhood}, ${d.city}, SP, Brasil`);
+              try {
+                const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+                  headers: { 'User-Agent': 'drope-app/1.0' },
+                  signal: AbortSignal.timeout(4000),
+                });
+                if (r2.ok) {
+                  const arr = await r2.json();
+                  if (arr && arr[0]) {
+                    lat = parseFloat(arr[0].lat);
+                    lng = parseFloat(arr[0].lon);
+                    source = 'nominatim';
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+
       if (!lat || !lng) {
         return res.status(200).json({ ok: false, error: 'cep não localizado', cep, city, neigh });
+      }
+
+      // Salva no cache pra próximas (best-effort, não bloqueia resposta)
+      if (source !== 'cache') {
+        try {
+          sbInsert('drope_cep_cache', { cep, lat, lng, city, neigh, street, source }).catch(() => {});
+        } catch (_) {}
       }
 
       // 2) Haversine
@@ -13937,6 +13986,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
         fee_cents,
         fmt,
         city, neigh,
+        source, // 'cache' | 'awesomeapi' | 'brasilapi' | 'nominatim' (debug)
       });
     } catch (e) {
       return res.status(500).json({ error: e.message });
