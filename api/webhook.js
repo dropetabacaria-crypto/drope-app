@@ -10309,9 +10309,8 @@ function refGalleryHtml(awaiting, token) {
         <div class="actions">
           ${!hasRef ? '<button class="btn use-box" data-op="use_box_as_ref">📸 usar foto da caixa como referência</button>' : ''}
           <button class="btn upload" data-op="trigger_upload">📤 upload nova foto de referência</button>
-          <button class="btn approve" data-op="approve">${hasRef ? 'aprovar referência ✓ (vai pro Grok)' : 'aceitar text-only ✓'}</button>
+          ${hasRef ? '<button class="btn approve" data-op="approve">aprovar referência ✓ (vai pro Grok)</button>' : ''}
           <button class="btn research" data-op="research_refs">🔄 buscar novas referências</button>
-          ${hasRef ? '<button class="btn text-only" data-op="reject_text_only">rejeitar — usar text-only</button>' : ''}
           <button class="btn skip" data-op="reject_skip">pular (resolvo depois)</button>
         </div>
         <div class="status"></div>
