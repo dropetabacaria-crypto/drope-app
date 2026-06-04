@@ -998,6 +998,67 @@
     line-height: 1.55;
     font-style: italic;
   }
+  /* PRODUTOS SIMILARES (Andrade 04/06): scroll horizontal estilo iFood/Amazon */
+  .similar-scroll {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 4px -18px 0;
+    padding: 4px 18px 6px;
+  }
+  .similar-scroll::-webkit-scrollbar { display: none; }
+  .similar-card {
+    flex: 0 0 130px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .15s, border-color .15s;
+  }
+  .similar-card:active { transform: scale(0.96); }
+  .similar-card:hover {
+    border-color: rgba(212,255,46,0.4);
+  }
+  .similar-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .similar-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .similar-emoji { font-size: 36px; line-height: 1; }
+  .similar-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    padding: 8px 10px 2px;
+    line-height: 1.2;
+    text-transform: lowercase;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 32px;
+  }
+  .similar-meta {
+    font-size: 10px;
+    color: var(--lime, #D4FF2E);
+    padding: 0 10px 2px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .similar-price {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--pink, #FF2D6F);
+    padding: 0 10px 10px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
   .product-price {
     padding: 0 24px;
     color: var(--pink);
@@ -8023,7 +8084,63 @@
       <div class="info-card-vibe">"${escapeHtml(vibe)}"</div>
     </div>` : '';
 
-    el.innerHTML = card1 + card2 + card3;
+    // Card 4 — Produtos similares (Andrade 04/06)
+    const similares = findSimilarProducts(p, 6);
+    const card4 = similares.length ? `<div class="info-card">
+      <div class="info-card-title">🦎 talvez você curta também</div>
+      <div class="similar-scroll">
+        ${similares.map(s => {
+          const sIdx = products.findIndex(x => x.slug === s.slug);
+          const visual = s.img
+            ? `<img src="${escapeHtml(s.img)}" alt="${escapeHtml(s.name)}" draggable="false">`
+            : `<div class="similar-emoji">${s.emoji || '🦎'}</div>`;
+          return `<div class="similar-card" onclick="openProduct(${sIdx})">
+            <div class="similar-thumb">${visual}</div>
+            <div class="similar-name">${escapeHtml((s.sabor || s.name || '').toLowerCase())}</div>
+            <div class="similar-meta">${escapeHtml((s.marca || '').toUpperCase())}</div>
+            <div class="similar-price">R$ ${(s.price || 0).toFixed(2).replace('.',',')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+    el.innerHTML = card1 + card2 + card3 + card4;
+  }
+
+  // Encontra produtos similares pra mostrar na tela de detalhe.
+  // Prioridade: mesma marca + perfil > mesma marca > mesmo perfil > mesma faixa puffs.
+  // Filtra: o próprio + sem estoque + sem preço.
+  function findSimilarProducts(p, limit = 6) {
+    if (!p || !products) return [];
+    const pool = products.filter(x => {
+      if (x.slug === p.slug) return false;
+      if (x.cat !== 'pod') return false;
+      if (typeof x.stock === 'number' && x.stock <= 0) return false;
+      if (!x.price || x.price <= 0) return false;
+      return true;
+    });
+    const score = (x) => {
+      let s = 0;
+      if (x.marca && p.marca && x.marca === p.marca) s += 50;
+      if (x.perfil && p.perfil && x.perfil === p.perfil) s += 30;
+      if (x.flavor_category && p.flavor_category && x.flavor_category === p.flavor_category) s += 25;
+      if (x.modelo && p.modelo && x.modelo === p.modelo) s += 20;
+      // faixa puffs similar (até 30% diff)
+      if (x.puffs && p.puffs) {
+        const diff = Math.abs(x.puffs - p.puffs) / p.puffs;
+        if (diff < 0.3) s += 10;
+      }
+      // preço similar (até 30% diff)
+      if (x.price && p.price) {
+        const diff = Math.abs(x.price - p.price) / p.price;
+        if (diff < 0.3) s += 5;
+      }
+      // pequeno aleatório pra desempate
+      s += Math.random() * 2;
+      return s;
+    };
+    pool.sort((a, b) => score(b) - score(a));
+    return pool.slice(0, limit);
   }
 
   function openProduct(idx, origin) {
