@@ -41,6 +41,7 @@
     { "path": "/api/webhook?action=briefing_reminder", "schedule": "0 13 * * 6" },
     { "path": "/api/webhook?action=saturday_dispatch", "schedule": "0 9 * * 6" },
     { "path": "/api/webhook?action=weekly_imune_report", "schedule": "0 13 * * 0" },
-    { "path": "/api/webhook?action=art_stuck_recovery", "schedule": "0 15 * * *" }
+    { "path": "/api/webhook?action=art_stuck_recovery", "schedule": "0 15 * * *" },
+    { "path": "/api/webhook?action=heal_pending_arts", "schedule": "*/10 * * * *" }
   ]
 }

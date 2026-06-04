@@ -8566,9 +8566,9 @@ async function pollNewArt(card, productId, overlay, tick, attempts) {
     const r = await fetch('/api/webhook?action=admin_product_status&id=' + productId + '&token=' + encodeURIComponent(TOKEN));
     if (r.ok) {
       const d = await r.json();
-      // FIX 04/06 (Andrade): às vezes Vercel timeout corta no fim — fica 'generating'
-      // com pending_art_url. Aceita esse caso também como "arte pronta".
-      const hasNewArt = d.pending_art_url && (d.image_status === 'awaiting_approval' || d.image_status === 'generating');
+      // FIX 04/06 (Andrade): Vercel timeout corta em vários estados intermediários.
+      // Se tem pending_art_url salvo, a arte tá pronta — qualquer estado serve.
+      const hasNewArt = d.pending_art_url && ['awaiting_approval','generating','pending_art','pending_regeneration'].includes(d.image_status);
       if (hasNewArt) {
         // Nova arte pronta! Substitui a imagem do card.
         clearInterval(tick);
@@ -10036,6 +10036,28 @@ async function handleGalleryView(req, res) {
     return res.status(500).send('supabase not configured');
   }
   try {
+    // FIX DEFINITIVO 04/06 (Andrade): auto-heal silencioso ANTES de renderizar.
+    // Promove arts presas pending_art/generating/pending_regeneration que já tem
+    // pending_art_url. Se nada precisa de heal, custo é 1 SELECT (~50ms).
+    try {
+      const cutoff = new Date(Date.now() - 90 * 1000).toISOString();
+      const stuck = await sbGet('drope_products',
+        `art_status=eq.reference_approved&image_status=in.(generating,pending_art,pending_regeneration)&image_url=is.null&updated_at=lt.${encodeURIComponent(cutoff)}&select=id,metadata&limit=20`);
+      for (const p of (stuck || [])) {
+        const m = p.metadata || {};
+        if (m.pending_art_url && m.qc_score != null) {
+          // Arte pronta no storage, só promover
+          await sbUpdate('drope_products', `id=eq.${p.id}`, {
+            image_status: 'awaiting_approval',
+            art_status: 'complete',
+          });
+          console.log(`[gallery auto-heal] PROMOTED productId=${p.id}`);
+        }
+      }
+    } catch (healErr) {
+      console.warn('[gallery auto-heal] err:', healErr.message);
+    }
+
     // OSSO 28C — query defensiva: aceita image_status=awaiting_approval (canon)
     // OU produto com art_status=complete + image_url=null (arte gerada mas
     // ficou dessincronizada — fallback pra não perder produto pra revisar).
@@ -14864,6 +14886,82 @@ async function generateAll(){
       return res.status(500).json({ error: e.message });
     }
   }
+
+  // ===== HEAL PENDING ARTS (04/06/2026 — fix Andrade hiper-mega-blaster) =====
+  // Resolve cenário recorrente: Vercel timeout (60s) corta runArtGeneration no FIM,
+  // arte já tá no storage (pending_art_url salvo + qc_score gravado), mas status
+  // não migrou pra awaiting_approval. Esse endpoint:
+  //   1. Encontra TODOS estados travados: generating, pending_art, pending_regeneration
+  //      com art_status=reference_approved e idade > 90s
+  //   2. Pra cada um:
+  //      - Se já tem pending_art_url + qc_score → PROMOVE direto (custo zero, SQL only)
+  //      - Senão → re-dispara generate_art
+  //   3. Retorna estatísticas
+  //
+  // Pode ser chamado:
+  //   - GET/POST manualmente
+  //   - Como cron (vercel.json) a cada 10 minutos
+  //   - Pelo handleGalleryView ANTES de renderizar (auto-heal silencioso)
+  //   - Pelo polling do frontend
+  if (req.url && req.url.indexOf('action=heal_pending_arts') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    // Auth: header OU querystring token (pra facilitar chamadas de UI)
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    const qsAuth = (() => {
+      const q = (req.url || '').split('?')[1] || '';
+      const p = q.split('&').find(x => x.startsWith('token='));
+      return p ? decodeURIComponent(p.slice(6)) : '';
+    })();
+    if (!ADMIN_TOKEN || (provided !== ADMIN_TOKEN && qsAuth !== ADMIN_TOKEN)) {
+      // Aceita cron auth (X-Vercel-Cron) também
+      if (!checkCronAuth(req)) return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      // Pega travados: vários estados de "esperando finalizar" + reference aprovada + idade > 90s
+      const cutoff = new Date(Date.now() - 90 * 1000).toISOString();
+      const stuck = await sbGet('drope_products',
+        `art_status=eq.reference_approved&image_status=in.(generating,pending_art,pending_regeneration)&image_url=is.null&updated_at=lt.${encodeURIComponent(cutoff)}&select=id,name,metadata,image_status&limit=30`);
+      const arr = Array.isArray(stuck) ? stuck : [];
+      if (arr.length === 0) {
+        return res.status(200).json({ ok: true, found: 0, promoted: 0, redispatched: 0 });
+      }
+      let promoted = 0;
+      let redispatched = 0;
+      const errors = [];
+      for (const p of arr) {
+        const meta = p.metadata || {};
+        const hasArt = !!meta.pending_art_url;
+        const hasQc = meta.qc_score != null;
+        try {
+          if (hasArt && hasQc) {
+            // CASO #1: arte pronta no storage, só falta promover. Custo zero.
+            await sbUpdate('drope_products', `id=eq.${p.id}`, {
+              image_status: 'awaiting_approval',
+              art_status: 'complete',
+            });
+            promoted++;
+            console.log(`[heal] PROMOTED productId=${p.id} ${p.name}`);
+          } else {
+            // CASO #2-4: nada salvo, re-disparar generate_art
+            await sbUpdate('drope_products', `id=eq.${p.id}`, { image_status: 'pending_art' });
+            const nextAttempt = (meta.last_art_attempt || 0) + 1;
+            fireBackgroundArtGeneration(p.id, ADMIN_LUCAS, nextAttempt)
+              .catch(e => console.warn('[heal redispatch]', p.id, e.message));
+            redispatched++;
+            console.log(`[heal] REDISPATCHED productId=${p.id} ${p.name}`);
+          }
+        } catch (e) { errors.push({ id: p.id, err: e.message }); }
+      }
+      try { await logSystemEvent('heal_pending_arts', { found: arr.length, promoted, redispatched }, ADMIN_LUCAS); } catch (_) {}
+      return res.status(200).json({ ok: true, found: arr.length, promoted, redispatched, errors });
+    } catch (e) {
+      console.error('[heal_pending_arts] error:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
 
   // ===== MASS KICKOFF SEARCH (08/05/2026) =====
   // Pega todos com art_status='pending_reference' + image_url null + sem refs (travados)
