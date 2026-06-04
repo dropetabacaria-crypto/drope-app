@@ -306,6 +306,115 @@
     margin-top: 4px;
   }
 
+  /* DROPE HOME v2 (04/06/2026) — Busca sticky + carrossel de marcas */
+  .search-bar-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding: 12px 16px 8px;
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 80%, rgba(10,10,20,0) 100%);
+    backdrop-filter: blur(8px);
+  }
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 10px 14px;
+    transition: all .2s;
+  }
+  .search-bar:focus-within {
+    border-color: var(--neon, #b026ff);
+    background: rgba(176,38,255,0.08);
+    box-shadow: 0 0 0 3px rgba(176,38,255,0.15);
+  }
+  .search-icon { width: 18px; height: 18px; color: rgba(255,255,255,0.4); flex-shrink: 0; }
+  .search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .search-input::placeholder { color: rgba(255,255,255,0.4); }
+  .search-clear {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .brands-wrap {
+    padding: 10px 16px 14px;
+    overflow: hidden;
+  }
+  .brands-scroll {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 4px;
+  }
+  .brands-scroll::-webkit-scrollbar { display: none; }
+  .brand-bubble {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 64px;
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .brand-bubble:active { transform: scale(0.92); }
+  .brand-bubble-circle {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a1a2a, #2a2a3e);
+    border: 2px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    line-height: 1;
+    padding: 4px;
+    transition: all .2s;
+    overflow: hidden;
+  }
+  .brand-bubble.active .brand-bubble-circle {
+    border-color: var(--neon, #b026ff);
+    background: linear-gradient(135deg, rgba(176,38,255,0.3), rgba(255,45,149,0.2));
+    box-shadow: 0 0 18px rgba(176,38,255,0.4);
+  }
+  .brand-bubble-name {
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    max-width: 70px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brand-bubble.active .brand-bubble-name {
+    color: var(--neon, #b026ff);
+    font-weight: 600;
+  }
+
   /* Categories scroll */
   .cats-wrap {
     display: flex;
@@ -1880,7 +1989,11 @@
     width: 200px;
     height: 200px;
     border-radius: 40px;
-    object-fit: cover;
+    /* FIX 04/06 (Andrade): logo 'DROPE' tava cortado nas pontas com cover.
+       Trocado pra contain pra mostrar logo INTEIRO sem corte. */
+    object-fit: contain;
+    background: #0a0a14;
+    padding: 8px;
     box-shadow: 0 20px 80px rgba(91, 33, 182, 0.6), 0 0 40px rgba(255, 45, 111, 0.3);
     position: relative;
     z-index: 1;
@@ -3274,19 +3387,30 @@
       </div>
     </div>
 
+    <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
+    <div class="search-bar-wrap">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="home-search" class="search-input" placeholder="procura por marca, sabor ou puffs..." oninput="searchProducts(this.value)" autocomplete="off">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+      </div>
+    </div>
+
+    <!-- DROPE HOME v2 — Carrossel horizontal de marcas (substitui chips redundantes embaixo) -->
+    <div class="brands-wrap" id="brands-wrap" style="display:none">
+      <div class="brands-scroll" id="brands-scroll"></div>
+    </div>
+
     <!-- OSSO 21 — Home personalizada (vibes pra novo, recompra+reco pra recorrente) -->
     <div id="home-personalized-wrap"></div>
 
     <div class="section-title display">Catálogo<span>o que dropou hoje</span></div>
 
-    <div class="cats-wrap">
-      <div class="cats" id="cats-row">
-        <div class="chip active" onclick="setPerfil('tudo', this)">tudo</div>
-        <div class="chip" onclick="setPerfil('frutado', this)">frutado</div>
-        <div class="chip" onclick="setPerfil('mentolado', this)">mentolado</div>
-        <div class="chip" onclick="setPerfil('gelado', this)">gelado</div>
-        <div class="chip" onclick="setPerfil('doce', this)">doce</div>
-      </div>
+    <!-- DROPE HOME v2 — Chips de vibe REMOVIDOS daqui (estavam duplicados com home-personalized-wrap).
+         Mantido só o filter-btn pra filtros avançados (puffs, preço, marca específica) -->
+    <div class="cats-wrap" style="justify-content:flex-end">
       <div class="filter-btn" onclick="openFilters()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/></svg>
         <div class="filter-badge" id="filter-badge" style="display:none">0</div>
@@ -6161,6 +6285,10 @@
       if (typeof renderGrid === 'function') {
         try { renderGrid(); } catch(e) {}
       }
+      // DROPE HOME v2 — re-renderiza carrossel de marcas quando catálogo atualiza
+      if (typeof renderBrandsCarousel === 'function') {
+        try { renderBrandsCarousel(); } catch(e) {}
+      }
       console.log('[catalog] carregou', products.length, 'produtos');
       return true;
     } catch(e) {
@@ -6762,6 +6890,22 @@
     if (filterState.marca && (p.cat !== 'pod' || p.marca !== filterState.marca)) return false;
     if (filterState.modelo && p.cat === 'pod' && !p.name.toLowerCase().includes(filterState.modelo)) return false;
     if (filterState.priceMax && p.price > Number(filterState.priceMax)) return false;
+    // DROPE HOME v2 (04/06) — busca livre + marca dos stories
+    if (typeof homeState !== 'undefined') {
+      if (homeState.selectedBrand) {
+        const pBrand = (p.marca || p.brand || '').toUpperCase();
+        if (pBrand !== homeState.selectedBrand) return false;
+      }
+      if (homeState.searchText) {
+        const q = homeState.searchText;
+        const hay = [
+          p.name, p.desc, p.marca, p.modelo, p.sabor, p.flavor_pt, p.flavor_en, p.brand,
+          p.puffs ? String(p.puffs) + 'k' : '', p.puffs ? String(p.puffs) : '',
+          p.perfil,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+    }
     return true;
   }
 
@@ -6942,6 +7086,103 @@
     syncSheetChips();
     syncPriceSlider();
   }
+
+  // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
+  const homeState = { searchText: '', selectedBrand: null };
+
+  function searchProducts(text) {
+    homeState.searchText = (text || '').toLowerCase().trim();
+    const clearBtn = document.getElementById('search-clear');
+    if (clearBtn) clearBtn.style.display = homeState.searchText ? 'flex' : 'none';
+    renderGrid();
+    // Auto-scroll pro catálogo quando busca >2 chars
+    if (homeState.searchText.length >= 2) {
+      try {
+        const target = document.querySelector('.section-title');
+        if (target) {
+          const y = target.getBoundingClientRect().top + window.scrollY - 80;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      } catch (e) {}
+    }
+  }
+
+  function clearSearch() {
+    const inp = document.getElementById('home-search');
+    if (inp) inp.value = '';
+    searchProducts('');
+  }
+
+  function selectBrand(brand) {
+    if (homeState.selectedBrand === brand) {
+      homeState.selectedBrand = null;
+    } else {
+      homeState.selectedBrand = brand;
+    }
+    document.querySelectorAll('.brand-bubble').forEach(b => {
+      b.classList.toggle('active', b.dataset.brand === homeState.selectedBrand);
+    });
+    renderGrid();
+    try {
+      const target = document.querySelector('.section-title');
+      if (target) {
+        const y = target.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    } catch (e) {}
+  }
+
+  function renderBrandsCarousel() {
+    const wrap = document.getElementById('brands-wrap');
+    const scroll = document.getElementById('brands-scroll');
+    if (!wrap || !scroll || !products || products.length === 0) return;
+    // Conta produtos por marca, ignora vazias
+    const brandMap = {};
+    products.forEach(p => {
+      const b = (p.marca || p.brand || '').trim().toUpperCase();
+      if (!b) return;
+      brandMap[b] = (brandMap[b] || 0) + 1;
+    });
+    const brands = Object.entries(brandMap)
+      .filter(([_, n]) => n >= 1)
+      .sort((a, b) => b[1] - a[1]); // mais produtos primeiro
+    if (brands.length === 0) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    // Render: cada marca vira bolinha. Primeiro item = "tudo" pra resetar.
+    let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
+      <div class="brand-bubble-circle" style="background:linear-gradient(135deg,#b026ff,#ff2d95);">🌎</div>
+      <div class="brand-bubble-name">tudo</div>
+    </div>`;
+    brands.forEach(([brand, count]) => {
+      // Pega 1ª e 2ª letras pra fallback visual (até ter logos reais)
+      const initials = brand.length >= 2 ? brand.slice(0, brand.length >= 6 ? 4 : 2).toUpperCase() : brand;
+      html += `<div class="brand-bubble" data-brand="${escapeHtml(brand)}" onclick="selectBrand('${escapeHtml(brand)}')">
+        <div class="brand-bubble-circle">${escapeHtml(initials)}</div>
+        <div class="brand-bubble-name">${escapeHtml(brand.toLowerCase())}</div>
+      </div>`;
+    });
+    scroll.innerHTML = html;
+  }
+
+  // Placeholder rotativo na busca (a cada 3s)
+  (function rotateSearchPlaceholder() {
+    const inp = document.getElementById('home-search');
+    if (!inp) return;
+    const placeholders = [
+      'procura por marca, sabor ou puffs...',
+      'ex: ELFBAR mango',
+      'ex: uva gelada',
+      'ex: 50K puffs',
+      'ex: BLACKSHEEP',
+      'digita o que tu quer 🦎',
+    ];
+    let idx = 0;
+    setInterval(() => {
+      if (document.activeElement === inp || inp.value) return;
+      idx = (idx + 1) % placeholders.length;
+      inp.placeholder = placeholders[idx];
+    }, 3000);
+  })();
 
   function renderGrid() {
     const podsEl = document.getElementById('grid-pods');

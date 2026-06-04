@@ -4280,7 +4280,7 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
   "brand": "marca em maiusculo (IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER, LOST MARY=LOSTMARY)",
   "model": "linha/modelo. SE NAO LER, USA null. NUNCA escreve 'unknown', 'desconhecido', '?'. Catalogo de modelos por marca:\n  - IGNITE: 'V155', 'V250', 'V300', 'V55', 'Boost'\n  - ELFBAR: 'BC15K', 'BC Pro', 'Trio', 'Iceking', 'TE 30K', 'GH 23K'\n  - BLACKSHEEP: 'Cyber Tank Pro', 'Cybertank', 'Spherex', 'Spherex Plus'\n  - LOSTMARY: 'MO5000', 'MO10000', 'MO20000', 'MT15000', 'OS5000', 'BM6000', 'PSYBER', 'Cosmic Edition', 'Tappo'\n  - DOJO: 'Fresh', 'Frosty', 'Splash'\n  - GEEKBAR: 'Frozen', 'White Peach', 'Stone Freeze', 'Pulse'\n  - ADALYA: 'AD5000', 'AD40K'\n  - VANTHER: '30K', 'Cool Mint Edition'\nSe a foto mostrar marca mas modelo ilegivel/cortado, preenche brand e deixa model=null. Procura na CAIXA texto pequeno tipo 'MO20000', 'V300', 'BC15K' (frequentemente perto do logo ou no canto).",
   "flavor_en": "sabor em ingles (ex 'Menthol', 'Mango Magic', 'Strawberry Ice')",
-  "flavor_pt": "sabor em portugues (ex 'Menta', 'Manga', 'Morango Gelado')",
+  "flavor_pt": "NOME DE PRATELEIRA em portugues BR — marketing Gen Z, não tradução literal. REGRAS: (1) usa conectivos quando bater bem ('Morango com Banana' não 'Morango Banana', 'Maçã no Gelo'), (2) diminutivos atrativos quando aplicável ('Maçã Verde Azedinha' não 'Maçã Verde Azeda', 'Uvinha Gelada' OK pra Grape Ice), (3) tropicaliza nomes evocativos ('Tropical Rainbow' → 'Arco-íris Tropical', 'Cosmic Edition' → 'Edição Cósmica'), (4) NUNCA literal robótico ('Strawberry Watermelon' → 'Morango com Melancia' não 'Morango Melancia'; 'Sour Apple Ice' → 'Maçã Verde Azedinha Gelada' não 'Maçã Verde Azeda Gelada'), (5) capitaliza palavras principais (não tudo minúsculo, não tudo CAPS), (6) max 4-5 palavras pra não virar nome longo demais. Ex bons: 'Manga Mágica', 'Framboesa Azul Gelada', 'Menta no Gelo', 'Uva Cosmic', 'Cereja com Limão', 'Frutas Vermelhas Gelada'. Ex ruins (evita): 'Maçã Verde Azeda Gelada', 'Frutas Vermelhas Assustadoras', 'Cabeças de Limão Lima'",
   "puffs": numero inteiro (ex 30000) ou null. INFERE do nome se nao tiver explicito: BC15K=15000, V155=15500, 30K=30000, 40K=40000, 45K=45000, 55K=55000. Se ver 'Ultra Slim' sozinho sem numero, usa null.
   "ml": float (ex 18, 20, 25). INFERE do contexto: pods 30k+ tipicamente 18-22ml; pods <20k tipicamente 12-15ml. Se incerto, usa null.
   "mg_nicotina": float. Padrao Brasil = 5 (5%). Se a caixa nao mostrar, usa 5. Se mostrar 50mg ou 5%, usa 5. Se 20mg, usa 2. Se 30mg, usa 3.
@@ -13402,6 +13402,16 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
           if (rule?.price_cents) priceCents = rule.price_cents;
         } catch (e) { console.warn('[quick_register] getPriceRule:', e.message); }
       }
+
+      // FRICÇÃO #011 (04/06/2026 Andrade): auto-.99 — defesa backend
+      // Se preço chegou redondo (8000 = R$ 80,00) vira 7999 (R$ 79,99).
+      // Frontend já faz, isso é fallback caso quick_register seja chamado direto via API
+      // ou auto-preço da regra de marca tenha valor redondo.
+      if (priceCents && priceCents > 0 && priceCents % 100 === 0) {
+        const original = priceCents;
+        priceCents = priceCents - 1;
+        console.log(`[quick_register] auto-.99: ${original/100} → ${priceCents/100}`);
+      }
       const finalPriceCents = priceCents || 0;
 
       // Dedup: se barcode bate ou brand+model+flavor existe, incrementa estoque
@@ -13676,18 +13686,18 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
 <script>
 // OSSO 29 — Admin Hub. Centraliza acesso a todas as telas /admin.
 // Login client-side: salva token em localStorage e propaga via URL params.
+// CLEANUP #012 (04/06/2026 Andrade): 11 → 8 tiles. Removidos refs (redundante com
+// Portão 1), saúde (técnico — eu aviso por log), feedback (raro). Ordem por uso real:
+// CORE (P1/P2/Esteira/Estoque/Pedidos) → secundário (Clientes/Balanço/Custos).
 const PAGES = [
   { id:'portao1',   icon:'🚪', label:'portão 1',  desc:'aprovar referência (antes do Grok)', url:'/api/webhook?action=ref_gallery', countKey:'ref_gallery', badgeColor:'amber' },
   { id:'portao2',   icon:'🎨', label:'portão 2',  desc:'aprovar arte do Grok',      url:'/api/webhook?action=gallery',            countKey:'gallery', badgeColor:'violet' },
   { id:'esteira',   icon:'🎯', label:'esteira',   desc:'sem-sabor → pendentes → gallery numa tela só', url:'/api/webhook?action=esteira', countKey:'esteira', badgeColor:'lime' },
   { id:'estoque',   icon:'📦', label:'estoque',   desc:'produtos cadastrados',      url:'/api/admin-list-stock',                  countKey:'stock', badgeColor:'amber' },
-  { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
   { id:'pedidos',   icon:'📋', label:'pedidos',   desc:'orders e status',           url:'/api/admin-orders',                       countKey:'orders', badgeColor:'violet' },
-  { id:'refs',      icon:'🔎', label:'refs',      desc:'referências do Serper',     url:'/api/webhook?action=pending_references', countKey:null, badgeColor:'' },
-  { id:'custos',    icon:'💰', label:'custos',    desc:'gastos com APIs (7d)',      url:'/api/webhook?action=cost_report&days=7', countKey:null, badgeColor:'' },
-  { id:'saude',     icon:'🏥', label:'saúde',     desc:'system health',             url:'/api/webhook?action=system_health',      countKey:null, badgeColor:'' },
+  { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
   { id:'balanco',   icon:'📊', label:'balanço',   desc:'conferência fisica vs digital', url:'/api/webhook?action=balance_panel',  countKey:null, badgeColor:'lime' },
-  { id:'feedback',  icon:'💬', label:'feedback',  desc:'bolinha admin',             url:'/api/webhook?action=feedback_list',      countKey:null, badgeColor:'' },
+  { id:'custos',    icon:'💰', label:'custos',    desc:'gastos com APIs (7d)',      url:'/api/webhook?action=cost_report&days=7', countKey:null, badgeColor:'' },
 ];
 function getToken() {
   const params = new URLSearchParams(location.search);

@@ -1377,7 +1377,12 @@ async function confirmRegister() {
     return;
   }
 
-  const priceCents = priceStr ? Math.round(parseFloat(priceStr.replace(',', '.')) * 100) : null;
+  // FRICÇÃO #011 (04/06): auto-transformação .99 — se digitar 80,00, vira 79,99
+  let priceCents = priceStr ? Math.round(parseFloat(priceStr.replace(',', '.')) * 100) : null;
+  if (priceCents && priceCents % 100 === 0) {
+    priceCents = priceCents - 1; // 8000 → 7999, 9000 → 8999, 10000 → 9999
+    showToast(`💰 preço ajustado pra R$ ${(priceCents/100).toFixed(2).replace('.',',')} (auto-.99)`, 'ok', T.TOAST_DEFAULT_MS);
+  }
   const v = state.visionData || {};
 
   const payload = {
