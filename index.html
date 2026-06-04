@@ -4516,19 +4516,10 @@
     </div>
 
     <div class="sheet-body">
+      <!-- DROPE FILTROS v2 (04/06/2026) — Chips dinâmicos, populados de products[] em openFilters() -->
       <div class="sheet-group">
         <div class="sheet-lbl">marca</div>
-        <div class="sheet-chips" id="sheet-marca">
-          <div class="s-chip" data-val="">todas</div>
-          <div class="s-chip" data-val="black sheep">Black Sheep</div>
-          <div class="s-chip" data-val="elf bar">Elf Bar</div>
-          <div class="s-chip" data-val="ignite">Ignite</div>
-          <div class="s-chip" data-val="dojo">Dojo</div>
-          <div class="s-chip" data-val="lost mary">Lost Mary</div>
-          <div class="s-chip" data-val="geek bar">Geek Bar</div>
-          <div class="s-chip" data-val="adalya">Adalya</div>
-          <div class="s-chip" data-val="vanther">Vanther</div>
-        </div>
+        <div class="sheet-chips" id="sheet-marca"></div>
       </div>
 
       <div class="sheet-group" id="sheet-modelo-group" style="display:none">
@@ -4538,36 +4529,12 @@
 
       <div class="sheet-group">
         <div class="sheet-lbl">puffs</div>
-        <div class="sheet-chips" id="sheet-puffs">
-          <div class="s-chip" data-val="">todas</div>
-          <div class="s-chip" data-val="5000">5k</div>
-          <div class="s-chip" data-val="15000">15k</div>
-          <div class="s-chip" data-val="23000">23k</div>
-          <div class="s-chip" data-val="25000">25k</div>
-          <div class="s-chip" data-val="30000">30k</div>
-          <div class="s-chip" data-val="35000">35k</div>
-          <div class="s-chip" data-val="40000">40k</div>
-          <div class="s-chip" data-val="45000">45k</div>
-          <div class="s-chip" data-val="55000">55k</div>
-        </div>
+        <div class="sheet-chips" id="sheet-puffs"></div>
       </div>
 
       <div class="sheet-group">
         <div class="sheet-lbl">sabor</div>
-        <div class="sheet-chips" id="sheet-sabor">
-          <div class="s-chip" data-val="">todos</div>
-          <div class="s-chip" data-val="morango">morango</div>
-          <div class="s-chip" data-val="menta">menta</div>
-          <div class="s-chip" data-val="blueberry">blueberry</div>
-          <div class="s-chip" data-val="maçã">maçã</div>
-          <div class="s-chip" data-val="uva">uva</div>
-          <div class="s-chip" data-val="manga">manga</div>
-          <div class="s-chip" data-val="banana">banana</div>
-          <div class="s-chip" data-val="abacaxi">abacaxi</div>
-          <div class="s-chip" data-val="pêssego">pêssego</div>
-          <div class="s-chip" data-val="melancia">melancia</div>
-          <div class="s-chip" data-val="mix frutas">mix frutas</div>
-        </div>
+        <div class="sheet-chips" id="sheet-sabor"></div>
       </div>
 
       <div class="sheet-group">
@@ -6886,8 +6853,18 @@
   function matchFilter(p) {
     if (filterState.perfil !== 'tudo' && p.cat === 'pod' && p.perfil !== filterState.perfil) return false;
     if (filterState.puffs && (p.cat !== 'pod' || String(p.puffs) !== filterState.puffs)) return false;
-    if (filterState.sabor && (p.cat !== 'pod' || p.sabor !== filterState.sabor)) return false;
-    if (filterState.marca && (p.cat !== 'pod' || p.marca !== filterState.marca)) return false;
+    if (filterState.sabor) {
+      // DROPE FILTROS v2 (04/06): match em name+flavor+sabor (não só campo sabor)
+      if (p.cat !== 'pod') return false;
+      const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
+      if (!txt.includes(filterState.sabor.toLowerCase())) return false;
+    }
+    if (filterState.marca) {
+      // DROPE FILTROS v2 (04/06): match case-insensitive (chips agora vêm lowercase do catálogo)
+      if (p.cat !== 'pod') return false;
+      const pMarca = (p.marca || p.brand || '').toLowerCase();
+      if (pMarca !== filterState.marca.toLowerCase()) return false;
+    }
     if (filterState.modelo && p.cat === 'pod' && !p.name.toLowerCase().includes(filterState.modelo)) return false;
     if (filterState.priceMax && p.price > Number(filterState.priceMax)) return false;
     // DROPE HOME v2 (04/06) — busca livre + marca dos stories
@@ -6953,12 +6930,82 @@
   }
 
   function openFilters() {
-    draftFilter = { puffs: filterState.puffs, sabor: filterState.sabor, marca: filterState.marca, priceMax: filterState.priceMax };
+    draftFilter = { puffs: filterState.puffs, sabor: filterState.sabor, marca: filterState.marca, modelo: filterState.modelo, priceMax: filterState.priceMax };
+    // DROPE FILTROS v2 (04/06): popula chips dinamicamente do catálogo real
+    populateFilterChips();
     syncSheetChips();
     syncPriceSlider();
     document.getElementById('sheet-bd').classList.add('open');
     document.getElementById('filter-sheet').classList.add('open');
     document.body.style.overflow = 'hidden';
+  }
+
+  function populateFilterChips() {
+    if (!products || !products.length) return;
+    const pods = products.filter(p => p.cat === 'pod');
+
+    // === MARCAS — extrai únicas do catálogo, ordena por qtd de produtos ===
+    const brandMap = {};
+    pods.forEach(p => {
+      const b = (p.marca || p.brand || '').trim().toLowerCase();
+      if (!b) return;
+      brandMap[b] = (brandMap[b] || 0) + 1;
+    });
+    const brands = Object.entries(brandMap).sort((a, b) => b[1] - a[1]);
+    const marcaEl = document.getElementById('sheet-marca');
+    if (marcaEl) {
+      marcaEl.innerHTML = '<div class="s-chip" data-val="">todas</div>' +
+        brands.map(([b, n]) => {
+          const label = b.toUpperCase();
+          return `<div class="s-chip" data-val="${escapeHtml(b)}">${escapeHtml(label)} <span style="opacity:0.5;font-size:10px">${n}</span></div>`;
+        }).join('');
+    }
+
+    // === PUFFS — agrupa em buckets visuais (15k, 30k, 40k+) ===
+    const puffsSet = new Set();
+    pods.forEach(p => {
+      if (p.puffs && p.puffs > 0) puffsSet.add(p.puffs);
+    });
+    const puffsList = [...puffsSet].sort((a, b) => a - b);
+    const puffsEl = document.getElementById('sheet-puffs');
+    if (puffsEl) {
+      puffsEl.innerHTML = '<div class="s-chip" data-val="">todos</div>' +
+        puffsList.map(p => {
+          const label = (p / 1000) + 'k';
+          return `<div class="s-chip" data-val="${p}">${label}</div>`;
+        }).join('');
+    }
+
+    // === SABORES — extrai keywords dos nomes/sabores do catálogo ===
+    // Lista de keywords conhecidas de sabor. Procura em name/flavor_pt/sabor.
+    const flavorKeywords = [
+      'morango','melancia','uva','manga','maçã','maca','banana','abacaxi','pêssego','pessego',
+      'cereja','laranja','limão','limao','lima','blueberry','mirtilo','framboesa','amora',
+      'kiwi','maracujá','maracuja','romã','roma','goiaba','toranja','tropical','menta',
+      'mentol','gelado','gelada','ice','frutas vermelhas','aloe','tamarindo','melão','melao',
+      'doce','bubblegum','salgada','energético','energetico'
+    ];
+    const flavorMap = {};
+    pods.forEach(p => {
+      const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
+      flavorKeywords.forEach(kw => {
+        if (txt.includes(kw)) {
+          flavorMap[kw] = (flavorMap[kw] || 0) + 1;
+        }
+      });
+    });
+    const flavors = Object.entries(flavorMap)
+      .filter(([_, n]) => n >= 1)
+      .sort((a, b) => b[1] - a[1]); // mais frequente primeiro
+    const saborEl = document.getElementById('sheet-sabor');
+    if (saborEl) {
+      saborEl.innerHTML = '<div class="s-chip" data-val="">todos</div>' +
+        flavors.map(([f, n]) => {
+          // Normaliza display (capitaliza, sem acentos duplicados)
+          const display = f.charAt(0).toUpperCase() + f.slice(1);
+          return `<div class="s-chip" data-val="${escapeHtml(f)}">${escapeHtml(display)} <span style="opacity:0.5;font-size:10px">${n}</span></div>`;
+        }).join('');
+    }
   }
 
   function closeFilters() {
