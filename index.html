@@ -528,10 +528,12 @@
   .sheet-backdrop {
     position: fixed;
     inset: 0;
-    /* DROPE FILTROS LIVE (04/06 Andrade): backdrop mais transparente pra ver
-       o catálogo filtrando em tempo real atrás do modal */
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(1px);
+    /* FIX 04/06 (Andrade): mais blur pra focar na frente, mas ainda dá
+       pra ver o catálogo filtrando atrás. Antes: 35% + blur 1px (muito vivo).
+       Agora: 55% + blur 8px (foco no modal, fundo abstrato). */
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px) saturate(0.7);
+    -webkit-backdrop-filter: blur(8px) saturate(0.7);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -588,31 +590,32 @@
     font-weight: 600;
   }
   .sheet-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  /* FIX 04/06 (Andrade): contraste dos chips melhorado.
-     Antes: text-dim cinza apagado + borda quase invisível.
-     Agora: text branco + borda visível, ACTIVE usa LIME (amarelo neon do Drope). */
+  /* FIX 04/06 (Andrade): contorno mais marcado em cada box do chip.
+     Border 1.5px sólida + sombra sutil pra dar volume aos chips. */
   .s-chip {
     padding: 10px 16px;
-    background: var(--card);
-    border: 1px solid rgba(212, 255, 46, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
     border-radius: 100px;
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.92);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     text-transform: lowercase;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
   }
   .s-chip:hover {
-    border-color: rgba(212, 255, 46, 0.45);
-    background: rgba(212, 255, 46, 0.05);
+    border-color: rgba(212, 255, 46, 0.55);
+    background: rgba(212, 255, 46, 0.08);
+    color: var(--lime, #D4FF2E);
   }
   .s-chip.active {
-    background: var(--lime);
-    border-color: var(--lime);
+    background: var(--lime, #D4FF2E);
+    border-color: var(--lime, #D4FF2E);
     color: #0a0a14;
     font-weight: 700;
-    box-shadow: 0 4px 20px rgba(212, 255, 46, 0.35);
+    box-shadow: 0 4px 20px rgba(212, 255, 46, 0.45), 0 0 0 1px rgba(212, 255, 46, 0.6);
   }
   /* Span de contador dentro dos chips (numeros tipo "elfbar 39") */
   .s-chip span {
