@@ -8379,9 +8379,13 @@ h1 em{color:var(--lime);font-style:normal}
 .cust{font-size:14px;font-weight:700;margin-bottom:2px}
 .phone{font-size:11px;color:var(--dim);margin-bottom:10px;font-family:'Space Grotesk',monospace}
 .items{font-size:13px;line-height:1.5;color:rgba(255,255,255,0.85)}
-.item-line{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
-.item-line .qty{color:var(--lime);font-weight:700;min-width:24px}
-.item-line .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-line{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.04)}
+.item-line:last-child{border-bottom:none}
+.item-line .thumb{flex-shrink:0;width:40px;height:40px;border-radius:8px;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px}
+.item-line .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.item-line .qty{color:var(--lime);font-weight:700;min-width:24px;font-size:14px}
+.item-line .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.item-line .pr{font-size:12px;color:var(--dim);font-family:'Space Grotesk',monospace}
 .addr{font-size:12px;color:var(--dim);margin-top:10px;padding-top:10px;border-top:1px dashed var(--b);line-height:1.5}
 .totals{padding:10px 14px;background:rgba(0,0,0,0.25);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--b)}
 .totals .lbl{font-size:11px;color:var(--dim)}
@@ -8529,7 +8533,17 @@ function renderCard(o) {
       <div class="cust">\${customer.name || 'sem nome'}</div>
       <div class="phone">\${customer.phone || '—'} \${customer.email ? '· '+customer.email : ''}</div>
       <div class="items">
-        \${items.map(it => \`<div class="item-line"><span class="qty">\${it.qty||1}×</span><span class="nm">\${it.name||'?'}</span><span>\${brl((it.price||0)*100*(it.qty||1))}</span></div>\`).join('')}
+        \${items.map(it => {
+          const thumbHtml = it.image_url
+            ? \`<img src="\${it.image_url}" alt="">\`
+            : \`<span>\${it.emoji || '🦎'}</span>\`;
+          return \`<div class="item-line">
+            <div class="thumb">\${thumbHtml}</div>
+            <span class="qty">\${it.qty||1}×</span>
+            <span class="nm">\${it.name||'?'}</span>
+            <span class="pr">\${brl((it.price||0)*100*(it.qty||1))}</span>
+          </div>\`;
+        }).join('')}
       </div>
       \${addrHtml}
     </div>
@@ -14012,6 +14026,24 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
     try {
       const since = new Date(Date.now() - 24*60*60*1000).toISOString();
       const orders = await sbGet('drope_orders', `created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=100`);
+      // ENRIQUECE itens com image_url e emoji do produto (Andrade 05/06)
+      try {
+        const products = await sbGet('drope_products', 'select=slug,image_url,name&limit=500');
+        const bySlug = {};
+        const byName = {};
+        (products || []).forEach(p => {
+          if (p.slug) bySlug[p.slug] = p;
+          if (p.name) byName[p.name] = p;
+        });
+        (orders || []).forEach(o => {
+          if (Array.isArray(o.items)) {
+            o.items = o.items.map(it => {
+              const match = (it.slug && bySlug[it.slug]) || (it.name && byName[it.name]);
+              return { ...it, image_url: match?.image_url || null };
+            });
+          }
+        });
+      } catch (e) { console.warn('[orders_list enrich]', e.message); }
       return res.status(200).json({ orders: orders || [], at: new Date().toISOString() });
     } catch (e) { return res.status(500).json({ error: e.message }); }
   }
