@@ -878,20 +878,41 @@
     flex-wrap: wrap;
     align-items: center;
   }
+  /* FRICÇÃO #004 (04/06 Andrade): pills coloridas com paleta neon do Drope */
   .product-meta .meta-pill {
     font-size: 11px;
-    font-weight: 600;
-    padding: 4px 10px;
+    font-weight: 700;
+    padding: 5px 11px;
     border-radius: 100px;
     border: 1px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.04);
-    color: var(--text-dim);
-    text-transform: none;
+    color: rgba(255,255,255,0.85);
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
   }
+  /* marca = lime/amarelo neon */
+  .product-meta .meta-pill.marca {
+    color: var(--lime, #D4FF2E);
+    border-color: rgba(212,255,46,0.4);
+    background: rgba(212,255,46,0.1);
+  }
+  /* modelo = violet/roxo neon */
+  .product-meta .meta-pill.modelo {
+    color: var(--neon, #b026ff);
+    border-color: rgba(176,38,255,0.4);
+    background: rgba(176,38,255,0.1);
+  }
+  /* puffs = pink/rosa neon */
   .product-meta .meta-pill.puffs {
-    color: var(--lime);
-    border-color: rgba(212,255,46,0.3);
-    background: rgba(212,255,46,0.08);
+    color: var(--pink, #FF2D6F);
+    border-color: rgba(255,45,111,0.4);
+    background: rgba(255,45,111,0.1);
+  }
+  /* sabor = azul-ciano */
+  .product-meta .meta-pill.sabor {
+    color: #6fdcff;
+    border-color: rgba(111,220,255,0.4);
+    background: rgba(111,220,255,0.1);
   }
   .product-desc {
     padding: 0 24px;
@@ -899,6 +920,77 @@
     font-size: 14px;
     margin-bottom: 16px;
     line-height: 1.5;
+  }
+  /* FRICÇÃO #004 (04/06 Andrade): cards informativos com specs + perfil sabor + vibe */
+  .product-info-cards {
+    padding: 24px 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .info-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(212,255,46,0.15);
+    border-radius: 16px;
+    padding: 16px 18px;
+  }
+  .info-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--lime, #D4FF2E);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 14px;
+    border-bottom: 1px dashed rgba(255,255,255,0.06);
+  }
+  .info-card-row:last-child { border-bottom: none; }
+  .info-card-label {
+    color: rgba(255,255,255,0.55);
+    font-weight: 500;
+  }
+  .info-card-value {
+    color: rgba(255,255,255,0.95);
+    font-weight: 600;
+    text-align: right;
+  }
+  .info-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .info-card-tag {
+    background: rgba(212,255,46,0.12);
+    color: var(--lime, #D4FF2E);
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: lowercase;
+  }
+  .info-card-tag.pink {
+    background: rgba(255,45,111,0.12);
+    color: var(--pink, #FF2D6F);
+  }
+  .info-card-tag.violet {
+    background: rgba(176,38,255,0.12);
+    color: var(--neon, #b026ff);
+  }
+  .info-card-vibe {
+    font-size: 14px;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.55;
+    font-style: italic;
   }
   .product-price {
     padding: 0 24px;
@@ -3549,6 +3641,10 @@
     <!-- OSSO-INDICADOR-ESTOQUE: mostra quanto tem disponível, dando ao cliente
          informação clara antes de tentar levar mais do que existe. -->
     <div id="d-stock-info" style="text-align:center; font-size:13px; color:var(--text-dim); margin-top:8px;"></div>
+
+    <!-- FRICÇÃO #004 (04/06/2026 Andrade): cards informativos.
+         Populados dinamicamente em openProduct(). -->
+    <div class="product-info-cards" id="d-info-cards"></div>
 
     <div style="height: 100px"></div>
 
@@ -7124,28 +7220,25 @@
       c.classList.toggle('active', c.dataset.val === draftFilter.marca);
       c.onclick = () => { draftFilter.marca = c.dataset.val; draftFilter.modelo = ''; syncSheetChips(); liveFilterUpdate(); };
     });
-    // Modelo dinâmico — só aparece quando marca tá selecionada
+    // FIX 04/06 (Andrade): modelo dinâmico SIMPLIFICADO — usa p.modelo direto
+    // do metadata em vez de tentar inferir do nome (que dava 'ct35000 sabor X').
+    // Agora cada modelo único aparece UMA VEZ (ex: CT35000, Cyber Tank Pro, V250).
     const modeloGroup = document.getElementById('sheet-modelo-group');
     const modeloChips = document.getElementById('sheet-modelo');
     if (draftFilter.marca) {
       const marcaProds = products.filter(p => p.marca === draftFilter.marca);
-      const modelos = [...new Set(marcaProds.map(p => {
-        const nm = p.name.toLowerCase().replace(draftFilter.marca.toLowerCase(), '').trim();
-        const parts = nm.split(' ');
-        // Pega modelo: palavras antes do sabor (ex: "ice king", "v250", "bc 15k", "trio")
-        const puffsStr = String(p.puffs / 1000) + 'k';
-        const sabores = ['blueberry','miami','cool','aloe','mango','green','double','summer','peach','blue','sour','sakura','pomegranate','strawberry','pear','pineapple','elf','banana','menthol','icy','grape','watermelon','dragonfruit','minty','melon','fresh','hawaii','berry','frosty','frozen','white','stone','fruity','passion','guava','mixed'];
-        let modelo = [];
-        for (const w of parts) {
-          if (sabores.includes(w) || w === puffsStr || w.match(/^\d+k$/)) break;
-          modelo.push(w);
-        }
-        return modelo.join(' ').trim();
-      }).filter(m => m.length > 0))];
+      const modelosMap = {};
+      marcaProds.forEach(p => {
+        const m = (p.modelo || '').trim();
+        if (m) modelosMap[m] = (modelosMap[m] || 0) + 1;
+      });
+      const modelos = Object.entries(modelosMap).sort((a, b) => b[1] - a[1]);
       if (modelos.length > 1) {
         modeloGroup.style.display = '';
         modeloChips.innerHTML = '<div class="s-chip' + (!draftFilter.modelo ? ' active' : '') + '" data-val="">todos</div>' +
-          modelos.map(m => '<div class="s-chip' + (draftFilter.modelo === m ? ' active' : '') + '" data-val="' + m + '">' + m + '</div>').join('');
+          modelos.map(([m, n]) =>
+            `<div class="s-chip${draftFilter.modelo === m ? ' active' : ''}" data-val="${escapeHtml(m)}">${escapeHtml(m.toUpperCase())} <span style="opacity:0.5;font-size:10px">${n}</span></div>`
+          ).join('');
         modeloChips.querySelectorAll('.s-chip').forEach(c => {
           c.onclick = () => { draftFilter.modelo = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
         });
@@ -7808,6 +7901,72 @@
     document.getElementById('cp-exp').textContent = v || '••/••';
   }
 
+  // FRICÇÃO #004 (04/06 Andrade): tela detalhe com 3 cards informativos
+  // 🦎 sobre o pod (specs) | 🍇 perfil do sabor | ✨ vibe (storytelling)
+  function populateInfoCards(p) {
+    const el = document.getElementById('d-info-cards');
+    if (!el) return;
+    if (p.cat !== 'pod') { el.innerHTML = ''; return; }
+
+    // Card 1 — Sobre o pod (specs técnicas)
+    const specsRows = [];
+    if (p.marca) specsRows.push(['marca', p.marca.toUpperCase()]);
+    if (p.modelo) specsRows.push(['modelo', p.modelo.toUpperCase()]);
+    if (typeof p.puffs === 'number' && p.puffs > 0) {
+      const label = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
+      specsRows.push(['duração', label]);
+    }
+    // Nicotina e ml não vem direto, mas tem hardcode padrão Brasil
+    specsRows.push(['nicotina', '5% (50mg)']);
+    specsRows.push(['pagamento', 'só Pix']);
+    if (typeof p.stock === 'number' && p.stock > 0) {
+      specsRows.push(['em estoque', p.stock + (p.stock === 1 ? ' unidade' : ' unidades')]);
+    }
+    const card1 = `<div class="info-card">
+      <div class="info-card-title">🦎 sobre o pod</div>
+      ${specsRows.map(([l, v]) => `
+        <div class="info-card-row">
+          <span class="info-card-label">${escapeHtml(l)}</span>
+          <span class="info-card-value">${escapeHtml(v)}</span>
+        </div>
+      `).join('')}
+    </div>`;
+
+    // Card 2 — Perfil do sabor (tags coloridas)
+    const sabor = p.sabor || '';
+    const perfilTags = [];
+    const cat = (p.flavor_category || p.perfil || '').toLowerCase();
+    const catLabels = { fruity: 'frutado', sweet: 'doce', icy: 'gelado', menthol: 'mentolado', tobacco: 'tabaco', frutado: 'frutado', doce: 'doce', gelado: 'gelado', mentolado: 'mentolado' };
+    if (catLabels[cat]) perfilTags.push({ label: catLabels[cat], cls: cat.includes('ic') || cat.includes('gel') ? '' : (cat.includes('men') ? 'violet' : 'pink') });
+    // Detecta sub-perfis no nome/sabor
+    const lower = ((p.name || '') + ' ' + sabor).toLowerCase();
+    if (/\b(ice|gel|frio|frost)/i.test(lower) && !perfilTags.find(t => t.label === 'gelado')) perfilTags.push({ label: 'com gelo', cls: '' });
+    if (/\b(menta|mint|menthol)\b/i.test(lower) && !perfilTags.find(t => t.label === 'mentolado')) perfilTags.push({ label: 'com menta', cls: 'violet' });
+    if (/\b(doce|sweet|candy|bubble)/i.test(lower) && !perfilTags.find(t => t.label === 'doce')) perfilTags.push({ label: 'docinho', cls: 'pink' });
+    if (/\b(azed|sour|tang)/i.test(lower)) perfilTags.push({ label: 'azedinho', cls: 'pink' });
+    if (/\b(tropic|exotic)/i.test(lower)) perfilTags.push({ label: 'tropical', cls: '' });
+
+    const card2 = `<div class="info-card">
+      <div class="info-card-title">🍇 perfil do sabor</div>
+      ${sabor ? `<div class="info-card-row">
+        <span class="info-card-label">sabor</span>
+        <span class="info-card-value">${escapeHtml(sabor)}</span>
+      </div>` : ''}
+      ${perfilTags.length ? `<div class="info-card-tags">
+        ${perfilTags.map(t => `<span class="info-card-tag ${t.cls || ''}">${escapeHtml(t.label)}</span>`).join('')}
+      </div>` : ''}
+    </div>`;
+
+    // Card 3 — Vibe (storytelling do Vision)
+    const vibe = p.desc || '';
+    const card3 = vibe ? `<div class="info-card">
+      <div class="info-card-title">✨ a vibe</div>
+      <div class="info-card-vibe">"${escapeHtml(vibe)}"</div>
+    </div>` : '';
+
+    el.innerHTML = card1 + card2 + card3;
+  }
+
   function openProduct(idx, origin) {
     currentProduct = idx;
     currentQty = 1;
@@ -7831,13 +7990,16 @@
     // porque p.puffs >= 1000 era false e caía em null + ' puffs' = "null puffs".
     const metaEl = document.getElementById('d-meta');
     if (metaEl && p.cat === 'pod') {
+      // FRICÇÃO #004 (04/06 Andrade): pills com cores da paleta neon
+      // marca=lime, modelo=violet, puffs=pink, sabor=neon-azul
       const pills = [];
-      if (p.marca) pills.push(`<span class="meta-pill">${escapeHtml(p.marca)}</span>`);
+      if (p.marca) pills.push(`<span class="meta-pill marca">${escapeHtml(p.marca.toUpperCase())}</span>`);
+      if (p.modelo) pills.push(`<span class="meta-pill modelo">${escapeHtml(p.modelo.toUpperCase())}</span>`);
       if (typeof p.puffs === 'number' && p.puffs > 0) {
         const puffsLabel = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
         pills.push(`<span class="meta-pill puffs">${puffsLabel}</span>`);
       }
-      if (p.sabor) pills.push(`<span class="meta-pill">${escapeHtml(p.sabor)}</span>`);
+      if (p.sabor) pills.push(`<span class="meta-pill sabor">${escapeHtml(p.sabor)}</span>`);
       if (pills.length > 0) {
         metaEl.innerHTML = pills.join('');
         metaEl.style.display = 'flex';
@@ -7848,6 +8010,8 @@
       metaEl.style.display = 'none';
     }
     document.getElementById('d-desc').textContent = p.desc;
+    // FRICÇÃO #004 (04/06): popula cards informativos com specs + perfil + vibe
+    if (typeof populateInfoCards === 'function') populateInfoCards(p);
     // OSSO-FIX-PRECO-ZERO: produto sem preço (0/null/undefined) não pode vazar
     // pro cliente como "r$ 0". Mostra placeholder e mais à frente desabilita o
     // botão de compra (caindo no fluxo de WhatsApp pra cliente perguntar).
