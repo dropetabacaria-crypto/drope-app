@@ -511,8 +511,10 @@
   .sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    /* DROPE FILTROS LIVE (04/06 Andrade): backdrop mais transparente pra ver
+       o catálogo filtrando em tempo real atrás do modal */
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(1px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -7078,15 +7080,16 @@
   function syncSheetChips() {
     document.querySelectorAll('#sheet-puffs .s-chip').forEach(c => {
       c.classList.toggle('active', c.dataset.val === draftFilter.puffs);
-      c.onclick = () => { draftFilter.puffs = c.dataset.val; syncSheetChips(); };
+      // DROPE FILTROS LIVE: dispara liveFilterUpdate em cada clique
+      c.onclick = () => { draftFilter.puffs = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
     });
     document.querySelectorAll('#sheet-sabor .s-chip').forEach(c => {
       c.classList.toggle('active', c.dataset.val === draftFilter.sabor);
-      c.onclick = () => { draftFilter.sabor = c.dataset.val; syncSheetChips(); };
+      c.onclick = () => { draftFilter.sabor = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
     });
     document.querySelectorAll('#sheet-marca .s-chip').forEach(c => {
       c.classList.toggle('active', c.dataset.val === draftFilter.marca);
-      c.onclick = () => { draftFilter.marca = c.dataset.val; draftFilter.modelo = ''; syncSheetChips(); };
+      c.onclick = () => { draftFilter.marca = c.dataset.val; draftFilter.modelo = ''; syncSheetChips(); liveFilterUpdate(); };
     });
     // Modelo dinâmico — só aparece quando marca tá selecionada
     const modeloGroup = document.getElementById('sheet-modelo-group');
@@ -7111,7 +7114,7 @@
         modeloChips.innerHTML = '<div class="s-chip' + (!draftFilter.modelo ? ' active' : '') + '" data-val="">todos</div>' +
           modelos.map(m => '<div class="s-chip' + (draftFilter.modelo === m ? ' active' : '') + '" data-val="' + m + '">' + m + '</div>').join('');
         modeloChips.querySelectorAll('.s-chip').forEach(c => {
-          c.onclick = () => { draftFilter.modelo = c.dataset.val; syncSheetChips(); };
+          c.onclick = () => { draftFilter.modelo = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
         });
       } else {
         modeloGroup.style.display = 'none';
@@ -7173,10 +7176,21 @@
       stepsEl.querySelectorAll('span').forEach((s, i) => {
         s.classList.toggle('active', Number(slider.value) >= i + 1);
       });
+      // DROPE FILTROS LIVE: aplica preço em tempo real conforme arrasta
+      if (typeof liveFilterUpdate === 'function') liveFilterUpdate();
     };
   }
 
   function applyFilters() {
+    // Apenas fecha o modal — mudanças já foram aplicadas em tempo real via liveFilterUpdate()
+    closeFilters();
+    const n = filterCount();
+    if (n > 0) toast(`${n} filtro${n > 1 ? 's' : ''} ativo${n > 1 ? 's' : ''} ✦`);
+  }
+
+  // DROPE FILTROS LIVE (04/06/2026 Andrade): qualquer toque no modal aplica na hora,
+  // sem precisar fechar e clicar 'aplicar'. Usuário vê o catálogo filtrando em tempo real.
+  function liveFilterUpdate() {
     filterState.puffs = draftFilter.puffs;
     filterState.sabor = draftFilter.sabor;
     filterState.marca = draftFilter.marca;
@@ -7184,15 +7198,29 @@
     filterState.priceMax = draftFilter.priceMax;
     updateFilterBadge();
     renderGrid();
-    closeFilters();
-    const n = filterCount();
-    if (n > 0) toast(`${n} filtro${n > 1 ? 's' : ''} ativo${n > 1 ? 's' : ''} ✦`);
+    // Atualiza contador no botão "aplicar" do modal
+    updateApplyButtonCount();
+  }
+
+  function updateApplyButtonCount() {
+    const applyBtn = document.querySelector('.sheet-cta .btn-primary');
+    if (!applyBtn) return;
+    // Conta produtos visíveis no estado atual de filtros
+    const visible = products.filter(p => matchFilter(p)).length;
+    if (filterCount() > 0) {
+      applyBtn.textContent = `✓ ver ${visible} drop${visible !== 1 ? 's' : ''}`;
+    } else {
+      applyBtn.textContent = 'aplicar';
+    }
   }
 
   function clearFilters() {
     draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
+    // Limpa o modelo também
+    filterState.modelo = '';
     syncSheetChips();
     syncPriceSlider();
+    liveFilterUpdate();
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
