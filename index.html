@@ -617,22 +617,9 @@
     font-weight: 700;
     box-shadow: 0 4px 20px rgba(212, 255, 46, 0.45), 0 0 0 1px rgba(212, 255, 46, 0.6);
   }
-  /* CROSS-FILTER (04/06 Andrade): chips com count=0 ficam apagados,
-     sem cursor pointer, sem hover. Cliente vê que "não tem" mas não clica. */
-  .s-chip.disabled {
-    opacity: 0.28;
-    cursor: not-allowed;
-    background: transparent;
-    border-style: dashed;
-    border-color: rgba(255,255,255,0.1);
-    box-shadow: none;
-    text-decoration: line-through;
-  }
-  .s-chip.disabled:hover {
-    border-color: rgba(255,255,255,0.1);
-    background: transparent;
-    color: rgba(255,255,255,0.92);
-  }
+  /* CROSS-FILTER (04/06 Andrade pediu): opção sem estoque/sem cruzamento
+     SOME completamente, não fica só apagada. */
+  .s-chip.disabled { display: none !important; }
   /* Span de contador dentro dos chips (numeros tipo "elfbar 39") */
   .s-chip span {
     color: rgba(255, 255, 255, 0.45);
