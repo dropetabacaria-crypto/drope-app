@@ -7000,21 +7000,54 @@
     }
   }
 
-  // OTIMIZADO 04/06 (Andrade): cache localStorage + timeout 4s.
-  // 1ª vez: ~400ms (AwesomeAPI). 2ª vez mesmo CEP: 0ms (cache local).
+  // OTIMIZADO 04/06 (Andrade) v2: 100% frontend.
+  // Vercel tava sendo bloqueado pela AwesomeAPI, então passei TODO o cálculo
+  // pro navegador do cliente. Velocidade total: 100-300ms na 1ª vez, 0ms depois.
+  const DROPE_STORE_LAT = -23.5838437;
+  const DROPE_STORE_LNG = -46.5901294;
+  const DROPE_BASE_FEE_CENTS = 500;
+  const DROPE_PER_KM_CENTS = 200;
+  const DROPE_MAX_KM = 35;
+
   function _quoteCacheKey(cep) { return 'drope_quote_' + cep; }
   function _loadQuoteCache(cep) {
     try {
       const s = localStorage.getItem(_quoteCacheKey(cep));
       if (!s) return null;
       const d = JSON.parse(s);
-      // Cache válido por 24h
       if (Date.now() - (d.cachedAt || 0) > 24 * 60 * 60 * 1000) return null;
       return d;
     } catch (_) { return null; }
   }
   function _saveQuoteCache(cep, data) {
     try { localStorage.setItem(_quoteCacheKey(cep), JSON.stringify({ ...data, cachedAt: Date.now() })); } catch (_) {}
+  }
+
+  function _haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function _calcQuote(lat, lng, city, neigh) {
+    const km = _haversineKm(DROPE_STORE_LAT, DROPE_STORE_LNG, lat, lng);
+    const kmR = Math.round(km * 10) / 10;
+    if (km > DROPE_MAX_KM) {
+      return {
+        ok: true,
+        out_of_range: true,
+        km: kmR,
+        city, neigh,
+        message: `${city || 'esse endereço'} fica longe (~${Math.round(km)}km) ✦ vamos conversar pelo whats antes de fechar`,
+      };
+    }
+    const raw = DROPE_BASE_FEE_CENTS + Math.round(km * DROPE_PER_KM_CENTS);
+    const fee_cents = Math.max(500, Math.ceil(raw / 100) * 100 - 1);
+    const fmt = 'R$ ' + (fee_cents / 100).toFixed(2).replace('.', ',');
+    return { ok: true, out_of_range: false, km: kmR, fee_cents, fmt, city, neigh };
   }
 
   async function fetchDeliveryQuote(cep) {
@@ -7032,26 +7065,43 @@
 
     if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">🛵 calculando taxa…</div>';
 
-    // 2️⃣ Backend com timeout 4s
+    // 2️⃣ AwesomeAPI direto do navegador (~100-300ms, sem bloqueio Vercel)
     try {
       const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 4500);
+      const tid = setTimeout(() => ctrl.abort(), 3500);
+      const r = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.lat && d.lng) {
+          const data = _calcQuote(parseFloat(d.lat), parseFloat(d.lng), d.city || '', d.district || '');
+          window._deliveryQuote = { ...data, cep: cleanCep };
+          _saveQuoteCache(cleanCep, data);
+          _renderQuoteBox(quoteEl, data);
+          return data;
+        }
+      }
+    } catch (_) {}
+
+    // 3️⃣ Fallback: backend (BrasilAPI+Nominatim com cache Supabase)
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 5000);
       const r = await fetch(`/api/webhook?action=delivery_quote&cep=${cleanCep}`, { signal: ctrl.signal });
       clearTimeout(tid);
       const data = await r.json();
-      if (!data.ok) {
-        window._deliveryQuote = null;
-        if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">⚠️ ${data.error || 'CEP não localizado'}</div>`;
+      if (data.ok) {
+        window._deliveryQuote = { ...data, cep: cleanCep };
+        _saveQuoteCache(cleanCep, data);
+        _renderQuoteBox(quoteEl, data);
         return data;
       }
-      window._deliveryQuote = { ...data, cep: cleanCep };
-      _saveQuoteCache(cleanCep, data);
-      _renderQuoteBox(quoteEl, data);
+      window._deliveryQuote = null;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">⚠️ ${data.error || 'CEP não localizado'}</div>`;
       return data;
     } catch (e) {
-      console.warn('[deliveryQuote]', e);
       window._deliveryQuote = null;
-      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5">⚠️ <b>demorou demais</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats depois — o pedido segue normal</span></div>`;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5">⚠️ <b>não consegui calcular</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats — pedido segue normal</span></div>`;
       return null;
     }
   }
