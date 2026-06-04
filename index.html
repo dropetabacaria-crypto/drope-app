@@ -588,23 +588,39 @@
     font-weight: 600;
   }
   .sheet-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* FIX 04/06 (Andrade): contraste dos chips melhorado.
+     Antes: text-dim cinza apagado + borda quase invisível.
+     Agora: text branco + borda visível, ACTIVE usa LIME (amarelo neon do Drope). */
   .s-chip {
     padding: 10px 16px;
     background: var(--card);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(212, 255, 46, 0.18);
     border-radius: 100px;
-    color: var(--text-dim);
+    color: rgba(255, 255, 255, 0.88);
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     text-transform: lowercase;
   }
+  .s-chip:hover {
+    border-color: rgba(212, 255, 46, 0.45);
+    background: rgba(212, 255, 46, 0.05);
+  }
   .s-chip.active {
-    background: var(--violet);
-    border-color: var(--violet);
-    color: white;
-    box-shadow: 0 4px 20px rgba(91, 33, 182, 0.5);
+    background: var(--lime);
+    border-color: var(--lime);
+    color: #0a0a14;
+    font-weight: 700;
+    box-shadow: 0 4px 20px rgba(212, 255, 46, 0.35);
+  }
+  /* Span de contador dentro dos chips (numeros tipo "elfbar 39") */
+  .s-chip span {
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 500;
+  }
+  .s-chip.active span {
+    color: rgba(10, 10, 20, 0.55);
   }
 
   /* Price slider */
