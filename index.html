@@ -617,6 +617,22 @@
     font-weight: 700;
     box-shadow: 0 4px 20px rgba(212, 255, 46, 0.45), 0 0 0 1px rgba(212, 255, 46, 0.6);
   }
+  /* CROSS-FILTER (04/06 Andrade): chips com count=0 ficam apagados,
+     sem cursor pointer, sem hover. Cliente vê que "não tem" mas não clica. */
+  .s-chip.disabled {
+    opacity: 0.28;
+    cursor: not-allowed;
+    background: transparent;
+    border-style: dashed;
+    border-color: rgba(255,255,255,0.1);
+    box-shadow: none;
+    text-decoration: line-through;
+  }
+  .s-chip.disabled:hover {
+    border-color: rgba(255,255,255,0.1);
+    background: transparent;
+    color: rgba(255,255,255,0.92);
+  }
   /* Span de contador dentro dos chips (numeros tipo "elfbar 39") */
   .s-chip span {
     color: rgba(255, 255, 255, 0.45);
@@ -7135,44 +7151,84 @@
     document.body.style.overflow = 'hidden';
   }
 
+  // CROSS-FILTER (04/06 Andrade): cada dimensão (marca/puffs/sabor/modelo)
+  // mostra COUNT considerando os OUTROS filtros ativos. Ex: clicou ELFBAR,
+  // os puffs/sabores que não existem em ELFBAR ficam disabled (count 0).
+  // Tipo Mercado Livre — cliente não perde tempo procurando o que não tem.
+  function _matchProductsExcept(excludeDim) {
+    const pods = products.filter(p => p.cat === 'pod');
+    return pods.filter(p => {
+      if (excludeDim !== 'marca' && draftFilter.marca) {
+        const pMarca = (p.marca || '').toLowerCase();
+        if (pMarca !== draftFilter.marca.toLowerCase()) return false;
+      }
+      if (excludeDim !== 'modelo' && draftFilter.modelo) {
+        if ((p.modelo || '').trim() !== draftFilter.modelo.trim()) return false;
+      }
+      if (excludeDim !== 'puffs' && draftFilter.puffs) {
+        if (String(p.puffs) !== draftFilter.puffs) return false;
+      }
+      if (excludeDim !== 'sabor' && draftFilter.sabor) {
+        const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
+        if (!txt.includes(draftFilter.sabor.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }
+
   function populateFilterChips() {
     if (!products || !products.length) return;
-    const pods = products.filter(p => p.cat === 'pod');
 
-    // === MARCAS — extrai únicas do catálogo, ordena por qtd de produtos ===
+    // === MARCAS — count = produtos que cabem se selecionar essa marca (com outros filtros ativos) ===
+    const marcasPossiveis = _matchProductsExcept('marca');
     const brandMap = {};
-    pods.forEach(p => {
+    marcasPossiveis.forEach(p => {
       const b = (p.marca || p.brand || '').trim().toLowerCase();
       if (!b) return;
       brandMap[b] = (brandMap[b] || 0) + 1;
     });
-    const brands = Object.entries(brandMap).sort((a, b) => b[1] - a[1]);
+    // Marcas de TODO catálogo (pra mostrar mesmo as zeradas, disabled)
+    const todasAsMarcas = new Set();
+    products.filter(p => p.cat === 'pod').forEach(p => {
+      const b = (p.marca || p.brand || '').trim().toLowerCase();
+      if (b) todasAsMarcas.add(b);
+    });
+    const brands = [...todasAsMarcas]
+      .map(b => [b, brandMap[b] || 0])
+      .sort((a, b) => b[1] - a[1]); // disponíveis primeiro
     const marcaEl = document.getElementById('sheet-marca');
     if (marcaEl) {
-      marcaEl.innerHTML = '<div class="s-chip" data-val="">todas</div>' +
+      marcaEl.innerHTML = '<div class="s-chip' + (!draftFilter.marca ? ' active' : '') + '" data-val="">todas</div>' +
         brands.map(([b, n]) => {
           const label = b.toUpperCase();
-          return `<div class="s-chip" data-val="${escapeHtml(b)}">${escapeHtml(label)} <span style="opacity:0.5;font-size:10px">${n}</span></div>`;
+          const isDisabled = n === 0 && draftFilter.marca !== b;
+          return `<div class="s-chip${draftFilter.marca === b ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-val="${escapeHtml(b)}">${escapeHtml(label)} <span style="opacity:0.5;font-size:10px">${n}</span></div>`;
         }).join('');
     }
 
-    // === PUFFS — agrupa em buckets visuais (15k, 30k, 40k+) ===
-    const puffsSet = new Set();
-    pods.forEach(p => {
-      if (p.puffs && p.puffs > 0) puffsSet.add(p.puffs);
+    // === PUFFS ===
+    const puffsPossiveis = _matchProductsExcept('puffs');
+    const puffsMap = {};
+    puffsPossiveis.forEach(p => {
+      if (p.puffs && p.puffs > 0) puffsMap[p.puffs] = (puffsMap[p.puffs] || 0) + 1;
     });
-    const puffsList = [...puffsSet].sort((a, b) => a - b);
+    const todosPuffs = new Set();
+    products.filter(p => p.cat === 'pod').forEach(p => {
+      if (p.puffs && p.puffs > 0) todosPuffs.add(p.puffs);
+    });
+    const puffsList = [...todosPuffs].sort((a, b) => a - b);
     const puffsEl = document.getElementById('sheet-puffs');
     if (puffsEl) {
-      puffsEl.innerHTML = '<div class="s-chip" data-val="">todos</div>' +
+      puffsEl.innerHTML = '<div class="s-chip' + (!draftFilter.puffs ? ' active' : '') + '" data-val="">todos</div>' +
         puffsList.map(p => {
           const label = (p / 1000) + 'k';
-          return `<div class="s-chip" data-val="${p}">${label}</div>`;
+          const n = puffsMap[p] || 0;
+          const isDisabled = n === 0 && String(draftFilter.puffs) !== String(p);
+          return `<div class="s-chip${String(draftFilter.puffs) === String(p) ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-val="${p}">${label}${n > 0 ? ` <span style="opacity:0.5;font-size:10px">${n}</span>` : ''}</div>`;
         }).join('');
     }
 
-    // === SABORES — extrai keywords dos nomes/sabores do catálogo ===
-    // Lista de keywords conhecidas de sabor. Procura em name/flavor_pt/sabor.
+    // === SABORES ===
     const flavorKeywords = [
       'morango','melancia','uva','manga','maçã','maca','banana','abacaxi','pêssego','pessego',
       'cereja','laranja','limão','limao','lima','blueberry','mirtilo','framboesa','amora',
@@ -7180,25 +7236,32 @@
       'mentol','gelado','gelada','ice','frutas vermelhas','aloe','tamarindo','melão','melao',
       'doce','bubblegum','salgada','energético','energetico'
     ];
+    const saborPossiveis = _matchProductsExcept('sabor');
     const flavorMap = {};
-    pods.forEach(p => {
+    saborPossiveis.forEach(p => {
       const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
       flavorKeywords.forEach(kw => {
-        if (txt.includes(kw)) {
-          flavorMap[kw] = (flavorMap[kw] || 0) + 1;
-        }
+        if (txt.includes(kw)) flavorMap[kw] = (flavorMap[kw] || 0) + 1;
       });
     });
-    const flavors = Object.entries(flavorMap)
-      .filter(([_, n]) => n >= 1)
-      .sort((a, b) => b[1] - a[1]); // mais frequente primeiro
+    // Sabores que existem em TODO catálogo (pra mostrar mesmo zerados)
+    const todosSabores = new Set();
+    products.filter(p => p.cat === 'pod').forEach(p => {
+      const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
+      flavorKeywords.forEach(kw => {
+        if (txt.includes(kw)) todosSabores.add(kw);
+      });
+    });
+    const flavors = [...todosSabores]
+      .map(f => [f, flavorMap[f] || 0])
+      .sort((a, b) => b[1] - a[1]);
     const saborEl = document.getElementById('sheet-sabor');
     if (saborEl) {
-      saborEl.innerHTML = '<div class="s-chip" data-val="">todos</div>' +
+      saborEl.innerHTML = '<div class="s-chip' + (!draftFilter.sabor ? ' active' : '') + '" data-val="">todos</div>' +
         flavors.map(([f, n]) => {
-          // Normaliza display (capitaliza, sem acentos duplicados)
           const display = f.charAt(0).toUpperCase() + f.slice(1);
-          return `<div class="s-chip" data-val="${escapeHtml(f)}">${escapeHtml(display)} <span style="opacity:0.5;font-size:10px">${n}</span></div>`;
+          const isDisabled = n === 0 && draftFilter.sabor !== f;
+          return `<div class="s-chip${draftFilter.sabor === f ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-val="${escapeHtml(f)}">${escapeHtml(display)}${n > 0 ? ` <span style="opacity:0.5;font-size:10px">${n}</span>` : ''}</div>`;
         }).join('');
     }
   }
@@ -7211,17 +7274,17 @@
 
   function syncSheetChips() {
     document.querySelectorAll('#sheet-puffs .s-chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.val === draftFilter.puffs);
-      // DROPE FILTROS LIVE: dispara liveFilterUpdate em cada clique
-      c.onclick = () => { draftFilter.puffs = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
+      // CROSS-FILTER: bloqueia click se disabled (count 0 + não ativo)
+      if (c.classList.contains('disabled')) { c.onclick = null; return; }
+      c.onclick = () => { draftFilter.puffs = c.dataset.val; liveFilterUpdate(); };
     });
     document.querySelectorAll('#sheet-sabor .s-chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.val === draftFilter.sabor);
-      c.onclick = () => { draftFilter.sabor = c.dataset.val; syncSheetChips(); liveFilterUpdate(); };
+      if (c.classList.contains('disabled')) { c.onclick = null; return; }
+      c.onclick = () => { draftFilter.sabor = c.dataset.val; liveFilterUpdate(); };
     });
     document.querySelectorAll('#sheet-marca .s-chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.val === draftFilter.marca);
-      c.onclick = () => { draftFilter.marca = c.dataset.val; draftFilter.modelo = ''; syncSheetChips(); liveFilterUpdate(); };
+      if (c.classList.contains('disabled')) { c.onclick = null; return; }
+      c.onclick = () => { draftFilter.marca = c.dataset.val; draftFilter.modelo = ''; liveFilterUpdate(); };
     });
     // FIX 04/06 (Andrade): modelo dinâmico SIMPLIFICADO — usa p.modelo direto
     // do metadata em vez de tentar inferir do nome (que dava 'ct35000 sabor X').
@@ -7327,6 +7390,9 @@
     filterState.priceMax = draftFilter.priceMax;
     updateFilterBadge();
     renderGrid();
+    // CROSS-FILTER (04/06 Andrade): re-popula chips com counts atualizados
+    populateFilterChips();
+    syncSheetChips();
     // Atualiza contador no botão "aplicar" do modal
     updateApplyButtonCount();
   }
