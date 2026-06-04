@@ -5220,6 +5220,16 @@
       const s = localStorage.getItem(COUPONS_KEY);
       if (s) coupons = JSON.parse(s) || coupons;
     } catch(e) {}
+    // FRICÇÃO #009 (04/06 Andrade): garante que built-in coupons sempre existem,
+    // mesmo se o localStorage tem versão antiga sem eles.
+    const BUILT_IN = [
+      { code: 'DROPE10', discount: 10, desc: 'r$ 10 off ✦ boas-vindas', active: true },
+      { code: 'HYPE20', discount: 20, desc: 'r$ 20 off ✦ pedido de honra', active: true },
+      { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
+    ];
+    BUILT_IN.forEach(bc => {
+      if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
+    });
   }
   loadCoupons();
 
