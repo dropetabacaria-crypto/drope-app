@@ -8382,7 +8382,12 @@ function galleryHtml(awaiting, approved, token) {
           <div class="name">${fullName}</div>
           <div class="meta">${brand} ${model} ${flavor}</div>
         </div>
-        ${isApproved ? '' : `
+        ${isApproved ? `
+        <div class="actions">
+          <button class="btn redo" data-op="redo">🔄 refazer arte (volta pro Portão 1)</button>
+        </div>
+        <div class="status"></div>
+        ` : `
         ${historyHtml}
         <div class="inputs">
           <input type="text" data-field="barcode" placeholder="EAN do produto" value="${barcode}">
@@ -8445,6 +8450,7 @@ h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: up
 .approve { background: var(--lime); color: #000; }
 .regen { background: var(--neon); color: #fff; }
 .back-p1 { background: #ff8c00; color: #000; }
+.redo { background: #ff8c00; color: #000; font-size: 13px; padding: 11px; }
 .reject { background: #333; color: #fff; }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: .5; cursor: wait; }
@@ -8496,7 +8502,7 @@ document.querySelectorAll('.card').forEach(card => {
         if (!r.ok || !data.ok) throw new Error(data.error || ('HTTP ' + r.status));
         status.className = 'status ok';
         status.textContent = data.message || 'ok';
-        if (op === 'approve') {
+        if (op === 'approve' || op === 'redo' || op === 'reject') {
           card.style.transition = 'opacity .4s';
           card.style.opacity = '0';
           setTimeout(() => card.remove(), 500);
@@ -9989,7 +9995,7 @@ async function handleGalleryAction(req, res) {
   if (!id || !op) return res.status(400).json({ ok: false, error: 'missing id or op' });
 
   try {
-    const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&select=id,name,slug,metadata&limit=1`);
+    const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&select=id,name,slug,metadata,image_url&limit=1`);
     const product = rows[0];
     if (!product) return res.status(404).json({ ok: false, error: 'product not found' });
 
@@ -10023,6 +10029,27 @@ async function handleGalleryAction(req, res) {
       // e re-disparar Grok. Fecha o loop: P1 → Grok → P2 → reject → P1 → loop.
       update.image_status = 'pending_pod_photo';
       update.art_status = 'awaiting_ref_approval';
+    } else if (op === 'redo') {
+      // PEDIDO ANDRADE (04/06): refazer arte JÁ APROVADA que voltou ao catálogo.
+      // Vai pro Portão 1 com ref/image limpos pra escolher nova referência.
+      // Salva image_url antiga em metadata pra eventual restauração.
+      const newMeta = { ...meta };
+      if (product.image_url) {
+        const history = Array.isArray(newMeta.art_attempts) ? newMeta.art_attempts.slice(0, 9) : [];
+        history.unshift({
+          url: product.image_url,
+          generated_at: new Date().toISOString(),
+          feedback: 'aprovada errada — refazer',
+          was_approved: true,
+        });
+        newMeta.art_attempts = history;
+      }
+      newMeta.redo_at = new Date().toISOString();
+      update.metadata = newMeta;
+      update.image_url = null;
+      update.image_status = 'pending_pod_photo';
+      update.art_status = 'needs_manual_photo';
+      update.reference_image_url = null;
     } else {
       return res.status(400).json({ ok: false, error: 'invalid op' });
     }
@@ -10054,7 +10081,7 @@ async function handleGalleryAction(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: op === 'approve' ? 'aprovada ✓ — vídeo em background' : (op === 'regenerate' ? 'regerando agora (~30s)' : 'rejeitada'),
+      message: op === 'approve' ? 'aprovada ✓ — vídeo em background' : (op === 'regenerate' ? 'regerando agora (~30s)' : (op === 'redo' ? 'voltou pro Portão 1 — escolhe nova ref' : 'rejeitada')),
     });
   } catch (e) {
     console.error('[gallery action] error:', e.message);
