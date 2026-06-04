@@ -8330,6 +8330,308 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// ORDERS DASHBOARD (04/06/2026 Andrade) — estilo iFood Restaurante.
+// HTML que se popula via polling de /api/webhook?action=orders_list&token=X.
+// Auto-refresh 15s + som ao detectar novo pedido + cards coloridos por status.
+function ordersDashboardHtml() {
+  return `<!doctype html>
+<html lang="pt-br"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drope ✦ Pedidos</title>
+<style>
+:root { --bg:#0A0A14; --bg2:#14141F; --neon:#b026ff; --lime:#D4FF2E; --pink:#FF2D6F; --amber:#FFB800; --teal:#3DDC97; --txt:#fff; --dim:#8A8AA3; --b:rgba(255,255,255,0.08); }
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,system-ui,Inter,sans-serif;min-height:100dvh;padding:0}
+header{position:sticky;top:0;background:rgba(10,10,20,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--b);padding:14px 16px;z-index:10}
+.h-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:700}
+h1 em{color:var(--lime);font-style:normal}
+.h-stats{display:flex;gap:14px;font-size:12px;color:var(--dim);margin-left:auto}
+.h-stats .num{color:var(--lime);font-weight:700;font-size:13px}
+.nav-back{padding:8px 14px;border-radius:10px;background:var(--bg2);border:1px solid var(--b);color:var(--txt);font-size:12px;text-decoration:none;cursor:pointer}
+.nav-back:hover{border-color:var(--neon);color:var(--neon)}
+.tabs{display:flex;gap:6px;padding:12px 16px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;background:var(--bg2);border:1px solid var(--b);color:var(--txt);padding:8px 14px;border-radius:99px;cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;font-family:inherit}
+.tab:hover{border-color:var(--neon)}
+.tab.active{background:var(--neon);color:#fff;border-color:var(--neon)}
+.tab .count{background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;min-width:20px;text-align:center}
+.tab.active .count{background:rgba(255,255,255,0.25)}
+.grid{padding:14px 16px;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+.empty{padding:40px 20px;text-align:center;color:var(--dim);font-style:italic}
+.card{background:var(--bg2);border:1px solid var(--b);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:var(--neon)}
+.card-top{padding:12px 14px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--b)}
+.status-badge{padding:4px 10px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em}
+.s-waiting{background:rgba(255,184,0,0.15);color:var(--amber)}
+.s-paid{background:rgba(61,220,151,0.18);color:var(--teal)}
+.s-prepared{background:rgba(176,38,255,0.18);color:var(--neon)}
+.s-dispatched{background:rgba(212,255,46,0.2);color:var(--lime)}
+.s-delivered, .s-picked_up, .s-completed{background:rgba(61,220,151,0.18);color:var(--teal)}
+.s-cancelled{background:rgba(255,45,111,0.15);color:var(--pink)}
+.order-num{font-family:'Space Grotesk',monospace;font-size:13px;font-weight:700;color:var(--lime);margin-left:auto}
+.card-mode{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em}
+.mode-delivery{color:var(--pink)}
+.mode-pickup{color:var(--lime)}
+.mode-pos{color:var(--dim)}
+.card-body{padding:12px 14px;flex:1}
+.cust{font-size:14px;font-weight:700;margin-bottom:2px}
+.phone{font-size:11px;color:var(--dim);margin-bottom:10px;font-family:'Space Grotesk',monospace}
+.items{font-size:13px;line-height:1.5;color:rgba(255,255,255,0.85)}
+.item-line{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.item-line .qty{color:var(--lime);font-weight:700;min-width:24px}
+.item-line .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addr{font-size:12px;color:var(--dim);margin-top:10px;padding-top:10px;border-top:1px dashed var(--b);line-height:1.5}
+.totals{padding:10px 14px;background:rgba(0,0,0,0.25);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--b)}
+.totals .lbl{font-size:11px;color:var(--dim)}
+.totals .val{font-size:18px;font-weight:700;color:var(--pink);font-family:'Space Grotesk',monospace}
+.totals .pay{font-size:10px;color:var(--dim);text-transform:uppercase;margin-top:2px}
+.actions{padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--b)}
+.act-btn{flex:1;min-width:80px;padding:9px;border-radius:8px;border:1px solid var(--b);background:transparent;color:var(--txt);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:0.04em;transition:all .15s}
+.act-btn:active{transform:scale(0.96)}
+.act-btn.primary{background:var(--lime);color:#000;border-color:var(--lime)}
+.act-btn.primary:hover{filter:brightness(1.1)}
+.act-btn.secondary{background:var(--neon);color:#fff;border-color:var(--neon)}
+.act-btn.ghost:hover{border-color:var(--neon);color:var(--neon)}
+.act-btn.danger:hover{border-color:var(--pink);color:var(--pink)}
+.time{font-size:10px;color:var(--dim)}
+.fresh-glow{box-shadow:0 0 0 2px var(--lime),0 0 24px rgba(212,255,46,0.4);animation:pulse 2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 2px var(--lime),0 0 32px rgba(212,255,46,0.6)}}
+.sound-toggle{padding:8px 12px;border-radius:99px;background:var(--bg2);border:1px solid var(--b);color:var(--dim);font-size:11px;cursor:pointer;font-family:inherit}
+.sound-toggle.on{color:var(--lime);border-color:var(--lime)}
+.last-update{font-size:10px;color:var(--dim);padding:0 16px 12px}
+</style>
+</head><body>
+
+<header>
+  <div class="h-row">
+    <a class="nav-back" id="hub-link" href="#">🏠 Hub</a>
+    <h1>Drope ✦ <em>Pedidos</em></h1>
+    <button class="sound-toggle" id="sound-toggle" onclick="toggleSound()">🔔 som ligado</button>
+    <div class="h-stats">
+      <div>hoje: <span class="num" id="stat-total">0</span></div>
+      <div>pendentes: <span class="num" id="stat-pending">0</span></div>
+      <div>faturamento: <span class="num" id="stat-revenue">R$ 0</span></div>
+    </div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-filter="all" onclick="setFilter('all')">tudo <span class="count" id="c-all">0</span></button>
+    <button class="tab" data-filter="new" onclick="setFilter('new')">🔔 novos <span class="count" id="c-new">0</span></button>
+    <button class="tab" data-filter="active" onclick="setFilter('active')">🛵 em andamento <span class="count" id="c-active">0</span></button>
+    <button class="tab" data-filter="done" onclick="setFilter('done')">✅ finalizados <span class="count" id="c-done">0</span></button>
+  </div>
+</header>
+
+<div class="last-update" id="last-update">carregando…</div>
+<div class="grid" id="grid"></div>
+
+<audio id="notif-sound" preload="auto" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="></audio>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('token') || (localStorage.getItem('drope_admin_token') || '');
+let currentFilter = 'all';
+let knownOrderIds = new Set();
+let firstLoad = true;
+let soundOn = (function(){ try { return localStorage.getItem('drope_orders_sound') !== '0'; } catch(_){ return true; } })();
+document.getElementById('hub-link').href = '/api/webhook?action=admin_hub&token=' + encodeURIComponent(TOKEN);
+
+const STATUS_LABEL = {
+  waiting: '⏳ aguardando',
+  pending: '⏳ aguardando',
+  pix_sent: '💳 pix enviado',
+  paid: '💚 pago',
+  prepared: '🎒 preparado',
+  dispatched: '🛵 em rota',
+  delivered: '✅ entregue',
+  picked_up: '✅ retirado',
+  completed: '✅ concluído',
+  cancelled: '❌ cancelado',
+};
+
+const STATUS_CLASS = (s) => {
+  if (s === 'waiting' || s === 'pending' || s === 'pix_sent') return 's-waiting';
+  if (s === 'paid') return 's-paid';
+  if (s === 'prepared') return 's-prepared';
+  if (s === 'dispatched') return 's-dispatched';
+  if (s === 'delivered' || s === 'picked_up' || s === 'completed') return 's-delivered';
+  if (s === 'cancelled') return 's-cancelled';
+  return 's-waiting';
+};
+
+function brl(cents) {
+  return 'R$ ' + ((Number(cents) || 0) / 100).toFixed(2).replace('.', ',');
+}
+
+function ago(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return min + 'min atrás';
+  const h = Math.floor(min / 60);
+  if (h < 24) return h + 'h atrás';
+  return Math.floor(h/24) + 'd atrás';
+}
+
+function modeLabel(m) {
+  if (m === 'delivery') return '🛵 ENTREGA';
+  if (m === 'pickup') return '🏪 RETIRADA';
+  if (m === 'pos') return '🏪 PDV LOJA';
+  return m || '?';
+}
+
+function modeClass(m) {
+  if (m === 'delivery') return 'mode-delivery';
+  if (m === 'pickup') return 'mode-pickup';
+  return 'mode-pos';
+}
+
+function nextActions(o) {
+  const s = o.status;
+  if (s === 'waiting' || s === 'pending' || s === 'pix_sent') {
+    return [{ label: '✓ marcar pago', cls: 'primary', next: 'paid' }, { label: '✕ cancelar', cls: 'danger', next: 'cancelled' }];
+  }
+  if (s === 'paid') {
+    if (o.delivery_mode === 'pos') return [{ label: '✓ concluir', cls: 'primary', next: 'completed' }];
+    return [{ label: '🎒 preparado', cls: 'secondary', next: 'prepared' }];
+  }
+  if (s === 'prepared') {
+    if (o.delivery_mode === 'pickup') return [{ label: '✅ retirado', cls: 'primary', next: 'picked_up' }];
+    return [{ label: '🛵 em rota', cls: 'secondary', next: 'dispatched' }];
+  }
+  if (s === 'dispatched') return [{ label: '✅ entregue', cls: 'primary', next: 'delivered' }];
+  return [];
+}
+
+function matchFilter(o) {
+  if (currentFilter === 'all') return true;
+  const s = o.status;
+  if (currentFilter === 'new') return ['waiting','pending','pix_sent'].includes(s);
+  if (currentFilter === 'active') return ['paid','prepared','dispatched'].includes(s);
+  if (currentFilter === 'done') return ['delivered','picked_up','completed','cancelled'].includes(s);
+  return true;
+}
+
+function renderCard(o) {
+  const customer = o.customer_snapshot || {};
+  const items = Array.isArray(o.items) ? o.items : [];
+  const addr = o.address || null;
+  const isFresh = ['waiting','pending','pix_sent'].includes(o.status);
+  const acts = nextActions(o);
+  const addrHtml = addr ? \`<div class="addr">📍 \${(addr.street||'') + ', ' + (addr.num||'')}\${addr.comp?', '+addr.comp:''}\${addr.neigh?' · '+addr.neigh:''}\${addr.cep?' · '+addr.cep:''}\${addr.ref?'<br>ref: '+addr.ref:''}</div>\` : '';
+  return \`<div class="card \${isFresh?'fresh-glow':''}" data-id="\${o.id}">
+    <div class="card-top">
+      <div class="status-badge \${STATUS_CLASS(o.status)}">\${STATUS_LABEL[o.status] || o.status}</div>
+      <div class="card-mode \${modeClass(o.delivery_mode)}">\${modeLabel(o.delivery_mode)}</div>
+      <div class="order-num">#\${(o.order_nsu||'').slice(0,12) || ('dr-'+o.id)}</div>
+    </div>
+    <div class="card-body">
+      <div class="cust">\${customer.name || 'sem nome'}</div>
+      <div class="phone">\${customer.phone || '—'} \${customer.email ? '· '+customer.email : ''}</div>
+      <div class="items">
+        \${items.map(it => \`<div class="item-line"><span class="qty">\${it.qty||1}×</span><span class="nm">\${it.name||'?'}</span><span>\${brl((it.price||0)*100*(it.qty||1))}</span></div>\`).join('')}
+      </div>
+      \${addrHtml}
+    </div>
+    <div class="totals">
+      <div>
+        <div class="lbl">total</div>
+        <div class="pay">\${(o.payment_method||'?').toUpperCase()}</div>
+      </div>
+      <div class="val">\${brl(o.total_cents || 0)}</div>
+    </div>
+    <div class="actions">
+      <span class="time" style="flex:0 0 100%;color:var(--dim);font-size:10px;margin-bottom:4px">criado \${ago(o.created_at)}</span>
+      \${acts.map(a => \`<button class="act-btn \${a.cls}" onclick="updateStatus(\${o.id},'\${a.next}',this)">\${a.label}</button>\`).join('')}
+    </div>
+  </div>\`;
+}
+
+async function updateStatus(id, newStatus, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const r = await fetch('/api/webhook?action=orders_update_status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ id, new_status: newStatus })
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    await loadOrders();
+  } catch (e) {
+    alert('erro: ' + e.message);
+    if (btn) btn.disabled = false;
+  }
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+  render();
+}
+
+let allOrders = [];
+
+function render() {
+  const grid = document.getElementById('grid');
+  const filtered = allOrders.filter(matchFilter);
+  grid.innerHTML = filtered.length ? filtered.map(renderCard).join('') : '<div class="empty">nada por aqui ainda ✦</div>';
+  // Counts
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todays = allOrders.filter(o => new Date(o.created_at) >= today);
+  const pending = todays.filter(o => ['waiting','pending','pix_sent'].includes(o.status));
+  const revenue = todays.filter(o => o.status !== 'cancelled').reduce((s,o) => s + (o.total_cents||0), 0);
+  document.getElementById('stat-total').textContent = todays.length;
+  document.getElementById('stat-pending').textContent = pending.length;
+  document.getElementById('stat-revenue').textContent = brl(revenue);
+  document.getElementById('c-all').textContent = allOrders.length;
+  document.getElementById('c-new').textContent = allOrders.filter(o => ['waiting','pending','pix_sent'].includes(o.status)).length;
+  document.getElementById('c-active').textContent = allOrders.filter(o => ['paid','prepared','dispatched'].includes(o.status)).length;
+  document.getElementById('c-done').textContent = allOrders.filter(o => ['delivered','picked_up','completed','cancelled'].includes(o.status)).length;
+}
+
+async function loadOrders() {
+  try {
+    const r = await fetch('/api/webhook?action=orders_list&token=' + encodeURIComponent(TOKEN));
+    if (!r.ok) throw new Error('http ' + r.status);
+    const data = await r.json();
+    const newIds = new Set();
+    const newOnes = [];
+    (data.orders || []).forEach(o => {
+      newIds.add(o.id);
+      if (!firstLoad && !knownOrderIds.has(o.id)) newOnes.push(o);
+    });
+    if (newOnes.length > 0 && soundOn) {
+      try { const a = document.getElementById('notif-sound'); a && a.play && a.play().catch(()=>{}); } catch(_){}
+      // Flash do título
+      let n = 0; const orig = document.title;
+      const flash = setInterval(() => { document.title = (n%2===0) ? '🔔 NOVO PEDIDO ✦ Drope' : orig; n++; if (n>6){clearInterval(flash); document.title=orig;} }, 600);
+    }
+    knownOrderIds = newIds;
+    firstLoad = false;
+    allOrders = data.orders || [];
+    document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' · auto-refresh 15s';
+    render();
+  } catch (e) {
+    document.getElementById('last-update').textContent = 'erro: ' + e.message;
+  }
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  try { localStorage.setItem('drope_orders_sound', soundOn ? '1' : '0'); } catch(_){}
+  const b = document.getElementById('sound-toggle');
+  b.textContent = soundOn ? '🔔 som ligado' : '🔕 som desligado';
+  b.classList.toggle('on', soundOn);
+}
+document.getElementById('sound-toggle').classList.toggle('on', soundOn);
+document.getElementById('sound-toggle').textContent = soundOn ? '🔔 som ligado' : '🔕 som desligado';
+
+loadOrders();
+setInterval(loadOrders, 15000);
+</script>
+</body></html>`;
+}
+
 function galleryHtml(awaiting, approved, token) {
   const renderCard = (p, isApproved) => {
     const m = p.metadata || {};
@@ -13546,6 +13848,51 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
     }
   }
 
+  // ===== ORDERS DASHBOARD (04/06/2026 Andrade) — estilo iFood =====
+  // GET /api/webhook?action=orders_dashboard&token=X → HTML dashboard cards coloridos
+  // GET /api/webhook?action=orders_list&token=X → JSON com pedidos (usado pelo polling)
+  // POST /api/webhook?action=orders_update_status → muda status do pedido
+  if (req.url && req.url.indexOf('action=orders_dashboard') >= 0) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(ordersDashboardHtml());
+  }
+  if (req.url && req.url.indexOf('action=orders_list') >= 0) {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const qs = (req.url || '').split('?')[1] || '';
+    const params = {};
+    qs.split('&').forEach(p => { const [k,v]=p.split('='); if(k) params[decodeURIComponent(k)]=decodeURIComponent(v||''); });
+    if (!ADMIN_TOKEN || params.token !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const since = new Date(Date.now() - 24*60*60*1000).toISOString();
+      const orders = await sbGet('drope_orders', `created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=100`);
+      return res.status(200).json({ orders: orders || [], at: new Date().toISOString() });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+  if (req.url && req.url.indexOf('action=orders_update_status') >= 0) {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const { id, new_status } = body;
+      if (!id || !new_status) return res.status(400).json({ error: 'missing id or new_status' });
+      const update = { status: new_status, updated_at: new Date().toISOString() };
+      const nowIso = update.updated_at;
+      // Marca timestamps por status
+      if (new_status === 'paid') update.payment_confirmed_at = nowIso;
+      if (new_status === 'prepared') update.prepared_at = nowIso;
+      if (new_status === 'dispatched') update.dispatched_at = nowIso;
+      if (new_status === 'delivered') update.delivered_at = nowIso;
+      if (new_status === 'picked_up') update.picked_up_at = nowIso;
+      await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}`, update);
+      return res.status(200).json({ ok: true });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   // ===== OSSO 29 — ADMIN HUB (01/05/2026) =====
   // GET /api/webhook?action=admin_hub                  → HTML hub com login + tiles
   // GET /api/webhook?action=admin_counts&type=X&token= → JSON contadores pra badges
@@ -13694,7 +14041,7 @@ const PAGES = [
   { id:'portao2',   icon:'🎨', label:'portão 2',  desc:'aprovar arte do Grok',      url:'/api/webhook?action=gallery',            countKey:'gallery', badgeColor:'violet' },
   { id:'esteira',   icon:'🎯', label:'esteira',   desc:'sem-sabor → pendentes → gallery numa tela só', url:'/api/webhook?action=esteira', countKey:'esteira', badgeColor:'lime' },
   { id:'estoque',   icon:'📦', label:'estoque',   desc:'produtos cadastrados',      url:'/api/admin-list-stock',                  countKey:'stock', badgeColor:'amber' },
-  { id:'pedidos',   icon:'📋', label:'pedidos',   desc:'orders e status',           url:'/api/admin-orders',                       countKey:'orders', badgeColor:'violet' },
+  { id:'pedidos',   icon:'📋', label:'pedidos',   desc:'estilo iFood, auto-refresh', url:'/api/webhook?action=orders_dashboard',  countKey:'orders', badgeColor:'violet' },
   { id:'clientes',  icon:'👥', label:'clientes',  desc:'base + métricas',           url:'/api/webhook?action=admin-customers',    countKey:'customers', badgeColor:'lime' },
   { id:'balanco',   icon:'📊', label:'balanço',   desc:'conferência fisica vs digital', url:'/api/webhook?action=balance_panel',  countKey:null, badgeColor:'lime' },
   { id:'custos',    icon:'💰', label:'custos',    desc:'gastos com APIs (7d)',      url:'/api/webhook?action=cost_report&days=7', countKey:null, badgeColor:'' },
