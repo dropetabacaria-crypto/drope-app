@@ -253,8 +253,12 @@
   }
   .tile:active { transform: scale(0.97); background: var(--card-hi); }
   /* FIX 04/06 (Andrade): zoom da imagem ao hover desktop (estilo Mercado Livre).
+     UNIVERSAL — qualquer imagem de produto em qualquer tela:
+       .tile (catálogo), .detail-img (hero da detalhe), .similar-card (similares),
+       .reco-thumb img (recomendações), .cart-item .thumb img (carrinho).
      Mobile (touch) usa :active. Pointer:fine garante que só dispara em desktop. */
   @media (hover: hover) and (pointer: fine) {
+    /* Catálogo (tiles) */
     .tile:hover {
       border-color: rgba(176,38,255,0.5);
       box-shadow: 0 12px 32px rgba(176,38,255,0.18);
@@ -265,6 +269,60 @@
       filter: drop-shadow(0 12px 28px rgba(176,38,255,0.5));
     }
     .tile { overflow: hidden; }
+
+    /* Detail hero — produto aberto */
+    .product-hero { overflow: hidden; cursor: zoom-in; }
+    .product-hero:hover .detail-img,
+    .product-hero:hover .prod-img,
+    .product-hero:hover .product-emoji {
+      transform: scale(1.10);
+      filter: drop-shadow(0 16px 36px rgba(176,38,255,0.55));
+    }
+    .product-hero .detail-img,
+    .product-hero .prod-img,
+    .product-hero .product-emoji {
+      transition: transform 0.4s cubic-bezier(.2,.9,.3,1), filter 0.3s;
+    }
+
+    /* Produtos similares (scroll horizontal) */
+    .similar-card:hover .similar-thumb img {
+      transform: scale(1.15);
+    }
+    .similar-thumb { overflow: hidden; }
+    .similar-thumb img {
+      transition: transform 0.35s cubic-bezier(.2,.9,.3,1);
+    }
+
+    /* Recomendações (home) */
+    .reco-card:hover .reco-thumb img {
+      transform: scale(1.12);
+    }
+    .reco-thumb { overflow: hidden; }
+    .reco-thumb img {
+      transition: transform 0.35s cubic-bezier(.2,.9,.3,1);
+    }
+
+    /* Cart items (carrinho) */
+    .cart-item:hover .thumb img,
+    .cart-item:hover .thumb .prod-img {
+      transform: scale(1.18);
+    }
+    .cart-item .thumb { overflow: hidden; }
+    .cart-item .thumb img,
+    .cart-item .thumb .prod-img {
+      transition: transform 0.3s cubic-bezier(.2,.9,.3,1);
+    }
+
+    /* Hero "dropou agora" da home (id=home-hero) */
+    .hero { overflow: hidden; }
+    .hero:hover #hero-visual img,
+    .hero:hover #hero-visual .prod-img {
+      transform: scale(1.1);
+    }
+    #hero-visual img,
+    #hero-visual .prod-img {
+      transition: transform 0.4s cubic-bezier(.2,.9,.3,1);
+    }
   }
   .tile .emoji {
     font-size: 44px;
