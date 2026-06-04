@@ -10320,10 +10320,15 @@ function refGalleryHtml(awaiting, token) {
       { lbl: '🔍 Brasil', q: `${brand} ${model} ${flavor} vape brasil` },
       { lbl: '🔍 Paraguai', q: `${brand} ${flavor} comprasparaguai` },
     ].filter(g => g.q.replace(/\s+/g, '').length > 4);
+    // FEATURE 04/06 (Andrade): botão Google Lens com a foto da caixa
+    // Lens.google.com aceita ?url= e abre análise direto com a imagem.
+    // Mais poderoso que busca textual quando o produto é raro/novo.
+    const lensBtn = boxPhoto ? `<a href="https://lens.google.com/uploadbyurl?url=${encodeURIComponent(boxPhoto)}" target="_blank" rel="noopener" class="google-btn lens-btn" title="Abre Google Lens com sua foto da caixa — acha produtos visualmente similares na web">🔍 Google Lens (sua foto)</a>` : '';
     const googleBtns = `
       <div class="google-row">
         <div class="google-label">🌐 buscar no Google Imagens (abre em nova aba):</div>
         <div class="google-grid">
+          ${lensBtn}
           ${googleQueries.map(g => {
             const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(g.q)}`;
             return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="google-btn">${escapeHtml(g.lbl)}</a>`;
@@ -10439,6 +10444,8 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .google-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .google-btn { background: #1a3a4a; color: #6fdcff; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-decoration: none; border: 1px solid #2a5a7a; }
 .google-btn:hover { background: #2a4a5a; }
+.lens-btn { background: linear-gradient(135deg, #4285f4, #34a853); color: #fff !important; border-color: #1a73e8; }
+.lens-btn:hover { background: linear-gradient(135deg, #5294f5, #4abb63); }
 .url-paste-row { display: flex; gap: 4px; }
 .url-paste-input { flex: 1; background: #000; border: 1px solid #2a5a7a; color: var(--txt); border-radius: 4px; padding: 6px 8px; font-size: 11px; }
 .url-paste-input:focus { outline: none; border-color: #6fdcff; }
