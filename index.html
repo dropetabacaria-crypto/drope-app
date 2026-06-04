@@ -1244,6 +1244,64 @@
   }
 
   /* Added-to-cart sheet */
+  /* FRICÇÃO #006 (04/06 Andrade): toast slim no rodapé pra confirmar adição.
+     Substitui o .added-sheet anterior. */
+  .added-toast {
+    position: fixed;
+    left: 12px; right: 12px; bottom: -120px;
+    max-width: 460px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #1a1a2a, #2a1a3e);
+    border: 1px solid rgba(212, 255, 46, 0.4);
+    border-radius: 14px;
+    padding: 12px 14px;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 24px rgba(212, 255, 46, 0.15);
+    transition: bottom 0.35s cubic-bezier(.2,.9,.3,1);
+  }
+  .added-toast.show { bottom: 90px; }
+  @media (min-width: 600px) {
+    .added-toast.show { bottom: 24px; }
+  }
+  .added-toast .at-img {
+    flex-shrink: 0;
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 28px;
+  }
+  .added-toast .at-img img { width: 100%; height: 100%; object-fit: cover; }
+  .added-toast .at-info { flex: 1; min-width: 0; }
+  .added-toast .at-name {
+    font-size: 13px; font-weight: 700; color: var(--lime, #D4FF2E);
+    text-transform: lowercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .added-toast .at-sub {
+    font-size: 11px; color: rgba(255,255,255,0.7);
+    margin-top: 2px;
+  }
+  .added-toast .at-btn {
+    flex-shrink: 0;
+    background: var(--lime, #D4FF2E);
+    color: #0a0a14;
+    border: none;
+    border-radius: 99px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform .1s;
+  }
+  .added-toast .at-btn:active { transform: scale(0.96); }
   .added-sheet-bd {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.6);
@@ -1325,13 +1383,14 @@
     padding: 4px 6px;
   }
   .cart-item .qty-ctrl button {
-    width: 44px;
-    height: 44px;
+    /* QUICK WIN (04/06 Andrade): área de toque maior (44→48px) pra acerto + fácil em mobile */
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     cursor: pointer;
     display: flex;
@@ -1340,7 +1399,8 @@
     transition: all 0.15s ease;
   }
   .cart-item .qty-ctrl button:hover { background: rgba(255, 45, 111, 0.25); }
-  .cart-item .qty-ctrl .qv { font-size: 14px; font-weight: 700; color: var(--pink); min-width: 14px; text-align: center; }
+  .cart-item .qty-ctrl button:active { transform: scale(0.92); }
+  .cart-item .qty-ctrl .qv { font-size: 16px; font-weight: 700; color: var(--pink); min-width: 20px; text-align: center; }
   .cart-item .rm-btn {
     background: none;
     border: none;
@@ -1908,18 +1968,32 @@
     margin-bottom: 10px;
     line-height: 1.4;
   }
+  /* QUICK WIN (04/06 Andrade): botão Pix copy maior + ícone clipboard.
+     Maioria dos clientes paga pelo app do banco (precisa copiar) — botão
+     era pequeno e perdido entre outros elementos. */
   .pix-copy {
     width: 100%;
-    padding: 12px;
-    background: var(--ultraviolet);
-    color: var(--text);
+    padding: 18px;
+    background: linear-gradient(135deg, var(--neon, #b026ff), var(--ultraviolet, #6b21a8));
+    color: #fff;
     border: none;
     border-radius: 100px;
     font-family: 'Inter';
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     cursor: pointer;
     text-transform: lowercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 8px 24px rgba(176,38,255,0.35);
+    transition: transform 0.1s;
+  }
+  .pix-copy:active { transform: scale(0.97); }
+  .pix-copy::before {
+    content: '📋';
+    font-size: 20px;
   }
   .pix-note {
     text-align: center;
@@ -2305,7 +2379,9 @@
     box-shadow: 0 20px 80px rgba(91, 33, 182, 0.6), 0 0 40px rgba(255, 45, 111, 0.3);
     position: relative;
     z-index: 1;
-    animation: splashPop 0.9s cubic-bezier(.2,1.3,.5,1) both, splashBreathe 3s 0.9s ease-in-out infinite;
+    /* QUICK WIN (04/06 Andrade): splash 2.5s → 1.2s pra app entrar mais rápido */
+    animation: splashPop 0.6s cubic-bezier(.2,1.3,.5,1) both, splashBreathe 3s 0.6s ease-in-out infinite;
+    cursor: pointer;
   }
   .splash-logo-ring {
     position: absolute;
@@ -4781,18 +4857,10 @@
     </div>
   </div>
 
-  <!-- ============ ADDED-TO-CART SHEET ============ -->
-  <div class="added-sheet-bd" id="added-bd" onclick="closeAddedSheet()"></div>
-  <div class="added-sheet" id="added-sheet">
-    <div class="as-handle"></div>
-    <div class="as-check">✓</div>
-    <div class="as-title" id="as-title">adicionado ao carrinho</div>
-    <div class="as-sub" id="as-sub"></div>
-    <div class="as-btns">
-      <button class="btn-secondary" onclick="closeAddedSheet(); go('home')">continuar comprando</button>
-      <button class="btn-primary" onclick="closeAddedSheet(); goCheckout()">ir pro pagamento ✦</button>
-    </div>
-  </div>
+  <!-- FRICÇÃO #006 (04/06 Andrade): toast slim em vez do sheet anterior.
+       Aparece no rodapé, mostra item + total + botão 'ver carrinho', sumindo em 1.8s.
+       Cliente volta auto pro catálogo (estilo iFood/Rappi). -->
+  <div class="added-toast" id="added-toast"></div>
 
   <!-- ============ ADMIN AI CHAT AGENT ============ -->
   <div class="screen no-nav" id="admin-ai">
@@ -5587,13 +5655,19 @@
     pendingAfterGate = null;
   }
 
-  // Boot sequence — splash 1.8s → onboard (ou home se já confirmou idade)
-  setTimeout(() => {
+  // QUICK WIN (04/06 Andrade): splash 1.8s → 1.2s + skip ao toque na logo
+  function _splashSkip() {
     let confirmed = false;
     try { confirmed = localStorage.getItem('drope_age_confirmed') === '1'; } catch(e) {}
     if (window.location.hash === '#admin') { go('admin-login'); return; }
     go(confirmed ? 'home' : 'onboard');
-  }, 1800);
+  }
+  const _splashTimer = setTimeout(_splashSkip, 1200);
+  // Click no splash pula direto
+  document.addEventListener('DOMContentLoaded', () => {
+    const sp = document.getElementById('splash');
+    if (sp) sp.addEventListener('click', () => { clearTimeout(_splashTimer); _splashSkip(); });
+  });
 
   // ===== PWA — Service Worker + Install Prompt =====
   if ('serviceWorker' in navigator) {
@@ -9044,24 +9118,44 @@
     if (existing) existing.qty += currentQty;
     else cart.push({ ...p, qty: currentQty });
     updateCartBadge();
-    showAddedSheet(p);
+    // FRICÇÃO #006 (04/06 Andrade): toast + volta auto pro catálogo
+    // Substitui o modal anterior que travava o cliente no detalhe.
+    showAddedToast(p);
   }
 
-  function showAddedSheet(p) {
-    const title = document.getElementById('as-title');
-    const sub = document.getElementById('as-sub');
-    if (title) title.textContent = `${p.name} adicionado ✓`;
-    if (sub) {
-      const totalItems = cart.reduce((s, i) => s + i.qty, 0);
-      const totalPrice = cart.reduce((s, i) => s + i.price * i.qty, 0);
-      sub.textContent = `${totalItems} ${totalItems === 1 ? 'item' : 'itens'} no carrinho ✦ r$ ${totalPrice}`;
-    }
-    document.getElementById('added-bd').classList.add('open');
-    document.getElementById('added-sheet').classList.add('open');
+  function showAddedToast(p) {
+    const totalItems = cart.reduce((s, i) => s + i.qty, 0);
+    const totalPrice = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const labels = productLabels(p);
+    const t = document.getElementById('added-toast');
+    if (!t) return;
+    t.innerHTML = `
+      <div class="at-img">${p.img ? `<img src="${escapeHtml(p.img)}" alt="">` : `<span>${p.emoji || '🦎'}</span>`}</div>
+      <div class="at-info">
+        <div class="at-name">${escapeHtml(labels.hero)}</div>
+        <div class="at-sub">${totalItems} ${totalItems === 1 ? 'item' : 'itens'} ✦ r$ ${totalPrice}</div>
+      </div>
+      <button class="at-btn" onclick="event.stopPropagation(); _atGoCart()">ver carrinho →</button>
+    `;
+    t.classList.add('show');
+    clearTimeout(window._atTimeout);
+    window._atTimeout = setTimeout(() => {
+      t.classList.remove('show');
+      // Volta auto pro home/catálogo
+      if (detailOrigin && detailOrigin !== 'detail') go(detailOrigin);
+      else go('home');
+    }, 1800);
   }
+  function _atGoCart() {
+    clearTimeout(window._atTimeout);
+    const t = document.getElementById('added-toast');
+    if (t) t.classList.remove('show');
+    go('cart');
+  }
+  // Mantém função antiga só por compatibilidade caso algo chame
   function closeAddedSheet() {
-    document.getElementById('added-bd').classList.remove('open');
-    document.getElementById('added-sheet').classList.remove('open');
+    const t = document.getElementById('added-toast');
+    if (t) t.classList.remove('show');
   }
 
   function updateCartBadge() {
