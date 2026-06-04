@@ -4010,6 +4010,11 @@
       <div style="width: 42px"></div>
     </div>
 
+    <!-- FRICÇÃO #009: banner MODO TESTE na tela de pagamento -->
+    <div id="pix-test-banner" class="test-mode-banner" style="display:none">
+      🧪 <strong>MODO TESTE ATIVO</strong> — sem pagar, sem QR code real. Clica abaixo pra concluir o teste 🦎
+    </div>
+
     <!-- Step indicator -->
     <div class="step-indicator">
       <div class="step done"><span class="step-num">✓</span> entrega</div>
@@ -4035,7 +4040,7 @@
       </div>
 
       <!-- Opção 2: Pix manual (QR Code) — secundário -->
-      <div class="pix-card">
+      <div class="pix-card" id="pix-manual-section">
         <div class="pix-title display">Paga com Pix</div>
         <div class="pix-total" id="pix-total">r$ 0</div>
         <div class="qr">
@@ -4046,7 +4051,7 @@
       </div>
 
       <!-- Passos visuais simplificados -->
-      <div class="pix-note" style="text-align: left; padding: 16px 0;">
+      <div class="pix-note" id="pix-instructions" style="text-align: left; padding: 16px 0;">
         <div style="color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 10px;">como pagar:</div>
         <div style="color: var(--text-dim); font-size: 13px; line-height: 1.8;">
           <span style="color: var(--pink); font-weight: 700;">1.</span> copia o código acima<br>
@@ -4059,7 +4064,7 @@
     <div style="height: 100px"></div>
 
     <div class="sticky-cta">
-      <button class="btn-primary" onclick="confirmOrder()">já paguei, mandar comprovante</button>
+      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()">já paguei, mandar comprovante</button>
     </div>
   </div>
 
@@ -8096,6 +8101,27 @@
     const keyEl = document.getElementById('pix-key-display');
     if (keyEl) keyEl.textContent = `${store.pixKey} ✦ ${store.pixName}`;
 
+    // FRICÇÃO #009 (Andrade): em modo teste, esconde Pix rápido + QR + instruções
+    // e troca CTA pra 'concluir teste'.
+    const isTest = !!(appliedCoupon && appliedCoupon.isTest);
+    const tBanner = document.getElementById('pix-test-banner');
+    const ipSection = document.getElementById('infinitepay-section');
+    const pmSection = document.getElementById('pix-manual-section');
+    const pInstr = document.getElementById('pix-instructions');
+    const cBtn = document.getElementById('pix-confirm-btn');
+    if (isTest) {
+      if (tBanner) tBanner.style.display = 'block';
+      if (ipSection) ipSection.style.display = 'none';
+      if (pmSection) pmSection.style.display = 'none';
+      if (pInstr) pInstr.style.display = 'none';
+      if (cBtn) cBtn.textContent = '🧪 concluir pedido teste';
+    } else {
+      if (tBanner) tBanner.style.display = 'none';
+      if (pmSection) pmSection.style.display = '';
+      if (pInstr) pInstr.style.display = '';
+      if (cBtn) cBtn.textContent = 'já paguei, mandar comprovante';
+    }
+
     // Gera payload BR Code real pra Copia e Cola
     const txid = 'DR' + (orderCounter || Date.now()).toString().slice(-10);
     currentPixPayload = buildPixPayload(store.pixKey, store.pixName, store.pixCity, total, txid);
@@ -8106,8 +8132,8 @@
       img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${data}&bgcolor=ffffff&color=0a0a14&margin=8`;
     }
 
-    // Mostra opção InfinitePay se ativada
-    if (typeof showInfinitePaySection === 'function') showInfinitePaySection();
+    // Mostra opção InfinitePay se ativada (e não estiver em teste)
+    if (!isTest && typeof showInfinitePaySection === 'function') showInfinitePaySection();
   }
 
   function renderCardScreen() {
