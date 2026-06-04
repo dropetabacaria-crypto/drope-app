@@ -5177,7 +5177,10 @@
       if (profile.email) customer.email = profile.email;
       if (profile.phone) customer.phone_number = '+55' + profile.phone.replace(/[^0-9]/g, '');
 
-      const res = await fetch('/api/infinitepay-checkout', {
+      // FIX 04/06 (Andrade #008): rota /api/infinitepay-checkout tava dando 404
+      // porque o vercel.json `routes` não rotava como esperado. Chamando direto
+      // /api/webhook?action=infinitepay_checkout que comprovadamente funciona.
+      const res = await fetch('/api/webhook?action=infinitepay_checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
