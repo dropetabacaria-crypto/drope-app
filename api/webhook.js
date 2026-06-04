@@ -8472,12 +8472,18 @@ h2 { color: var(--dim); margin: 24px 0 12px; font-size: 14px; text-transform: up
 .empty { color: var(--dim); padding: 24px; text-align: center; font-style: italic; }
 .nav-links a { color: var(--neon); margin-right: 12px; text-decoration: none; font-size: 12px; }
 .nav-links a:hover { text-decoration: underline; }
+.nav-bar { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+.nav-btn { background: #1a1a2a; border: 1px solid #2a2a3e; color: var(--txt); padding: 8px 14px; border-radius: 8px; font-size: 13px; text-decoration: none; transition: all .15s; }
+.nav-btn:hover { border-color: var(--neon); color: var(--neon); }
+.nav-btn.active { background: var(--neon); color: #fff; border-color: var(--neon); font-weight: 600; }
 </style>
 </head><body>
-<h1>Drope ✦ Admin Gallery</h1>
-<div class="nav-links" style="margin-bottom:8px">
-  <a href="?action=gallery&token=${escapeHtml(token || '')}">gallery</a>
-  <a href="?action=admin-customers&token=${escapeHtml(token || '')}">clientes →</a>
+<h1>Drope ✦ Portão 2 (aprovar arte)</h1>
+<div class="nav-bar">
+  <a class="nav-btn" href="?action=admin_hub&token=${escapeHtml(token || '')}">🏠 Hub</a>
+  <a class="nav-btn" href="?action=ref_gallery&token=${escapeHtml(token || '')}">🚪 Portão 1</a>
+  <a class="nav-btn active" href="?action=gallery&token=${escapeHtml(token || '')}">🎨 Portão 2 (você está aqui)</a>
+  <a class="nav-btn" href="?action=admin-customers&token=${escapeHtml(token || '')}">👥 clientes</a>
 </div>
 <p style="color:var(--dim);font-size:12px;margin:0 0 16px">${awaiting.length} aguardando aprovação · ${approved.length} aprovadas</p>
 
@@ -10441,12 +10447,18 @@ h1 { color: var(--neon); margin: 0 0 8px; font-size: 22px; }
 .url-preview-label { color: var(--dim); font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
 .url-preview-img { max-width: 100%; max-height: 200px; display: block; border-radius: 4px; object-fit: contain; background: #111; }
 .url-preview-err { color: var(--pink); font-size: 11px; padding: 4px; line-height: 1.4; }
+.nav-bar { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+.nav-btn { background: #1a1a2a; border: 1px solid #2a2a3e; color: var(--txt); padding: 8px 14px; border-radius: 8px; font-size: 13px; text-decoration: none; transition: all .15s; }
+.nav-btn:hover { border-color: var(--neon); color: var(--neon); }
+.nav-btn.active { background: var(--neon); color: #fff; border-color: var(--neon); font-weight: 600; }
 </style>
 </head><body>
-<h1>🟡 Portão 1 — Aprovar Referência</h1>
-<div class="nav-links" style="margin-bottom:8px">
-  <a href="?action=ref_gallery&token=${escapeHtml(token || '')}">ref gallery</a>
-  <a href="?action=gallery&token=${escapeHtml(token || '')}">gallery (portão 2) →</a>
+<h1>Drope ✦ Portão 1 (aprovar referência)</h1>
+<div class="nav-bar">
+  <a class="nav-btn" href="?action=admin_hub&token=${escapeHtml(token || '')}">🏠 Hub</a>
+  <a class="nav-btn active" href="?action=ref_gallery&token=${escapeHtml(token || '')}">🚪 Portão 1 (você está aqui)</a>
+  <a class="nav-btn" href="?action=gallery&token=${escapeHtml(token || '')}">🎨 Portão 2</a>
+  <a class="nav-btn" href="?action=admin-customers&token=${escapeHtml(token || '')}">👥 clientes</a>
 </div>
 <p style="color:var(--dim);font-size:12px;margin:0 0 16px">${awaiting.length} aguardando aprovação de referência</p>
 
