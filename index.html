@@ -7001,9 +7001,10 @@
   }
 
   // Andrade 04/06: taxa motoboy automática via Haversine no backend.
+  // Retorna Promise pra permitir encadeamento (cache + re-render no checkout).
   async function fetchDeliveryQuote(cep) {
     const cleanCep = (cep || '').replace(/\D/g, '');
-    if (cleanCep.length !== 8) return;
+    if (cleanCep.length !== 8) return null;
     const quoteEl = document.getElementById('af-quote');
     if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">🛵 calculando taxa de entrega…</div>';
     try {
@@ -7012,7 +7013,7 @@
       if (!data.ok) {
         window._deliveryQuote = null;
         if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">⚠️ ${data.error || 'CEP não localizado'}</div>`;
-        return;
+        return data;
       }
       window._deliveryQuote = { ...data, cep: cleanCep };
       if (data.out_of_range) {
@@ -7020,9 +7021,11 @@
       } else {
         if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">🛵 taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
       }
+      return data;
     } catch (e) {
       console.warn('[deliveryQuote]', e);
       window._deliveryQuote = null;
+      return null;
     }
   }
 
@@ -7965,14 +7968,48 @@
     window.__canPayNow = canPay;
     // info de taxa a combinar
     if (addrWrap && deliveryMode === 'delivery') {
+      // Andrade 04/06: mostra taxa real calculada pelo backend
+      const q = window._deliveryQuote;
+      const addr = getSelectedAddress();
+      const addrCep = addr ? (addr.cep || '').replace(/\D/g, '') : '';
       const info = document.createElement('div');
       info.className = 'delivery-fee-note';
-      info.innerHTML = `
-        <div class="dfn-icon">🛵</div>
-        <div class="dfn-body">
-          <div class="dfn-title">taxa de entrega ✦ ~R$10-20</div>
-          <div class="dfn-sub">valor exato depende da distância — a gente confirma no whats antes de liberar</div>
-        </div>`;
+      if (q && q.ok && !q.out_of_range) {
+        info.innerHTML = `
+          <div class="dfn-icon">🛵</div>
+          <div class="dfn-body">
+            <div class="dfn-title" style="color: var(--lime)">taxa de entrega ✦ ${q.fmt}</div>
+            <div class="dfn-sub">${q.km}km da loja · calculado automático</div>
+          </div>`;
+      } else if (q && q.out_of_range) {
+        info.innerHTML = `
+          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-body">
+            <div class="dfn-title" style="color: #FFB800">~${q.km}km de distância</div>
+            <div class="dfn-sub">${q.message || 'longe ✦ confirmamos pelo whats antes de fechar'}</div>
+          </div>`;
+      } else if (!addrCep || addrCep.length !== 8) {
+        info.innerHTML = `
+          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-body">
+            <div class="dfn-title" style="color: var(--pink)">endereço sem CEP</div>
+            <div class="dfn-sub">edita o endereço acima e preenche o CEP pra calcular a taxa</div>
+          </div>`;
+      } else if (q && !q.ok) {
+        info.innerHTML = `
+          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-body">
+            <div class="dfn-title" style="color: var(--pink)">CEP não localizado</div>
+            <div class="dfn-sub">confere o CEP do endereço — pode ter erro de digitação</div>
+          </div>`;
+      } else {
+        info.innerHTML = `
+          <div class="dfn-icon">🛵</div>
+          <div class="dfn-body">
+            <div class="dfn-title">calculando taxa…</div>
+            <div class="dfn-sub">aguarda o CEP carregar</div>
+          </div>`;
+      }
       addrWrap.appendChild(info);
     }
   }
@@ -8033,6 +8070,19 @@
     // FRICÇÃO #009: mostra/esconde banner MODO TESTE
     const banner = document.getElementById('test-mode-banner');
     if (banner) banner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+
+    // Andrade 04/06: cota taxa de entrega do endereço selecionado se ainda não tem
+    if (deliveryMode === 'delivery') {
+      const addr = getSelectedAddress();
+      const addrCep = addr ? (addr.cep || '').replace(/\D/g, '') : '';
+      const cur = window._deliveryQuote;
+      if (addrCep && addrCep.length === 8 && (!cur || cur.cep !== addrCep)) {
+        // Cota e re-renderiza
+        fetchDeliveryQuote(addrCep).then(() => {
+          try { renderCheckout(); } catch (_) {}
+        });
+      }
+    }
 
     const total = finalTotal();
     const totalEl = document.getElementById('co-total');
