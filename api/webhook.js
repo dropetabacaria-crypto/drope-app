@@ -13848,6 +13848,101 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
     }
   }
 
+  // ===== DELIVERY QUOTE (04/06/2026 Andrade) =====
+  // GET /api/webhook?action=delivery_quote&cep=XXXXXXXX
+  // Calcula taxa de motoboy via Haversine entre loja e CEP do cliente.
+  // Fórmula: R$ 5 base + R$ 2 por km. Max 35km (fora = sob consulta).
+  if (req.url && req.url.indexOf('action=delivery_quote') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const qs = (req.url || '').split('?')[1] || '';
+    const params = {};
+    qs.split('&').forEach(p => { const [k,v]=p.split('='); if(k) params[decodeURIComponent(k)]=decodeURIComponent(v||''); });
+    const cep = (params.cep || '').replace(/\D/g, '');
+    if (cep.length !== 8) return res.status(400).json({ error: 'cep inválido' });
+
+    // Configuração da loja Drope — Rua Dianópolis 4100, Vila Prudente
+    const STORE_LAT = -23.5838437;
+    const STORE_LNG = -46.5901294;
+    const BASE_FEE_CENTS = 500;   // R$ 5
+    const PER_KM_CENTS = 200;     // R$ 2 / km
+    const MAX_KM = 35;
+
+    try {
+      // 1) Tenta BrasilAPI v2 (retorna lat/lng direto se tem)
+      let lat = null, lng = null, city = '', neigh = '';
+      try {
+        const r1 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`, { signal: AbortSignal.timeout(5000) });
+        if (r1.ok) {
+          const d = await r1.json();
+          city = d.city || '';
+          neigh = d.neighborhood || '';
+          const c = d.location?.coordinates;
+          if (c && typeof c.latitude === 'number' && typeof c.longitude === 'number') {
+            lat = c.latitude; lng = c.longitude;
+          } else if (c && c.latitude && c.longitude) {
+            lat = parseFloat(c.latitude); lng = parseFloat(c.longitude);
+          }
+          // Fallback: geocoda via Nominatim se BrasilAPI não teve lat/lng
+          if ((!lat || !lng) && d.street && d.neighborhood && d.city) {
+            const q = encodeURIComponent(`${d.street}, ${d.neighborhood}, ${d.city}, SP, Brasil`);
+            try {
+              const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+                headers: { 'User-Agent': 'drope-app/1.0' },
+                signal: AbortSignal.timeout(5000),
+              });
+              if (r2.ok) {
+                const arr = await r2.json();
+                if (arr && arr[0]) { lat = parseFloat(arr[0].lat); lng = parseFloat(arr[0].lon); }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+
+      if (!lat || !lng) {
+        return res.status(200).json({ ok: false, error: 'cep não localizado', cep, city, neigh });
+      }
+
+      // 2) Haversine
+      const R = 6371;
+      const toRad = (d) => d * Math.PI / 180;
+      const dLat = toRad(lat - STORE_LAT);
+      const dLng = toRad(lng - STORE_LNG);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(STORE_LAT)) * Math.cos(toRad(lat)) * Math.sin(dLng/2)**2;
+      const km = 2 * R * Math.asin(Math.sqrt(a));
+
+      // 3) Out of range → sob consulta
+      if (km > MAX_KM) {
+        return res.status(200).json({
+          ok: true,
+          out_of_range: true,
+          km: Math.round(km * 10) / 10,
+          city, neigh,
+          message: `${city} fica longe (~${Math.round(km)}km) ✦ vamos conversar pelo whats antes de fechar`,
+        });
+      }
+
+      // 4) Calcula taxa: R$ 5 base + R$ 2 por km, arredondado pra real cheio + .99
+      const rawCents = BASE_FEE_CENTS + Math.round(km * PER_KM_CENTS);
+      // arredonda pra cima no real e tira 1 cent (.99)
+      const fee_cents = Math.max(500, Math.ceil(rawCents / 100) * 100 - 1);
+      const fmt = 'R$ ' + (fee_cents / 100).toFixed(2).replace('.', ',');
+
+      return res.status(200).json({
+        ok: true,
+        out_of_range: false,
+        km: Math.round(km * 10) / 10,
+        fee_cents,
+        fmt,
+        city, neigh,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // ===== ORDERS DASHBOARD (04/06/2026 Andrade) — estilo iFood =====
   // GET /api/webhook?action=orders_dashboard&token=X → HTML dashboard cards coloridos
   // GET /api/webhook?action=orders_list&token=X → JSON com pedidos (usado pelo polling)
