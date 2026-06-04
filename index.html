@@ -252,12 +252,27 @@
     position: relative;
   }
   .tile:active { transform: scale(0.97); background: var(--card-hi); }
+  /* FIX 04/06 (Andrade): zoom da imagem ao hover desktop (estilo Mercado Livre).
+     Mobile (touch) usa :active. Pointer:fine garante que só dispara em desktop. */
+  @media (hover: hover) and (pointer: fine) {
+    .tile:hover {
+      border-color: rgba(176,38,255,0.5);
+      box-shadow: 0 12px 32px rgba(176,38,255,0.18);
+      transform: translateY(-2px);
+    }
+    .tile:hover .prod-img {
+      transform: scale(1.15);
+      filter: drop-shadow(0 12px 28px rgba(176,38,255,0.5));
+    }
+    .tile { overflow: hidden; }
+  }
   .tile .emoji {
     font-size: 44px;
     text-align: center;
     line-height: 1;
     margin: 6px 0 14px;
     filter: drop-shadow(0 6px 18px rgba(91, 33, 182, 0.3));
+    transition: transform 0.35s cubic-bezier(.2,.9,.3,1);
   }
   .tile .prod-img {
     width: 100%;
@@ -266,6 +281,8 @@
     border-radius: 16px;
     margin: 4px 0 10px;
     filter: drop-shadow(0 6px 18px rgba(91, 33, 182, 0.3));
+    /* FIX 04/06: transição smooth pro zoom hover */
+    transition: transform 0.35s cubic-bezier(.2,.9,.3,1), filter 0.3s;
   }
   /* OSSO 25 — Card hierarquia: sabor (hero, lowercase) + brand/model (muted, menor) */
   .tile .flavor {
@@ -7321,6 +7338,8 @@
   })();
 
   function renderGrid() {
+    // FIX 04/06 (Andrade): hero respeita filtros — atualiza junto com grid
+    if (typeof updateHero === 'function') updateHero();
     const podsEl = document.getElementById('grid-pods');
     const tabacEl = document.getElementById('grid-tabac');
     const filtered = products.map((p, i) => ({ p, i })).filter(({ p }) => matchFilter(p));
@@ -7344,11 +7363,23 @@
   }
   renderGrid();
 
-  // ===== Hero dinâmico (primeiro produto do catálogo) =====
+  // ===== Hero dinâmico (primeiro produto que BATE com filtros ativos) =====
   // OSSO 25 — sabor hero + brand muted abaixo
-  (function updateHero() {
-    const p = products[0];
-    if (!p) return;
+  // FIX 04/06 (Andrade): hero respeita filtros — esconde quando nada bate
+  // OU mostra o 1º produto filtrado em vez de products[0] fixo.
+  function updateHero() {
+    const hero = document.getElementById('home-hero');
+    if (!hero) return;
+    const filtered = products.filter(p => matchFilter(p));
+    const p = filtered[0];
+    if (!p) {
+      hero.style.display = 'none';
+      return;
+    }
+    hero.style.display = '';
+    // Atualiza onclick pra abrir o produto certo (não products[0] fixo)
+    const idx = products.findIndex(x => x.slug === p.slug);
+    if (idx >= 0) hero.onclick = () => openProduct(idx);
     const vis = document.getElementById('hero-visual');
     const nm = document.getElementById('hero-name');
     const pr = document.getElementById('hero-price');
@@ -7359,7 +7390,8 @@
       nm.innerHTML = `${escapeHtml(labels.hero)}${labels.muted ? `<div style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;letter-spacing:0.02em;margin-top:4px;font-family:'Inter',sans-serif;">${escapeHtml(labels.muted)}</div>` : ''}`;
     }
     if (pr) pr.textContent = `R$ ${p.price}`;
-  })();
+  }
+  updateHero();
 
   // ===== Navigation =====
   function go(screen) {
