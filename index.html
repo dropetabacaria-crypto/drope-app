@@ -381,6 +381,19 @@
     margin-top: 4px;
   }
 
+  /* FRICÇÃO #009 (04/06 Andrade): banner MODO TESTE no checkout/cart/success */
+  .test-mode-banner {
+    background: linear-gradient(135deg, #BA7517, #F0997B);
+    color: #fff;
+    padding: 12px 16px;
+    margin: 12px 16px 0;
+    border-radius: 12px;
+    font-size: 13px;
+    text-align: center;
+    border: 1px solid #F5C4B3;
+    box-shadow: 0 4px 14px rgba(186,117,23,0.3);
+  }
+  .test-mode-banner strong { font-weight: 700; }
   /* DROPE HOME v2 (04/06/2026) — Busca sticky + carrossel de marcas */
   .search-bar-wrap {
     position: sticky;
@@ -3789,6 +3802,10 @@
     </div>
 
     <div id="cart-notice"></div>
+    <!-- FRICÇÃO #009: banner MODO TESTE no carrinho -->
+    <div id="cart-test-banner" class="test-mode-banner" style="display:none">
+      🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
+    </div>
     <div class="cart-list" id="cart-list"></div>
 
     <div class="cart-empty" id="cart-empty" style="display:none">
@@ -3832,6 +3849,11 @@
       </div>
       <div class="brand-small">Fechar pedido</div>
       <div style="width: 42px"></div>
+    </div>
+
+    <!-- FRICÇÃO #009: banner modo teste (aparece só quando cupom isTest aplicado) -->
+    <div id="test-mode-banner" class="test-mode-banner" style="display:none">
+      🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
     </div>
 
     <!-- Step indicator -->
@@ -4044,14 +4066,18 @@
   <!-- ============ SUCCESS ============ -->
   <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999;display:none"></canvas>
   <div class="screen no-nav" id="success">
+    <!-- FRICÇÃO #009: banner MODO TESTE no sucesso -->
+    <div id="success-test-banner" class="test-mode-banner" style="display:none">
+      🧪 <strong>PEDIDO DE TESTE</strong> — não foi enviado, não foi cobrado, estoque intacto. Tu pode navegar a tela final em paz 🦎
+    </div>
     <div class="success-wrap">
       <div class="check">✓</div>
       <div class="success-title display">Dropou ✦</div>
-      <div class="success-sub">pedido confirmado ✦ avisa a gente no whats pra liberar</div>
+      <div class="success-sub" id="success-sub">pedido confirmado ✦ avisa a gente no whats pra liberar</div>
       <div class="success-order" id="success-order">#dr-4291</div>
 
       <div class="success-btns">
-        <button class="btn-primary" onclick="shareOnWhats()">abrir whats da loja 💬</button>
+        <button class="btn-primary" id="success-whats-btn" onclick="shareOnWhats()">abrir whats da loja 💬</button>
         <button class="btn-secondary" onclick="go('order-tracking')">acompanhar pedido →</button>
       </div>
     </div>
@@ -5181,6 +5207,9 @@
   let coupons = [
     { code: 'DROPE10', discount: 10, desc: 'r$ 10 off ✦ boas-vindas', active: true },
     { code: 'HYPE20', discount: 20, desc: 'r$ 20 off ✦ pedido de honra', active: true },
+    // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
+    // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
+    { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
   ];
   let appliedCoupon = null;
   function saveCoupons() {
@@ -5335,10 +5364,11 @@
     if (!code) { msg.className = 'co-coupon-msg err'; msg.textContent = 'digita um código ✦'; return; }
     const c = coupons.find(c => c.code === code && c.active);
     if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCheckout(); return; }
-    if (cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = { code: c.code, discount: c.discount };
+    // FRICÇÃO #009 (Andrade): cupom isTest bypassa validação de pedido mínimo
+    if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
+    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
     msg.className = 'co-coupon-msg ok';
-    msg.textContent = `cupom ativo ✦ -r$ ${c.discount}`;
+    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -r$ ${c.discount}`;
     renderCheckout();
     toast('cupom aplicado ✦');
   }
@@ -7863,19 +7893,28 @@
     if (!code) { msg.className = 'co-coupon-msg err'; msg.textContent = 'digita um código ✦'; return; }
     const c = coupons.find(c => c.code === code && c.active);
     if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCart(); return; }
-    if (cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = c;
+    // FRICÇÃO #009: cupom isTest bypassa validação de pedido mínimo
+    if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
+    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
     msg.className = 'co-coupon-msg ok';
-    msg.textContent = `cupom ativo ✦ -r$ ${c.discount}`;
-    toast('cupom aplicado ✦');
+    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -r$ ${c.discount}`;
+    toast(c.isTest ? '🧪 modo teste ativo' : 'cupom aplicado ✦');
     renderCart();
   }
 
   function renderCheckout() {
+    // FRICÇÃO #009: mostra/esconde banner MODO TESTE
+    const banner = document.getElementById('test-mode-banner');
+    if (banner) banner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+
     const total = finalTotal();
     const totalEl = document.getElementById('co-total');
     const bits = [];
-    if (appliedCoupon) bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -r$ ${appliedCoupon.discount}`);
+    if (appliedCoupon && appliedCoupon.isTest) {
+      bits.push(`🧪 modo teste ativo ✦ total zerado`);
+    } else if (appliedCoupon) {
+      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -r$ ${appliedCoupon.discount}`);
+    }
     if (deliveryMode === 'delivery') bits.push(`+ taxa motoboy (~R$10-20)`);
     totalEl.innerHTML = `r$ ${total}${bits.length ? `<div class="co-total-discount">${bits.join(' • ')}</div>` : ''}`;
     const kind = cartKind();
@@ -9000,6 +9039,10 @@
   checkAdminRoute();
 
   function renderCart() {
+    // FRICÇÃO #009: mostra/esconde banner MODO TESTE no carrinho
+    const tBanner = document.getElementById('cart-test-banner');
+    if (tBanner) tBanner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+
     const list = document.getElementById('cart-list');
     const empty = document.getElementById('cart-empty');
     const total = document.getElementById('cart-total');
@@ -9166,17 +9209,39 @@
     if (appliedCoupon) {
       orders[0].coupon = appliedCoupon.code;
       orders[0].discount = appliedCoupon.discount;
-    }
-    // Decrementa estoque
-    cart.forEach(item => {
-      const pIdx = products.findIndex(pp => pp.name === item.name);
-      if (pIdx >= 0 && typeof products[pIdx].stock === 'number') {
-        products[pIdx].stock = Math.max(0, products[pIdx].stock - item.qty);
+      // FRICÇÃO #009: marca pedido como teste pra não decrementar estoque + não enviar pedido real
+      if (appliedCoupon.isTest) {
+        orders[0].isTest = true;
+        orders[0].status = '🧪 pedido teste ✦ não foi enviado';
+        orders[0].statusCls = 'test';
       }
-    });
+    }
+    // FRICÇÃO #009: modo teste NÃO decrementa estoque
+    const isTestOrder = appliedCoupon && appliedCoupon.isTest;
+    if (!isTestOrder) {
+      cart.forEach(item => {
+        const pIdx = products.findIndex(pp => pp.name === item.name);
+        if (pIdx >= 0 && typeof products[pIdx].stock === 'number') {
+          products[pIdx].stock = Math.max(0, products[pIdx].stock - item.qty);
+        }
+      });
+    }
     saveOrders();
     saveProducts();
     renderGrid();
+    // FRICÇÃO #009: ajusta tela success se for pedido teste
+    const sBanner = document.getElementById('success-test-banner');
+    const sSub = document.getElementById('success-sub');
+    const sWhats = document.getElementById('success-whats-btn');
+    if (isTestOrder) {
+      if (sBanner) sBanner.style.display = 'block';
+      if (sSub) sSub.textContent = 'teste concluído ✦ navega à vontade pra revisar';
+      if (sWhats) sWhats.style.display = 'none';
+    } else {
+      if (sBanner) sBanner.style.display = 'none';
+      if (sSub) sSub.textContent = 'pedido confirmado ✦ avisa a gente no whats pra liberar';
+      if (sWhats) sWhats.style.display = '';
+    }
     appliedCoupon = null;
     document.getElementById('success-order').textContent = `#dr-${orderNum}`;
     // OSSO 21 — invalida cache da home personalizada pra próximo render puxar fresh
