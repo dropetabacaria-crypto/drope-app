@@ -431,6 +431,49 @@
     min-width: 0;
   }
   .cats::-webkit-scrollbar { display: none; }
+  /* DROPE HOME v2.1 (04/06 Andrade) — Botão de filtros agora grande e óbvio */
+  .filter-cta-wrap {
+    padding: 8px 20px 14px;
+  }
+  .filter-cta {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(176,38,255,0.12), rgba(255,45,149,0.08));
+    border: 1.5px dashed rgba(176,38,255,0.5);
+    border-radius: 14px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .filter-cta:active { transform: scale(0.98); }
+  .filter-cta:hover {
+    background: linear-gradient(135deg, rgba(176,38,255,0.2), rgba(255,45,149,0.15));
+    border-color: var(--neon, #b026ff);
+    border-style: solid;
+  }
+  .filter-cta svg { width: 20px; height: 20px; color: var(--neon, #b026ff); flex-shrink: 0; }
+  .filter-cta-text {
+    flex: 1;
+    text-align: left;
+    color: rgba(255,255,255,0.85);
+  }
+  .filter-cta.has-filters {
+    background: linear-gradient(135deg, rgba(255,45,149,0.2), rgba(176,38,255,0.15));
+    border-color: var(--pink, #ff2d6f);
+    border-style: solid;
+  }
+  .filter-cta.has-filters .filter-cta-text {
+    color: var(--pink, #ff2d6f);
+    font-weight: 600;
+  }
+  .filter-cta.has-filters svg { color: var(--pink, #ff2d6f); }
   .filter-btn {
     flex-shrink: 0;
     width: 42px; height: 42px;
@@ -3408,13 +3451,17 @@
 
     <div class="section-title display">Catálogo<span>o que dropou hoje</span></div>
 
-    <!-- DROPE HOME v2 — Chips de vibe REMOVIDOS daqui (estavam duplicados com home-personalized-wrap).
-         Mantido só o filter-btn pra filtros avançados (puffs, preço, marca específica) -->
-    <div class="cats-wrap" style="justify-content:flex-end">
-      <div class="filter-btn" onclick="openFilters()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/></svg>
+    <!-- DROPE HOME v2.1 (04/06/2026 Andrade) — Botão de filtros TROCADO de ícone pequeno
+         escondido pra botão grande com texto, fica óbvio que tem filtros disponíveis -->
+    <div class="filter-cta-wrap">
+      <button class="filter-cta" onclick="openFilters()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/>
+          <circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/>
+        </svg>
+        <span class="filter-cta-text">filtrar por marca, puffs, sabor, preço...</span>
         <div class="filter-badge" id="filter-badge" style="display:none">0</div>
-      </div>
+      </button>
     </div>
 
     <div class="hero" id="home-hero" onclick="openProduct(0)">
@@ -6902,15 +6949,29 @@
 
   function updateFilterBadge() {
     const n = filterCount();
-    const btn = document.querySelector('.filter-btn');
+    // DROPE HOME v2.1 — usa .filter-cta (botão grande) em vez do .filter-btn antigo
+    const btn = document.querySelector('.filter-cta') || document.querySelector('.filter-btn');
+    const txt = document.querySelector('.filter-cta-text');
     const badge = document.getElementById('filter-badge');
+    if (!btn || !badge) return;
     if (n > 0) {
       btn.classList.add('has-filters');
       badge.style.display = 'flex';
       badge.textContent = n;
+      // Atualiza texto pra mostrar filtros ativos
+      if (txt) {
+        const parts = [];
+        if (filterState.marca) parts.push(filterState.marca.toUpperCase());
+        if (filterState.modelo) parts.push(filterState.modelo);
+        if (filterState.puffs) parts.push((filterState.puffs/1000) + 'k puffs');
+        if (filterState.sabor) parts.push(filterState.sabor);
+        if (filterState.priceMax) parts.push('até R$' + filterState.priceMax);
+        txt.textContent = parts.length ? parts.join(' · ') : 'filtros ativos';
+      }
     } else {
       btn.classList.remove('has-filters');
       badge.style.display = 'none';
+      if (txt) txt.textContent = 'filtrar por marca, puffs, sabor, preço...';
     }
   }
 
