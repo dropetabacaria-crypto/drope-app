@@ -8560,7 +8560,10 @@ async function pollNewArt(card, productId, overlay, tick, attempts) {
     const r = await fetch('/api/webhook?action=admin_product_status&id=' + productId + '&token=' + encodeURIComponent(TOKEN));
     if (r.ok) {
       const d = await r.json();
-      if (d.image_status === 'awaiting_approval' && d.pending_art_url) {
+      // FIX 04/06 (Andrade): às vezes Vercel timeout corta no fim — fica 'generating'
+      // com pending_art_url. Aceita esse caso também como "arte pronta".
+      const hasNewArt = d.pending_art_url && (d.image_status === 'awaiting_approval' || d.image_status === 'generating');
+      if (hasNewArt) {
         // Nova arte pronta! Substitui a imagem do card.
         clearInterval(tick);
         const artImg = card.querySelector('.compare-side:last-child img, .thumb img');
