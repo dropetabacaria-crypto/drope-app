@@ -32,7 +32,13 @@ const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || "";
 // Whitelist: só esse número cadastra produto. Outros = cliente.
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
 // PDV — números que fazem baixa de estoque por foto (loja + Yasmin)
+// PDV_PHONES = recebem notificação de pagamento confirmado (loja + Yasmin)
 const PDV_PHONES = (process.env.PDV_PHONES || "5511924810126,5511962589670").split(',').filter(Boolean);
+// STAFF_PHONES = vendedoras autorizadas a abater estoque por foto no whats, mas NÃO recebem notif
+// Cacau (5511985241010) + Antonia (5511972141717) — adicionadas 05/06/2026
+const STAFF_PHONES = (process.env.STAFF_PHONES || "5511985241010,5511972141717").split(',').filter(Boolean);
+// ALL_CAIXA = união — quem pode rodar comandos de admin_caixa (abate estoque, cadastro lote, etc)
+const ALL_CAIXA = [...new Set([...PDV_PHONES, ...STAFF_PHONES])];
 const ADMIN_CAIXA = PDV_PHONES[0] || "";
 
 // OSSO 35 — Grupos WhatsApp (briefing 06/05/2026)
@@ -85,7 +91,7 @@ function isRateLimited(phone) {
   // 'fechar lote' silenciosamente quando Andrade mandava muitas fotos rapido.
   // PDV (Yasmin/Pai/Tia) tambem manda muitas fotos durante venda intensa.
   if (phone === ADMIN_LUCAS) return false;
-  if (PDV_PHONES.includes(phone)) return false;
+  if (ALL_CAIXA.includes(phone)) return false;
   const now = Date.now();
   const entry = rateLimits.get(phone);
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
@@ -16515,10 +16521,10 @@ async function generateAll(){
 
     // ========== ROTEAMENTO TRIPLO (OSSO 30 — 2026-05-03) ==========
     // ADMIN_LUCAS → cadastro/abastecimento/aprovação arte
-    // PDV_PHONES  → baixa de estoque por foto (loja + Yasmin)
+    // ALL_CAIXA   → baixa de estoque por foto (loja + Yasmin + Cacau + Antonia)
     // resto       → bot cliente (catálogo, pedido, sommelier)
     const _route = (phone === ADMIN_LUCAS) ? 'admin_lucas'
-                 : (PDV_PHONES.includes(phone)) ? 'admin_caixa'
+                 : (ALL_CAIXA.includes(phone)) ? 'admin_caixa'
                  : 'cliente';
     console.log("[ROUTE] →", _route, phone.slice(0, 6) + '***');
 
