@@ -4113,21 +4113,16 @@
         </div>
       </div>
 
-      <!-- Hidden: mantido só pra modo teste do TESTE100OFF -->
-      <div class="pix-card" id="pix-manual-section" style="display:none">
-        <div class="pix-title display">Paga com Pix</div>
-        <div class="pix-total" id="pix-total">r$ 0</div>
-        <div class="qr"><img id="pix-qr-img" src="" alt="qr"></div>
-        <div class="pix-code" id="pix-key-display">—</div>
-        <button class="pix-copy" onclick="copyPixKey()">copiar Pix Copia e Cola</button>
-      </div>
-      <div class="pix-note" id="pix-instructions" style="display:none"></div>
+      <!-- Andrade 05/06: Pix manual (chave CNPJ) REMOVIDO permanentemente.
+           Bia e Dicson pagaram pela chave CNPJ direto sem registrar pedido.
+           Agora só InfinitePay — todo pagamento dispara webhook auto-confirm. -->
     </div>
 
     <div style="height: 80px"></div>
 
-    <div class="sticky-cta">
-      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()" style="background: var(--bg2); color: var(--text-dim); border: 1px solid var(--border); font-size: 13px; padding: 12px;">já paguei manualmente (uso fallback)</button>
+    <!-- Modo teste TESTE100OFF: botão fica visível só quando isTest=true -->
+    <div class="sticky-cta" id="pix-test-cta" style="display:none">
+      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()" style="background: var(--lime); color: #000; font-size: 15px; padding: 14px;">🧪 concluir pedido teste</button>
     </div>
   </div>
 
@@ -8337,47 +8332,24 @@
     return toCrc + pixCrc16(toCrc);
   }
 
-  let currentPixPayload = '';
   function renderPixScreen() {
-    const total = finalTotal();
-    const totEl = document.getElementById('pix-total');
-    if (totEl) totEl.textContent = `r$ ${total}`;
-    const keyEl = document.getElementById('pix-key-display');
-    if (keyEl) keyEl.textContent = `${store.pixKey} ✦ ${store.pixName}`;
-
-    // FRICÇÃO #009 (Andrade): em modo teste, esconde Pix rápido + QR + instruções
-    // e troca CTA pra 'concluir teste'.
+    // Andrade 05/06: Pix manual REMOVIDO. Só InfinitePay agora.
+    // Modo teste TESTE100OFF: esconde InfinitePay, mostra banner + botão "concluir teste".
     const isTest = !!(appliedCoupon && appliedCoupon.isTest);
     const tBanner = document.getElementById('pix-test-banner');
     const ipSection = document.getElementById('infinitepay-section');
-    const pmSection = document.getElementById('pix-manual-section');
-    const pInstr = document.getElementById('pix-instructions');
-    const cBtn = document.getElementById('pix-confirm-btn');
+    const testCta = document.getElementById('pix-test-cta');
+
     if (isTest) {
       if (tBanner) tBanner.style.display = 'block';
       if (ipSection) ipSection.style.display = 'none';
-      if (pmSection) pmSection.style.display = 'none';
-      if (pInstr) pInstr.style.display = 'none';
-      if (cBtn) cBtn.textContent = '🧪 concluir pedido teste';
+      if (testCta) testCta.style.display = '';
     } else {
       if (tBanner) tBanner.style.display = 'none';
-      if (pmSection) pmSection.style.display = '';
-      if (pInstr) pInstr.style.display = '';
-      if (cBtn) cBtn.textContent = 'já paguei, mandar comprovante';
+      if (ipSection) ipSection.style.display = 'block';
+      if (testCta) testCta.style.display = 'none';
+      if (typeof showInfinitePaySection === 'function') showInfinitePaySection();
     }
-
-    // Gera payload BR Code real pra Copia e Cola
-    const txid = 'DR' + (orderCounter || Date.now()).toString().slice(-10);
-    currentPixPayload = buildPixPayload(store.pixKey, store.pixName, store.pixCity, total, txid);
-
-    const img = document.getElementById('pix-qr-img');
-    if (img) {
-      const data = encodeURIComponent(currentPixPayload);
-      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${data}&bgcolor=ffffff&color=0a0a14&margin=8`;
-    }
-
-    // Mostra opção InfinitePay se ativada (e não estiver em teste)
-    if (!isTest && typeof showInfinitePaySection === 'function') showInfinitePaySection();
   }
 
   function renderCardScreen() {
