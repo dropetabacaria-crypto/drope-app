@@ -8379,13 +8379,22 @@ h1 em{color:var(--lime);font-style:normal}
 .cust{font-size:14px;font-weight:700;margin-bottom:2px}
 .phone{font-size:11px;color:var(--dim);margin-bottom:10px;font-family:'Space Grotesk',monospace}
 .items{font-size:13px;line-height:1.5;color:rgba(255,255,255,0.85)}
-.item-line{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.04)}
+.item-line{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.04)}
 .item-line:last-child{border-bottom:none}
-.item-line .thumb{flex-shrink:0;width:40px;height:40px;border-radius:8px;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px}
+.item-line .thumb{flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:zoom-in;transition:transform .15s}
+.item-line .thumb:hover{transform:scale(1.06)}
 .item-line .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.item-line .qty{color:var(--lime);font-weight:700;min-width:24px;font-size:14px}
-.item-line .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.item-line .pr{font-size:12px;color:var(--dim);font-family:'Space Grotesk',monospace}
+.item-line .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.item-line .head{display:flex;align-items:baseline;gap:6px}
+.item-line .qty{color:var(--lime);font-weight:700;font-size:14px;flex-shrink:0}
+.item-line .nm{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;color:rgba(255,255,255,0.92)}
+.item-line .pr{font-size:13px;color:var(--lime);font-family:'Space Grotesk',monospace;font-weight:700}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.92);display:none;align-items:center;justify-content:center;z-index:9999;padding:24px;cursor:zoom-out;backdrop-filter:blur(6px)}
+.lightbox.open{display:flex}
+.lightbox-inner{max-width:600px;width:100%;text-align:center}
+.lightbox img{max-width:100%;max-height:78vh;border-radius:18px;box-shadow:0 30px 90px rgba(176,38,255,0.5);display:block;margin:0 auto}
+.lightbox .lb-title{color:var(--lime);font-size:18px;font-weight:700;margin-top:16px;text-transform:lowercase}
+.lightbox .lb-hint{color:var(--dim);font-size:11px;margin-top:8px}
 .addr{font-size:12px;color:var(--dim);margin-top:10px;padding-top:10px;border-top:1px dashed var(--b);line-height:1.5}
 .totals{padding:10px 14px;background:rgba(0,0,0,0.25);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--b)}
 .totals .lbl{font-size:11px;color:var(--dim)}
@@ -8430,7 +8439,23 @@ h1 em{color:var(--lime);font-style:normal}
 <div class="last-update" id="last-update">carregando…</div>
 <div class="grid" id="grid"></div>
 
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-inner">
+    <img id="lb-img" src="" alt="">
+    <div class="lb-title" id="lb-title"></div>
+    <div class="lb-hint">toca em qualquer lugar pra fechar</div>
+  </div>
+</div>
+
 <audio id="notif-sound" preload="auto" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="></audio>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lightbox-inner">
+    <img id="lb-img" src="" alt="">
+    <div class="lb-title" id="lb-title"></div>
+    <div class="lb-hint">toque fora pra fechar</div>
+  </div>
+</div>
 
 <script>
 const TOKEN = new URLSearchParams(location.search).get('token') || (localStorage.getItem('drope_admin_token') || '');
@@ -8534,14 +8559,16 @@ function renderCard(o) {
       <div class="phone">\${customer.phone || '—'} \${customer.email ? '· '+customer.email : ''}</div>
       <div class="items">
         \${items.map(it => {
+          const safeName = (it.name||'').replace(/'/g,"\\\\'").replace(/"/g,'&quot;');
           const thumbHtml = it.image_url
-            ? \`<img src="\${it.image_url}" alt="">\`
+            ? \`<img src="\${it.image_url}" alt="" onclick="openLightbox('\${it.image_url}','\${safeName}')">\`
             : \`<span>\${it.emoji || '🦎'}</span>\`;
           return \`<div class="item-line">
             <div class="thumb">\${thumbHtml}</div>
-            <span class="qty">\${it.qty||1}×</span>
-            <span class="nm">\${it.name||'?'}</span>
-            <span class="pr">\${brl((it.price||0)*100*(it.qty||1))}</span>
+            <div class="info">
+              <div class="nm"><span class="qty">\${it.qty||1}×</span> \${it.name||'?'}</div>
+              <div class="pr">\${brl((it.price||0)*100*(it.qty||1))}</div>
+            </div>
           </div>\`;
         }).join('')}
       </div>
@@ -8630,6 +8657,21 @@ async function loadOrders() {
   }
 }
 
+function openLightbox(src, title) {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lb-img');
+  const t = document.getElementById('lb-title');
+  if (img) img.src = src;
+  if (t) t.textContent = title || '';
+  if (lb) lb.classList.add('open');
+  event && event.stopPropagation && event.stopPropagation();
+}
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  if (lb) lb.classList.remove('open');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+
 function toggleSound() {
   soundOn = !soundOn;
   try { localStorage.setItem('drope_orders_sound', soundOn ? '1' : '0'); } catch(_){}
@@ -8642,6 +8684,28 @@ document.getElementById('sound-toggle').textContent = soundOn ? '🔔 som ligado
 
 loadOrders();
 setInterval(loadOrders, 15000);
+
+function openLightbox(url, name) {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lb-img');
+  const title = document.getElementById('lb-title');
+  if (!lb || !img) return;
+  img.src = url;
+  if (title) title.textContent = name || '';
+  lb.classList.add('open');
+}
+function closeLightbox(e) {
+  if (e && e.target.tagName === 'IMG') return; // click na própria imagem não fecha
+  const lb = document.getElementById('lightbox');
+  if (lb) lb.classList.remove('open');
+}
+// ESC fecha
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const lb = document.getElementById('lightbox');
+    if (lb) lb.classList.remove('open');
+  }
+});
 </script>
 </body></html>`;
 }

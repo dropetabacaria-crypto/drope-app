@@ -4101,46 +4101,33 @@
     </div>
 
     <div class="pix-wrap">
-      <!-- Opção 1: InfinitePay (checkout direto — PRINCIPAL) -->
-      <div id="infinitepay-section" style="display:none; margin-bottom: 16px;">
+      <!-- ÚNICO: InfinitePay (checkout direto via Pix/cartão) -->
+      <!-- Andrade 05/06: removido Pix manual (QR CNPJ) pra todos pagamentos passarem
+           pelo InfinitePay e serem auto-confirmados via webhook. Sem conferência manual. -->
+      <div id="infinitepay-section" style="display:block; margin-bottom: 16px;">
         <div class="pix-card" style="border: 2px solid var(--lime); background: rgba(212,255,46,0.08);">
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
-            <span style="font-size: 11px; background: var(--lime); color: #000; padding: 2px 8px; border-radius: 99px; font-weight: 700;">recomendado</span>
-          </div>
-          <div class="pix-title display" style="font-size: 20px;">Pagar direto</div>
-          <div style="color: var(--text-dim); font-size: 13px; margin: 8px 0 4px;">Pix, cartão ou saldo — sem sair do app</div>
-          <div style="color: var(--lime); font-size: 12px; margin-bottom: 16px;">dados já preenchidos ✦</div>
-          <button class="btn-primary" id="infinitepay-btn" onclick="openInfinitePay()" style="background: var(--lime); color: #000; font-size: 16px; padding: 16px 24px;">pagar agora ✦</button>
+          <div class="pix-title display" style="font-size: 22px;">Pagar com Pix</div>
+          <div style="color: var(--text-dim); font-size: 14px; margin: 10px 0 4px;">aprovação na hora ✦ sem comprovante no whats</div>
+          <div style="color: var(--lime); font-size: 12px; margin-bottom: 20px;">dados já preenchidos ✦</div>
+          <button class="btn-primary" id="infinitepay-btn" onclick="openInfinitePay()" style="background: var(--lime); color: #000; font-size: 17px; padding: 18px 24px; font-weight: 700;">pagar agora ✦</button>
         </div>
-        <div style="text-align: center; color: var(--text-dim); font-size: 12px; margin: 16px 0;">ou prefere Pix manual? ↓</div>
       </div>
 
-      <!-- Opção 2: Pix manual (QR Code) — secundário -->
-      <div class="pix-card" id="pix-manual-section">
+      <!-- Hidden: mantido só pra modo teste do TESTE100OFF -->
+      <div class="pix-card" id="pix-manual-section" style="display:none">
         <div class="pix-title display">Paga com Pix</div>
         <div class="pix-total" id="pix-total">r$ 0</div>
-        <div class="qr">
-          <img id="pix-qr-img" src="" alt="qr">
-        </div>
+        <div class="qr"><img id="pix-qr-img" src="" alt="qr"></div>
         <div class="pix-code" id="pix-key-display">—</div>
         <button class="pix-copy" onclick="copyPixKey()">copiar Pix Copia e Cola</button>
       </div>
-
-      <!-- Passos visuais simplificados -->
-      <div class="pix-note" id="pix-instructions" style="text-align: left; padding: 16px 0;">
-        <div style="color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 10px;">como pagar:</div>
-        <div style="color: var(--text-dim); font-size: 13px; line-height: 1.8;">
-          <span style="color: var(--pink); font-weight: 700;">1.</span> copia o código acima<br>
-          <span style="color: var(--pink); font-weight: 700;">2.</span> cola no app do banco e paga<br>
-          <span style="color: var(--pink); font-weight: 700;">3.</span> volta aqui e toca "já paguei" ↓
-        </div>
-      </div>
+      <div class="pix-note" id="pix-instructions" style="display:none"></div>
     </div>
 
-    <div style="height: 100px"></div>
+    <div style="height: 80px"></div>
 
     <div class="sticky-cta">
-      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()">já paguei, mandar comprovante</button>
+      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()" style="background: var(--bg2); color: var(--text-dim); border: 1px solid var(--border); font-size: 13px; padding: 12px;">já paguei manualmente (uso fallback)</button>
     </div>
   </div>
 
@@ -5378,10 +5365,9 @@
   let infinitePayEnabled = true; // toggle pra ativar/desativar
 
   function showInfinitePaySection() {
+    // Andrade 05/06: sempre visível agora (Pix manual removido)
     const section = document.getElementById('infinitepay-section');
-    if (section && infinitePayEnabled && INFINITEPAY_HANDLE) {
-      section.style.display = 'block';
-    }
+    if (section) section.style.display = 'block';
   }
 
   async function openInfinitePay() {
