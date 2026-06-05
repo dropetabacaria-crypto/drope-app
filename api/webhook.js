@@ -13005,26 +13005,93 @@ async function handleInfinitePayWebhook(req, res) {
       }
     }
 
-    if (UAZAPI_TOKEN && STORE_WHATS_NUMBER) {
+    if (UAZAPI_TOKEN) {
       try {
         const amountBRL = (amountCents / 100).toFixed(2).replace('.', ',');
         const customerLine = customer.name
           ? `${customer.name}${customer.phone_number ? ' · ' + customer.phone_number : ''}`
           : 'cliente';
+
+        // Busca itens e endereço do pedido (best-effort, não bloqueia se falhar)
+        let itemsLines = [];
+        let deliveryLine = '';
+        if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
+          try {
+            // 1) Pega o pedido pra ler delivery_type + endereco + items (se item tiver no próprio order)
+            const orderRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,delivery_type,delivery_address,delivery_neighborhood,delivery_city,delivery_fee_cents,items`,
+              { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+            );
+            const orderRows = await orderRes.json();
+            const ord = Array.isArray(orderRows) && orderRows[0];
+            if (ord) {
+              if (ord.delivery_type === 'pickup') {
+                deliveryLine = `🏪 *RETIRADA na loja*`;
+              } else if (ord.delivery_type === 'delivery') {
+                const parts = [];
+                if (ord.delivery_address) parts.push(ord.delivery_address);
+                if (ord.delivery_neighborhood) parts.push(ord.delivery_neighborhood);
+                if (ord.delivery_city) parts.push(ord.delivery_city);
+                const addr = parts.join(' · ') || 'endereço n/a';
+                const feeBRL = ord.delivery_fee_cents ? (ord.delivery_fee_cents/100).toFixed(2).replace('.',',') : '?';
+                deliveryLine = `🛵 *ENTREGA* · taxa R$ ${feeBRL}\n📍 ${addr}`;
+              }
+              // Items podem vir embedded no order (jsonb) ou em drope_order_items
+              if (Array.isArray(ord.items) && ord.items.length > 0) {
+                itemsLines = ord.items.slice(0, 8).map(it => {
+                  const q = it.qty || it.quantity || 1;
+                  const n = it.name || it.product_name || it.title || 'item';
+                  return `• ${q}× ${n}`;
+                });
+                if (ord.items.length > 8) itemsLines.push(`• … +${ord.items.length - 8} item(ns)`);
+              } else if (ord.id) {
+                // Fallback: tenta drope_order_items
+                const itemsRes = await fetch(
+                  `${SUPABASE_URL}/rest/v1/drope_order_items?order_id=eq.${ord.id}&select=qty,product_name&limit=10`,
+                  { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+                );
+                const its = await itemsRes.json();
+                if (Array.isArray(its) && its.length > 0) {
+                  itemsLines = its.map(it => `• ${it.qty || 1}× ${it.product_name || 'item'}`);
+                }
+              }
+            }
+          } catch (eItems) {
+            console.warn('[InfinitePay Webhook] enrich items/addr err:', eItems.message);
+          }
+        }
+
         const lines = [
           `💰 *PAGAMENTO CONFIRMADO* ✅`, ``,
           `Pedido: *#${orderNsu}*`,
-          `Valor: *R$ ${amountBRL}*`,
-          `Método: ${paymentMethod}`, ``,
-          `👤 ${customerLine}`, ``,
-          `_Drope ✦ InfinitePay Webhook_`,
+          `Valor: *R$ ${amountBRL}* (${paymentMethod})`, ``,
+          `👤 ${customerLine}`,
         ];
-        await fetch(`${UAZAPI_SERVER}/send/text`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'token': UAZAPI_TOKEN },
-          body: JSON.stringify({ number: STORE_WHATS_NUMBER, text: lines.join('\n') }),
-        });
-        console.log('[InfinitePay Webhook] whatsapp loja notificado');
+        if (deliveryLine) lines.push(``, deliveryLine);
+        if (itemsLines.length > 0) {
+          lines.push(``, `📦 *itens*`, ...itemsLines);
+        }
+        lines.push(``, `_Drope ✦ InfinitePay Webhook_`);
+        const text = lines.join('\n');
+
+        // BROADCAST: loja (Yasmin opera) + Andrade pessoal + PDVs (backup)
+        const STORE_WHATS_NUMBER = process.env.STORE_WHATS_NUMBER || "5511924810126";
+        const recipients = new Set([STORE_WHATS_NUMBER, ADMIN_LUCAS, ...PDV_PHONES].filter(Boolean));
+        const results = [];
+        for (const number of recipients) {
+          try {
+            await fetch(`${UAZAPI_SERVER}/send/text`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'token': UAZAPI_TOKEN },
+              body: JSON.stringify({ number, text }),
+            });
+            results.push(`${number}:ok`);
+          } catch (eSend) {
+            results.push(`${number}:err`);
+            console.error(`[InfinitePay Webhook] send ${number} err:`, eSend.message);
+          }
+        }
+        console.log('[InfinitePay Webhook] whatsapp broadcast:', results.join(' | '));
       } catch (e) {
         console.error('[InfinitePay Webhook] whatsapp err:', e.message);
       }
