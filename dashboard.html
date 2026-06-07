@@ -120,11 +120,15 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 /* === Notification dot === */
 .notif-dot { display: inline-block; width: 8px; height: 8px; background: var(--red); border-radius: 50%; margin-left: 4px; vertical-align: super; }
 
-/* Banner Safari: aparece até user clicar "ativar som" */
-.safari-banner { background: linear-gradient(90deg, var(--red), var(--orange)); color: #fff; padding: 14px 20px; text-align: center; font-weight: 700; font-size: 14px; cursor: pointer; position: sticky; top: 0; z-index: 50; animation: pulse 1.5s infinite; }
-.safari-banner:hover { filter: brightness(1.1); }
-.safari-banner.hidden { display: none; }
-.safari-banner small { display: block; font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.9; }
+/* Overlay full-screen pra destravar áudio — impossível de ignorar */
+.audio-gate { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 999; backdrop-filter: blur(8px); }
+.audio-gate.hidden { display: none; }
+.audio-gate-card { background: linear-gradient(135deg, var(--red), var(--orange)); border-radius: 24px; padding: 40px 30px; max-width: 480px; width: 90%; text-align: center; box-shadow: 0 30px 90px rgba(255,61,92,0.5); }
+.audio-gate h1 { color: #fff; font-size: 26px; margin-bottom: 8px; font-weight: 800; }
+.audio-gate p { color: rgba(255,255,255,0.95); font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
+.audio-gate button { background: #fff; color: var(--red); border: 0; padding: 18px 36px; border-radius: 12px; font-size: 18px; font-weight: 800; cursor: pointer; width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.3); animation: pulse 1.5s infinite; text-transform: uppercase; letter-spacing: 0.05em; }
+.audio-gate button:active { transform: scale(0.96); }
+.audio-gate .gate-icon { font-size: 56px; margin-bottom: 16px; display: block; }
 
 @keyframes silencepulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 </style>
@@ -160,13 +164,17 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
   </div>
 </div>
 
-<!-- Audio do sininho (preload pra tocar instantâneo) -->
+<!-- Audio fallback (HTMLAudioElement) -->
 <audio id="notif-sound" preload="auto" src="/sounds/beep.wav"></audio>
 
-<!-- Banner pra destravar autoplay (Safari/Chrome): some após primeiro click -->
-<div class="safari-banner" id="safari-banner" onclick="unlockAudio()">
-  🔔 TOCA AQUI PRA ATIVAR O SOM DOS PEDIDOS
-  <small>uma vez só ✦ depois disso o sininho toca sozinho quando rolar venda</small>
+<!-- GATE FULL-SCREEN — impossível de ignorar. Só fecha clicando -->
+<div class="audio-gate" id="audio-gate">
+  <div class="audio-gate-card">
+    <span class="gate-icon">🔔</span>
+    <h1>Ativar som dos pedidos</h1>
+    <p>O Safari bloqueia som por padrão. Toca no botão pra ativar o sininho que vai tocar quando rolar venda nova.</p>
+    <button onclick="unlockAudio()">🔊 ativar sininho</button>
+  </div>
 </div>
 
 <!-- Overview -->
@@ -626,30 +634,120 @@ function reconcileAlerting(orders) {
   updateSilenceUI();
 }
 
-// === SOM ===
-function playBeep() {
+// =============================================================
+// === SISTEMA DE ÁUDIO SAFARI-PROOF ===
+// Web Audio API + AudioBuffer pré-carregado.
+// Safari só permite áudio após user gesture E AudioContext.resume().
+// Esta implementação usa AudioContext que é o mais confiável no Safari.
+// =============================================================
+let audioCtx = null;
+let audioBuffer = null;
+let audioUnlocked = false;
+
+async function loadAudioBuffer() {
+  if (audioBuffer) return audioBuffer;
   try {
-    const a = document.getElementById('notif-sound');
-    if (!a) return;
-    a.currentTime = 0;
-    a.volume = 0.9;
-    const p = a.play();
-    if (p && p.catch) {
-      p.catch(err => {
-        // Autoplay bloqueado — sinaliza visualmente
-        console.warn('[som] autoplay bloqueado:', err.message);
-        const btn = document.getElementById('sound-test-btn');
-        if (btn) {
-          btn.style.background = 'var(--red)';
-          btn.style.color = '#fff';
-          btn.textContent = '🔇 clica pra ativar!';
-        }
-      });
+    const r = await fetch('/sounds/beep.wav');
+    const arrayBuf = await r.arrayBuffer();
+    if (!audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioCtx();
     }
-  } catch (e) { console.warn('[som] erro:', e.message); }
+    audioBuffer = await new Promise((resolve, reject) => {
+      audioCtx.decodeAudioData(arrayBuf, resolve, reject);
+    });
+    console.log('[som] buffer carregado:', audioBuffer.duration + 's');
+    return audioBuffer;
+  } catch (e) {
+    console.warn('[som] erro carregando buffer:', e.message);
+    return null;
+  }
 }
+
+function playBeep() {
+  if (!audioUnlocked) return; // ainda não destrravou
+  try {
+    if (!audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioCtx();
+    }
+    // Se context tá suspended (Safari pode suspender após inatividade), retoma
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (audioBuffer) {
+      const src = audioCtx.createBufferSource();
+      src.buffer = audioBuffer;
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0.85;
+      src.connect(gain);
+      gain.connect(audioCtx.destination);
+      src.start(0);
+    } else {
+      // Fallback: HTMLAudioElement
+      const a = document.getElementById('notif-sound');
+      if (a) {
+        a.currentTime = 0;
+        a.volume = 0.9;
+        const p = a.play();
+        if (p && p.catch) p.catch(()=>{});
+      }
+    }
+  } catch (e) {
+    console.warn('[som] erro tocando:', e.message);
+  }
+}
+
+// Destrava áudio — chamado por user gesture (click no botão)
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  try {
+    // 1. Cria/retoma AudioContext (Safari precisa disso no user gesture)
+    if (!audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioCtx();
+    }
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+    // 2. Carrega buffer se não tá carregado
+    if (!audioBuffer) {
+      await loadAudioBuffer();
+    }
+    // 3. Toca um beep curtíssimo silencioso pra confirmar que destravou
+    if (audioBuffer) {
+      const src = audioCtx.createBufferSource();
+      src.buffer = audioBuffer;
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0.001; // silencioso pra teste de unlock
+      src.connect(gain);
+      gain.connect(audioCtx.destination);
+      src.start(0);
+    }
+    // 4. Também destrava o <audio> HTMLAudioElement como fallback
+    const a = document.getElementById('notif-sound');
+    if (a) {
+      a.volume = 0.01;
+      try { await a.play(); a.pause(); a.currentTime = 0; a.volume = 0.9; } catch(_){}
+    }
+    audioUnlocked = true;
+    try { localStorage.setItem('drope_dash_audio_unlocked', '1'); } catch(_){}
+
+    // 5. Toca o sininho REAL pra ele saber que tá funcionando
+    setTimeout(() => playBeep(), 200);
+
+    // 6. Esconde o gate
+    const gate = document.getElementById('audio-gate');
+    if (gate) gate.classList.add('hidden');
+    console.log('[som] DESTRAVADO ✓');
+  } catch (e) {
+    console.error('[som] erro destravando:', e);
+    alert('Erro ao destravar o som: ' + e.message + '. Tenta de novo.');
+  }
+}
+
 function testSound() {
-  unlockAudio();
+  if (!audioUnlocked) { unlockAudio(); return; }
   playBeep();
   const btn = document.getElementById('sound-test-btn');
   if (btn) {
@@ -662,31 +760,6 @@ function testSound() {
       btn.textContent = '🔔 testar som';
     }, 1500);
   }
-}
-
-// Destrava autoplay no Safari/Chrome (precisa user gesture)
-let audioUnlocked = false;
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  // Toca silenciosamente pra destravar
-  const a = document.getElementById('notif-sound');
-  if (a) {
-    a.volume = 0.01;
-    const p = a.play();
-    if (p && p.then) {
-      p.then(() => {
-        a.pause();
-        a.currentTime = 0;
-        a.volume = 0.9;
-      }).catch(err => {
-        console.warn('[audio] unlock fail:', err.message);
-      });
-    }
-  }
-  // Esconde o banner
-  const banner = document.getElementById('safari-banner');
-  if (banner) banner.classList.add('hidden');
 }
 
 function toast(msg) {
@@ -735,6 +808,19 @@ function _doNotify(qtd, orders) {
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
+
+  // Sempre mostra o gate de áudio até o user clicar nessa sessão.
+  // (Mesmo se já destravou antes, Safari pode ter resetado após fechar a aba.)
+  // Se ele já destravou nessa sessão, esconde.
+  const wasUnlocked = (function(){ try { return localStorage.getItem('drope_dash_audio_unlocked') === '1'; } catch(_){ return false; } })();
+  if (wasUnlocked) {
+    // Tentamos destravar silenciosamente — mas se Safari não deixar, o gate volta.
+    // Mantemos o gate visível por garantia: o user clica uma vez, pronto.
+  }
+
+  // Pré-carrega o buffer (não precisa de gesture pra fetch)
+  loadAudioBuffer().catch(() => {});
+
   // Tem token salvo? Já tenta
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
