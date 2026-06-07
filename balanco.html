@@ -268,16 +268,36 @@ function showToast(msg, kind = 'ok') {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-// ============ SCANNER ZXing ============
+// ============ SCANNER ZXing (com getUserMedia explícito) ============
 async function startScanner() {
+  const video = document.getElementById('scanner-video');
+  if (!video) return;
   try {
-    const video = document.getElementById('scanner-video');
+    // 1) Pede a câmera traseira EXPLICITAMENTE — Safari iOS exige isso
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+    } catch (e1) {
+      console.warn('[scanner] facingMode env falhou, tentando default:', e1.message);
+      // Fallback: qualquer câmera
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    video.srcObject = stream;
+    video.setAttribute('playsinline', 'true');
+    video.muted = true;
+    await video.play();
+
+    // 2) Conecta o ZXing direto no <video> que já tá streamando
     const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
     state.codeReader = codeReader;
     state.scanLooping = true;
+    state.stream = stream;
 
     let blocked = false;
-    state.controls = await codeReader.decodeFromVideoDevice(undefined, video, (result, err) => {
+    state.controls = await codeReader.decodeFromVideoElement(video, (result, err) => {
       if (!state.scanLooping) return;
       if (result && !blocked) {
         const code = (result.text || result.getText?.() || '').replace(/\D/g, '');
@@ -288,9 +308,19 @@ async function startScanner() {
         }
       }
     });
+    console.log('[scanner] ✓ câmera ativa');
   } catch (e) {
-    console.error('[scanner]', e);
-    showToast('câmera não iniciou — usa "📸 escanear" ou "digitar"', 'err');
+    console.error('[scanner] erro:', e);
+    const msg = (e && e.name === 'NotAllowedError')
+      ? 'permissão da câmera negada — vai nas configs do navegador e libera'
+      : 'câmera não abriu (' + (e.message || e.name || 'desconhecido') + ') — usa "digitar"';
+    showToast(msg, 'err');
+    // Tenta mostrar o erro visualmente também
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);color:#fff;padding:24px;text-align:center;font-size:14px';
+    overlay.innerHTML = '⚠️ <b>' + msg + '</b><br><br><button onclick="location.reload()" style="background:var(--lime);color:#000;border:0;padding:10px 20px;border-radius:8px;margin-top:12px;cursor:pointer;font-weight:600">tentar de novo</button>';
+    const area = document.getElementById('scanner-area');
+    if (area) area.appendChild(overlay);
   }
 }
 
