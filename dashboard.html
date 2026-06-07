@@ -119,6 +119,14 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 
 /* === Notification dot === */
 .notif-dot { display: inline-block; width: 8px; height: 8px; background: var(--red); border-radius: 50%; margin-left: 4px; vertical-align: super; }
+
+/* Banner Safari: aparece até user clicar "ativar som" */
+.safari-banner { background: linear-gradient(90deg, var(--red), var(--orange)); color: #fff; padding: 14px 20px; text-align: center; font-weight: 700; font-size: 14px; cursor: pointer; position: sticky; top: 0; z-index: 50; animation: pulse 1.5s infinite; }
+.safari-banner:hover { filter: brightness(1.1); }
+.safari-banner.hidden { display: none; }
+.safari-banner small { display: block; font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.9; }
+
+@keyframes silencepulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 </style>
 </head>
 <body>
@@ -154,6 +162,12 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 
 <!-- Audio do sininho (preload pra tocar instantâneo) -->
 <audio id="notif-sound" preload="auto" src="/sounds/beep.wav"></audio>
+
+<!-- Banner pra destravar autoplay (Safari/Chrome): some após primeiro click -->
+<div class="safari-banner" id="safari-banner" onclick="unlockAudio()">
+  🔔 TOCA AQUI PRA ATIVAR O SOM DOS PEDIDOS
+  <small>uma vez só ✦ depois disso o sininho toca sozinho quando rolar venda</small>
+</div>
 
 <!-- Overview -->
 <section class="screen active" id="screen-overview">
@@ -204,7 +218,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
     <span style="margin-left:auto"><button class="btn-mini" onclick="reloadOp()">↻ recarregar</button></span>
   </div>
   <div class="op-frame-wrap">
-    <iframe class="op-frame" id="op-frame" src="about:blank" title="Operação iFood"></iframe>
+    <iframe class="op-frame" id="op-frame" src="about:blank" title="Operação iFood" allow="autoplay; clipboard-write; clipboard-read"></iframe>
   </div>
 </section>
 
@@ -256,8 +270,9 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 
 <script>
 const STORAGE_KEY = 'drope_dashboard_token_v1';
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 10000;       // 10s — pra parecer iFood real
 const BEEP_LOOP_INTERVAL_MS = 3500;   // Toca a cada 3.5s
+const ALERT_STATUSES = ['paid','waiting','pending','pix_sent']; // pedidos que precisam de você
 let token = '';
 let pollTimer = null;
 let lastOrderIds = new Set();
@@ -375,16 +390,45 @@ function renderAll(data) {
   $('kpi-low').textContent = s.low_stock_count || 0;
   $('kpi-pend').textContent = s.pending_registrations || 0;
 
-  // Pedidos novos? Marca notificação
+  // === LÓGICA DE ALERTA AGRESSIVA ===
+  // Toda vez que rola polling, verifica TODOS os pedidos em status alertante
+  // (não só os "que apareceram agora"). Se tem qualquer um, dispara o loop.
   const orders = data.orders_today || [];
   const newOrderIds = new Set(orders.map(o => o.id));
+
+  // Pega TODOS os pedidos atualmente em status alertante
+  const alertOrders = orders.filter(o => ALERT_STATUSES.includes(o.status));
+
+  // Detecta novos (chegaram desde último polling) — pra notif visual/título flash
   const novos = [...newOrderIds].filter(id => !lastOrderIds.has(id));
+
+  // Limpa set se pedido saiu de status alertante
+  for (const id of [...alertingOrderIds]) {
+    const o = orders.find(x => x.id === id);
+    if (!o || !ALERT_STATUSES.includes(o.status)) {
+      alertingOrderIds.delete(id);
+    }
+  }
+
+  // Adiciona TODOS os pedidos alertantes no set (mesmo os antigos — se tu deu refresh, volta a tocar)
+  for (const o of alertOrders) {
+    alertingOrderIds.add(o.id);
+  }
+
+  updateSilenceUI();
+
+  // Inicia loop se tem alertas e ainda não tá rodando
+  if (alertingOrderIds.size > 0 && !beepLoopTimer) {
+    startBeepLoop();
+  } else if (alertingOrderIds.size === 0 && beepLoopTimer) {
+    stopBeepLoop();
+  }
+
+  // Notificação push + flash do título só pra pedidos GENUINAMENTE novos
   if (!isFirstLoad && lastOrderIds.size > 0 && novos.length > 0) {
-    notifyNewOrders(novos.length, orders, novos);
+    _doNotify(novos.length, orders);
   }
   lastOrderIds = newOrderIds;
-  // Para o loop se pedidos alertando saíram de paid (foram aceitos)
-  reconcileAlerting(orders);
 
   // Lista de hoje (overview — top 5)
   $('today-count').textContent = orders.length;
@@ -605,10 +649,10 @@ function playBeep() {
   } catch (e) { console.warn('[som] erro:', e.message); }
 }
 function testSound() {
+  unlockAudio();
   playBeep();
   const btn = document.getElementById('sound-test-btn');
   if (btn) {
-    const original = btn.textContent;
     btn.style.background = 'var(--green)';
     btn.style.color = '#000';
     btn.textContent = '✓ tocou!';
@@ -618,6 +662,31 @@ function testSound() {
       btn.textContent = '🔔 testar som';
     }, 1500);
   }
+}
+
+// Destrava autoplay no Safari/Chrome (precisa user gesture)
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  // Toca silenciosamente pra destravar
+  const a = document.getElementById('notif-sound');
+  if (a) {
+    a.volume = 0.01;
+    const p = a.play();
+    if (p && p.then) {
+      p.then(() => {
+        a.pause();
+        a.currentTime = 0;
+        a.volume = 0.9;
+      }).catch(err => {
+        console.warn('[audio] unlock fail:', err.message);
+      });
+    }
+  }
+  // Esconde o banner
+  const banner = document.getElementById('safari-banner');
+  if (banner) banner.classList.add('hidden');
 }
 
 function toast(msg) {
