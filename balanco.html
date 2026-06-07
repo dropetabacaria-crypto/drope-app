@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0A0A14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Balanço">
+<title>Drope ✦ Balanço</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<script src="https://unpkg.com/@zxing/browser@latest/umd/index.min.js"></script>
+<style>
+:root {
+  --bg: #0A0A14;
+  --bg2: #14141F;
+  --bg3: #1F1F2E;
+  --fg: #FFFFFF;
+  --fg-dim: #8B8BA0;
+  --border: #2A2A3E;
+  --lime: #D4FF2E;
+  --pink: #FF4D8F;
+  --orange: #FF8533;
+  --red: #FF3D5C;
+  --green: #4ADE80;
+  --yellow: #FFB800;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; overflow-x: hidden; }
+header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg); position: sticky; top: 0; z-index: 10; }
+h1 { font-size: 17px; font-weight: 600; }
+h1 small { font-size: 11px; color: var(--fg-dim); font-weight: 400; margin-left: 6px; }
+.btn-back { background: none; border: 0; color: var(--fg); font-size: 22px; cursor: pointer; padding: 4px; }
+.banner { background: linear-gradient(90deg, rgba(255,184,0,0.15), rgba(212,255,46,0.15)); border-bottom: 1px solid var(--border); padding: 10px 16px; text-align: center; font-size: 13px; color: var(--yellow); font-weight: 500; }
+main { padding: 12px 16px 100px; }
+#scanner-area { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
+#scanner-video { width: 100%; height: 100%; object-fit: cover; }
+.viewfinder { position: absolute; inset: 16% 12%; border: 2px solid var(--lime); border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35); }
+.viewfinder::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--lime); opacity: 0.7; animation: sweep 2s linear infinite; }
+@keyframes sweep { 0%, 100% { transform: translateY(-40px); } 50% { transform: translateY(40px); } }
+.toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: var(--fg); padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: 88%; text-align: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 200ms; }
+.toast.show { opacity: 1; }
+.toast.ok { border: 1px solid var(--green); }
+.toast.err { border: 1px solid var(--red); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.btn { background: var(--bg2); border: 1px solid var(--border); color: var(--fg); padding: 14px; border-radius: 12px; font-size: 14px; cursor: pointer; font-weight: 500; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--lime); color: #000; border-color: var(--lime); }
+.btn-finalize { background: var(--pink); color: #fff; border-color: var(--pink); }
+.btn-ghost { background: transparent; border: 1px dashed var(--border); color: var(--fg-dim); }
+.summary-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; text-align: center; }
+.stat .num { font-size: 22px; font-weight: 700; color: var(--lime); }
+.stat .lbl { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
+.counted-list { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 8px; }
+.counted-list h3 { font-size: 12px; color: var(--fg-dim); padding: 4px 8px 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.counted-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.counted-item:last-child { border-bottom: 0; }
+.counted-item .name { font-size: 13px; }
+.counted-item .name small { display: block; color: var(--fg-dim); font-size: 11px; margin-top: 2px; }
+.counted-item .qty { font-size: 16px; font-weight: 700; color: var(--lime); background: rgba(212,255,46,0.1); padding: 4px 12px; border-radius: 8px; min-width: 40px; text-align: center; }
+.unknown-item .name { color: var(--orange); }
+.unknown-item .qty { color: var(--orange); background: rgba(255,133,51,0.1); }
+.report { padding: 12px 0; }
+.report-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 8px; padding: 10px 8px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+.report-row.header { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--lime); }
+.report-row .diff-pos { color: var(--green); font-weight: 700; }
+.report-row .diff-neg { color: var(--red); font-weight: 700; }
+.report-row .diff-zero { color: var(--fg-dim); }
+.report-row .name small { display: block; color: var(--fg-dim); font-size: 10px; margin-top: 2px; }
+.empty { text-align: center; padding: 24px; color: var(--fg-dim); font-size: 13px; }
+.empty .icon { font-size: 42px; margin-bottom: 8px; }
+#report-screen { display: none; }
+#report-screen.show { display: block; }
+.summary-final { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+.summary-final h2 { font-size: 16px; margin-bottom: 8px; }
+.summary-final .sub { color: var(--fg-dim); font-size: 12px; margin-bottom: 10px; }
+.summary-final .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+.summary-final .row .label { color: var(--fg-dim); }
+.summary-final .row .val { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="btn-back" onclick="goHome()" aria-label="voltar">←</button>
+  <h1>📊 Balanço <small id="session-info">novo</small></h1>
+  <button class="btn-back" onclick="resetBalanco()" aria-label="zerar balanço" title="zerar">🗑️</button>
+</header>
+
+<div class="banner" id="banner">📸 escaneia cada pod ✦ ao final, clica "ver relatório"</div>
+
+<main id="main-screen">
+  <div id="scanner-area">
+    <video id="scanner-video" playsinline muted autoplay></video>
+    <div class="viewfinder"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="actions">
+    <button class="btn btn-primary" onclick="capturePhoto()">📸 escanear código</button>
+    <button class="btn btn-ghost" onclick="manualInput()">⌨️ digitar</button>
+  </div>
+
+  <div class="summary-stats">
+    <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">total contado</div></div>
+    <div class="stat"><div class="num" id="stat-unique">0</div><div class="lbl">produtos únicos</div></div>
+    <div class="stat"><div class="num" id="stat-unknown" style="color:var(--orange)">0</div><div class="lbl">não cadastrados</div></div>
+  </div>
+
+  <div class="actions" style="grid-template-columns: 1fr">
+    <button class="btn btn-finalize" onclick="finalizar()">✅ ver relatório</button>
+  </div>
+
+  <div class="counted-list" id="counted-list">
+    <h3>contados nessa sessão</h3>
+    <div class="empty" id="empty-state">
+      <div class="icon">📸</div>
+      <div>escaneia o primeiro pod pra começar</div>
+    </div>
+  </div>
+</main>
+
+<input type="file" id="photo-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
+
+<!-- ============ TELA DE RELATÓRIO ============ -->
+<section id="report-screen">
+  <div style="padding: 12px 16px 100px">
+    <div class="summary-final">
+      <h2>📊 relatório do balanço</h2>
+      <div class="sub" id="report-time">—</div>
+      <div class="row"><span class="label">total contado</span><span class="val" id="r-total">0</span></div>
+      <div class="row"><span class="label">total no sistema</span><span class="val" id="r-sys">0</span></div>
+      <div class="row"><span class="label">diferença total</span><span class="val" id="r-diff">0</span></div>
+      <div class="row"><span class="label">não cadastrados</span><span class="val" id="r-unknown" style="color:var(--orange)">0</span></div>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <div class="report-row header">
+        <div>produto</div>
+        <div style="text-align:center">sistema</div>
+        <div style="text-align:center">contado</div>
+        <div style="text-align:right">diferença</div>
+      </div>
+      <div id="report-rows"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" onclick="voltarPraScanner()">← continuar contando</button>
+      <button class="btn btn-finalize" onclick="salvarBalanco()">💾 salvar balanço</button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ============ ESTADO ============
+const STORAGE_KEY = 'drope_balanco_v1';
+const state = {
+  startedAt: Date.now(),
+  // counts: { [productId]: { id, name, barcode, qty_system, qty_counted } }
+  counts: {},
+  // unknown: { [barcode]: count }
+  unknown: {},
+  controls: null,
+  codeReader: null,
+  scanLooping: false,
+};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved.startedAt) state.startedAt = saved.startedAt;
+    if (saved.counts) state.counts = saved.counts;
+    if (saved.unknown) state.unknown = saved.unknown;
+  } catch (e) {}
+}
+function persistState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      startedAt: state.startedAt,
+      counts: state.counts,
+      unknown: state.unknown,
+    }));
+  } catch (e) {}
+}
+function resetBalanco() {
+  if (!confirm('zerar o balanço? não dá pra desfazer.')) return;
+  state.startedAt = Date.now();
+  state.counts = {};
+  state.unknown = {};
+  persistState();
+  render();
+  showToast('balanço zerado ✦', 'ok');
+}
+
+// ============ TOAST ============
+let toastTimer = null;
+function showToast(msg, kind = 'ok') {
+  const el = document.getElementById('toast');
+  el.className = 'toast show ' + (kind === 'err' ? 'err' : 'ok');
+  el.textContent = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ============ SCANNER ZXing ============
+async function startScanner() {
+  try {
+    const video = document.getElementById('scanner-video');
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    state.codeReader = codeReader;
+    state.scanLooping = true;
+
+    let blocked = false;
+    state.controls = await codeReader.decodeFromVideoDevice(undefined, video, (result, err) => {
+      if (!state.scanLooping) return;
+      if (result && !blocked) {
+        const code = (result.text || result.getText?.() || '').replace(/\D/g, '');
+        if (code && code.length >= 6) {
+          blocked = true;
+          setTimeout(() => { blocked = false; }, 800);
+          processBarcode(code);
+        }
+      }
+    });
+  } catch (e) {
+    console.error('[scanner]', e);
+    showToast('câmera não iniciou — usa "📸 escanear" ou "digitar"', 'err');
+  }
+}
+
+// ============ CAPTURA POR FOTO (fallback) ============
+function capturePhoto() {
+  const input = document.getElementById('photo-input');
+  input.value = '';
+  input.onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    // Pra simplificar: usa ZXing pra ler a imagem
+    try {
+      const reader = state.codeReader || new ZXingBrowser.BrowserMultiFormatReader();
+      const imgUrl = URL.createObjectURL(file);
+      const result = await reader.decodeFromImageUrl(imgUrl);
+      const code = (result.text || '').replace(/\D/g, '');
+      URL.revokeObjectURL(imgUrl);
+      if (code && code.length >= 6) {
+        processBarcode(code);
+      } else {
+        showToast('não li o código — tira outra mais perto', 'err');
+      }
+    } catch (err) {
+      console.error('[photo decode]', err);
+      showToast('não li o código nessa foto ✦ tenta de novo', 'err');
+    }
+  };
+  input.click();
+}
+
+// ============ INPUT MANUAL ============
+function manualInput() {
+  const code = prompt('digita o código de barras (só números):', '');
+  if (!code) return;
+  const clean = code.replace(/\D/g, '');
+  if (clean.length < 6 || clean.length > 14) {
+    alert('código inválido (6 a 14 números)');
+    return;
+  }
+  processBarcode(clean);
+}
+
+// ============ PROCESSA BARCODE ============
+async function processBarcode(barcode) {
+  try {
+    const r = await fetch('/api/webhook?action=balanco_resolve_barcode&barcode=' + encodeURIComponent(barcode));
+    const data = await r.json();
+    if (data && data.ok && data.product) {
+      const p = data.product;
+      const existing = state.counts[p.id];
+      if (existing) {
+        existing.qty_counted += 1;
+      } else {
+        state.counts[p.id] = {
+          id: p.id,
+          name: p.name,
+          barcode,
+          qty_system: p.qty_available || 0,
+          qty_counted: 1,
+        };
+      }
+      // Vibração + toast
+      if (navigator.vibrate) navigator.vibrate(40);
+      showToast(`✓ ${p.name} ✦ ${state.counts[p.id].qty_counted}`, 'ok');
+    } else {
+      // Não cadastrado
+      state.unknown[barcode] = (state.unknown[barcode] || 0) + 1;
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+      showToast('⚠️ não cadastrado — registrei mesmo assim', 'err');
+    }
+    persistState();
+    render();
+  } catch (e) {
+    console.error('[processBarcode]', e);
+    showToast('erro de rede — tenta de novo', 'err');
+  }
+}
+
+// ============ RENDER ============
+function render() {
+  const counts = Object.values(state.counts);
+  const totalCounted = counts.reduce((s, c) => s + c.qty_counted, 0)
+    + Object.values(state.unknown).reduce((s, n) => s + n, 0);
+  const uniqueCount = counts.length;
+  const unknownCount = Object.keys(state.unknown).length;
+
+  document.getElementById('stat-total').textContent = totalCounted;
+  document.getElementById('stat-unique').textContent = uniqueCount;
+  document.getElementById('stat-unknown').textContent = unknownCount;
+
+  const sessionInfo = document.getElementById('session-info');
+  if (totalCounted > 0) {
+    const dt = new Date(state.startedAt);
+    const t = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    sessionInfo.textContent = `desde ${t} ✦ ${totalCounted} itens`;
+  } else {
+    sessionInfo.textContent = 'novo';
+  }
+
+  // Lista
+  const list = document.getElementById('counted-list');
+  const empty = document.getElementById('empty-state');
+  const items = [...counts].sort((a,b) => b.qty_counted - a.qty_counted);
+  if (items.length === 0 && unknownCount === 0) {
+    empty.style.display = '';
+    list.querySelectorAll('.counted-item').forEach(el => el.remove());
+    return;
+  }
+  empty.style.display = 'none';
+  list.querySelectorAll('.counted-item').forEach(el => el.remove());
+
+  items.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'counted-item';
+    div.innerHTML = `
+      <div class="name">${c.name}<small>sistema: ${c.qty_system}</small></div>
+      <div class="qty">${c.qty_counted}</div>
+    `;
+    list.appendChild(div);
+  });
+
+  Object.entries(state.unknown).forEach(([bc, qty]) => {
+    const div = document.createElement('div');
+    div.className = 'counted-item unknown-item';
+    div.innerHTML = `
+      <div class="name">não cadastrado<small>código: ${bc}</small></div>
+      <div class="qty">${qty}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ============ RELATÓRIO ============
+function finalizar() {
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('report-screen').classList.add('show');
+  renderReport();
+}
+function voltarPraScanner() {
+  document.getElementById('report-screen').classList.remove('show');
+  document.getElementById('main-screen').style.display = '';
+}
+function renderReport() {
+  const counts = Object.values(state.counts);
+  const totalCounted = counts.reduce((s, c) => s + c.qty_counted, 0);
+  const totalSystem = counts.reduce((s, c) => s + c.qty_system, 0);
+  const diffTotal = totalCounted - totalSystem;
+  const unknownCount = Object.values(state.unknown).reduce((s, n) => s + n, 0);
+
+  document.getElementById('r-total').textContent = totalCounted;
+  document.getElementById('r-sys').textContent = totalSystem;
+  const diffEl = document.getElementById('r-diff');
+  diffEl.textContent = (diffTotal > 0 ? '+' : '') + diffTotal;
+  diffEl.style.color = diffTotal === 0 ? 'var(--green)' : (diffTotal < 0 ? 'var(--red)' : 'var(--yellow)');
+  document.getElementById('r-unknown').textContent = unknownCount;
+
+  const dt = new Date(state.startedAt);
+  document.getElementById('report-time').textContent =
+    `iniciado: ${dt.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}`;
+
+  const rows = document.getElementById('report-rows');
+  rows.innerHTML = '';
+
+  // Ordena: maiores divergências primeiro
+  const sorted = [...counts].sort((a, b) => {
+    const da = Math.abs(a.qty_counted - a.qty_system);
+    const db = Math.abs(b.qty_counted - b.qty_system);
+    return db - da;
+  });
+
+  sorted.forEach(c => {
+    const d = c.qty_counted - c.qty_system;
+    const cls = d === 0 ? 'diff-zero' : (d > 0 ? 'diff-pos' : 'diff-neg');
+    const row = document.createElement('div');
+    row.className = 'report-row';
+    row.innerHTML = `
+      <div class="name">${c.name}<small>cod: ${c.barcode || '—'}</small></div>
+      <div style="text-align:center">${c.qty_system}</div>
+      <div style="text-align:center">${c.qty_counted}</div>
+      <div class="${cls}" style="text-align:right">${d > 0 ? '+' : ''}${d}</div>
+    `;
+    rows.appendChild(row);
+  });
+
+  // Não cadastrados
+  Object.entries(state.unknown).forEach(([bc, qty]) => {
+    const row = document.createElement('div');
+    row.className = 'report-row';
+    row.innerHTML = `
+      <div class="name" style="color:var(--orange)">não cadastrado<small>cod: ${bc}</small></div>
+      <div style="text-align:center">—</div>
+      <div style="text-align:center">${qty}</div>
+      <div style="text-align:right;color:var(--orange)">novo</div>
+    `;
+    rows.appendChild(row);
+  });
+}
+
+// ============ SALVAR BALANÇO ============
+async function salvarBalanco() {
+  const counts = Object.values(state.counts);
+  if (counts.length === 0 && Object.keys(state.unknown).length === 0) {
+    showToast('balanço vazio ✦ escaneia algo antes', 'err');
+    return;
+  }
+  try {
+    const r = await fetch('/api/webhook?action=balanco_finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        started_at: new Date(state.startedAt).toISOString(),
+        counts: counts.map(c => ({
+          product_id: c.id,
+          barcode: c.barcode,
+          qty_system: c.qty_system,
+          qty_counted: c.qty_counted,
+        })),
+        unknown: state.unknown,
+      }),
+    });
+    const data = await r.json();
+    if (data && data.ok) {
+      showToast('✦ balanço salvo ✦', 'ok');
+      setTimeout(() => {
+        localStorage.removeItem(STORAGE_KEY);
+        location.href = '/balanco.html';
+      }, 1500);
+    } else {
+      showToast('erro ao salvar: ' + (data.error || 'desconhecido'), 'err');
+    }
+  } catch (e) {
+    showToast('erro de rede: ' + e.message, 'err');
+  }
+}
+
+// ============ NAVEGAÇÃO ============
+function goHome() {
+  if (Object.keys(state.counts).length > 0 || Object.keys(state.unknown).length > 0) {
+    if (!confirm('sair? o balanço tá salvo no celular, pode voltar depois.')) return;
+  }
+  location.href = '/';
+}
+
+// ============ BOOT ============
+loadState();
+render();
+startScanner();
+</script>
+
+</body>
+</html>

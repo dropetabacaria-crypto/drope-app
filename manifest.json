@@ -46,6 +46,19 @@
       ]
     },
     {
+      "name": "📊 Fazer balanço",
+      "short_name": "Balanço",
+      "description": "Contagem física do estoque com scanner",
+      "url": "/balanco.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "🦎 Admin Drope",
       "short_name": "Admin",
       "description": "Painel administrativo do Drope",

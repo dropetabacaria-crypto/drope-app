@@ -4481,6 +4481,104 @@ async function handleAnalyzePricePhoto(req, res) {
   }
 }
 
+// ============ BALANÇO (06/06/2026) ============
+// Andrade pediu pra reunião operacional: scanner com contagem física.
+// Andrade quer atalho no PWA. Páginas: /balanco.html (contagem) + endpoints abaixo.
+
+// GET /api/webhook?action=balanco_resolve_barcode&barcode=XXX
+// Retorna o produto pelo código (busca em barcode OU barcodes[]).
+async function handleBalancoResolveBarcode(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const barcodeMatch = qs.split('&').find(x => x.startsWith('barcode='));
+    const barcode = barcodeMatch ? decodeURIComponent(barcodeMatch.slice(8)).replace(/\D/g, '') : '';
+    if (!barcode || barcode.length < 6) {
+      return res.status(400).json({ ok: false, error: 'missing or invalid barcode' });
+    }
+
+    // Busca por barcode OU array barcodes[]
+    const r = await sbGet('drope_products',
+      `or=(barcode.eq.${encodeURIComponent(barcode)},barcodes.cs.{${encodeURIComponent(barcode)}})&select=id,name,slug,barcode,barcodes,qty_available,box_photo_url&hidden=eq.false&limit=1`);
+
+    if (r && r[0]) {
+      return res.status(200).json({ ok: true, product: r[0] });
+    }
+    return res.status(200).json({ ok: false, error: 'product not found', barcode });
+  } catch (err) {
+    console.error('[balanco_resolve_barcode] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// POST /api/webhook?action=balanco_finalize
+// Body: { started_at, counts: [{product_id, barcode, qty_system, qty_counted}], unknown: {barcode: count} }
+// Salva o balanço em drope_balancos pra histórico.
+async function handleBalancoFinalize(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const startedAt = body.started_at || new Date().toISOString();
+    const counts = Array.isArray(body.counts) ? body.counts : [];
+    const unknown = (body.unknown && typeof body.unknown === 'object') ? body.unknown : {};
+
+    let totalCounted = 0;
+    let totalSystem = 0;
+    for (const c of counts) {
+      totalCounted += (parseInt(c.qty_counted) || 0);
+      totalSystem += (parseInt(c.qty_system) || 0);
+    }
+    const unknownTotal = Object.values(unknown).reduce((s, n) => s + (parseInt(n) || 0), 0);
+    totalCounted += unknownTotal;
+    const diffTotal = totalCounted - totalSystem - unknownTotal; // só considera produtos conhecidos
+
+    const inserted = await sbInsert('drope_balancos', {
+      started_at: startedAt,
+      finalized_at: new Date().toISOString(),
+      total_counted: totalCounted,
+      total_system: totalSystem,
+      diff_total: diffTotal,
+      unknown_count: Object.keys(unknown).length,
+      counts,
+      unknown,
+    });
+
+    if (!inserted || !inserted.id) {
+      return res.status(500).json({ ok: false, error: 'insert falhou', detail: sbInsert._lastError || 'desconhecido' });
+    }
+
+    // Notifica Andrade no whats
+    try {
+      if (UAZAPI_TOKEN && ADMIN_LUCAS) {
+        const lines = [
+          `📊 *BALANÇO FINALIZADO* ✦`, ``,
+          `🔢 contado: *${totalCounted}*`,
+          `📦 no sistema: *${totalSystem}*`,
+          `${diffTotal === 0 ? '✅' : (diffTotal > 0 ? '🟡' : '🔴')} diferença: *${diffTotal > 0 ? '+' : ''}${diffTotal}*`,
+          `⚠️ não cadastrados: ${Object.keys(unknown).length} código${Object.keys(unknown).length === 1 ? '' : 's'}`,
+        ];
+        await fetch(`${UAZAPI_SERVER}/send/text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'token': UAZAPI_TOKEN },
+          body: JSON.stringify({ number: ADMIN_LUCAS, text: lines.join('\n') }),
+        });
+      }
+    } catch (e) { console.warn('[balanco_finalize] whats err:', e.message); }
+
+    return res.status(200).json({ ok: true, balanco_id: inserted.id, total_counted: totalCounted, total_system: totalSystem, diff_total: diffTotal });
+  } catch (err) {
+    console.error('[balanco_finalize] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 // COLLECT EAN CANDIDATES (08/05/2026) — cascade OFF + UPCitemDB + Serper pra UM produto
 // Reusa logica do handler auto_search_ean. Retorna array de candidatos { ean, source, confidence }.
 async function _collectEanCandidates(brand, model, flavor) {
@@ -16336,6 +16434,16 @@ async function generateAll(){
   // action=analyze_price_photo — POST: Vision le R$ de uma foto (etiqueta de preço)
   if (req.url && req.url.indexOf('action=analyze_price_photo') >= 0) {
     return await handleAnalyzePricePhoto(req, res);
+  }
+
+  // action=balanco_resolve_barcode — GET: ?barcode=XXX retorna {ok, product}
+  if (req.url && req.url.indexOf('action=balanco_resolve_barcode') >= 0) {
+    return await handleBalancoResolveBarcode(req, res);
+  }
+
+  // action=balanco_finalize — POST: salva contagem em drope_balancos
+  if (req.url && req.url.indexOf('action=balanco_finalize') >= 0) {
+    return await handleBalancoFinalize(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====
