@@ -144,6 +144,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
   <button class="tab" onclick="showTab('sim')">🧪 Simular Cliente</button>
   <div class="tab-spacer"></div>
   <div class="tab-status">
+    <button class="btn-mini" id="silence-btn" onclick="silenceAll()" style="display:none;background:var(--red);color:#fff;border-color:var(--red);font-weight:600">🔕 silenciar <span id="silence-count">0</span></button>
     <button class="btn-mini" id="sound-test-btn" onclick="testSound()" title="testar o sininho">🔔 testar som</button>
     <span class="dot" id="status-dot"></span>
     <span id="status-text">atualizando…</span>
@@ -256,10 +257,15 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <script>
 const STORAGE_KEY = 'drope_dashboard_token_v1';
 const POLL_INTERVAL_MS = 30000;
+const BEEP_LOOP_INTERVAL_MS = 3500;   // Toca a cada 3.5s
 let token = '';
 let pollTimer = null;
 let lastOrderIds = new Set();
 let isFirstLoad = true;
+// === ALERTA EM LOOP (estilo iFood) ===
+// Pedidos que ainda estão "gritando" — toca em loop até ser aceito ou silenciado
+let alertingOrderIds = new Set();
+let beepLoopTimer = null;
 
 function $(id) { return document.getElementById(id); }
 function fmtBRL(cents) { return 'R$ ' + ((cents || 0) / 100).toFixed(2).replace('.', ','); }
@@ -374,9 +380,11 @@ function renderAll(data) {
   const newOrderIds = new Set(orders.map(o => o.id));
   const novos = [...newOrderIds].filter(id => !lastOrderIds.has(id));
   if (!isFirstLoad && lastOrderIds.size > 0 && novos.length > 0) {
-    notifyNewOrders(novos.length, orders);
+    notifyNewOrders(novos.length, orders, novos);
   }
   lastOrderIds = newOrderIds;
+  // Para o loop se pedidos alertando saíram de paid (foram aceitos)
+  reconcileAlerting(orders);
 
   // Lista de hoje (overview — top 5)
   $('today-count').textContent = orders.length;
@@ -520,6 +528,60 @@ function openWhats(phone, url) {
   window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
 }
 
+// === ALERTA LOOP (iFood) ===
+function updateSilenceUI() {
+  const btn = document.getElementById('silence-btn');
+  const count = document.getElementById('silence-count');
+  if (!btn || !count) return;
+  if (alertingOrderIds.size > 0) {
+    btn.style.display = '';
+    count.textContent = alertingOrderIds.size;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+function startBeepLoop() {
+  if (beepLoopTimer) return; // já tá rodando
+  // Toca imediatamente uma vez
+  playBeep();
+  beepLoopTimer = setInterval(() => {
+    if (alertingOrderIds.size === 0) {
+      stopBeepLoop();
+      return;
+    }
+    playBeep();
+  }, BEEP_LOOP_INTERVAL_MS);
+}
+function stopBeepLoop() {
+  if (beepLoopTimer) {
+    clearInterval(beepLoopTimer);
+    beepLoopTimer = null;
+  }
+}
+function silenceAll() {
+  alertingOrderIds.clear();
+  stopBeepLoop();
+  updateSilenceUI();
+  toast('🔕 alertas silenciados');
+}
+// Verifica se algum pedido alertando saiu de "paid" (foi aceito) → tira do set
+function reconcileAlerting(orders) {
+  if (alertingOrderIds.size === 0) return;
+  const orderById = {};
+  for (const o of orders) orderById[o.id] = o;
+  for (const id of [...alertingOrderIds]) {
+    const o = orderById[id];
+    if (!o || o.status !== 'paid') {
+      // Pedido foi aceito (mudou de status) ou não tá mais na lista — para de alertar
+      alertingOrderIds.delete(id);
+    }
+  }
+  if (alertingOrderIds.size === 0) {
+    stopBeepLoop();
+  }
+  updateSilenceUI();
+}
+
 // === SOM ===
 function playBeep() {
   try {
@@ -567,7 +629,19 @@ function toast(msg) {
   setTimeout(() => t.remove(), 1500);
 }
 
-function notifyNewOrders(qtd, orders) {
+function notifyNewOrders(qtd, orders, novosIds) {
+  // Marca pedidos como "alertando" pra loop em sininho
+  if (novosIds && novosIds.length > 0) {
+    for (const id of novosIds) {
+      const o = orders.find(x => x.id === id);
+      if (o && o.status === 'paid') alertingOrderIds.add(id);
+    }
+    updateSilenceUI();
+    startBeepLoop();
+  }
+  return _doNotify(qtd, orders);
+}
+function _doNotify(qtd, orders) {
   // Notificação push (se permitido)
   if ('Notification' in window && Notification.permission === 'granted') {
     const ultimo = orders[0];

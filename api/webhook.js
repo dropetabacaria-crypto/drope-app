@@ -8681,6 +8681,20 @@ h1 em{color:var(--lime);font-style:normal}
 .tab .count{background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;min-width:20px;text-align:center}
 .tab.active .count{background:rgba(255,255,255,0.25)}
 .grid{padding:14px 16px;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+/* KANBAN estilo iFood — 3 colunas: NOVOS / EM ANDAMENTO / FINALIZADOS */
+.kanban{padding:14px;display:grid;gap:14px;grid-template-columns:1fr 1fr 1fr;align-items:start}
+@media (max-width: 1100px) { .kanban{grid-template-columns:1fr 1fr} }
+@media (max-width: 800px) { .kanban{grid-template-columns:1fr} }
+.col{background:rgba(255,255,255,0.02);border:1px solid var(--b);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:10px;min-height:200px}
+.col-head{display:flex;align-items:center;gap:8px;padding:6px 10px 10px;border-bottom:1px solid var(--b);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.04em}
+.col-head .num{background:rgba(0,0,0,0.3);padding:2px 10px;border-radius:99px;font-size:11px}
+.col-novos .col-head{color:var(--amber)}
+.col-novos.has-novos{box-shadow:0 0 0 2px var(--amber),0 0 24px rgba(255,184,0,0.3);animation:colpulse 2s infinite}
+@keyframes colpulse{50%{box-shadow:0 0 0 2px var(--amber),0 0 36px rgba(255,184,0,0.6)}}
+.col-andamento .col-head{color:var(--neon)}
+.col-finalizados .col-head{color:var(--teal)}
+.col .card{margin:0}
+.col-empty{padding:24px 8px;text-align:center;color:var(--dim);font-style:italic;font-size:12px}
 .empty{padding:40px 20px;text-align:center;color:var(--dim);font-style:italic}
 .card{background:var(--bg2);border:1px solid var(--b);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s,border-color .15s}
 .card:hover{transform:translateY(-2px);border-color:var(--neon)}
@@ -8759,7 +8773,21 @@ h1 em{color:var(--lime);font-style:normal}
 </header>
 
 <div class="last-update" id="last-update">carregando…</div>
-<div class="grid" id="grid"></div>
+<div class="kanban" id="kanban">
+  <div class="col col-novos" id="col-novos">
+    <div class="col-head">🔔 novos <span class="num" id="col-num-novos">0</span></div>
+    <div id="list-novos"><div class="col-empty">sem novos pedidos ✦</div></div>
+  </div>
+  <div class="col col-andamento" id="col-andamento">
+    <div class="col-head">🛵 em andamento <span class="num" id="col-num-andamento">0</span></div>
+    <div id="list-andamento"><div class="col-empty">nada em rota ainda</div></div>
+  </div>
+  <div class="col col-finalizados" id="col-finalizados">
+    <div class="col-head">✅ finalizados <span class="num" id="col-num-finalizados">0</span></div>
+    <div id="list-finalizados"><div class="col-empty">aguardando finalização</div></div>
+  </div>
+</div>
+<div class="grid" id="grid" style="display:none"></div>
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <div class="lightbox-inner">
@@ -8935,10 +8963,48 @@ function setFilter(f) {
 let allOrders = [];
 
 function render() {
-  const grid = document.getElementById('grid');
-  const filtered = allOrders.filter(matchFilter);
-  grid.innerHTML = filtered.length ? filtered.map(renderCard).join('') : '<div class="empty">nada por aqui ainda ✦</div>';
-  // Counts
+  // === KANBAN: 3 buckets ===
+  // NOVOS = pix_sent, waiting, pending, paid (tudo que ainda precisa de você)
+  // EM ANDAMENTO = prepared, dispatched (já tá em rota)
+  // FINALIZADOS = delivered, picked_up, completed, cancelled
+  const NOVOS = ['waiting','pending','pix_sent','paid'];
+  const ANDAMENTO = ['prepared','dispatched'];
+  const FINALIZADOS = ['delivered','picked_up','completed','cancelled'];
+
+  const novos = allOrders.filter(o => NOVOS.includes(o.status));
+  const andamento = allOrders.filter(o => ANDAMENTO.includes(o.status));
+  const finalizados = allOrders.filter(o => FINALIZADOS.includes(o.status));
+
+  // Filtro de tab — mostra/esconde colunas
+  const colN = document.getElementById('col-novos');
+  const colA = document.getElementById('col-andamento');
+  const colF = document.getElementById('col-finalizados');
+  if (currentFilter === 'all') {
+    colN.style.display = ''; colA.style.display = ''; colF.style.display = '';
+  } else if (currentFilter === 'new') {
+    colN.style.display = ''; colA.style.display = 'none'; colF.style.display = 'none';
+  } else if (currentFilter === 'active') {
+    colN.style.display = 'none'; colA.style.display = ''; colF.style.display = 'none';
+  } else if (currentFilter === 'done') {
+    colN.style.display = 'none'; colA.style.display = 'none'; colF.style.display = '';
+  }
+
+  // Pulse na coluna NOVOS se tiver pedido aguardando você
+  colN.classList.toggle('has-novos', novos.length > 0);
+
+  // Renderiza cada coluna
+  const listN = document.getElementById('list-novos');
+  const listA = document.getElementById('list-andamento');
+  const listF = document.getElementById('list-finalizados');
+  listN.innerHTML = novos.length ? novos.map(renderCard).join('') : '<div class="col-empty">sem novos pedidos ✦</div>';
+  listA.innerHTML = andamento.length ? andamento.map(renderCard).join('') : '<div class="col-empty">nada em rota ainda</div>';
+  listF.innerHTML = finalizados.length ? finalizados.map(renderCard).join('') : '<div class="col-empty">aguardando finalização</div>';
+
+  document.getElementById('col-num-novos').textContent = novos.length;
+  document.getElementById('col-num-andamento').textContent = andamento.length;
+  document.getElementById('col-num-finalizados').textContent = finalizados.length;
+
+  // Stats header
   const today = new Date(); today.setHours(0,0,0,0);
   const todays = allOrders.filter(o => new Date(o.created_at) >= today);
   const pending = todays.filter(o => ['waiting','pending','pix_sent'].includes(o.status));
@@ -8947,9 +9013,9 @@ function render() {
   document.getElementById('stat-pending').textContent = pending.length;
   document.getElementById('stat-revenue').textContent = brl(revenue);
   document.getElementById('c-all').textContent = allOrders.length;
-  document.getElementById('c-new').textContent = allOrders.filter(o => ['waiting','pending','pix_sent'].includes(o.status)).length;
-  document.getElementById('c-active').textContent = allOrders.filter(o => ['paid','prepared','dispatched'].includes(o.status)).length;
-  document.getElementById('c-done').textContent = allOrders.filter(o => ['delivered','picked_up','completed','cancelled'].includes(o.status)).length;
+  document.getElementById('c-new').textContent = novos.length;
+  document.getElementById('c-active').textContent = andamento.length;
+  document.getElementById('c-done').textContent = finalizados.length;
 }
 
 async function loadOrders() {
