@@ -572,9 +572,25 @@
         <input type="number" id="f-price" inputmode="decimal" step="0.01" placeholder="ex: 110">
       </div>
     </div>
+    <button type="button" class="btn btn-block" id="btn-price-photo" onclick="capturePricePhoto()" style="background:rgba(212,255,46,0.08);border:1px dashed var(--lime);color:var(--lime);margin-top:-4px;margin-bottom:8px;font-size:13px">📸 ler preço da etiqueta</button>
     <div class="field">
-      <label>barcode (já lido)</label>
+      <label>código de barras</label>
       <input type="text" id="f-barcode" readonly>
+    </div>
+    <div class="field" id="f-barcode2-wrap" style="display:none">
+      <label>2º código de barras</label>
+      <input type="text" id="f-barcode2" readonly>
+    </div>
+    <button type="button" class="btn btn-block" id="btn-add-barcode2" onclick="scanSecondBarcode()" style="background:transparent;border:1px dashed var(--border);color:var(--fg-dim);margin-top:-4px;margin-bottom:8px;font-size:13px">+ adicionar 2º código de barras</button>
+    <div class="field">
+      <label>quantas caixas chegaram?</label>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="number" id="f-qty" inputmode="numeric" value="1" min="1" max="999" style="flex:1;min-width:80px">
+        <button type="button" class="btn" onclick="bumpQty(1)" style="font-size:12px;padding:8px 12px">+1</button>
+        <button type="button" class="btn" onclick="bumpQty(5)" style="font-size:12px;padding:8px 12px">+5</button>
+        <button type="button" class="btn" onclick="bumpQty(10)" style="font-size:12px;padding:8px 12px">+10</button>
+        <button type="button" class="btn" onclick="setQty(1)" style="font-size:12px;padding:8px 12px;background:transparent;border:1px solid var(--border);color:var(--fg-dim)">reset</button>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
@@ -586,6 +602,8 @@
     </div>
   </div>
 </div>
+<!-- Input invisível pra captura da foto do preço -->
+<input type="file" id="price-photo-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
 
 <!-- CAPTURE OVERLAY (foto da caixa / pod) — estilo Drope -->
 <div id="capture-area">
@@ -1371,6 +1389,9 @@ async function confirmRegister() {
   const puffs = document.getElementById('f-puffs').value.trim();
   const priceStr = document.getElementById('f-price').value.trim();
   const barcode = document.getElementById('f-barcode').value.trim();
+  // Andrade 06/06: 2º barcode opcional + qty de caixas
+  const barcode2 = (document.getElementById('f-barcode2')?.value || '').trim();
+  const qty = Math.max(1, Math.min(999, parseInt(document.getElementById('f-qty')?.value) || 1));
 
   if (!brand || !flavor) {
     showToast('marca e sabor são obrigatórios', 'error', T.TOAST_LONG_MS);
@@ -1385,8 +1406,13 @@ async function confirmRegister() {
   }
   const v = state.visionData || {};
 
+  // Lista de barcodes (1 ou 2)
+  const barcodes = [barcode, barcode2].filter(b => b && b.length >= 6);
+
   const payload = {
     barcode,
+    barcodes,
+    qty,
     brand,
     model,
     flavor,
@@ -1427,16 +1453,19 @@ async function confirmRegister() {
       return;
     }
     if (data.mode === 'created' || data.mode === 'created_pending_pod') {
-      state.news.push({ barcode, name: data.product.name, productId: data.product.id });
+      state.news.push({ barcode, name: data.product.name, productId: data.product.id, qty });
       document.getElementById('c-new').textContent = state.news.length;
       persistSession();
       const tail = data.mode === 'created_pending_pod' ? '⏳ aguardando foto do pod' : '🎬 arte gerando';
-      showLastAction(`✅ <b>${data.product.name}</b> ✦ ${tail}`);
+      const qtyMsg = qty > 1 ? `${qty} unidades adicionadas ✦ ` : '';
+      showLastAction(`✅ <b>${data.product.name}</b> ✦ ${qtyMsg}${tail}`);
     } else if (data.mode === 'stock_entry') {
-      state.entries.push({ barcode, name: data.product.name, oldQty: (data.product.qty_available || 1) - 1, newQty: data.product.qty_available });
+      const qtyAdded = data.qty_added || qty;
+      const oldQty = (data.product.qty_available || qtyAdded) - qtyAdded;
+      state.entries.push({ barcode, name: data.product.name, oldQty, newQty: data.product.qty_available, qty: qtyAdded });
       document.getElementById('c-entries').textContent = state.entries.length;
       persistSession();
-      showLastAction(`✅ +1 <b>${data.product.name}</b> ✦ já existia`);
+      showLastAction(`✅ +${qtyAdded} <b>${data.product.name}</b> ✦ total agora: ${data.product.qty_available}`);
     }
   } catch (e) {
     showToast('erro: ' + e.message, 'error', T.TOAST_LONG_MS);
@@ -1450,6 +1479,19 @@ function closeForm() {
   state.pendingBarcode = null;
   state.visionData = null;
   state.capPhotos = { box: null, pod: null };
+
+  // Reset dos campos extras (qty, barcode2, botão preço) — não vazar entre cadastros
+  const qtyEl = document.getElementById('f-qty');
+  if (qtyEl) qtyEl.value = '1';
+  const bc2Wrap = document.getElementById('f-barcode2-wrap');
+  const bc2Inp = document.getElementById('f-barcode2');
+  if (bc2Wrap) bc2Wrap.style.display = 'none';
+  if (bc2Inp) bc2Inp.value = '';
+  const btnBc2 = document.getElementById('btn-add-barcode2');
+  if (btnBc2) { btnBc2.textContent = '+ adicionar 2º código de barras'; btnBc2.disabled = false; }
+  const btnPrice = document.getElementById('btn-price-photo');
+  if (btnPrice) { btnPrice.textContent = '📸 ler preço da etiqueta'; btnPrice.disabled = false; }
+
   resetVf();
   // Religa scanner ao vivo se foi parado pra abrir captura
   resumeScannerIfStopped();
@@ -1467,6 +1509,82 @@ function manualInput() {
   // Limpa anti-spam pra esse code (input manual é intencional)
   state.recentScans.delete(clean);
   processBarcode(clean);
+}
+
+// ============ AJUSTES DE QTY (06/06/2026) ============
+function bumpQty(delta) {
+  const el = document.getElementById('f-qty');
+  if (!el) return;
+  const current = parseInt(el.value) || 1;
+  const next = Math.max(1, Math.min(999, current + delta));
+  el.value = next;
+}
+function setQty(n) {
+  const el = document.getElementById('f-qty');
+  if (el) el.value = Math.max(1, Math.min(999, parseInt(n) || 1));
+}
+
+// ============ 2º CÓDIGO DE BARRAS (06/06/2026) ============
+function scanSecondBarcode() {
+  const code = prompt('digita o 2º código de barras:', '');
+  if (!code) return;
+  const clean = code.replace(/\D/g, '');
+  if (clean.length < 6 || clean.length > 14) {
+    alert('código inválido (6 a 14 números)');
+    return;
+  }
+  const wrap = document.getElementById('f-barcode2-wrap');
+  const inp = document.getElementById('f-barcode2');
+  if (wrap) wrap.style.display = '';
+  if (inp) inp.value = clean;
+  const btn = document.getElementById('btn-add-barcode2');
+  if (btn) btn.textContent = '✓ 2º código adicionado';
+  if (btn) btn.disabled = true;
+}
+
+// ============ FOTO DO PREÇO (06/06/2026) ============
+// Vision lê o R$ direto da etiqueta — ninguém digita
+function capturePricePhoto() {
+  const input = document.getElementById('price-photo-input');
+  if (!input) return;
+  input.value = '';
+  input.onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const btn = document.getElementById('btn-price-photo');
+    if (btn) { btn.textContent = '📸 analisando preço…'; btn.disabled = true; }
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+      const r = await fetch('/api/webhook?action=analyze_price_photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: dataUrl }),
+      });
+      const j = await r.json();
+      if (j && j.price_cents) {
+        const valor = (j.price_cents / 100).toFixed(2);
+        const priceInput = document.getElementById('f-price');
+        if (priceInput) priceInput.value = valor;
+        if (btn) btn.textContent = `✓ R$ ${valor.replace('.', ',')} ✦ confiança ${j.confidence || '?'}`;
+        showToast(`💰 preço lido: R$ ${valor.replace('.', ',')}`, 'ok', T.TOAST_DEFAULT_MS);
+      } else {
+        if (btn) btn.textContent = '⚠️ não li o preço — tenta de novo ou digita';
+        showToast('não consegui ler o preço — tira outra foto melhor ou digita', 'error', T.TOAST_LONG_MS);
+      }
+    } catch (err) {
+      console.error('[price photo]', err);
+      if (btn) btn.textContent = '⚠️ erro — tenta de novo';
+      showToast('erro ao ler preço: ' + err.message, 'error', T.TOAST_LONG_MS);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+  input.click();
 }
 
 // ============ FINALIZAR ============

@@ -4401,6 +4401,86 @@ Se a foto NAO tem codigo de barras visivel, retorna {"ean": null, "confidence": 
   }
 }
 
+// VISION READ PRICE (06/06/2026) — Le APENAS o preço de uma foto.
+// Andrade pediu: na reunião, quem cadastra também manda foto da etiqueta de preço.
+// Vision lê o valor (R$) e devolve em centavos. Sem digitação manual.
+async function analyzePriceImage(imageBase64OrUrl) {
+  const systemPrompt = `Voce eh um OCR especialista em ler PRECO em fotos de etiquetas/pods.
+Olha a foto e extrai o valor em reais (R$) que esta escrito.
+
+REGRAS:
+- Le digito por digito EXATO. Pode aparecer como "R$ 110", "R$110,00", "110,00", "110.00", "$110"
+- Atencao a 2/5/7, 0/8, 3/8, 1/7, 6/9 quando o texto for pequeno
+- Pode estar escrito a mao (caneta/pincel) ou impresso em etiqueta. Le como humano.
+- Se ver multiplos numeros (ex: "R$ 110 - leve 2 por 200"), pega O MAIOR como preco unitario padrao.
+- Se a foto NAO mostra preco visivel, retorna {"price_cents": null, "confidence": "low"}
+- Confidence: "high" se preco esta claro e impresso, "medium" se manuscrito legivel, "low" se borrado/ambíguo
+
+Responde SO em JSON valido (sem markdown):
+{
+  "price_cents": numero inteiro em CENTAVOS (ex: R$ 110 -> 11000, R$ 89,90 -> 8990) ou null,
+  "price_brl": string formatada do que voce viu (ex: "R$ 110,00") ou null,
+  "confidence": "high" | "medium" | "low",
+  "raw_text": "texto bruto que voce viu na foto, pra debug",
+  "alertas": ["lista de strings com qualquer ambiguidade"]
+}`;
+
+  const makeSource = (url) => {
+    if (url.startsWith('data:')) {
+      const m = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (m) return { type: "base64", media_type: m[1], data: m[2] };
+      return null;
+    }
+    return { type: "url", url };
+  };
+
+  const source = makeSource(imageBase64OrUrl);
+  if (!source) return null;
+
+  const messages = [{
+    role: "user",
+    content: [
+      { type: "image", source },
+      { type: "text", text: "Le o preco da foto e responde SO o JSON." },
+    ],
+  }];
+
+  const result = await callClaude(messages, systemPrompt, 400);
+  if (!result) return null;
+  try {
+    const clean = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+    // Valida: price_cents tem que ser número inteiro positivo razoável
+    if (parsed.price_cents && Number.isInteger(parsed.price_cents) && parsed.price_cents > 0 && parsed.price_cents < 1000000) {
+      return parsed;
+    }
+    return { price_cents: null, confidence: 'low', raw_text: parsed.raw_text || '', alertas: parsed.alertas || ['preco invalido ou null'] };
+  } catch (e) {
+    console.error('[analyzePriceImage] parse err:', e.message, 'raw:', result.slice(0, 200));
+    return null;
+  }
+}
+
+// Handler HTTP: POST /api/webhook?action=analyze_price_photo
+// Body: { image_url } — image_url pode ser data:image/...;base64,... ou URL pública
+async function handleAnalyzePricePhoto(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
+
+  try {
+    const { image_url } = req.body || {};
+    if (!image_url) return res.status(400).json({ error: 'missing image_url' });
+    const result = await analyzePriceImage(image_url);
+    if (!result) return res.status(200).json({ price_cents: null, confidence: 'low', error: 'vision failed' });
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error('[analyze_price_photo] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // COLLECT EAN CANDIDATES (08/05/2026) — cascade OFF + UPCitemDB + Serper pra UM produto
 // Reusa logica do handler auto_search_ean. Retorna array de candidatos { ean, source, confidence }.
 async function _collectEanCandidates(brand, model, flavor) {
@@ -13970,6 +14050,15 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
     try {
       const reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
       const barcode = (reqBody.barcode || '').toString().replace(/\D/g, '');
+      // Andrade 06/06: suporte a 2+ barcodes (alguns pods tem 2 codigos diferentes)
+      // Aceita array `barcodes` ou single `barcode`. Filtra: só dígitos, min 6 chars.
+      const rawBarcodes = Array.isArray(reqBody.barcodes) ? reqBody.barcodes : [];
+      const barcodes = [...new Set([
+        ...(barcode ? [barcode] : []),
+        ...rawBarcodes.map(b => String(b || '').replace(/\D/g, '')).filter(b => b.length >= 6),
+      ])];
+      // Andrade 06/06: qty = quantas caixas chegaram. Default 1 pra compat.
+      const qty = Math.max(1, Math.min(999, parseInt(reqBody.qty) || 1));
       const brand = cleanVisionField(reqBody.brand);
       const model = cleanVisionField(reqBody.model || '');
       const flavorPt = cleanVisionField(reqBody.flavor_pt || reqBody.flavor || '');
@@ -14017,11 +14106,12 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       }
       const finalPriceCents = priceCents || 0;
 
-      // Dedup: se barcode bate ou brand+model+flavor existe, incrementa estoque
+      // Dedup: se algum dos barcodes bate ou brand+model+flavor existe, incrementa estoque
       let existing = null;
-      if (barcode) {
-        const r = await sbGet('drope_products', `barcode=eq.${encodeURIComponent(barcode)}&limit=1`);
-        if (r && r[0]) existing = r[0];
+      for (const bc of barcodes) {
+        // Busca em barcode OU em barcodes[] (array). PostgREST: cs={value} pra contains.
+        const r = await sbGet('drope_products', `or=(barcode.eq.${encodeURIComponent(bc)},barcodes.cs.{${encodeURIComponent(bc)}})&limit=1`);
+        if (r && r[0]) { existing = r[0]; break; }
       }
       if (!existing) {
         try {
@@ -14030,12 +14120,20 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
         } catch (e) { console.warn('[quick_register] findExistingProduct:', e.message); }
       }
       if (existing) {
-        const newQty = (existing.qty_available || 0) + 1;
-        await sbUpdate('drope_products', `id=eq.${existing.id}`, { qty_available: newQty });
+        const newQty = (existing.qty_available || 0) + qty;
+        // Merge dos barcodes (se chegou novo, soma na lista)
+        const existingBarcodes = Array.isArray(existing.barcodes) ? existing.barcodes : (existing.barcode ? [existing.barcode] : []);
+        const mergedBarcodes = [...new Set([...existingBarcodes, ...barcodes])];
+        const updateData = { qty_available: newQty };
+        if (mergedBarcodes.length > existingBarcodes.length) {
+          updateData.barcodes = mergedBarcodes;
+        }
+        await sbUpdate('drope_products', `id=eq.${existing.id}`, updateData);
         return res.status(200).json({
           ok: true,
           mode: 'stock_entry',
-          product: { id: existing.id, name: existing.name, qty_available: newQty },
+          qty_added: qty,
+          product: { id: existing.id, name: existing.name, qty_available: newQty, barcodes: mergedBarcodes },
         });
       }
 
@@ -14081,9 +14179,10 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       const insertData = {
         name: fullName,
         slug,
-        barcode: barcode || null,
+        barcode: barcodes[0] || barcode || null,
+        barcodes: barcodes.length > 0 ? barcodes : null,
         category: 'pod',
-        qty_available: 1,
+        qty_available: qty,
         price_cents: finalPriceCents,
         hidden: finalPriceCents === 0,
         image_status: imageStatus,
@@ -16232,6 +16331,11 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=infinitepay_webhook') >= 0) {
     return await handleInfinitePayWebhook(req, res);
+  }
+
+  // action=analyze_price_photo — POST: Vision le R$ de uma foto (etiqueta de preço)
+  if (req.url && req.url.indexOf('action=analyze_price_photo') >= 0) {
+    return await handleAnalyzePricePhoto(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====

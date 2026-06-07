@@ -33,10 +33,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Admin",
-      "short_name": "Admin",
-      "description": "Painel administrativo do Drope",
-      "url": "/#admin",
+      "name": "📦 Receber estoque",
+      "short_name": "Receber",
+      "description": "Scanner pra cadastrar produto novo no catálogo",
+      "url": "/receber.html",
       "icons": [
         {
           "src": "icons/icon-192.png",
@@ -46,10 +46,10 @@
       ]
     },
     {
-      "name": "Receber estoque",
-      "short_name": "Scanner",
-      "description": "Scanner pra receber produtos novos no estoque",
-      "url": "/receber.html",
+      "name": "🦎 Admin Drope",
+      "short_name": "Admin",
+      "description": "Painel administrativo do Drope",
+      "url": "/#admin",
       "icons": [
         {
           "src": "icons/icon-192.png",
