@@ -144,11 +144,15 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
   <button class="tab" onclick="showTab('sim')">🧪 Simular Cliente</button>
   <div class="tab-spacer"></div>
   <div class="tab-status">
+    <button class="btn-mini" id="sound-test-btn" onclick="testSound()" title="testar o sininho">🔔 testar som</button>
     <span class="dot" id="status-dot"></span>
     <span id="status-text">atualizando…</span>
     <button class="btn-mini" onclick="logout()" style="margin-left:8px">sair</button>
   </div>
 </div>
+
+<!-- Audio do sininho (preload pra tocar instantâneo) -->
+<audio id="notif-sound" preload="auto" src="/sounds/beep.wav"></audio>
 
 <!-- Overview -->
 <section class="screen active" id="screen-overview">
@@ -516,6 +520,44 @@ function openWhats(phone, url) {
   window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
 }
 
+// === SOM ===
+function playBeep() {
+  try {
+    const a = document.getElementById('notif-sound');
+    if (!a) return;
+    a.currentTime = 0;
+    a.volume = 0.9;
+    const p = a.play();
+    if (p && p.catch) {
+      p.catch(err => {
+        // Autoplay bloqueado — sinaliza visualmente
+        console.warn('[som] autoplay bloqueado:', err.message);
+        const btn = document.getElementById('sound-test-btn');
+        if (btn) {
+          btn.style.background = 'var(--red)';
+          btn.style.color = '#fff';
+          btn.textContent = '🔇 clica pra ativar!';
+        }
+      });
+    }
+  } catch (e) { console.warn('[som] erro:', e.message); }
+}
+function testSound() {
+  playBeep();
+  const btn = document.getElementById('sound-test-btn');
+  if (btn) {
+    const original = btn.textContent;
+    btn.style.background = 'var(--green)';
+    btn.style.color = '#000';
+    btn.textContent = '✓ tocou!';
+    setTimeout(() => {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.textContent = '🔔 testar som';
+    }, 1500);
+  }
+}
+
 function toast(msg) {
   // Simple inline toast
   const t = document.createElement('div');
@@ -537,20 +579,8 @@ function notifyNewOrders(qtd, orders) {
       requireInteraction: false,
     });
   }
-  // Bipe sutil
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start(); osc.stop(ctx.currentTime + 0.3);
-    }
-  } catch (e) {}
+  // Bipe via Audio HTML5 (mais resiliente que Web Audio API)
+  playBeep();
   // Visual: ponto vermelho nas abas Operação e Pedidos
   if ($('orders-dot')) $('orders-dot').style.display = 'inline-block';
   if ($('operacao-dot')) $('operacao-dot').style.display = 'inline-block';

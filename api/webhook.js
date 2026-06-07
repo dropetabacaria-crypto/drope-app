@@ -8769,7 +8769,7 @@ h1 em{color:var(--lime);font-style:normal}
   </div>
 </div>
 
-<audio id="notif-sound" preload="auto" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="></audio>
+<audio id="notif-sound" preload="auto" src="/sounds/beep.wav"></audio>
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
   <div class="lightbox-inner">
