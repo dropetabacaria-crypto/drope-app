@@ -4406,6 +4406,7 @@
     <div style="padding: 20px">
       <button class="btn-primary" onclick="openPOS()">venda presencial ✦ balcão 💰</button>
       <button class="btn-primary" onclick="openReceberWithToken()" style="background:var(--lime);color:#000">📦 receber estoque ✦ scanner</button>
+      <button class="btn-primary" onclick="openBalancoWithToken()" style="background:#FFB800;color:#000">📊 fazer balanço ✦ contagem</button>
       <button class="btn-secondary" onclick="openPendentesPodPhoto()">📸 pendentes de foto do pod</button>
       <button class="btn-secondary" onclick="openRevisarReferencias()">🖼️ revisar referências (pipeline novo)</button>
       <button class="btn-secondary" onclick="go('admin-ai')">agente drope ✦ ia 🤖</button>
@@ -10069,6 +10070,18 @@ REGRAS:
       localStorage.setItem('drope_admin_token', t);
     }
     window.location.href = '/receber.html?v=5&t=' + encodeURIComponent(t.trim());
+  }
+
+  // Atalho pro Balanço — adicionado 07/06 pra resolver iPhone (sem PWA shortcuts)
+  function openBalancoWithToken() {
+    let t = localStorage.getItem('drope_admin_token');
+    if (!t) {
+      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
+      if (!t) return;
+      t = t.trim();
+      localStorage.setItem('drope_admin_token', t);
+    }
+    window.location.href = '/balanco.html?t=' + encodeURIComponent(t.trim());
   }
 </script>
 <script src="/feedback-bubble.js?v=3" defer></script>
