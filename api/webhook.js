@@ -13144,7 +13144,7 @@ async function handleInfinitePayCheckout(req, res) {
       order_nsu: orderNsu,
       redirect_url: redirectUrl,
       webhook_url: webhookUrl,
-      items: items.map(i => ({ quantity: i.quantity, price: i.price, description: 'Tabacaria Drope' })),
+      items: items.map(i => ({ quantity: i.quantity, price: i.price, description: 'Drope' })),
     };
     if (customer && (customer.name || customer.email || customer.phone_number)) {
       payload.customer = {};
@@ -13459,7 +13459,7 @@ async function handleMPCreatePix(req, res) {
       return res.status(400).json({ error: 'missing items or total_cents' });
     }
 
-    const description = `Tabacaria Drope - Pedido ${order_id || 'avulso'}`;
+    const description = `Drope - Pedido ${order_id || 'avulso'}`;
 
     const payload = {
       transaction_amount: total_cents / 100,

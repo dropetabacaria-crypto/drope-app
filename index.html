@@ -5409,13 +5409,14 @@
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
       const total = Math.max(0, subtotal - discount);
-      // description: o backend força 'Tabacaria Drope' no payload final pro InfinitePay
-      // (extrato do cliente não mostra nome de pod). Mandar i.name aqui é redundante e
-      // ainda polui logs — mando o genérico desde já.
+      // description: o backend força 'Drope' no payload final pro InfinitePay.
+      // Andrade 07/06: trocado de 'Tabacaria Drope' pra 'Drope' — operadora de cartão
+      // (Mastercard/Visa) flagava 'Tabacaria' como MCC restrito e bloqueava o pagamento.
+      // Frontend agora também manda 'Drope' direto pra ficar consistente em logs.
       const items = cart.map(i => ({
         quantity: i.qty,
         price: Math.round(i.price * 100), // centavos
-        description: 'Tabacaria Drope'
+        description: 'Drope'
       }));
 
       // Manda dados do cliente pro checkout pré-preenchido
