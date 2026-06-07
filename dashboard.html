@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0A14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Drope ✦ Dashboard</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<style>
+:root {
+  --bg: #0A0A14;
+  --bg2: #14141F;
+  --bg3: #1F1F2E;
+  --fg: #FFFFFF;
+  --fg-dim: #8B8BA0;
+  --border: #2A2A3E;
+  --lime: #D4FF2E;
+  --pink: #FF4D8F;
+  --orange: #FF8533;
+  --red: #FF3D5C;
+  --green: #4ADE80;
+  --yellow: #FFB800;
+  --blue: #5BCAFF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; overflow-x: hidden; }
+.tabs { display: flex; gap: 4px; padding: 10px 14px 0; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.tab { background: transparent; border: 0; color: var(--fg-dim); padding: 10px 16px; border-radius: 8px 8px 0 0; font-size: 14px; cursor: pointer; font-weight: 500; }
+.tab.active { color: var(--lime); border-bottom: 2px solid var(--lime); }
+.tab:hover { background: var(--bg2); }
+.tab-spacer { flex: 1; }
+.tab-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-dim); padding: 0 8px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+.dot.err { background: var(--red); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.screen { display: none; padding: 16px; max-width: 1400px; margin: 0 auto; }
+.screen.active { display: block; }
+
+/* === KPIs === */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.kpi.lime { border-color: rgba(212,255,46,0.3); background: linear-gradient(135deg, rgba(212,255,46,0.05), var(--bg2)); }
+.kpi .label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.kpi .value { font-size: 28px; font-weight: 700; }
+.kpi.lime .value { color: var(--lime); }
+.kpi .sub { font-size: 11px; color: var(--fg-dim); margin-top: 4px; }
+
+/* === Sections === */
+.section { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.section h2 { font-size: 14px; margin-bottom: 12px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+.section h2 .count { background: var(--bg3); color: var(--fg); padding: 2px 8px; border-radius: 8px; font-size: 11px; }
+.empty-state { text-align: center; padding: 24px; color: var(--fg-dim); font-size: 13px; }
+
+/* === Tables === */
+.row { display: grid; align-items: center; gap: 12px; padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+.row:last-child { border-bottom: 0; }
+.row.header { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px; border-bottom-color: var(--border); padding-bottom: 6px; }
+
+.row-orders { grid-template-columns: 90px 1fr 100px 90px 80px; }
+.row-stock  { grid-template-columns: 1fr 80px 100px; }
+.row-pend   { grid-template-columns: 1fr 60px 100px; }
+.row-amb    { grid-template-columns: 1fr 120px 90px 110px 100px; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 500; }
+.badge.paid { background: rgba(74,222,128,0.1); color: var(--green); }
+.badge.in_delivery { background: rgba(255,184,0,0.1); color: var(--yellow); }
+.badge.delivered { background: rgba(91,202,255,0.1); color: var(--blue); }
+.badge.crit { background: rgba(255,61,92,0.1); color: var(--red); }
+.badge.warn { background: rgba(255,184,0,0.1); color: var(--yellow); }
+.badge.ok { background: rgba(74,222,128,0.1); color: var(--green); }
+
+.btn-mini { background: var(--bg3); color: var(--fg); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+.btn-mini:hover { background: var(--lime); color: #000; border-color: var(--lime); }
+
+/* === Sparkline === */
+.spark-row { display: grid; grid-template-columns: 50px 1fr 80px 70px; gap: 8px; padding: 6px 4px; align-items: center; font-size: 12px; }
+.spark-bar-wrap { background: var(--bg3); height: 16px; border-radius: 4px; overflow: hidden; }
+.spark-bar { background: var(--lime); height: 100%; border-radius: 4px; transition: width 400ms; }
+.spark-row.zero .spark-bar { background: var(--border); }
+
+/* === Embaixadora === */
+.amb-card { background: var(--bg3); border-radius: 10px; padding: 12px; border: 1px solid var(--border); }
+.amb-card.has-pending { border-color: var(--lime); }
+.amb-name { font-size: 14px; font-weight: 600; }
+.amb-sub { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
+.amb-pending { font-size: 22px; color: var(--lime); font-weight: 700; margin-top: 8px; }
+.amb-pending.zero { color: var(--fg-dim); }
+.amb-actions { display: flex; gap: 4px; margin-top: 8px; }
+
+/* === Sim Cliente === */
+.sim-wrapper { padding: 16px; }
+.sim-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fg-dim); }
+.sim-info code { background: var(--bg3); padding: 2px 8px; border-radius: 6px; color: var(--lime); font-family: 'Courier New', monospace; }
+.sim-frame-wrap { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg2); position: relative; }
+.sim-frame { width: 100%; height: calc(100vh - 220px); border: 0; background: #fff; display: block; }
+.sim-controls { display: flex; gap: 8px; padding: 10px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); }
+.sim-controls input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: 'Courier New', monospace; }
+.sim-controls button { background: var(--lime); color: #000; border: 0; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; }
+
+/* === Auth modal === */
+.auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.auth-overlay.hidden { display: none; }
+.auth-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 380px; width: 90%; }
+.auth-box h1 { font-size: 18px; margin-bottom: 4px; }
+.auth-box p { font-size: 13px; color: var(--fg-dim); margin-bottom: 14px; }
+.auth-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
+.auth-box button { width: 100%; background: var(--lime); color: #000; border: 0; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.auth-error { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+/* === Notification dot === */
+.notif-dot { display: inline-block; width: 8px; height: 8px; background: var(--red); border-radius: 50%; margin-left: 4px; vertical-align: super; }
+</style>
+</head>
+<body>
+
+<!-- Auth -->
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-box">
+    <h1>🦎 Drope ✦ Dashboard</h1>
+    <p>cola teu token de admin pra começar</p>
+    <input type="password" id="token-input" placeholder="admin token" autofocus>
+    <button onclick="saveToken()">entrar</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" id="tabs-bar" style="display:none">
+  <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
+  <button class="tab" onclick="showTab('orders')">🛒 Pedidos <span class="notif-dot" id="orders-dot" style="display:none"></span></button>
+  <button class="tab" onclick="showTab('stock')">📦 Estoque</button>
+  <button class="tab" onclick="showTab('ambassador')">🤝 Embaixadoras</button>
+  <button class="tab" onclick="showTab('sim')">🧪 Simular Cliente</button>
+  <div class="tab-spacer"></div>
+  <div class="tab-status">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">atualizando…</span>
+    <button class="btn-mini" onclick="logout()" style="margin-left:8px">sair</button>
+  </div>
+</div>
+
+<!-- Overview -->
+<section class="screen active" id="screen-overview">
+  <div class="kpi-grid">
+    <div class="kpi lime">
+      <div class="label">vendas hoje</div>
+      <div class="value" id="kpi-orders">0</div>
+      <div class="sub" id="kpi-orders-sub">aguardando…</div>
+    </div>
+    <div class="kpi lime">
+      <div class="label">faturamento hoje</div>
+      <div class="value" id="kpi-revenue">R$ 0</div>
+      <div class="sub" id="kpi-revenue-sub">aguardando…</div>
+    </div>
+    <div class="kpi">
+      <div class="label">ticket médio</div>
+      <div class="value" id="kpi-ticket">R$ 0</div>
+      <div class="sub">/pedido</div>
+    </div>
+    <div class="kpi">
+      <div class="label">estoque baixo</div>
+      <div class="value" id="kpi-low" style="color:var(--orange)">0</div>
+      <div class="sub">produtos críticos</div>
+    </div>
+    <div class="kpi">
+      <div class="label">pendências cadastro</div>
+      <div class="value" id="kpi-pend" style="color:var(--yellow)">0</div>
+      <div class="sub">aguardando você</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📈 últimos 7 dias</h2>
+    <div id="week-chart"></div>
+  </div>
+
+  <div class="section">
+    <h2>🛒 pedidos de hoje <span class="count" id="today-count">0</span></h2>
+    <div id="today-orders"></div>
+  </div>
+</section>
+
+<!-- Orders tab (full list) -->
+<section class="screen" id="screen-orders">
+  <div class="section">
+    <h2>🛒 todos os pedidos de hoje</h2>
+    <div id="orders-full"></div>
+  </div>
+</section>
+
+<!-- Stock -->
+<section class="screen" id="screen-stock">
+  <div class="section">
+    <h2>⚠️ estoque crítico (≤ 2 unidades)</h2>
+    <div id="low-stock-list"></div>
+  </div>
+  <div class="section">
+    <h2>📋 pendências de cadastro</h2>
+    <p style="font-size:12px;color:var(--fg-dim);margin-bottom:10px">pods que a equipe vendeu mas ainda não foram cadastrados</p>
+    <div id="pending-list"></div>
+  </div>
+</section>
+
+<!-- Ambassador -->
+<section class="screen" id="screen-ambassador">
+  <div class="section">
+    <h2>🤝 embaixadoras ✦ 10% por venda vitalício</h2>
+    <div id="ambassadors-list" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px"></div>
+  </div>
+</section>
+
+<!-- Sim cliente -->
+<section class="screen" id="screen-sim">
+  <div class="sim-wrapper">
+    <div class="sim-info">
+      🧪 modo simulação ✦ esse iframe abre o app como se você fosse cliente. testa fluxos, cupons, checkout. Cupom <code>TESTE100OFF</code> zera o total e pula InfinitePay.
+    </div>
+    <div class="sim-frame-wrap">
+      <div class="sim-controls">
+        <input id="sim-url" value="/" readonly>
+        <button onclick="reloadSim()">↻ recarregar</button>
+        <button onclick="openExternalSim()">↗ abrir em aba</button>
+      </div>
+      <iframe class="sim-frame" id="sim-frame" src="about:blank" title="Simulação cliente"></iframe>
+    </div>
+  </div>
+</section>
+
+<script>
+const STORAGE_KEY = 'drope_dashboard_token_v1';
+const POLL_INTERVAL_MS = 30000;
+let token = '';
+let pollTimer = null;
+let lastOrderIds = new Set();
+let isFirstLoad = true;
+
+function $(id) { return document.getElementById(id); }
+function fmtBRL(cents) { return 'R$ ' + ((cents || 0) / 100).toFixed(2).replace('.', ','); }
+function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return '—'; } }
+function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch (e) { return '—'; } }
+
+// === AUTH ===
+function saveToken() {
+  const v = $('token-input').value.trim();
+  if (!v) { $('auth-error').textContent = 'cola o token'; return; }
+  token = v;
+  localStorage.setItem(STORAGE_KEY, token);
+  fetchData(true);
+}
+function logout() {
+  localStorage.removeItem(STORAGE_KEY);
+  token = '';
+  if (pollTimer) clearInterval(pollTimer);
+  $('auth-overlay').classList.remove('hidden');
+  $('tabs-bar').style.display = 'none';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+}
+
+// === TABS ===
+function showTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const tabBtn = document.querySelector(`.tab[onclick="showTab('${tab}')"]`);
+  if (tabBtn) tabBtn.classList.add('active');
+  const screen = $('screen-' + tab);
+  if (screen) screen.classList.add('active');
+  if (tab === 'orders' && $('orders-dot')) $('orders-dot').style.display = 'none';
+  if (tab === 'sim') initSimIframe();
+}
+
+// === SIM CLIENTE ===
+function initSimIframe() {
+  const frame = $('sim-frame');
+  if (!frame || frame.src.includes('drope-app.vercel.app/') || frame.src === window.location.origin + '/') return;
+  frame.src = '/';
+}
+function reloadSim() {
+  const frame = $('sim-frame');
+  if (frame) frame.src = $('sim-url').value || '/';
+}
+function openExternalSim() {
+  window.open($('sim-url').value || '/', '_blank');
+}
+
+// === FETCH ===
+async function fetchData(showLoading) {
+  if (!token) return;
+  if (showLoading) {
+    $('status-text').textContent = 'atualizando…';
+    $('status-dot').classList.remove('err');
+  }
+  try {
+    const r = await fetch('/api/webhook?action=dashboard_data&token=' + encodeURIComponent(token), { cache: 'no-store' });
+    if (r.status === 401) {
+      $('auth-error').textContent = 'token inválido';
+      $('auth-overlay').classList.remove('hidden');
+      return;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'erro');
+
+    // First successful load — esconde auth, mostra tabs
+    if (isFirstLoad) {
+      isFirstLoad = false;
+      $('auth-overlay').classList.add('hidden');
+      $('tabs-bar').style.display = '';
+    }
+    renderAll(data);
+    $('status-text').textContent = '✓ ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    $('status-dot').classList.remove('err');
+  } catch (err) {
+    console.error('[fetch]', err);
+    $('status-text').textContent = 'erro ✦ tentando de novo…';
+    $('status-dot').classList.add('err');
+  }
+}
+
+// === RENDER ===
+function renderAll(data) {
+  // KPIs
+  const s = data.stats || {};
+  $('kpi-orders').textContent = s.orders_today || 0;
+  $('kpi-orders-sub').textContent = s.orders_today > 0 ? `${s.orders_today} pago${s.orders_today === 1 ? '' : 's'}` : 'nenhum ainda';
+  $('kpi-revenue').textContent = fmtBRL(s.revenue_today_cents);
+  $('kpi-revenue-sub').textContent = `de hoje`;
+  $('kpi-ticket').textContent = fmtBRL(s.avg_ticket_cents);
+  $('kpi-low').textContent = s.low_stock_count || 0;
+  $('kpi-pend').textContent = s.pending_registrations || 0;
+
+  // Pedidos novos? Marca notificação
+  const orders = data.orders_today || [];
+  const newOrderIds = new Set(orders.map(o => o.id));
+  const novos = [...newOrderIds].filter(id => !lastOrderIds.has(id));
+  if (!isFirstLoad && lastOrderIds.size > 0 && novos.length > 0) {
+    notifyNewOrders(novos.length, orders);
+  }
+  lastOrderIds = newOrderIds;
+
+  // Lista de hoje (overview — top 5)
+  $('today-count').textContent = orders.length;
+  $('today-orders').innerHTML = renderOrdersList(orders.slice(0, 5));
+  $('orders-full').innerHTML = renderOrdersList(orders);
+
+  // Gráfico semanal
+  renderWeekChart(data.week || []);
+
+  // Estoque baixo
+  $('low-stock-list').innerHTML = renderLowStock(data.low_stock || []);
+
+  // Pendências
+  $('pending-list').innerHTML = renderPending(data.pending_sales || []);
+
+  // Embaixadoras
+  $('ambassadors-list').innerHTML = renderAmbassadors(data.ambassadors || []);
+}
+
+function renderOrdersList(orders) {
+  if (!orders || orders.length === 0) return '<div class="empty-state">nenhum pedido ainda hoje 📭</div>';
+  let html = `
+    <div class="row row-orders header">
+      <div>pedido</div>
+      <div>cliente / endereço</div>
+      <div>valor</div>
+      <div>status</div>
+      <div>hora</div>
+    </div>
+  `;
+  for (const o of orders) {
+    const cust = o.customer_snapshot || {};
+    const nome = cust.name || cust.nome || '—';
+    let addr = o.delivery_type === 'pickup' ? '🏪 retirada' : (o.delivery_address ? `🛵 ${o.delivery_address.slice(0, 30)}${(o.delivery_address.length > 30) ? '…' : ''}` : '—');
+    html += `
+      <div class="row row-orders">
+        <div><code style="font-size:11px;color:var(--lime)">#${o.order_nsu || o.id}</code></div>
+        <div><div>${nome}</div><div style="font-size:11px;color:var(--fg-dim);margin-top:2px">${addr}</div></div>
+        <div><b>${fmtBRL(o.amount_paid_cents)}</b></div>
+        <div><span class="badge ${o.status}">${o.status}</span></div>
+        <div style="color:var(--fg-dim)">${fmtTime(o.payment_confirmed_at || o.created_at)}</div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderWeekChart(week) {
+  const max = Math.max(1, ...week.map(d => d.total_cents));
+  const wrap = $('week-chart');
+  let html = '';
+  for (const d of week) {
+    const pct = max > 0 ? (d.total_cents / max * 100) : 0;
+    const cls = d.total_cents === 0 ? 'zero' : '';
+    const label = new Date(d.day + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' });
+    html += `
+      <div class="spark-row ${cls}">
+        <div style="color:var(--fg-dim)">${label}</div>
+        <div class="spark-bar-wrap"><div class="spark-bar" style="width:${pct}%"></div></div>
+        <div>${fmtBRL(d.total_cents)}</div>
+        <div style="color:var(--fg-dim);text-align:right">${d.count} ped.</div>
+      </div>
+    `;
+  }
+  wrap.innerHTML = html;
+}
+
+function renderLowStock(items) {
+  if (items.length === 0) return '<div class="empty-state">tudo ok ✦ nenhum estoque crítico 🎉</div>';
+  let html = `
+    <div class="row row-stock header">
+      <div>produto</div>
+      <div style="text-align:center">qty</div>
+      <div style="text-align:right">status</div>
+    </div>
+  `;
+  for (const p of items) {
+    const badge = p.qty_available === 0 ? '<span class="badge crit">ZEROU</span>'
+                 : p.qty_available === 1 ? '<span class="badge warn">crítico</span>'
+                 : '<span class="badge warn">baixo</span>';
+    html += `
+      <div class="row row-stock">
+        <div>${p.name}</div>
+        <div style="text-align:center;font-weight:700">${p.qty_available}</div>
+        <div style="text-align:right">${badge}</div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderPending(items) {
+  if (items.length === 0) return '<div class="empty-state">sem pendências de cadastro ✦</div>';
+  let html = `
+    <div class="row row-pend header">
+      <div>produto detectado</div>
+      <div style="text-align:center">qty</div>
+      <div style="text-align:right">quando</div>
+    </div>
+  `;
+  for (const p of items) {
+    const nome = [p.vision_brand, p.vision_model, p.vision_flavor_pt].filter(Boolean).join(' ') || p.vision_search_terms || '—';
+    html += `
+      <div class="row row-pend">
+        <div>${nome}</div>
+        <div style="text-align:center">${p.qty || 1}</div>
+        <div style="text-align:right;color:var(--fg-dim);font-size:11px">${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderAmbassadors(items) {
+  if (items.length === 0) return '<div class="empty-state">nenhuma embaixadora cadastrada</div>';
+  let html = '';
+  for (const a of items) {
+    const hasP = a.pending_cents > 0;
+    html += `
+      <div class="amb-card ${hasP ? 'has-pending' : ''}">
+        <div class="amb-name">${a.name}</div>
+        <div class="amb-sub">link: ${a.share_url.replace('https://', '')}</div>
+        <div class="amb-pending ${hasP ? '' : 'zero'}">${fmtBRL(a.pending_cents)}</div>
+        <div style="font-size:11px;color:var(--fg-dim)">pendente ✦ ${a.sales_count_pending} venda${a.sales_count_pending === 1 ? '' : 's'}</div>
+        <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">já pago: ${fmtBRL(a.paid_cents)}</div>
+        <div class="amb-actions">
+          <button class="btn-mini" onclick="copyText('${a.share_url}')">📋 copiar link</button>
+          <button class="btn-mini" onclick="openWhats('${a.phone}', '${a.share_url}')">💬 mandar pra ela</button>
+        </div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => toast('copiado ✦'));
+}
+function openWhats(phone, url) {
+  const msg = encodeURIComponent(`fala ✦ teu link de embaixadora do Drope:\n\n${url}\n\nmanda pros teus contatos. cada venda que chegar pelo teu link = R$ acumula no teu saldo (vitalício 🦎)`);
+  window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+}
+
+function toast(msg) {
+  // Simple inline toast
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;z-index:200;border:1px solid var(--lime)';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1500);
+}
+
+function notifyNewOrders(qtd, orders) {
+  // Notificação push (se permitido)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const ultimo = orders[0];
+    const nome = ultimo?.customer_snapshot?.name || 'novo cliente';
+    new Notification('🦎 Drope ✦ nova venda!', {
+      body: `${nome} ✦ ${fmtBRL(ultimo?.amount_paid_cents)}`,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      requireInteraction: false,
+    });
+  }
+  // Bipe sutil
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(); osc.stop(ctx.currentTime + 0.3);
+    }
+  } catch (e) {}
+  // Visual: ponto vermelho na aba Pedidos
+  if ($('orders-dot')) $('orders-dot').style.display = 'inline-block';
+}
+
+// === BOOT ===
+(function boot() {
+  // Pede permissão de notificação cedo
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+  // Tem token salvo? Já tenta
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    token = saved;
+    $('auth-overlay').classList.add('hidden');
+    $('tabs-bar').style.display = '';
+    fetchData(true);
+  }
+  // Inicia polling
+  pollTimer = setInterval(() => fetchData(false), POLL_INTERVAL_MS);
+})();
+</script>
+
+</body>
+</html>

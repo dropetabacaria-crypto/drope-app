@@ -4481,6 +4481,124 @@ async function handleAnalyzePricePhoto(req, res) {
   }
 }
 
+// ============ DASHBOARD LIVE (07/06/2026) ============
+// Andrade quer um dashboard no dock do Mac que atualiza sozinho.
+// Endpoint retorna TUDO numa requisição só pra polling de 30s ficar barato.
+async function handleDashboardData(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Auth via ?token=ADMIN_TOKEN ou header x-admin-token
+  let queryTok = '';
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('token='));
+    if (m) queryTok = decodeURIComponent(m.slice(6));
+  } catch (e) {}
+  const headerTok = req.headers['x-admin-token'] || '';
+  if (!ADMIN_TOKEN || (headerTok !== ADMIN_TOKEN && queryTok !== ADMIN_TOKEN)) {
+    await new Promise(r => setTimeout(r, 600));
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 1. Pedidos de hoje (pagos)
+    const todayOrders = await sbGet('drope_orders',
+      `created_at=gte.${todayStart}&select=id,order_nsu,status,amount_paid_cents,delivery_type,delivery_address,delivery_neighborhood,delivery_fee_cents,created_at,payment_confirmed_at,customer_snapshot,items,ambassador_ref&order=created_at.desc&limit=50`);
+
+    // 2. Estoque crítico (≤2 unidades, não escondido)
+    const lowStock = await sbGet('drope_products',
+      'select=id,name,qty_available,box_photo_url&qty_available=lte.2&hidden=eq.false&order=qty_available.asc&limit=20');
+
+    // 3. Pendências de cadastro (Vision pending sales)
+    const pendingSales = await sbGet('drope_pending_sales',
+      `status=eq.pending&select=id,vision_brand,vision_model,vision_flavor_pt,vision_search_terms,qty,created_at&order=created_at.desc&limit=15`);
+
+    // 4. Embaixadoras + saldos pendentes
+    const ambassadors = await sbGet('drope_ambassadors',
+      'select=id,name,ref_code,phone,payout_method&status=eq.active&order=id');
+
+    const ambIds = (ambassadors || []).map(a => a.id);
+    let commissions = [];
+    if (ambIds.length > 0) {
+      commissions = await sbGet('drope_ambassador_commissions',
+        `ambassador_id=in.(${ambIds.join(',')})&select=ambassador_id,commission_cents,status,order_nsu,created_at&order=created_at.desc`);
+    }
+    // Agrega: { ambassadorId: { pending_cents, paid_cents, sales_count_pending } }
+    const byAmb = {};
+    for (const c of (commissions || [])) {
+      const k = c.ambassador_id;
+      if (!byAmb[k]) byAmb[k] = { pending_cents: 0, paid_cents: 0, sales_count_pending: 0 };
+      if (c.status === 'pending') {
+        byAmb[k].pending_cents += (c.commission_cents || 0);
+        byAmb[k].sales_count_pending += 1;
+      } else if (c.status === 'paid') {
+        byAmb[k].paid_cents += (c.commission_cents || 0);
+      }
+    }
+    const ambassadorsRich = (ambassadors || []).map(a => ({
+      ...a,
+      pending_cents: byAmb[a.id]?.pending_cents || 0,
+      paid_cents: byAmb[a.id]?.paid_cents || 0,
+      sales_count_pending: byAmb[a.id]?.sales_count_pending || 0,
+      share_url: `https://drope-app.vercel.app/?ref=${a.ref_code}`,
+    }));
+
+    // 5. Vendas últimos 7 dias agrupadas por dia (pra mini-gráfico)
+    const weekOrders = await sbGet('drope_orders',
+      `created_at=gte.${weekStart}&status=eq.paid&select=created_at,amount_paid_cents&order=created_at.asc&limit=500`);
+    const byDay = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const k = d.toISOString().slice(0, 10);
+      byDay[k] = { count: 0, total_cents: 0 };
+    }
+    for (const o of (weekOrders || [])) {
+      const k = (o.created_at || '').slice(0, 10);
+      if (byDay[k]) {
+        byDay[k].count += 1;
+        byDay[k].total_cents += (o.amount_paid_cents || 0);
+      }
+    }
+    const week = Object.entries(byDay).map(([day, v]) => ({ day, count: v.count, total_cents: v.total_cents }));
+
+    // 6. Stats de hoje agregados
+    const paidToday = (todayOrders || []).filter(o => ['paid', 'in_delivery', 'delivered'].includes(o.status));
+    const totalTodayCents = paidToday.reduce((s, o) => s + (o.amount_paid_cents || 0), 0);
+    const avgTicketCents = paidToday.length > 0 ? Math.round(totalTodayCents / paidToday.length) : 0;
+
+    // 7. Último balanço (se houver)
+    const lastBalanco = await sbGet('drope_balancos',
+      'select=id,finalized_at,total_counted,total_system,diff_total,unknown_count&order=finalized_at.desc&limit=1');
+
+    return res.status(200).json({
+      ok: true,
+      now: now.toISOString(),
+      stats: {
+        orders_today: paidToday.length,
+        revenue_today_cents: totalTodayCents,
+        avg_ticket_cents: avgTicketCents,
+        low_stock_count: (lowStock || []).length,
+        pending_registrations: (pendingSales || []).length,
+      },
+      orders_today: paidToday.slice(0, 15),
+      low_stock: lowStock || [],
+      pending_sales: pendingSales || [],
+      ambassadors: ambassadorsRich,
+      week,
+      last_balanco: (lastBalanco && lastBalanco[0]) || null,
+    });
+  } catch (err) {
+    console.error('[dashboard_data] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ============ BALANÇO (06/06/2026) ============
 // Andrade pediu pra reunião operacional: scanner com contagem física.
 // Andrade quer atalho no PWA. Páginas: /balanco.html (contagem) + endpoints abaixo.
@@ -16444,6 +16562,11 @@ async function generateAll(){
   // action=balanco_finalize — POST: salva contagem em drope_balancos
   if (req.url && req.url.indexOf('action=balanco_finalize') >= 0) {
     return await handleBalancoFinalize(req, res);
+  }
+
+  // action=dashboard_data — GET: stats live pro dashboard desktop do Andrade
+  if (req.url && req.url.indexOf('action=dashboard_data') >= 0) {
+    return await handleDashboardData(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====

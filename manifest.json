@@ -59,6 +59,19 @@
       ]
     },
     {
+      "name": "📊 Dashboard Drope",
+      "short_name": "Dashboard",
+      "description": "Dashboard live do Andrade — vendas, pedidos, embaixadoras",
+      "url": "/dashboard.html",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "🦎 Admin Drope",
       "short_name": "Admin",
       "description": "Painel administrativo do Drope",
