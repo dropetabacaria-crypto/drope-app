@@ -91,6 +91,12 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 .amb-pending.zero { color: var(--fg-dim); }
 .amb-actions { display: flex; gap: 4px; margin-top: 8px; }
 
+/* === Operação iFood === */
+.op-frame-wrap { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg2); margin: 12px; }
+.op-frame { width: 100%; height: calc(100vh - 100px); border: 0; background: var(--bg); display: block; }
+.op-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; margin: 12px 12px 0; font-size: 12px; color: var(--fg-dim); display: flex; gap: 10px; align-items: center; }
+.op-info .pulse { width: 8px; height: 8px; background: var(--lime); border-radius: 50%; animation: pulse 2s infinite; }
+
 /* === Sim Cliente === */
 .sim-wrapper { padding: 16px; }
 .sim-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fg-dim); }
@@ -131,6 +137,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- Tabs -->
 <div class="tabs" id="tabs-bar" style="display:none">
   <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
+  <button class="tab" onclick="showTab('operacao')">🛵 Operação <span class="notif-dot" id="operacao-dot" style="display:none"></span></button>
   <button class="tab" onclick="showTab('orders')">🛒 Pedidos <span class="notif-dot" id="orders-dot" style="display:none"></span></button>
   <button class="tab" onclick="showTab('stock')">📦 Estoque</button>
   <button class="tab" onclick="showTab('ambassador')">🤝 Embaixadoras</button>
@@ -181,6 +188,18 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
   <div class="section">
     <h2>🛒 pedidos de hoje <span class="count" id="today-count">0</span></h2>
     <div id="today-orders"></div>
+  </div>
+</section>
+
+<!-- Operação (estilo iFood) -->
+<section class="screen" id="screen-operacao">
+  <div class="op-info">
+    <span class="pulse"></span>
+    <span>🛵 painel iFood ✦ som ao detectar venda nova ✦ botões pra avançar status</span>
+    <span style="margin-left:auto"><button class="btn-mini" onclick="reloadOp()">↻ recarregar</button></span>
+  </div>
+  <div class="op-frame-wrap">
+    <iframe class="op-frame" id="op-frame" src="about:blank" title="Operação iFood"></iframe>
   </div>
 </section>
 
@@ -269,7 +288,21 @@ function showTab(tab) {
   const screen = $('screen-' + tab);
   if (screen) screen.classList.add('active');
   if (tab === 'orders' && $('orders-dot')) $('orders-dot').style.display = 'none';
+  if (tab === 'operacao' && $('operacao-dot')) $('operacao-dot').style.display = 'none';
   if (tab === 'sim') initSimIframe();
+  if (tab === 'operacao') initOpIframe();
+}
+
+// === OPERAÇÃO IFOOD ===
+function initOpIframe() {
+  const frame = $('op-frame');
+  if (!frame) return;
+  if (frame.src && frame.src.includes('orders_dashboard')) return; // já carregado
+  frame.src = '/api/webhook?action=orders_dashboard&token=' + encodeURIComponent(token);
+}
+function reloadOp() {
+  const frame = $('op-frame');
+  if (frame) frame.src = '/api/webhook?action=orders_dashboard&token=' + encodeURIComponent(token);
 }
 
 // === SIM CLIENTE ===
@@ -518,8 +551,9 @@ function notifyNewOrders(qtd, orders) {
       osc.start(); osc.stop(ctx.currentTime + 0.3);
     }
   } catch (e) {}
-  // Visual: ponto vermelho na aba Pedidos
+  // Visual: ponto vermelho nas abas Operação e Pedidos
   if ($('orders-dot')) $('orders-dot').style.display = 'inline-block';
+  if ($('operacao-dot')) $('operacao-dot').style.display = 'inline-block';
 }
 
 // === BOOT ===
