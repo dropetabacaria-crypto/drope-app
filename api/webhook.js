@@ -34,9 +34,10 @@ const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
 // PDV — números que fazem baixa de estoque por foto (loja + Yasmin)
 // PDV_PHONES = recebem notificação de pagamento confirmado (loja + Yasmin)
 const PDV_PHONES = (process.env.PDV_PHONES || "5511924810126,5511962589670").split(',').filter(Boolean);
-// STAFF_PHONES = vendedoras autorizadas a abater estoque por foto no whats, mas NÃO recebem notif
-// Cacau (5511985241010) + Antonia (5511972141717) — adicionadas 05/06/2026
-const STAFF_PHONES = (process.env.STAFF_PHONES || "5511985241010,5511972141717").split(',').filter(Boolean);
+// STAFF_PHONES = autorizados a abater estoque por foto no whats, mas NÃO recebem notif
+// Karla/Cacau (5511985241010), Mãe Ivoneide (5511972141717),
+// Pai Osmar (5511997015590), Jailma (5511910884118) — reunião operacional 05/06/2026
+const STAFF_PHONES = (process.env.STAFF_PHONES || "5511985241010,5511972141717,5511997015590,5511910884118").split(',').filter(Boolean);
 // ALL_CAIXA = união — quem pode rodar comandos de admin_caixa (abate estoque, cadastro lote, etc)
 const ALL_CAIXA = [...new Set([...PDV_PHONES, ...STAFF_PHONES])];
 const ADMIN_CAIXA = PDV_PHONES[0] || "";
@@ -7922,8 +7923,27 @@ async function handleStockPhoto(phone, msg, body) {
       // Andrade no privado dele mesmo: junta tudo numa msg
       await sendText(phone, adminAlerts.join('\n'), body);
     } else {
-      // Outro PDV no privado (Pai, Tia, Yasmin diretamente): manda problema pra eles + copia pro Andrade
-      await sendText(phone, adminAlerts.join('\n'), body);
+      // Outro PDV no privado (Pai, Mãe, Jailma, Karla, Yasmin):
+      // Feedback AMIGÁVEL pra ela — Andrade recebe os detalhes técnicos no privado.
+      // Antes (ruim): mandava o alerta técnico cru ("❓ X — nao encontrei no catalogo")
+      // Agora: mensagem fácil de entender. A pessoa não precisa saber de score, match, etc.
+      const naoEncontrei = adminAlerts.filter(a => a.startsWith('❓')).length;
+      const ambiguos = adminAlerts.filter(a => a.startsWith('🤔')).length;
+      const erros = adminAlerts.filter(a => a.startsWith('❌') || a.startsWith('⚠️')).length;
+
+      let msgPdv = '';
+      if (results.length > 0) {
+        // Pelo menos algum produto deu baixa OK — não precisa mensagem extra (já foi acima)
+      } else if (naoEncontrei > 0) {
+        msgPdv = `📸 recebi a foto ✦\n\n${naoEncontrei === 1 ? 'esse pod ainda não tá' : 'esses ' + naoEncontrei + ' pods ainda não tão'} cadastrado${naoEncontrei > 1 ? 's' : ''} — já passei tudo pro Andrade.\n\npode entregar pro cliente normal 🤙`;
+      } else if (ambiguos > 0) {
+        msgPdv = `📸 recebi a foto ✦\n\nfiquei na dúvida de qual pod exato é ${ambiguos === 1 ? 'esse' : 'esses ' + ambiguos}. já avisei o Andrade pra confirmar.\n\npode entregar pro cliente normal 🤙`;
+      } else if (erros > 0) {
+        msgPdv = `📸 recebi a foto ✦\n\ndeu um errinho aqui mas o Andrade já foi avisado. pode entregar normal 🤙`;
+      }
+      if (msgPdv) await sendText(phone, msgPdv, body);
+
+      // Andrade recebe TODOS os detalhes técnicos no privado dele
       await sendText(ADMIN_LUCAS, [`🦎 ALERTA PDV (vindo do privado de ${phone.slice(0,6)}***):`, ...adminAlerts].join('\n'), body);
     }
   }
@@ -12894,17 +12914,56 @@ async function handleInfinitePayCheckout(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
   try {
-    const { handle, items, total, order_id, customer } = req.body || {};
+    const { handle, items, total, order_id, customer, ambassador_ref } = req.body || {};
     if (!handle || !items || !items.length) return res.status(400).json({ error: 'missing handle or items' });
 
     const protocol = (req.headers['x-forwarded-proto'] || 'https');
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'drope-app.vercel.app';
     const redirectUrl = `${protocol}://${host}/#success-pay`;
-    const webhookUrl = `${protocol}://${host}/api/webhook?action=infinitepay_webhook`;
+    // ambassador_ref vai como query no webhook_url pra ser persistido junto à confirmação
+    const refQS = ambassador_ref ? `&ref=${encodeURIComponent(ambassador_ref)}` : '';
+    const webhookUrl = `${protocol}://${host}/api/webhook?action=infinitepay_webhook${refQS}`;
+
+    const orderNsu = order_id || `drope-${Date.now()}`;
+
+    // Pré-grava o ambassador_ref no pedido (Supabase) pra não depender só da query do webhook
+    if (ambassador_ref && SUPABASE_URL && SUPABASE_KEY) {
+      try {
+        // Tenta achar a ambassador
+        const ambRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(String(ambassador_ref).toUpperCase())}&status=eq.active&select=id`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        const ambRows = await ambRes.json();
+        const ambId = Array.isArray(ambRows) && ambRows[0]?.id;
+        if (ambId) {
+          // Upsert pré-pedido em drope_orders com ambassador
+          await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=ignore-duplicates',
+            },
+            body: JSON.stringify({
+              order_nsu: orderNsu,
+              status: 'pending_payment',
+              ambassador_ref: String(ambassador_ref).toUpperCase(),
+              ambassador_id: ambId,
+              created_at: new Date().toISOString(),
+            }),
+          });
+          console.log('[InfinitePay] pre-grav ambassador ref', ambassador_ref, '→ amb_id', ambId);
+        }
+      } catch (eAmb) {
+        console.warn('[InfinitePay] pre-grav ambassador err:', eAmb.message);
+      }
+    }
 
     const payload = {
       handle,
-      order_nsu: order_id || `drope-${Date.now()}`,
+      order_nsu: orderNsu,
       redirect_url: redirectUrl,
       webhook_url: webhookUrl,
       items: items.map(i => ({ quantity: i.quantity, price: i.price, description: 'Tabacaria Drope' })),
@@ -12971,7 +13030,18 @@ async function handleInfinitePayWebhook(req, res) {
       return res.status(200).json({ ok: true, ignored: true, event });
     }
 
+    // Lê ?ref= da URL do webhook (foi setado pelo handleInfinitePayCheckout)
+    let webhookRef = '';
+    try {
+      const qs = (req.url || '').split('?')[1] || '';
+      const refMatch = qs.split('&').find(x => x.startsWith('ref='));
+      if (refMatch) webhookRef = decodeURIComponent(refMatch.slice(4)).toUpperCase();
+    } catch (_) {}
+
     let updatedCustomerId = null;
+    let updatedOrderId = null;
+    let updatedAmbassadorId = null;
+    let updatedAmbassadorRef = '';
     if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
       try {
         const updateRes = await fetch(
@@ -12994,12 +13064,92 @@ async function handleInfinitePayWebhook(req, res) {
         );
         const updated = await updateRes.json();
         console.log('[InfinitePay Webhook] Supabase update status:', updateRes.status, 'rows:', Array.isArray(updated) ? updated.length : 'n/a');
-        if (Array.isArray(updated) && updated[0] && updated[0].customer_id) {
-          updatedCustomerId = updated[0].customer_id;
+        if (Array.isArray(updated) && updated[0]) {
+          updatedCustomerId = updated[0].customer_id || null;
+          updatedOrderId = updated[0].id || null;
+          updatedAmbassadorId = updated[0].ambassador_id || null;
+          updatedAmbassadorRef = updated[0].ambassador_ref || '';
         }
       } catch (e) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
       }
+    }
+
+    // ===== PROGRAMA EMBAIXADOR ✦ comissão =====
+    // 1) Resolve ambassador_id: prioridade ordem → query ref → null
+    // 2) Cola customer ao ambassador (vitalício) se ainda não tem
+    // 3) Cria registro de comissão (10% do amountCents) status=pending
+    try {
+      const effectiveRef = updatedAmbassadorRef || webhookRef || '';
+      let effectiveAmbId = updatedAmbassadorId || null;
+
+      // Se não tem amb_id mas tem ref, resolve pelo ref_code
+      if (!effectiveAmbId && effectiveRef && SUPABASE_URL && SUPABASE_KEY) {
+        const ambRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(effectiveRef)}&status=eq.active&select=id`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        const ambRows = await ambRes.json();
+        if (Array.isArray(ambRows) && ambRows[0]?.id) effectiveAmbId = ambRows[0].id;
+      }
+
+      // Se customer já tem ambassador colado, IGNORA o ref novo (vitalício do primeiro)
+      if (updatedCustomerId && SUPABASE_URL && SUPABASE_KEY) {
+        const custRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${updatedCustomerId}&select=referred_by_ambassador_id`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        );
+        const custRows = await custRes.json();
+        const existingAmb = Array.isArray(custRows) && custRows[0]?.referred_by_ambassador_id;
+        if (existingAmb) {
+          // Sobrescreve com o ambassador colado (vitalício)
+          effectiveAmbId = existingAmb;
+        } else if (effectiveAmbId) {
+          // Cola PELA PRIMEIRA VEZ
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${updatedCustomerId}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                referred_by_ambassador_id: effectiveAmbId,
+                referred_at: new Date().toISOString(),
+              }),
+            }
+          );
+          console.log('[Embaixador] cliente colado pela 1ª vez → amb_id', effectiveAmbId);
+        }
+      }
+
+      // Cria comissão se temos ambassador + valor > 0
+      if (effectiveAmbId && amountCents > 0 && SUPABASE_URL && SUPABASE_KEY) {
+        const commissionCents = Math.round(amountCents * 0.10);
+        await fetch(`${SUPABASE_URL}/rest/v1/drope_ambassador_commissions`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ambassador_id: effectiveAmbId,
+            order_id: updatedOrderId,
+            order_nsu: orderNsu,
+            customer_id: updatedCustomerId,
+            order_total_cents: amountCents,
+            commission_cents: commissionCents,
+            commission_percent: 10.00,
+            status: 'pending',
+          }),
+        });
+        console.log(`[Embaixador] comissão criada amb=${effectiveAmbId} order=${orderNsu} val=${commissionCents/100}`);
+      }
+    } catch (eAmb) {
+      console.error('[Embaixador] comissão err:', eAmb.message);
     }
 
     if (updatedCustomerId) {

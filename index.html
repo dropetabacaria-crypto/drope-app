@@ -5289,6 +5289,40 @@
   }
   loadCoupons();
 
+  // ===== Programa Embaixador ✦ captura ?ref= da URL =====
+  // Quando alguém abre o app via link /?ref=CACAU, salvamos o code em
+  // localStorage por 90 dias. Na hora da PRIMEIRA compra, o ref é anexado
+  // ao pedido. Se o cliente já tem ambassador colado (referred_by), backend
+  // ignora o novo ref — vitalício pra quem chegou primeiro.
+  const REF_STORAGE_KEY = 'drope_ref_v1';
+  const REF_TTL_DAYS = 90;
+  function captureAmbassadorRef() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = (params.get('ref') || '').trim().toUpperCase();
+      if (!ref) return;
+      // Salva com timestamp pra expirar em 90d
+      const payload = { code: ref, ts: Date.now() };
+      localStorage.setItem(REF_STORAGE_KEY, JSON.stringify(payload));
+      console.log('[ref] embaixador capturado:', ref);
+    } catch (e) { console.warn('[ref] capture err:', e.message); }
+  }
+  function getAmbassadorRef() {
+    try {
+      const raw = localStorage.getItem(REF_STORAGE_KEY);
+      if (!raw) return null;
+      const payload = JSON.parse(raw);
+      if (!payload || !payload.code || !payload.ts) return null;
+      const ageDays = (Date.now() - payload.ts) / (1000 * 60 * 60 * 24);
+      if (ageDays > REF_TTL_DAYS) {
+        localStorage.removeItem(REF_STORAGE_KEY);
+        return null;
+      }
+      return payload.code;
+    } catch (e) { return null; }
+  }
+  captureAmbassadorRef();
+
   // ===== Config da loja =====
   const STORE_KEY = 'drope_store_v4'; // v4: whats oficial da loja +55 11 92481-0126
   let store = {
@@ -5393,6 +5427,9 @@
       // FIX 04/06 (Andrade #008): rota /api/infinitepay-checkout tava dando 404
       // porque o vercel.json `routes` não rotava como esperado. Chamando direto
       // /api/webhook?action=infinitepay_checkout que comprovadamente funciona.
+      // Anexa código do embaixador (se cliente veio via link /?ref=CACAU)
+      const ambassadorRef = getAmbassadorRef();
+
       const res = await fetch('/api/webhook?action=infinitepay_checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5401,7 +5438,8 @@
           items,
           total: Math.round(total * 100),
           order_id: `dr-${Date.now().toString(36)}`,
-          customer
+          customer,
+          ambassador_ref: ambassadorRef || undefined,
         })
       });
 
