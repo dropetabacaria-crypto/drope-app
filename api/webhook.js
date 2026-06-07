@@ -4572,9 +4572,9 @@ async function handleDashboardData(req, res) {
     const totalTodayCents = paidToday.reduce((s, o) => s + (o.amount_paid_cents || 0), 0);
     const avgTicketCents = paidToday.length > 0 ? Math.round(totalTodayCents / paidToday.length) : 0;
 
-    // 7. Último balanço (se houver)
+    // 7. Últimos 5 balanços (pra histórico no dashboard)
     const lastBalanco = await sbGet('drope_balancos',
-      'select=id,finalized_at,total_counted,total_system,diff_total,unknown_count&order=finalized_at.desc&limit=1');
+      'select=id,finalized_at,total_counted,total_system,diff_total,unknown_count,created_by&order=finalized_at.desc&limit=5');
 
     return res.status(200).json({
       ok: true,
@@ -4646,6 +4646,7 @@ async function handleBalancoFinalize(req, res) {
     const startedAt = body.started_at || new Date().toISOString();
     const counts = Array.isArray(body.counts) ? body.counts : [];
     const unknown = (body.unknown && typeof body.unknown === 'object') ? body.unknown : {};
+    const createdBy = (body.created_by || 'sem nome').toString().slice(0, 100);
 
     let totalCounted = 0;
     let totalSystem = 0;
@@ -4666,6 +4667,7 @@ async function handleBalancoFinalize(req, res) {
       unknown_count: Object.keys(unknown).length,
       counts,
       unknown,
+      created_by: createdBy,
     });
 
     if (!inserted || !inserted.id) {
@@ -4677,6 +4679,7 @@ async function handleBalancoFinalize(req, res) {
       if (UAZAPI_TOKEN && ADMIN_LUCAS) {
         const lines = [
           `📊 *BALANÇO FINALIZADO* ✦`, ``,
+          `👤 por: *${createdBy}*`,
           `🔢 contado: *${totalCounted}*`,
           `📦 no sistema: *${totalSystem}*`,
           `${diffTotal === 0 ? '✅' : (diffTotal > 0 ? '🟡' : '🔴')} diferença: *${diffTotal > 0 ? '+' : ''}${diffTotal}*`,

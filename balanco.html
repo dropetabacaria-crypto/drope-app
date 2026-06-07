@@ -90,6 +90,24 @@ main { padding: 12px 16px 100px; }
 </header>
 
 <div class="banner" id="banner">📸 escaneia cada pod ✦ ao final, clica "ver relatório"</div>
+<div id="staff-banner" style="display:none;background:linear-gradient(90deg,rgba(212,255,46,0.18),rgba(255,77,143,0.18));border-bottom:1px solid var(--border);padding:12px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--lime)"></div>
+
+<!-- TELA "QUEM É VOCÊ?" — primeira coisa que aparece -->
+<div id="staff-picker" style="position:fixed;inset:0;background:rgba(10,10,20,0.97);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:20px">
+  <div style="max-width:480px;width:100%;text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">📊</div>
+    <h2 style="color:#fff;font-size:22px;margin-bottom:6px">Quem está fazendo o balanço?</h2>
+    <p style="color:var(--fg-dim);font-size:14px;margin-bottom:24px">Escolhe teu nome pra começar ✦</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="pickStaff('Andrade')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">🦎 Andrade</button>
+      <button onclick="pickStaff('Yasmin')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">💜 Yasmin</button>
+      <button onclick="pickStaff('Karla')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">🌸 Karla (Cacau)</button>
+      <button onclick="pickStaff('Jailma')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">✨ Jailma</button>
+      <button onclick="pickStaff('Pai Osmar')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;grid-column:1/-1">👨 Pai Osmar</button>
+      <button onclick="pickStaffOther()" style="background:transparent;border:1px dashed var(--border);color:var(--fg-dim);padding:16px;border-radius:12px;font-size:14px;cursor:pointer;grid-column:1/-1">+ Outro nome</button>
+    </div>
+  </div>
+</div>
 
 <main id="main-screen">
   <div id="scanner-area">
@@ -99,9 +117,10 @@ main { padding: 12px 16px 100px; }
 
   <div class="toast" id="toast"></div>
 
-  <div class="actions">
-    <button class="btn btn-primary" onclick="capturePhoto()">📸 escanear código</button>
-    <button class="btn btn-ghost" onclick="manualInput()">⌨️ digitar</button>
+  <div style="text-align:center;color:var(--fg-dim);font-size:12px;padding:8px 16px;line-height:1.5">
+    📷 <b style="color:var(--lime)">câmera ao vivo</b> ✦ passa o código de barras na frente — o app bipa sozinho<br>
+    <a href="#" onclick="event.preventDefault();capturePhoto()" style="color:var(--fg-dim);text-decoration:underline;font-size:11px;margin-right:14px">tirar foto manual</a>
+    <a href="#" onclick="event.preventDefault();manualInput()" style="color:var(--fg-dim);text-decoration:underline;font-size:11px">digitar código</a>
   </div>
 
   <div class="summary-stats">
@@ -156,17 +175,59 @@ main { padding: 12px 16px 100px; }
 
 <script>
 // ============ ESTADO ============
-const STORAGE_KEY = 'drope_balanco_v1';
+// Identifica quem tá fazendo o balanço — lembrança em localStorage,
+// se não tiver, mostra tela "quem é você?" antes de começar.
+const STAFF_STORAGE_KEY = 'drope_balanco_staff_v1';
+let STAFF_NAME = '';
+try { STAFF_NAME = (localStorage.getItem(STAFF_STORAGE_KEY) || '').trim(); } catch(_){}
+// Storage da contagem é separada por vendedora pra não misturar
+function _storageKeyFor(name) {
+  return name ? `drope_balanco_${name.toLowerCase().replace(/[^a-z0-9]/g,'')}_v1` : 'drope_balanco_v1';
+}
+let STORAGE_KEY = _storageKeyFor(STAFF_NAME);
 const state = {
   startedAt: Date.now(),
-  // counts: { [productId]: { id, name, barcode, qty_system, qty_counted } }
+  staffName: STAFF_NAME,
   counts: {},
-  // unknown: { [barcode]: count }
   unknown: {},
   controls: null,
   codeReader: null,
   scanLooping: false,
 };
+
+function pickStaff(name) {
+  STAFF_NAME = name;
+  state.staffName = name;
+  STORAGE_KEY = _storageKeyFor(name);
+  try { localStorage.setItem(STAFF_STORAGE_KEY, name); } catch(_){}
+  document.getElementById('staff-picker').style.display = 'none';
+  applyStaffUI();
+  loadState();
+  render();
+  startScanner();
+}
+function trocarStaff() {
+  try { localStorage.removeItem(STAFF_STORAGE_KEY); } catch(_){}
+  STAFF_NAME = '';
+  state.staffName = '';
+  document.getElementById('staff-picker').style.display = '';
+}
+function pickStaffOther() {
+  const n = prompt('Qual é teu nome?');
+  if (n && n.trim()) pickStaff(n.trim());
+}
+function applyStaffUI() {
+  const b = document.getElementById('staff-banner');
+  if (b) {
+    if (STAFF_NAME) {
+      b.style.display = '';
+      b.innerHTML = `👋 ${STAFF_NAME} ✦ <button onclick="trocarStaff()" style="background:transparent;border:1px solid var(--lime);color:var(--lime);padding:2px 10px;border-radius:8px;margin-left:8px;font-size:11px;cursor:pointer">trocar</button>`;
+    } else {
+      b.style.display = 'none';
+    }
+  }
+  if (STAFF_NAME) document.title = `📊 Balanço da ${STAFF_NAME}`;
+}
 
 function loadState() {
   try {
@@ -441,6 +502,7 @@ async function salvarBalanco() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         started_at: new Date(state.startedAt).toISOString(),
+        created_by: STAFF_NAME || 'sem nome',
         counts: counts.map(c => ({
           product_id: c.id,
           barcode: c.barcode,
@@ -474,9 +536,17 @@ function goHome() {
 }
 
 // ============ BOOT ============
-loadState();
-render();
-startScanner();
+if (STAFF_NAME) {
+  // Já tem staff salvo, esconde tela de seleção
+  document.getElementById('staff-picker').style.display = 'none';
+  applyStaffUI();
+  loadState();
+  render();
+  startScanner();
+} else {
+  // Mostra tela de seleção e espera escolher
+  document.getElementById('staff-picker').style.display = '';
+}
 </script>
 
 </body>
