@@ -8815,8 +8815,10 @@ let currentFilter = 'all';
 let knownOrderIds = new Set();
 let firstLoad = true;
 let soundOn = (function(){ try { return localStorage.getItem('drope_orders_sound') !== '0'; } catch(_){ return true; } })();
-// LOOP (Andrade 07/06): toca em loop até clicar PREPARADO no pedido
-const NOVOS_STATUS = ['waiting','pending','pix_sent','paid'];
+// LOOP (Andrade 07/06): toca em loop SOMENTE até clicar ACEITAR.
+// 'accepted' fica visível na coluna NOVOS mas NÃO dispara bipe.
+const NOVOS_STATUS = ['waiting','pending','pix_sent','paid','accepted'];
+const ALERT_STATUS = ['waiting','pending','pix_sent','paid']; // sem 'accepted'
 const BEEP_LOOP_MS = 3500;
 let alertingIds = new Set();
 let beepLoopTimer = null;
@@ -8892,6 +8894,7 @@ const STATUS_LABEL = {
   pending: '⏳ aguardando',
   pix_sent: '💳 pix enviado',
   paid: '💚 pago',
+  accepted: '✅ aceito',
   prepared: '🎒 preparado',
   dispatched: '🛵 em rota',
   delivered: '✅ entregue',
@@ -8903,6 +8906,7 @@ const STATUS_LABEL = {
 const STATUS_CLASS = (s) => {
   if (s === 'waiting' || s === 'pending' || s === 'pix_sent') return 's-waiting';
   if (s === 'paid') return 's-paid';
+  if (s === 'accepted') return 's-paid';
   if (s === 'prepared') return 's-prepared';
   if (s === 'dispatched') return 's-dispatched';
   if (s === 'delivered' || s === 'picked_up' || s === 'completed') return 's-delivered';
@@ -8942,9 +8946,13 @@ function nextActions(o) {
   if (s === 'waiting' || s === 'pending' || s === 'pix_sent') {
     return [{ label: '✓ marcar pago', cls: 'primary', next: 'paid' }, { label: '✕ cancelar', cls: 'danger', next: 'cancelled' }];
   }
+  // ✦ Andrade 07/06: fluxo iFood — ACEITAR para o bipe, depois PREPARADO sai pra coluna
   if (s === 'paid') {
     if (o.delivery_mode === 'pos') return [{ label: '✓ concluir', cls: 'primary', next: 'completed' }];
-    return [{ label: '🎒 preparado', cls: 'secondary', next: 'prepared' }];
+    return [{ label: '✅ ACEITAR', cls: 'primary', next: 'accepted' }];
+  }
+  if (s === 'accepted') {
+    return [{ label: '🎒 PREPARADO', cls: 'secondary', next: 'prepared' }];
   }
   if (s === 'prepared') {
     if (o.delivery_mode === 'pickup') return [{ label: '✅ retirado', cls: 'primary', next: 'picked_up' }];
@@ -9036,10 +9044,11 @@ let allOrders = [];
 
 function render() {
   // === KANBAN: 3 buckets ===
-  // NOVOS = pix_sent, waiting, pending, paid (tudo que ainda precisa de você)
-  // EM ANDAMENTO = prepared, dispatched (já tá em rota)
+  // NOVOS = pix_sent, waiting, pending, paid, accepted
+  //   (paid bipa em loop, accepted nao bipa mas continua na coluna ate clicar PREPARADO)
+  // EM ANDAMENTO = prepared, dispatched (em rota)
   // FINALIZADOS = delivered, picked_up, completed, cancelled
-  const NOVOS = ['waiting','pending','pix_sent','paid'];
+  const NOVOS = ['waiting','pending','pix_sent','paid','accepted'];
   const ANDAMENTO = ['prepared','dispatched'];
   const FINALIZADOS = ['delivered','picked_up','completed','cancelled'];
 
@@ -9105,7 +9114,7 @@ async function loadOrders() {
     // === LOOP: detecta novos em status NOVOS_STATUS ===
     if (newOnes.length > 0) {
       for (const o of newOnes) {
-        if (NOVOS_STATUS.includes(o.status)) alertingIds.add(o.id);
+        if (ALERT_STATUS.includes(o.status)) alertingIds.add(o.id);
       }
       if (alertingIds.size > 0 && soundOn) startBeepLoop();
       // Flash do título
@@ -9117,7 +9126,7 @@ async function loadOrders() {
     (data.orders || []).forEach(o => { orderById[o.id] = o; });
     for (const id of [...alertingIds]) {
       const o = orderById[id];
-      if (!o || !NOVOS_STATUS.includes(o.status)) {
+      if (!o || !ALERT_STATUS.includes(o.status)) {
         alertingIds.delete(id);
       }
     }
@@ -14818,6 +14827,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       const nowIso = update.updated_at;
       // Marca timestamps por status
       if (new_status === 'paid') update.payment_confirmed_at = nowIso;
+      if (new_status === 'accepted') update.metadata = { accepted_at: nowIso };
       if (new_status === 'prepared') update.prepared_at = nowIso;
       if (new_status === 'dispatched') update.dispatched_at = nowIso;
       if (new_status === 'delivered') update.delivered_at = nowIso;
