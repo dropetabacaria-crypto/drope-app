@@ -8758,6 +8758,8 @@ h1 em{color:var(--lime);font-style:normal}
     <a class="nav-back" id="hub-link" href="#">🏠 Hub</a>
     <h1>Drope ✦ <em>Pedidos</em></h1>
     <button class="sound-toggle" id="sound-toggle" onclick="toggleSound()">🔔 som ligado</button>
+    <button class="sound-toggle" id="enable-audio-btn" onclick="enableAudio()" style="background:var(--lime);color:#000;border-color:var(--lime);font-weight:700">🔊 ATIVAR SOM</button>
+    <button class="sound-toggle" id="silence-loop-btn" onclick="silenceLoop()" style="display:none;background:var(--pink);color:#fff;border-color:var(--pink);font-weight:700">🔕 SILENCIAR <span id="silence-loop-count">0</span></button>
     <div class="h-stats">
       <div>hoje: <span class="num" id="stat-total">0</span></div>
       <div>pendentes: <span class="num" id="stat-pending">0</span></div>
@@ -8813,6 +8815,76 @@ let currentFilter = 'all';
 let knownOrderIds = new Set();
 let firstLoad = true;
 let soundOn = (function(){ try { return localStorage.getItem('drope_orders_sound') !== '0'; } catch(_){ return true; } })();
+// LOOP (Andrade 07/06): toca em loop até clicar PREPARADO no pedido
+const NOVOS_STATUS = ['waiting','pending','pix_sent','paid'];
+const BEEP_LOOP_MS = 3500;
+let alertingIds = new Set();
+let beepLoopTimer = null;
+let audioUnlocked = false;
+function playBeep() {
+  try {
+    const a = document.getElementById('notif-sound');
+    if (!a) return;
+    a.currentTime = 0;
+    a.volume = 1.0;
+    const p = a.play();
+    if (p && p.catch) p.catch(err => {
+      console.warn('[som] bloqueado:', err.message);
+      const eb = document.getElementById('enable-audio-btn');
+      if (eb) { eb.style.background='var(--pink)'; eb.style.color='#fff'; eb.textContent='🔇 CLICA PRA ATIVAR'; eb.style.animation='colpulse 1.5s infinite'; }
+    });
+  } catch(_){}
+}
+function enableAudio() {
+  // User gesture: destrava o autoplay no Chrome
+  const a = document.getElementById('notif-sound');
+  if (a) { a.muted = false; const p = a.play(); if (p && p.catch) p.catch(()=>{}); }
+  audioUnlocked = true;
+  const eb = document.getElementById('enable-audio-btn');
+  if (eb) {
+    eb.style.background='var(--teal)'; eb.style.color='#000'; eb.textContent='✓ som ativo';
+    eb.style.animation='';
+    setTimeout(() => { if (eb) eb.style.display = 'none'; }, 2000);
+  }
+}
+function startBeepLoop() {
+  if (!soundOn) return;
+  if (beepLoopTimer) return;
+  playBeep();
+  beepLoopTimer = setInterval(() => {
+    if (alertingIds.size === 0) { stopBeepLoop(); return; }
+    playBeep();
+  }, BEEP_LOOP_MS);
+}
+function stopBeepLoop() {
+  if (beepLoopTimer) { clearInterval(beepLoopTimer); beepLoopTimer = null; }
+}
+function silenceLoop() {
+  alertingIds.clear();
+  stopBeepLoop();
+  updateSilenceUI();
+}
+function updateSilenceUI() {
+  const btn = document.getElementById('silence-loop-btn');
+  const cnt = document.getElementById('silence-loop-count');
+  if (!btn || !cnt) return;
+  if (alertingIds.size > 0) {
+    btn.style.display = '';
+    cnt.textContent = alertingIds.size;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+// Destrava autoplay no primeiro click/touch em qualquer lugar do iframe
+document.addEventListener('click', function _unlockOnce() {
+  if (audioUnlocked) return;
+  const a = document.getElementById('notif-sound');
+  if (a) { try { a.play().then(()=>{ a.pause(); a.currentTime = 0; }).catch(()=>{}); } catch(_){} }
+  audioUnlocked = true;
+  const eb = document.getElementById('enable-audio-btn');
+  if (eb) eb.style.display = 'none';
+}, { once: true, capture: true });
 document.getElementById('hub-link').href = '/api/webhook?action=admin_hub&token=' + encodeURIComponent(TOKEN);
 
 const STATUS_LABEL = {
@@ -9029,12 +9101,29 @@ async function loadOrders() {
       newIds.add(o.id);
       if (!firstLoad && !knownOrderIds.has(o.id)) newOnes.push(o);
     });
-    if (newOnes.length > 0 && soundOn) {
-      try { const a = document.getElementById('notif-sound'); a && a.play && a.play().catch(()=>{}); } catch(_){}
+
+    // === LOOP: detecta novos em status NOVOS_STATUS ===
+    if (newOnes.length > 0) {
+      for (const o of newOnes) {
+        if (NOVOS_STATUS.includes(o.status)) alertingIds.add(o.id);
+      }
+      if (alertingIds.size > 0 && soundOn) startBeepLoop();
       // Flash do título
       let n = 0; const orig = document.title;
       const flash = setInterval(() => { document.title = (n%2===0) ? '🔔 NOVO PEDIDO ✦ Drope' : orig; n++; if (n>6){clearInterval(flash); document.title=orig;} }, 600);
     }
+    // Reconcilia: pedidos do set que SAÍRAM de status NOVOS (foram aceitos) → tira
+    const orderById = {};
+    (data.orders || []).forEach(o => { orderById[o.id] = o; });
+    for (const id of [...alertingIds]) {
+      const o = orderById[id];
+      if (!o || !NOVOS_STATUS.includes(o.status)) {
+        alertingIds.delete(id);
+      }
+    }
+    if (alertingIds.size === 0) stopBeepLoop();
+    updateSilenceUI();
+
     knownOrderIds = newIds;
     firstLoad = false;
     allOrders = data.orders || [];
