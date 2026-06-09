@@ -462,16 +462,39 @@ function render() {
   Object.entries(state.unknown).forEach(([bc, qty]) => {
     const div = document.createElement('div');
     div.className = 'counted-item unknown-item';
+    div.style.flexWrap = 'wrap';
     div.innerHTML = `
-      <div class="name">não cadastrado<small>código: ${bc}</small></div>
+      <div class="name" style="flex:1;min-width:160px">não cadastrado<small>código: ${bc}</small></div>
       <div style="display:flex;align-items:center;gap:4px">
         <button onclick="event.stopPropagation();adjustQty('unknown','${bc}',-1)" style="background:rgba(255,61,92,0.15);border:1px solid var(--red);color:var(--red);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">−</button>
         <div class="qty" style="cursor:pointer" onclick="editQty('unknown','${bc}')">${qty}</div>
         <button onclick="event.stopPropagation();adjustQty('unknown','${bc}',1)" style="background:rgba(74,222,128,0.15);border:1px solid var(--green);color:var(--green);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">+</button>
       </div>
+      <button onclick="cadastrarAgora('${bc}')" style="margin-top:6px;flex-basis:100%;background:linear-gradient(90deg,rgba(212,255,46,0.15),rgba(255,77,143,0.15));border:1px dashed var(--lime);color:var(--lime);padding:8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📦 cadastrar esse pod agora</button>
     `;
     list.appendChild(div);
   });
+}
+
+// ============ CADASTRAR DURANTE O BALANÇO ============
+// Andrade pediu: quando bate código não cadastrado, opção de cadastrar na hora.
+// Salva o estado do balanço (já tá em localStorage) e abre receber.html
+// com o barcode pré-preenchido. Quando voltar, balanço continua de onde parou.
+function cadastrarAgora(barcode) {
+  // Salva estado pra voltar pra cá depois
+  try { localStorage.setItem('drope_balanco_return', '1'); } catch(_){}
+  // Pega o token salvo (mesmo que o receber.html usa)
+  let t = '';
+  try { t = localStorage.getItem('drope_admin_token') || ''; } catch(_){}
+  if (!t) {
+    t = prompt('cola o ADMIN_TOKEN do Drope (só dessa vez):');
+    if (!t) return;
+    t = t.trim();
+    try { localStorage.setItem('drope_admin_token', t); } catch(_){}
+  }
+  // Redireciona pro receber.html com o barcode pré-preenchido
+  const url = `/receber.html?v=5&t=${encodeURIComponent(t)}&prefill_barcode=${encodeURIComponent(barcode)}&from=balanco`;
+  window.location.href = url;
 }
 
 // ============ AJUSTE DE QUANTIDADE (Andrade pediu: balanço + e − e edit) ============

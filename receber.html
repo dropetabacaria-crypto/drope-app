@@ -779,6 +779,21 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ============ AUTH ============
+// Pré-fill barcode (vindo do balanço: ?prefill_barcode=XXX&from=balanco)
+// Guarda em variáveis globais pra usar quando o scanner carregar.
+let PREFILL_BARCODE = '';
+let FROM_BALANCO = false;
+try {
+  const u0 = new URL(location.href);
+  PREFILL_BARCODE = (u0.searchParams.get('prefill_barcode') || '').replace(/\D/g, '');
+  FROM_BALANCO = u0.searchParams.get('from') === 'balanco';
+  if (PREFILL_BARCODE || FROM_BALANCO) {
+    u0.searchParams.delete('prefill_barcode');
+    u0.searchParams.delete('from');
+    history.replaceState(null, '', u0.toString());
+  }
+} catch (e) {}
+
 function checkAuth() {
   // Link mágico: se veio com ?t=TOKEN no URL, salva e limpa do URL antes de qualquer coisa
   try {
@@ -1809,6 +1824,24 @@ window.addEventListener('DOMContentLoaded', () => {
   const photoBtn = document.getElementById('btn-photo');
   if (photoBtn) photoBtn.textContent = '📸 tirar foto (fallback)';
   startScanner();
+
+  // Veio do balanço com barcode pré-preenchido? Dispara o cadastro automaticamente.
+  if (PREFILL_BARCODE && PREFILL_BARCODE.length >= 6) {
+    setTimeout(() => {
+      try { if (typeof processBarcode === 'function') processBarcode(PREFILL_BARCODE); } catch(_){}
+    }, 500);
+  }
+  // Mostra botão "voltar pro balanço" no topo se veio de lá
+  if (FROM_BALANCO) {
+    const header = document.querySelector('header');
+    if (header) {
+      const btn = document.createElement('a');
+      btn.href = '/balanco.html';
+      btn.textContent = '← voltar pro balanço';
+      btn.style.cssText = 'position:fixed;top:10px;left:10px;background:var(--lime);color:#000;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.3)';
+      document.body.appendChild(btn);
+    }
+  }
 });
 window.addEventListener('beforeunload', () => {
   try { if (state.controls) state.controls.stop(); } catch (e) {}
