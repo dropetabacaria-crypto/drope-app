@@ -296,17 +296,30 @@ async function startScanner() {
     state.scanLooping = true;
     state.stream = stream;
 
-    let blocked = false;
+    // Cooldown POR CÓDIGO (não global): mesmo código fica bloqueado 5s individual,
+    // outros pods continuam bipando normal. Evita bipar o mesmo pod várias vezes
+    // quando ele fica na frente da câmera por tempo prolongado.
+    const recentScans = new Map(); // code -> timestamp
+    const COOLDOWN_PER_CODE_MS = 5000;
     state.controls = await codeReader.decodeFromVideoElement(video, (result, err) => {
       if (!state.scanLooping) return;
-      if (result && !blocked) {
-        const code = (result.text || result.getText?.() || '').replace(/\D/g, '');
-        if (code && code.length >= 6) {
-          blocked = true;
-          setTimeout(() => { blocked = false; }, 800);
-          processBarcode(code);
-        }
+      if (!result) return;
+      const code = (result.text || result.getText?.() || '').replace(/\D/g, '');
+      if (!code || code.length < 6) return;
+      const now = Date.now();
+      const lastSeen = recentScans.get(code) || 0;
+      if (now - lastSeen < COOLDOWN_PER_CODE_MS) {
+        // Mesmo código foi lido recentemente — ignora silenciosamente.
+        // Mostra um toast curto pra avisar que tá no cooldown.
+        showToast('⏳ código já bipado, espera ' + Math.ceil((COOLDOWN_PER_CODE_MS - (now - lastSeen))/1000) + 's', 'err');
+        return;
       }
+      recentScans.set(code, now);
+      // Limpa entries antigas (mais de 30s) pra não vazar memória
+      for (const [c, t] of recentScans) {
+        if (now - t > 30000) recentScans.delete(c);
+      }
+      processBarcode(code);
     });
     console.log('[scanner] ✓ câmera ativa');
   } catch (e) {
@@ -437,7 +450,11 @@ function render() {
     div.className = 'counted-item';
     div.innerHTML = `
       <div class="name">${c.name}<small>sistema: ${c.qty_system}</small></div>
-      <div class="qty">${c.qty_counted}</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="event.stopPropagation();adjustQty('product',${c.id},-1)" style="background:rgba(255,61,92,0.15);border:1px solid var(--red);color:var(--red);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">−</button>
+        <div class="qty" style="cursor:pointer" onclick="editQty('product',${c.id})">${c.qty_counted}</div>
+        <button onclick="event.stopPropagation();adjustQty('product',${c.id},1)" style="background:rgba(74,222,128,0.15);border:1px solid var(--green);color:var(--green);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">+</button>
+      </div>
     `;
     list.appendChild(div);
   });
@@ -447,10 +464,73 @@ function render() {
     div.className = 'counted-item unknown-item';
     div.innerHTML = `
       <div class="name">não cadastrado<small>código: ${bc}</small></div>
-      <div class="qty">${qty}</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button onclick="event.stopPropagation();adjustQty('unknown','${bc}',-1)" style="background:rgba(255,61,92,0.15);border:1px solid var(--red);color:var(--red);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">−</button>
+        <div class="qty" style="cursor:pointer" onclick="editQty('unknown','${bc}')">${qty}</div>
+        <button onclick="event.stopPropagation();adjustQty('unknown','${bc}',1)" style="background:rgba(74,222,128,0.15);border:1px solid var(--green);color:var(--green);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">+</button>
+      </div>
     `;
     list.appendChild(div);
   });
+}
+
+// ============ AJUSTE DE QUANTIDADE (Andrade pediu: balanço + e − e edit) ============
+function adjustQty(kind, key, delta) {
+  if (kind === 'product') {
+    const c = state.counts[key];
+    if (!c) return;
+    c.qty_counted = Math.max(0, c.qty_counted + delta);
+    if (c.qty_counted === 0) {
+      delete state.counts[key];
+      showToast(`✕ ${c.name} removido`, 'ok');
+    } else {
+      showToast(`${delta > 0 ? '+' : '−'}1 ${c.name} ✦ ${c.qty_counted}`, 'ok');
+    }
+  } else if (kind === 'unknown') {
+    const newQty = Math.max(0, (state.unknown[key] || 0) + delta);
+    if (newQty === 0) {
+      delete state.unknown[key];
+      showToast('✕ código removido', 'ok');
+    } else {
+      state.unknown[key] = newQty;
+      showToast(`${delta > 0 ? '+' : '−'}1 ✦ ${newQty}`, 'ok');
+    }
+  }
+  if (navigator.vibrate) navigator.vibrate(20);
+  persistState();
+  render();
+}
+
+function editQty(kind, key) {
+  let currentName = '';
+  let currentQty = 0;
+  if (kind === 'product') {
+    const c = state.counts[key];
+    if (!c) return;
+    currentName = c.name;
+    currentQty = c.qty_counted;
+  } else if (kind === 'unknown') {
+    currentName = 'código ' + key;
+    currentQty = state.unknown[key] || 0;
+  }
+  const v = prompt(`Quantidade exata pra ${currentName}:`, String(currentQty));
+  if (v === null) return; // cancelou
+  const n = parseInt(v.trim());
+  if (isNaN(n) || n < 0) {
+    showToast('número inválido', 'err');
+    return;
+  }
+  if (kind === 'product') {
+    if (n === 0) delete state.counts[key];
+    else state.counts[key].qty_counted = n;
+  } else {
+    if (n === 0) delete state.unknown[key];
+    else state.unknown[key] = n;
+  }
+  showToast(`✓ ${currentName} ✦ ${n}`, 'ok');
+  if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+  persistState();
+  render();
 }
 
 // ============ RELATÓRIO ============
