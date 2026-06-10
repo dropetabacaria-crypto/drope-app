@@ -39,6 +39,7 @@ main { padding: 12px 16px 100px; }
 .viewfinder { position: absolute; inset: 16% 12%; border: 2px solid var(--lime); border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35); }
 .viewfinder::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--lime); opacity: 0.7; animation: sweep 2s linear infinite; }
 @keyframes sweep { 0%, 100% { transform: translateY(-40px); } 50% { transform: translateY(40px); } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 8px 24px rgba(212,255,46,0.25); } 50% { box-shadow: 0 12px 32px rgba(212,255,46,0.45); } }
 .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.92); color: var(--fg); padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: 88%; text-align: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 200ms; }
 .toast.show { opacity: 1; }
 .toast.ok { border: 1px solid var(--green); }
@@ -232,12 +233,10 @@ let STORAGE_KEY = _storageKeyFor(STAFF_NAME);
 const state = {
   startedAt: Date.now(),
   staffName: STAFF_NAME,
-  counts: {},
-  unknown: {},
-  // Andrade 09/06: rastreia o "produto atual" sendo contado (último bipado).
-  // Quando bipa outro código, este vai pros contados e o novo vira atual.
-  currentKind: null,  // 'product' | 'unknown' | null
-  currentKey: null,   // productId ou barcode
+  counts: {},   // CONFIRMADOS: { productId: { id, name, qty_system, qty_counted, barcode } }
+  unknown: {},  // CONFIRMADOS não cadastrados: { barcode: qty }
+  // ATUAL — produto lido aguardando confirmação. null = vazio.
+  current: null,  // { kind:'product'|'unknown', id?, name?, qty_system?, qty_pending, barcode }
   controls: null,
   codeReader: null,
   scanLooping: false,
@@ -285,6 +284,7 @@ function loadState() {
     if (saved.startedAt) state.startedAt = saved.startedAt;
     if (saved.counts) state.counts = saved.counts;
     if (saved.unknown) state.unknown = saved.unknown;
+    if (saved.current) state.current = saved.current;
   } catch (e) {}
 }
 function persistState() {
@@ -293,6 +293,7 @@ function persistState() {
       startedAt: state.startedAt,
       counts: state.counts,
       unknown: state.unknown,
+      current: state.current,
     }));
   } catch (e) {}
 }
@@ -301,6 +302,7 @@ function resetBalanco() {
   state.startedAt = Date.now();
   state.counts = {};
   state.unknown = {};
+  state.current = null;
   persistState();
   render();
   showToast('balanço zerado ✦', 'ok');
@@ -425,37 +427,82 @@ function manualInput() {
 }
 
 // ============ PROCESSA BARCODE ============
+// ESTADO: state.current = null | {kind:'product', id, name, qty_system, qty_pending, barcode}
+//                              | {kind:'unknown', barcode, qty_pending}
+// state.counts = { productId: { id, name, qty_system, qty_counted, barcode } }  (CONFIRMADOS)
+// state.unknown = { barcode: qty }  (CONFIRMADOS não cadastrados)
 async function processBarcode(barcode) {
   try {
+    // SITUAÇÃO 5: bipa código que JÁ ESTÁ em CONTADOS (já confirmado antes)
+    const alreadyCountedProduct = Object.values(state.counts).find(c => c.barcode === barcode);
+    if (alreadyCountedProduct) {
+      const confirm = window.confirm(
+        `⚠️ "${alreadyCountedProduct.name}" já foi contado com ${alreadyCountedProduct.qty_counted} unidades.\n\nOK = somar +1\nCancelar = ignorar`
+      );
+      if (confirm) {
+        alreadyCountedProduct.qty_counted += 1;
+        persistState();
+        render();
+        showToast(`+1 ${alreadyCountedProduct.name} (${alreadyCountedProduct.qty_counted})`, 'ok');
+      }
+      return;
+    }
+    if (state.unknown[barcode] !== undefined && !(state.current && state.current.kind === 'unknown' && state.current.barcode === barcode)) {
+      const confirm = window.confirm(`⚠️ Código "${barcode}" já foi contado.\n\nOK = somar +1\nCancelar = ignorar`);
+      if (confirm) {
+        state.unknown[barcode] += 1;
+        persistState();
+        render();
+        showToast('+1 ' + barcode, 'ok');
+      }
+      return;
+    }
+
+    // SITUAÇÃO 3: bipa o MESMO código do ATUAL (atualiza contador pendente)
+    if (state.current) {
+      if (state.current.kind === 'product' && state.current.barcode === barcode) {
+        state.current.qty_pending = (state.current.qty_pending || 1) + 1;
+        if (navigator.vibrate) navigator.vibrate(30);
+        showToast(`+1 ${state.current.name} (${state.current.qty_pending})`, 'ok');
+        persistState();
+        render();
+        return;
+      }
+      if (state.current.kind === 'unknown' && state.current.barcode === barcode) {
+        state.current.qty_pending = (state.current.qty_pending || 1) + 1;
+        if (navigator.vibrate) navigator.vibrate(30);
+        showToast(`+1 não cadastrado (${state.current.qty_pending})`, 'ok');
+        persistState();
+        render();
+        return;
+      }
+      // SITUAÇÃO 4: bipa código DIFERENTE com ATUAL ocupado → salva ATUAL antes
+      confirmarAtual({ silent: true });
+    }
+
+    // SITUAÇÃO 1 e 2: ATUAL vazio, bipa novo código
     const r = await fetch('/api/webhook?action=balanco_resolve_barcode&barcode=' + encodeURIComponent(barcode));
     const data = await r.json();
     if (data && data.ok && data.product) {
       const p = data.product;
-      const existing = state.counts[p.id];
-      if (existing) {
-        existing.qty_counted += 1;
-      } else {
-        state.counts[p.id] = {
-          id: p.id,
-          name: p.name,
-          barcode,
-          qty_system: p.qty_available || 0,
-          qty_counted: 1,
-        };
-      }
-      // ATUAL agora é esse produto
-      state.currentKind = 'product';
-      state.currentKey = p.id;
-      // Vibração + toast
+      state.current = {
+        kind: 'product',
+        id: p.id,
+        name: p.name,
+        barcode,
+        qty_system: p.qty_available || 0,
+        qty_pending: 1,
+      };
       if (navigator.vibrate) navigator.vibrate(40);
-      showToast(`✓ ${p.name} ✦ ${state.counts[p.id].qty_counted}`, 'ok');
+      showToast(`✓ ${p.name}`, 'ok');
     } else {
-      // Não cadastrado
-      state.unknown[barcode] = (state.unknown[barcode] || 0) + 1;
-      state.currentKind = 'unknown';
-      state.currentKey = barcode;
+      state.current = {
+        kind: 'unknown',
+        barcode,
+        qty_pending: 1,
+      };
       if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-      showToast('⚠️ não cadastrado — registrei mesmo assim', 'err');
+      showToast('⚠️ código não cadastrado', 'err');
     }
     persistState();
     render();
@@ -465,14 +512,68 @@ async function processBarcode(barcode) {
   }
 }
 
-// "Fecha" o ATUAL — vai pra lista de contados, libera o slot pra próximo bipe
-function fecharAtual() {
-  state.currentKind = null;
-  state.currentKey = null;
+// CONFIRMA o ATUAL → salva nas listas (CONTADOS) e libera o slot
+function confirmarAtual(opts) {
+  opts = opts || {};
+  if (!state.current) return;
+  const c = state.current;
+  const qty = Math.max(1, parseInt(c.qty_pending) || 1);
+  if (c.kind === 'product') {
+    // Se já tem (raro — viria do alreadyCountedProduct flow), soma. Senão cria.
+    if (state.counts[c.id]) {
+      state.counts[c.id].qty_counted += qty;
+    } else {
+      state.counts[c.id] = {
+        id: c.id,
+        name: c.name,
+        barcode: c.barcode,
+        qty_system: c.qty_system,
+        qty_counted: qty,
+      };
+    }
+    if (!opts.silent) showToast(`✓ ${c.name} salvo com ${qty}`, 'ok');
+  } else if (c.kind === 'unknown') {
+    state.unknown[c.barcode] = (state.unknown[c.barcode] || 0) + qty;
+    if (!opts.silent) showToast(`✓ código salvo com ${qty}`, 'ok');
+  }
+  if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+  state.current = null;
+  persistState();
+  if (!opts.skipRender) render();
+}
+
+// DESCARTA o ATUAL — joga fora sem salvar
+function descartarAtual() {
+  if (!state.current) return;
+  if (!window.confirm('Descartar essa leitura? Os ' + (state.current.qty_pending || 1) + ' bipes vão sumir.')) return;
+  state.current = null;
   persistState();
   render();
-  showToast('✓ produto fechado — bipa o próximo', 'ok');
+  showToast('✕ descartado', 'err');
 }
+
+// Ajusta o qty_pending do ATUAL com botões + e −
+function ajustarPending(delta) {
+  if (!state.current) return;
+  const next = Math.max(1, (state.current.qty_pending || 1) + delta);
+  state.current.qty_pending = next;
+  persistState();
+  render();
+}
+// Edit do qty pendente
+function editarPending() {
+  if (!state.current) return;
+  const v = prompt('Quantidade exata:', String(state.current.qty_pending || 1));
+  if (v === null) return;
+  const n = parseInt(v.trim());
+  if (isNaN(n) || n < 1) { showToast('número inválido', 'err'); return; }
+  state.current.qty_pending = n;
+  persistState();
+  render();
+}
+
+// (compat antiga) "fecharAtual" agora confirma
+function fecharAtual() { confirmarAtual(); }
 
 // ============ RENDER ============
 function render() {
@@ -506,51 +607,42 @@ function render() {
   empty.style.display = 'none';
   list.querySelectorAll('.counted-item, .atual-card, .contados-header').forEach(el => el.remove());
 
-  // ATUAL — produto sendo trabalhado agora (último bipado)
-  const atualKind = state.currentKind;
-  const atualKey = state.currentKey;
-  const atualProduct = (atualKind === 'product' && state.counts[atualKey]) || null;
-  const atualUnknown = (atualKind === 'unknown' && state.unknown[atualKey] !== undefined) ? { bc: atualKey, qty: state.unknown[atualKey] } : null;
+  // ATUAL — produto aguardando confirmação (state.current)
+  const cur = state.current;
+  if (cur) {
+    const isProduct = cur.kind === 'product';
+    const corPrincipal = isProduct ? 'var(--lime)' : 'var(--orange)';
+    const corCorFundoRgba = isProduct ? '212,255,46' : '255,133,51';
+    const corCorBordaShadow = isProduct ? '212,255,46' : '255,133,51';
+    const headerLabel = isProduct ? '✓ POD LIDO ✦ confirma a quantidade' : '⚠️ CÓDIGO NOVO ✦ cadastra ou confirma';
+    const nome = isProduct ? cur.name : 'não cadastrado';
+    const subLabel = isProduct ? `Sistema: ${cur.qty_system}` : `código: ${cur.barcode}`;
 
-  if (atualProduct) {
     const div = document.createElement('div');
     div.className = 'atual-card';
-    div.style.cssText = 'background:linear-gradient(135deg,rgba(212,255,46,0.2),rgba(255,77,143,0.15));border:2px solid var(--lime);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(212,255,46,0.25)';
+    div.style.cssText = `background:linear-gradient(135deg,rgba(${corCorFundoRgba},0.18),rgba(255,77,143,0.12));border:2px solid ${corPrincipal};border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 8px 24px rgba(${corCorBordaShadow},0.25);animation:pulse 2s ease-in-out infinite`;
     div.innerHTML = `
-      <div style="font-size:11px;color:var(--lime);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📌 ATUAL ✦ contando agora</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:2px">${atualProduct.name}</div>
-      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:14px">sistema: ${atualProduct.qty_system}</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
-        <button onclick="adjustQty('product',${atualProduct.id},-1)" style="background:var(--red);border:0;color:#fff;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">−</button>
-        <div style="cursor:pointer;font-size:36px;font-weight:800;color:var(--lime);min-width:80px;text-align:center" onclick="editQty('product',${atualProduct.id})">${atualProduct.qty_counted}</div>
-        <button onclick="adjustQty('product',${atualProduct.id},1)" style="background:var(--green);border:0;color:#000;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">+</button>
+      <div style="font-size:11px;color:${corPrincipal};font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">${headerLabel}</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:2px;color:#fff">${nome}</div>
+      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:16px">${subLabel}</div>
+      <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">Quantos você tem?</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px">
+        <button onclick="ajustarPending(-1)" style="background:var(--red);border:0;color:#fff;width:56px;height:56px;border-radius:14px;font-size:28px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(255,61,92,0.3)">−</button>
+        <div style="cursor:pointer;font-size:48px;font-weight:800;color:${corPrincipal};min-width:100px;text-align:center;line-height:1" onclick="editarPending()">${cur.qty_pending || 1}</div>
+        <button onclick="ajustarPending(1)" style="background:var(--green);border:0;color:#000;width:56px;height:56px;border-radius:14px;font-size:28px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(74,222,128,0.3)">+</button>
       </div>
-      <button onclick="fecharAtual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✓ fechar e bipar o próximo</button>
-    `;
-    list.appendChild(div);
-  } else if (atualUnknown) {
-    const div = document.createElement('div');
-    div.className = 'atual-card';
-    div.style.cssText = 'background:linear-gradient(135deg,rgba(255,133,51,0.2),rgba(255,77,143,0.15));border:2px solid var(--orange);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(255,133,51,0.25)';
-    div.innerHTML = `
-      <div style="font-size:11px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📌 ATUAL ✦ código não cadastrado</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:2px">não cadastrado</div>
-      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:14px">código: ${atualUnknown.bc}</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
-        <button onclick="adjustQty('unknown','${atualUnknown.bc}',-1)" style="background:var(--red);border:0;color:#fff;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">−</button>
-        <div style="cursor:pointer;font-size:36px;font-weight:800;color:var(--orange);min-width:80px;text-align:center" onclick="editQty('unknown','${atualUnknown.bc}')">${atualUnknown.qty}</div>
-        <button onclick="adjustQty('unknown','${atualUnknown.bc}',1)" style="background:var(--green);border:0;color:#000;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">+</button>
+      ${!isProduct ? `<button onclick="cadastrarAgora('${cur.barcode}')" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.18),rgba(212,255,46,0.12));border:1px dashed var(--lime);color:var(--lime);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📦 cadastrar esse pod agora</button>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick="descartarAtual()" style="background:transparent;border:1px solid var(--red);color:var(--red);padding:14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✕ descartar</button>
+        <button onclick="confirmarAtual()" style="background:${corPrincipal};border:0;color:#000;padding:14px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(${corCorBordaShadow},0.4)">✓ confirmar</button>
       </div>
-      <button onclick="cadastrarAgora('${atualUnknown.bc}')" style="width:100%;background:linear-gradient(90deg,rgba(212,255,46,0.2),rgba(255,77,143,0.15));border:1px dashed var(--lime);color:var(--lime);padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📦 cadastrar esse pod agora</button>
-      <button onclick="fecharAtual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✓ fechar e bipar o próximo</button>
     `;
     list.appendChild(div);
   }
 
-  // CONTADOS — produtos já fechados (qualquer um que não seja o atual)
-  const contados = counts.filter(c => !(atualKind === 'product' && atualKey === c.id))
-                         .sort((a,b) => b.qty_counted - a.qty_counted);
-  const unknownsContados = Object.entries(state.unknown).filter(([bc]) => !(atualKind === 'unknown' && atualKey === bc));
+  // CONTADOS — produtos já confirmados (state.counts e state.unknown)
+  const contados = counts.sort((a,b) => b.qty_counted - a.qty_counted);
+  const unknownsContados = Object.entries(state.unknown);
 
   if (contados.length > 0 || unknownsContados.length > 0) {
     const header = document.createElement('div');
@@ -682,23 +774,31 @@ async function salvarCadastroInline() {
     });
     const data = await r.json();
     if (data && data.ok) {
-      // Sucesso! Transfere o que estava em unknown[barcode] pra counts[productId]
+      // Sucesso! Promove unknown → produto cadastrado, mantendo qty.
       const newProductId = data.product?.id;
+      const productName = data.product?.name || `${brand} ${model} ${flavor}`.replace(/\s+/g,' ').trim();
+      // Caso 1: barcode estava no state.current (ainda não confirmado)
+      if (state.current && state.current.kind === 'unknown' && state.current.barcode === CI_BARCODE) {
+        state.current = {
+          kind: 'product',
+          id: newProductId,
+          name: productName,
+          barcode: CI_BARCODE,
+          qty_system: 0,
+          qty_pending: state.current.qty_pending || 1,
+        };
+      }
+      // Caso 2: barcode já estava em state.unknown (já confirmado anteriormente como desconhecido)
       const unknownQty = state.unknown[CI_BARCODE] || 0;
       if (newProductId && unknownQty > 0) {
         state.counts[newProductId] = {
           id: newProductId,
-          name: data.product.name || `${brand} ${model} ${flavor}`,
+          name: productName,
           barcode: CI_BARCODE,
           qty_system: 0,
-          qty_counted: unknownQty,
+          qty_counted: (state.counts[newProductId]?.qty_counted || 0) + unknownQty,
         };
         delete state.unknown[CI_BARCODE];
-        // Se o atual era esse barcode, atualiza pra apontar pro novo produto
-        if (state.currentKind === 'unknown' && state.currentKey === CI_BARCODE) {
-          state.currentKind = 'product';
-          state.currentKey = newProductId;
-        }
       }
       persistState();
       showToast(`✓ ${brand} ${flavor} cadastrado!`, 'ok');
@@ -777,6 +877,10 @@ function editQty(kind, key) {
 
 // ============ RELATÓRIO ============
 function finalizar() {
+  // SITUAÇÃO 6: auto-salva ATUAL antes de gerar relatório (não perde leitura)
+  if (state.current) {
+    confirmarAtual({ silent: true });
+  }
   document.getElementById('main-screen').style.display = 'none';
   document.getElementById('report-screen').classList.add('show');
   renderReport();
