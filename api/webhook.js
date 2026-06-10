@@ -4599,6 +4599,105 @@ async function handleDashboardData(req, res) {
   }
 }
 
+// ============ EAN LOOKUP — busca online pelo código de barras (07/06/2026) ============
+// Andrade pediu durante o balanço: quando bipa código não cadastrado,
+// poder buscar online o nome do produto pra acelerar o cadastro inline.
+// Cascata: Open Food Facts -> UPCitemDB (best effort, sem chave)
+async function handleEanLookup(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  try {
+    const qs = (req.url || '').split('?')[1] || '';
+    const m = qs.split('&').find(x => x.startsWith('barcode='));
+    const barcode = m ? decodeURIComponent(m.slice(8)).replace(/\D/g, '') : '';
+    if (!barcode || barcode.length < 6) {
+      return res.status(400).json({ ok: false, error: 'missing or invalid barcode' });
+    }
+
+    // Helper pra extrair brand/model/flavor de uma string de produto
+    function parseName(fullName) {
+      const out = { brand: null, model: null, flavor: null, puffs: null, name: fullName };
+      if (!fullName) return out;
+      const txt = fullName.toUpperCase();
+      const knownBrands = ['ELFBAR','ELF BAR','LOSTMARY','LOST MARY','LOSTVAPE','LOST VAPE','IGNITE','OXBAR','OX BAR','GEEKBAR','GEEK BAR','HQD','WAKA','BLACKSHEEP','BLACK SHEEP','DOJO','VANTHER','ADALYA','RABBEATS','RABBEATS','NIKBAR','DINNER LADY','MAXBAR','ICITY','ALADIN','HALLO'];
+      for (const b of knownBrands) {
+        if (txt.includes(b)) { out.brand = b.replace(' ',''); break; }
+      }
+      const puffMatch = txt.match(/(\d{1,3})\s*K\b/) || txt.match(/(\d{4,6})\s*PUFF/);
+      if (puffMatch) {
+        const n = parseInt(puffMatch[1]);
+        out.puffs = puffMatch[0].includes('K') ? n * 1000 : n;
+      }
+      return out;
+    }
+
+    // 1) Open Food Facts
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.status === 1 && d.product) {
+          const p = d.product;
+          const name = p.product_name || p.generic_name || p.brands || '';
+          if (name) {
+            const parsed = parseName(name);
+            return res.status(200).json({
+              ok: true,
+              source: 'open_food_facts',
+              result: {
+                name,
+                brand: parsed.brand || p.brands || null,
+                model: parsed.model,
+                flavor: parsed.flavor,
+                puffs: parsed.puffs,
+                raw: name,
+              }
+            });
+          }
+        }
+      }
+    } catch (e) { /* skip */ }
+
+    // 2) UPCitemDB Trial (sem chave)
+    try {
+      const r = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.items && d.items[0]) {
+          const item = d.items[0];
+          const name = item.title || item.brand || '';
+          if (name) {
+            const parsed = parseName(name);
+            return res.status(200).json({
+              ok: true,
+              source: 'upcitemdb',
+              result: {
+                name,
+                brand: parsed.brand || item.brand || null,
+                model: parsed.model,
+                flavor: parsed.flavor,
+                puffs: parsed.puffs,
+                raw: name,
+              }
+            });
+          }
+        }
+      }
+    } catch (e) { /* skip */ }
+
+    return res.status(200).json({ ok: false, error: 'não achei online' });
+  } catch (err) {
+    console.error('[ean_lookup] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 // ============ BALANÇO (06/06/2026) ============
 // Andrade pediu pra reunião operacional: scanner com contagem física.
 // Andrade quer atalho no PWA. Páginas: /balanco.html (contagem) + endpoints abaixo.
@@ -16725,6 +16824,11 @@ async function generateAll(){
   // action=balanco_resolve_barcode — GET: ?barcode=XXX retorna {ok, product}
   if (req.url && req.url.indexOf('action=balanco_resolve_barcode') >= 0) {
     return await handleBalancoResolveBarcode(req, res);
+  }
+
+  // action=ean_lookup — GET: ?barcode=XXX busca online (Open Food Facts) e retorna nome/marca/etc
+  if (req.url && req.url.indexOf('action=ean_lookup') >= 0) {
+    return await handleEanLookup(req, res);
   }
 
   // action=balanco_finalize — POST: salva contagem em drope_balancos

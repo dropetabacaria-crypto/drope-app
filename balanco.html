@@ -129,10 +129,6 @@ main { padding: 12px 16px 100px; }
     <div class="stat"><div class="num" id="stat-unknown" style="color:var(--orange)">0</div><div class="lbl">não cadastrados</div></div>
   </div>
 
-  <div class="actions" style="grid-template-columns: 1fr">
-    <button class="btn btn-finalize" onclick="finalizar()">✅ ver relatório</button>
-  </div>
-
   <div class="counted-list" id="counted-list">
     <h3>contados nessa sessão</h3>
     <div class="empty" id="empty-state">
@@ -140,7 +136,55 @@ main { padding: 12px 16px 100px; }
       <div>escaneia o primeiro pod pra começar</div>
     </div>
   </div>
+  <!-- Espaço pro botão fixo no rodapé não cobrir o último item -->
+  <div style="height: 80px"></div>
 </main>
+
+<!-- Botão FIXO no rodapé — sempre visível enquanto tu rolar -->
+<div id="sticky-bottom" style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(10,10,20,0.95) 40%);padding:14px 16px;z-index:50;pointer-events:none">
+  <button class="btn btn-finalize" onclick="finalizar()" style="pointer-events:auto;width:100%;font-size:16px;padding:16px;box-shadow:0 8px 24px rgba(255,77,143,0.4)">✅ ver relatório do balanço</button>
+</div>
+
+<!-- MODAL: cadastro inline de produto desconhecido -->
+<div id="cadastro-inline" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;margin-top:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="font-size:18px;color:#fff">📦 cadastrar pod</h2>
+      <button onclick="fecharCadastroInline()" style="background:transparent;border:0;color:var(--fg-dim);font-size:24px;cursor:pointer">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">código: <span id="ci-bc" style="color:var(--lime);font-family:monospace"></span></div>
+    <button onclick="buscarPorEan()" id="ci-search-btn" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.15),rgba(212,255,46,0.15));border:1px dashed var(--lime);color:var(--lime);padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px">🔍 buscar nome do pod na internet</button>
+    <div style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">marca</label>
+      <input type="text" id="ci-brand" placeholder="ex: ELFBAR" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
+    </div>
+    <div style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">modelo</label>
+        <input type="text" id="ci-model" placeholder="ex: BC15K" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">sabor</label>
+        <input type="text" id="ci-flavor" placeholder="ex: Menta Gelada" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
+      </div>
+    </div>
+    <div style="margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">puffs</label>
+        <input type="number" id="ci-puffs" placeholder="ex: 15000" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">preço (R$)</label>
+        <input type="number" id="ci-price" step="0.01" placeholder="ex: 95" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
+      </div>
+    </div>
+    <div id="ci-msg" style="font-size:12px;color:var(--fg-dim);margin-bottom:12px;min-height:16px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="fecharCadastroInline()" style="background:transparent;border:1px solid var(--border);color:var(--fg-dim);padding:12px;border-radius:8px;font-size:13px;cursor:pointer">cancelar</button>
+      <button onclick="salvarCadastroInline()" id="ci-save-btn" style="background:var(--lime);color:#000;border:0;padding:12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">salvar e continuar</button>
+    </div>
+  </div>
+</div>
 
 <input type="file" id="photo-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
 
@@ -547,25 +591,129 @@ function render() {
   });
 }
 
-// ============ CADASTRAR DURANTE O BALANÇO ============
-// Andrade pediu: quando bate código não cadastrado, opção de cadastrar na hora.
-// Salva o estado do balanço (já tá em localStorage) e abre receber.html
-// com o barcode pré-preenchido. Quando voltar, balanço continua de onde parou.
+// ============ CADASTRO INLINE (sem sair do balanço) ============
+let CI_BARCODE = '';
 function cadastrarAgora(barcode) {
-  // Salva estado pra voltar pra cá depois
-  try { localStorage.setItem('drope_balanco_return', '1'); } catch(_){}
-  // Pega o token salvo (mesmo que o receber.html usa)
+  CI_BARCODE = barcode;
+  document.getElementById('ci-bc').textContent = barcode;
+  // Limpa campos
+  ['ci-brand','ci-model','ci-flavor','ci-puffs','ci-price'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('ci-msg').textContent = '';
+  document.getElementById('cadastro-inline').style.display = 'flex';
+  // Pausa scanner enquanto modal aberto pra não bipar nada
+  state.scanLooping = false;
+}
+function fecharCadastroInline() {
+  document.getElementById('cadastro-inline').style.display = 'none';
+  CI_BARCODE = '';
+  // Retoma scanner
+  state.scanLooping = true;
+}
+
+// Busca nome do produto pelo EAN via cascata (OFF + UPCitemDB)
+async function buscarPorEan() {
+  if (!CI_BARCODE) return;
+  const btn = document.getElementById('ci-search-btn');
+  const msg = document.getElementById('ci-msg');
+  if (btn) { btn.textContent = '🔍 buscando...'; btn.disabled = true; }
+  try {
+    const r = await fetch('/api/webhook?action=ean_lookup&barcode=' + encodeURIComponent(CI_BARCODE));
+    const data = await r.json();
+    if (data && data.ok && data.result) {
+      // Preenche o que conseguiu
+      if (data.result.brand) document.getElementById('ci-brand').value = data.result.brand;
+      if (data.result.model) document.getElementById('ci-model').value = data.result.model;
+      if (data.result.flavor) document.getElementById('ci-flavor').value = data.result.flavor;
+      if (data.result.puffs) document.getElementById('ci-puffs').value = data.result.puffs;
+      msg.textContent = `✓ achei: ${data.result.name || 'dados parciais'}`;
+      msg.style.color = 'var(--green)';
+    } else {
+      msg.textContent = '😕 não achei nada online — preenche manual';
+      msg.style.color = 'var(--orange)';
+    }
+  } catch (e) {
+    msg.textContent = 'erro de rede ao buscar';
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = '🔍 buscar nome do pod na internet'; btn.disabled = false; }
+  }
+}
+
+async function salvarCadastroInline() {
+  const brand = document.getElementById('ci-brand').value.trim();
+  const model = document.getElementById('ci-model').value.trim();
+  const flavor = document.getElementById('ci-flavor').value.trim();
+  const puffs = document.getElementById('ci-puffs').value.trim();
+  const priceStr = document.getElementById('ci-price').value.trim();
+  const msg = document.getElementById('ci-msg');
+  if (!brand || !flavor) {
+    msg.textContent = '⚠️ marca e sabor são obrigatórios';
+    msg.style.color = 'var(--orange)';
+    return;
+  }
+  const btn = document.getElementById('ci-save-btn');
+  if (btn) { btn.textContent = 'salvando...'; btn.disabled = true; }
+  // Pega o token salvo
   let t = '';
   try { t = localStorage.getItem('drope_admin_token') || ''; } catch(_){}
   if (!t) {
     t = prompt('cola o ADMIN_TOKEN do Drope (só dessa vez):');
-    if (!t) return;
+    if (!t) { if (btn) { btn.textContent = 'salvar e continuar'; btn.disabled = false; } return; }
     t = t.trim();
     try { localStorage.setItem('drope_admin_token', t); } catch(_){}
   }
-  // Redireciona pro receber.html com o barcode pré-preenchido
-  const url = `/receber.html?v=5&t=${encodeURIComponent(t)}&prefill_barcode=${encodeURIComponent(barcode)}&from=balanco`;
-  window.location.href = url;
+  try {
+    const priceCents = priceStr ? Math.round(parseFloat(priceStr.replace(',', '.')) * 100) : 0;
+    const r = await fetch('/api/webhook?action=quick_register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': t },
+      body: JSON.stringify({
+        barcode: CI_BARCODE,
+        brand, model, flavor,
+        flavor_pt: flavor,
+        puffs: puffs ? Number(puffs) : null,
+        priceCents,
+        qty: 0, // o balanço vai contar o estoque
+        defer_art: true,
+      }),
+    });
+    const data = await r.json();
+    if (data && data.ok) {
+      // Sucesso! Transfere o que estava em unknown[barcode] pra counts[productId]
+      const newProductId = data.product?.id;
+      const unknownQty = state.unknown[CI_BARCODE] || 0;
+      if (newProductId && unknownQty > 0) {
+        state.counts[newProductId] = {
+          id: newProductId,
+          name: data.product.name || `${brand} ${model} ${flavor}`,
+          barcode: CI_BARCODE,
+          qty_system: 0,
+          qty_counted: unknownQty,
+        };
+        delete state.unknown[CI_BARCODE];
+        // Se o atual era esse barcode, atualiza pra apontar pro novo produto
+        if (state.currentKind === 'unknown' && state.currentKey === CI_BARCODE) {
+          state.currentKind = 'product';
+          state.currentKey = newProductId;
+        }
+      }
+      persistState();
+      showToast(`✓ ${brand} ${flavor} cadastrado!`, 'ok');
+      fecharCadastroInline();
+      render();
+    } else {
+      msg.textContent = 'erro: ' + (data.error || 'desconhecido');
+      msg.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    msg.textContent = 'erro de rede: ' + e.message;
+    msg.style.color = 'var(--red)';
+  } finally {
+    if (btn) { btn.textContent = 'salvar e continuar'; btn.disabled = false; }
+  }
 }
 
 // ============ AJUSTE DE QUANTIDADE (Andrade pediu: balanço + e − e edit) ============
