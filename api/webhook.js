@@ -14273,6 +14273,45 @@ module.exports = async function handler(req, res) {
   if (req.url && req.url.indexOf('action=admin_diag') >= 0) {
     return await handleAdminDiag(req, res);
   }
+  // Debug: testa a chave SERPER fazendo UMA chamada e retornando o status real
+  if (req.url && req.url.indexOf('action=serper_test') >= 0) {
+    res.setHeader('Content-Type', 'application/json');
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    const qsAuth = (() => {
+      const q = (req.url || '').split('?')[1] || '';
+      const p = q.split('&').find(x => x.startsWith('token='));
+      return p ? decodeURIComponent(p.slice(6)) : '';
+    })();
+    if (!ADMIN_TOKEN || (provided !== ADMIN_TOKEN && qsAuth !== ADMIN_TOKEN)) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      if (!SERPER_API_KEY) {
+        return res.status(200).json({ ok: false, reason: 'SERPER_API_KEY VAZIA' });
+      }
+      const r = await fetch('https://google.serper.dev/images', {
+        method: 'POST',
+        headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: 'elfbar pod', num: 5 }),
+      });
+      const text = await r.text();
+      let body = null;
+      try { body = JSON.parse(text); } catch (_) { body = text.slice(0, 500); }
+      return res.status(200).json({
+        ok: r.ok,
+        http_status: r.status,
+        key_prefix: SERPER_API_KEY.slice(0, 4) + '***' + SERPER_API_KEY.slice(-4),
+        key_length: SERPER_API_KEY.length,
+        body_type: typeof body === 'object' ? 'json' : 'text',
+        images_count: (body && body.images) ? body.images.length : 0,
+        body_preview: typeof body === 'object'
+          ? JSON.stringify(body).slice(0, 400)
+          : body,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
   // TIER 1.4 — Recovery de produtos travados em image_status='generating' (timeout Grok)
   if (req.url && req.url.indexOf('action=art_stuck_recovery') >= 0) {
     return await handleArtStuckRecovery(req, res);
