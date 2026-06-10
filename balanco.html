@@ -190,6 +190,10 @@ const state = {
   staffName: STAFF_NAME,
   counts: {},
   unknown: {},
+  // Andrade 09/06: rastreia o "produto atual" sendo contado (último bipado).
+  // Quando bipa outro código, este vai pros contados e o novo vira atual.
+  currentKind: null,  // 'product' | 'unknown' | null
+  currentKey: null,   // productId ou barcode
   controls: null,
   codeReader: null,
   scanLooping: false,
@@ -395,12 +399,17 @@ async function processBarcode(barcode) {
           qty_counted: 1,
         };
       }
+      // ATUAL agora é esse produto
+      state.currentKind = 'product';
+      state.currentKey = p.id;
       // Vibração + toast
       if (navigator.vibrate) navigator.vibrate(40);
       showToast(`✓ ${p.name} ✦ ${state.counts[p.id].qty_counted}`, 'ok');
     } else {
       // Não cadastrado
       state.unknown[barcode] = (state.unknown[barcode] || 0) + 1;
+      state.currentKind = 'unknown';
+      state.currentKey = barcode;
       if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
       showToast('⚠️ não cadastrado — registrei mesmo assim', 'err');
     }
@@ -410,6 +419,15 @@ async function processBarcode(barcode) {
     console.error('[processBarcode]', e);
     showToast('erro de rede — tenta de novo', 'err');
   }
+}
+
+// "Fecha" o ATUAL — vai pra lista de contados, libera o slot pra próximo bipe
+function fecharAtual() {
+  state.currentKind = null;
+  state.currentKey = null;
+  persistState();
+  render();
+  showToast('✓ produto fechado — bipa o próximo', 'ok');
 }
 
 // ============ RENDER ============
@@ -436,16 +454,69 @@ function render() {
   // Lista
   const list = document.getElementById('counted-list');
   const empty = document.getElementById('empty-state');
-  const items = [...counts].sort((a,b) => b.qty_counted - a.qty_counted);
-  if (items.length === 0 && unknownCount === 0) {
+  if (counts.length === 0 && unknownCount === 0) {
     empty.style.display = '';
-    list.querySelectorAll('.counted-item').forEach(el => el.remove());
+    list.querySelectorAll('.counted-item, .atual-card, .contados-header').forEach(el => el.remove());
     return;
   }
   empty.style.display = 'none';
-  list.querySelectorAll('.counted-item').forEach(el => el.remove());
+  list.querySelectorAll('.counted-item, .atual-card, .contados-header').forEach(el => el.remove());
 
-  items.forEach(c => {
+  // ATUAL — produto sendo trabalhado agora (último bipado)
+  const atualKind = state.currentKind;
+  const atualKey = state.currentKey;
+  const atualProduct = (atualKind === 'product' && state.counts[atualKey]) || null;
+  const atualUnknown = (atualKind === 'unknown' && state.unknown[atualKey] !== undefined) ? { bc: atualKey, qty: state.unknown[atualKey] } : null;
+
+  if (atualProduct) {
+    const div = document.createElement('div');
+    div.className = 'atual-card';
+    div.style.cssText = 'background:linear-gradient(135deg,rgba(212,255,46,0.2),rgba(255,77,143,0.15));border:2px solid var(--lime);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(212,255,46,0.25)';
+    div.innerHTML = `
+      <div style="font-size:11px;color:var(--lime);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📌 ATUAL ✦ contando agora</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:2px">${atualProduct.name}</div>
+      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:14px">sistema: ${atualProduct.qty_system}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
+        <button onclick="adjustQty('product',${atualProduct.id},-1)" style="background:var(--red);border:0;color:#fff;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">−</button>
+        <div style="cursor:pointer;font-size:36px;font-weight:800;color:var(--lime);min-width:80px;text-align:center" onclick="editQty('product',${atualProduct.id})">${atualProduct.qty_counted}</div>
+        <button onclick="adjustQty('product',${atualProduct.id},1)" style="background:var(--green);border:0;color:#000;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">+</button>
+      </div>
+      <button onclick="fecharAtual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✓ fechar e bipar o próximo</button>
+    `;
+    list.appendChild(div);
+  } else if (atualUnknown) {
+    const div = document.createElement('div');
+    div.className = 'atual-card';
+    div.style.cssText = 'background:linear-gradient(135deg,rgba(255,133,51,0.2),rgba(255,77,143,0.15));border:2px solid var(--orange);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(255,133,51,0.25)';
+    div.innerHTML = `
+      <div style="font-size:11px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📌 ATUAL ✦ código não cadastrado</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:2px">não cadastrado</div>
+      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:14px">código: ${atualUnknown.bc}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
+        <button onclick="adjustQty('unknown','${atualUnknown.bc}',-1)" style="background:var(--red);border:0;color:#fff;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">−</button>
+        <div style="cursor:pointer;font-size:36px;font-weight:800;color:var(--orange);min-width:80px;text-align:center" onclick="editQty('unknown','${atualUnknown.bc}')">${atualUnknown.qty}</div>
+        <button onclick="adjustQty('unknown','${atualUnknown.bc}',1)" style="background:var(--green);border:0;color:#000;width:48px;height:48px;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer">+</button>
+      </div>
+      <button onclick="cadastrarAgora('${atualUnknown.bc}')" style="width:100%;background:linear-gradient(90deg,rgba(212,255,46,0.2),rgba(255,77,143,0.15));border:1px dashed var(--lime);color:var(--lime);padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📦 cadastrar esse pod agora</button>
+      <button onclick="fecharAtual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✓ fechar e bipar o próximo</button>
+    `;
+    list.appendChild(div);
+  }
+
+  // CONTADOS — produtos já fechados (qualquer um que não seja o atual)
+  const contados = counts.filter(c => !(atualKind === 'product' && atualKey === c.id))
+                         .sort((a,b) => b.qty_counted - a.qty_counted);
+  const unknownsContados = Object.entries(state.unknown).filter(([bc]) => !(atualKind === 'unknown' && atualKey === bc));
+
+  if (contados.length > 0 || unknownsContados.length > 0) {
+    const header = document.createElement('div');
+    header.className = 'contados-header';
+    header.style.cssText = 'font-size:11px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.06em;margin-top:12px;margin-bottom:8px;padding:0 4px;font-weight:600';
+    header.textContent = `✓ fechados (${contados.length + unknownsContados.length})`;
+    list.appendChild(header);
+  }
+
+  contados.forEach(c => {
     const div = document.createElement('div');
     div.className = 'counted-item';
     div.innerHTML = `
@@ -459,7 +530,7 @@ function render() {
     list.appendChild(div);
   });
 
-  Object.entries(state.unknown).forEach(([bc, qty]) => {
+  unknownsContados.forEach(([bc, qty]) => {
     const div = document.createElement('div');
     div.className = 'counted-item unknown-item';
     div.style.flexWrap = 'wrap';
