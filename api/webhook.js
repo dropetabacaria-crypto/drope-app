@@ -4481,6 +4481,92 @@ async function handleAnalyzePricePhoto(req, res) {
   }
 }
 
+// ============ PAINEL DA FILIAL (09/06/2026) ============
+// Andrade pediu: painel pra fundadora da filial ver pedidos, saldo, mês, histórico.
+// Auth simples por código de acesso (gera-se com nome + telefone — bom o suficiente
+// pra começar). Cliente vê pedidos da filial dela e ganho por venda.
+async function handleFilialPainel(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const qs = (req.url || '').split('?')[1] || '';
+  const params = {};
+  qs.split('&').forEach(p => {
+    const [k, v] = p.split('=');
+    if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+  });
+
+  const filialSlug = (params.filial || '').toLowerCase().trim();
+  const token = (params.token || '').trim();
+  if (!filialSlug) return res.status(400).json({ ok: false, error: 'missing filial' });
+
+  try {
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,slug,name,founder_name,founder_phone,markup_cents,founder_share_cents&limit=1`);
+    const filial = Array.isArray(fr) && fr[0];
+    if (!filial) return res.status(404).json({ ok: false, error: 'filial not found' });
+
+    // Auth: código de acesso é os 4 últimos dígitos do telefone da fundadora
+    // (prática pra começo — depois evoluir pra OTP via whats)
+    const expectedCode = (filial.founder_phone || '').slice(-4);
+    if (!expectedCode || token !== expectedCode) {
+      await new Promise(r => setTimeout(r, 800));
+      return res.status(401).json({ ok: false, error: 'unauthorized', hint: 'use os 4 últimos dígitos do whats da fundadora' });
+    }
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    // Pedidos da filial, pagos, do mês corrente
+    const orders = await sbGet('drope_orders',
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,created_at,delivered_at,picked_up_at&order=created_at.desc&limit=80`);
+
+    const pedidos = (orders || []).map(o => {
+      const totalCents = Number(o.total_cents || 0);
+      // Ganho por venda = founder_share fixo
+      const ganhoCents = filial.founder_share_cents || 0;
+      return {
+        id: o.id,
+        order_nsu: o.order_nsu,
+        status: o.status,
+        total_cents: totalCents,
+        ganho_cents: ganhoCents,
+        items: Array.isArray(o.items) ? o.items.map(it => ({ qty: it.qty || it.quantity || 1, name: it.name || 'item' })) : [],
+        customer: o.customer_snapshot || {},
+        address: o.address || null,
+        created_at: o.created_at,
+        delivered_at: o.delivered_at || o.picked_up_at,
+      };
+    });
+
+    const FINALIZADOS = ['delivered', 'picked_up', 'completed'];
+    const pendentes = pedidos.filter(p => !FINALIZADOS.includes(p.status));
+    const historico = pedidos.filter(p => FINALIZADOS.includes(p.status)).slice(0, 20);
+
+    const faturamentoMesCents = pedidos.reduce((s, p) => s + p.total_cents, 0);
+    const saldoPendenteCents = (filial.founder_share_cents || 0) * pedidos.length;
+
+    return res.status(200).json({
+      ok: true,
+      filial: {
+        id: filial.id,
+        slug: filial.slug,
+        name: filial.name,
+        founder_name: filial.founder_name,
+        founder_share_cents: filial.founder_share_cents,
+      },
+      saldo_pendente_cents: saldoPendenteCents,
+      vendas_mes: pedidos.length,
+      faturamento_mes_cents: faturamentoMesCents,
+      pedidos_pendentes: pendentes,
+      historico,
+    });
+  } catch (err) {
+    console.error('[filial_painel] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 // ============ DASHBOARD LIVE (07/06/2026) ============
 // Andrade quer um dashboard no dock do Mac que atualiza sozinho.
 // Endpoint retorna TUDO numa requisição só pra polling de 30s ficar barato.
@@ -11678,6 +11764,15 @@ async function handleCatalog(req, res) {
   const sort = (params.sort || '').toLowerCase();
   const orderClause = sort === 'popular' ? 'total_sold.desc.nullslast' : 'name.asc';
 
+  // FILIAL — Andrade 09/06: catálogo é isolado por filial.
+  // Default 'sp' se não vier. Resolve slug → filial_id pra blindar.
+  const filialSlug = (params.filial || 'sp').toLowerCase().trim();
+  let filialId = 1;
+  try {
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id&limit=1`);
+    if (fr && fr[0]?.id) filialId = fr[0].id;
+  } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
+
   // hidden=false + image_status='ok' (sem isso a UI fica meio quebrada).
   // qty_available NÃO é filtrado — UI legada já mostra "esgotado" quando stock<=0.
   const buildFilter = (withOsso21) => {
@@ -11685,6 +11780,7 @@ async function handleCatalog(req, res) {
       'select=id,slug,name,image_url,price_cents,qty_available,descricao_quebrada,' +
         'cores_predominantes,category,metadata,barcode,created_via' +
         (withOsso21 ? ',flavor_category,total_sold' : ''),
+      `filial_id=eq.${filialId}`,
       'hidden=eq.false',
       'image_status=eq.ok',
       `order=${withOsso21 ? orderClause : 'name.asc'}`,
@@ -13792,9 +13888,35 @@ async function handleInfinitePayWebhook(req, res) {
         lines.push(``, `_Drope ✦ InfinitePay Webhook_`);
         const text = lines.join('\n');
 
-        // BROADCAST: loja (Yasmin opera) + Andrade pessoal + PDVs (backup)
+        // BROADCAST: loja (Yasmin opera) + Andrade pessoal + PDVs + fundadora da filial
         const STORE_WHATS_NUMBER = process.env.STORE_WHATS_NUMBER || "5511924810126";
-        const recipients = new Set([STORE_WHATS_NUMBER, ADMIN_LUCAS, ...PDV_PHONES].filter(Boolean));
+        const recipientsArr = [STORE_WHATS_NUMBER, ADMIN_LUCAS, ...PDV_PHONES];
+
+        // FILIAL — Andrade 09/06: se pedido é de filial != SP, notifica fundadora
+        try {
+          if (updatedOrderId && SUPABASE_URL && SUPABASE_KEY) {
+            const orderRowF = await fetch(
+              `${SUPABASE_URL}/rest/v1/drope_orders?id=eq.${updatedOrderId}&select=filial_id`,
+              { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+            );
+            const ordF = await orderRowF.json();
+            const filialId = Array.isArray(ordF) && ordF[0]?.filial_id;
+            if (filialId && filialId !== 1) {
+              const filRes = await fetch(
+                `${SUPABASE_URL}/rest/v1/drope_filiais?id=eq.${filialId}&select=name,founder_name,founder_phone`,
+                { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+              );
+              const filRows = await filRes.json();
+              const fundadoraPhone = Array.isArray(filRows) && filRows[0]?.founder_phone;
+              if (fundadoraPhone) {
+                recipientsArr.push(fundadoraPhone);
+                console.log('[InfinitePay Webhook] filial', filialId, '→ fundadora', fundadoraPhone);
+              }
+            }
+          }
+        } catch (eFil) { console.warn('[InfinitePay Webhook] filial notify err:', eFil.message); }
+
+        const recipients = new Set(recipientsArr.filter(Boolean));
         const results = [];
         for (const number of recipients) {
           try {
@@ -14602,6 +14724,13 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       const descricaoQuebrada = cleanVisionField(reqBody.descricao_quebrada || '');
       let priceCents = reqBody.priceCents != null ? Number(reqBody.priceCents) : null;
       const deferArt = !!reqBody.defer_art;
+      // FILIAL — Andrade 09/06: produto pode ser cadastrado pra filial específica
+      const filialSlug = (reqBody.filial_slug || 'sp').toString().toLowerCase().trim();
+      let filialId = 1; // default SP
+      try {
+        const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id&limit=1`);
+        if (fr && fr[0]?.id) filialId = fr[0].id;
+      } catch (e) { console.warn('[quick_register] filial lookup err:', e.message); }
       const boxPhotoBase64 = reqBody.boxPhotoBase64 || null;
 
       if (!brand || !flavor) {
@@ -14715,6 +14844,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
         art_status: SERPER_API_KEY ? 'pending_reference' : 'needs_manual_photo',
         box_photo_url: boxPhotoUrl || null,
         created_via: 'receber_app',
+        filial_id: filialId,
         descricao_quebrada: descricaoQuebrada || null,
         flavor_category: flavorCategory, // OSSO 22 — auto-classificação Vision/heurística
         metadata,
@@ -16878,6 +17008,11 @@ async function generateAll(){
   // action=dashboard_data — GET: stats live pro dashboard desktop do Andrade
   if (req.url && req.url.indexOf('action=dashboard_data') >= 0) {
     return await handleDashboardData(req, res);
+  }
+
+  // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
+    return await handleFilialPainel(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====

@@ -3649,6 +3649,30 @@
 </head>
 <body>
 
+<!-- FILIAL PICKER — Andrade 09/06: aparece na 1ª abertura, antes do onboard.
+     Salva escolha em localStorage. Cliente vê o catálogo da filial dele e só. -->
+<div id="filial-picker-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0A0A14 0%,#1a0a20 100%);z-index:9999;align-items:center;justify-content:center;padding:24px">
+  <div style="max-width:420px;width:100%;text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">📍</div>
+    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">De onde você é?</h2>
+    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:28px;line-height:1.5">A gente mostra os pods da tua região ✦ pode trocar depois no menu</p>
+    <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🏙️</span>
+      <span style="flex:1">
+        <div>São Paulo</div>
+        <div style="font-size:11px;font-weight:500;opacity:0.7">Vila Prudente · sede do Drope</div>
+      </span>
+    </button>
+    <button onclick="pickClientFilial('santos')" style="display:block;width:100%;background:linear-gradient(90deg,#FF4D8F,#FF8533);color:#fff;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+      <span style="font-size:24px">🏖️</span>
+      <span style="flex:1">
+        <div>Santos</div>
+        <div style="font-size:11px;font-weight:500;opacity:0.85">retirada no apartamento da Natalia</div>
+      </span>
+    </button>
+  </div>
+</div>
+
 <!-- PWA install banner (Android/Chrome/Edge) -->
 <div id="install-banner" class="install-banner">
   <div class="ib-icon">⬇️</div>
@@ -6666,10 +6690,46 @@
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify({ products, savedAt: Date.now() }));
     } catch(e) {}
   }
+  // FILIAL DO CLIENTE — Andrade 09/06: cliente escolhe sua cidade na 1ª abertura
+  // ('sp' default, 'santos', etc.). Salva em localStorage e filtra o catálogo.
+  const FILIAL_STORAGE_KEY = 'drope_client_filial_v1';
+  let CLIENT_FILIAL = 'sp';
+  try { CLIENT_FILIAL = (localStorage.getItem(FILIAL_STORAGE_KEY) || 'sp').toLowerCase(); } catch(_){}
+  function setClientFilial(slug) {
+    CLIENT_FILIAL = (slug || 'sp').toLowerCase();
+    try { localStorage.setItem(FILIAL_STORAGE_KEY, CLIENT_FILIAL); } catch(_){}
+    // Limpa cache de produtos pra forçar refetch do catálogo da nova filial
+    try { localStorage.removeItem(PRODUCTS_KEY); } catch(_){}
+  }
+  // Chamada pelo modal de seleção da 1ª abertura
+  function pickClientFilial(slug) {
+    setClientFilial(slug);
+    const overlay = document.getElementById('filial-picker-overlay');
+    if (overlay) overlay.style.display = 'none';
+    // Recarrega o catálogo da filial escolhida
+    if (typeof fetchCatalog === 'function') fetchCatalog();
+  }
+  // Trocar filial via menu (botão no perfil)
+  function trocarFilialCliente() {
+    const overlay = document.getElementById('filial-picker-overlay');
+    if (overlay) overlay.style.display = 'flex';
+  }
+  // Boot: mostra overlay se ainda não escolheu (default 'sp' sem localStorage = nova abertura)
+  (function checkFilialOnBoot() {
+    let savedFilial = null;
+    try { savedFilial = localStorage.getItem(FILIAL_STORAGE_KEY); } catch(_){}
+    if (!savedFilial) {
+      const overlay = document.getElementById('filial-picker-overlay');
+      if (overlay) overlay.style.display = 'flex';
+    }
+  })();
+
   function loadProducts() {
     // Cache primeiro (fast-paint), depois fetchCatalog() async atualiza.
+    // Cache é específico por filial (chave inclui slug)
     try {
-      const saved = localStorage.getItem(PRODUCTS_KEY);
+      const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
+      const saved = localStorage.getItem(cacheKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.products) && parsed.products.length) {
@@ -6681,7 +6741,7 @@
   }
   async function fetchCatalog() {
     try {
-      const res = await fetch('/api/webhook?action=catalog', { cache: 'no-store' });
+      const res = await fetch('/api/webhook?action=catalog&filial=' + encodeURIComponent(CLIENT_FILIAL), { cache: 'no-store' });
       if (!res.ok) {
         console.warn('[catalog] fetch failed', res.status);
         return false;
@@ -6693,8 +6753,11 @@
       }
       products = data.products;
       allProducts = products;
-      // Cache local pra próxima abertura ser fast-paint
-      try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify({ products, savedAt: Date.now() })); } catch(e) {}
+      // Cache local pra próxima abertura ser fast-paint (por filial)
+      try {
+        const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
+        localStorage.setItem(cacheKey, JSON.stringify({ products, savedAt: Date.now() }));
+      } catch(e) {}
       // Re-renderiza grid se já tá montado
       if (typeof renderGrid === 'function') {
         try { renderGrid(); } catch(e) {}

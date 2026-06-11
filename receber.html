@@ -783,16 +783,51 @@ document.addEventListener('visibilitychange', () => {
 // Guarda em variáveis globais pra usar quando o scanner carregar.
 let PREFILL_BARCODE = '';
 let FROM_BALANCO = false;
+// FILIAL — Andrade 09/06: cadastrar produtos em filiais específicas via ?filial=santos
+// slug da filial mantido em localStorage pra próximos cadastros (até trocar)
+let CADASTRO_FILIAL = 'sp'; // default
 try {
   const u0 = new URL(location.href);
   PREFILL_BARCODE = (u0.searchParams.get('prefill_barcode') || '').replace(/\D/g, '');
   FROM_BALANCO = u0.searchParams.get('from') === 'balanco';
-  if (PREFILL_BARCODE || FROM_BALANCO) {
+  const qFilial = (u0.searchParams.get('filial') || '').toLowerCase().trim();
+  if (qFilial) {
+    CADASTRO_FILIAL = qFilial;
+    try { localStorage.setItem('drope_cadastro_filial', qFilial); } catch(_){}
+  } else {
+    try {
+      const saved = localStorage.getItem('drope_cadastro_filial');
+      if (saved) CADASTRO_FILIAL = saved;
+    } catch(_){}
+  }
+  if (PREFILL_BARCODE || FROM_BALANCO || qFilial) {
     u0.searchParams.delete('prefill_barcode');
     u0.searchParams.delete('from');
+    u0.searchParams.delete('filial');
     history.replaceState(null, '', u0.toString());
   }
 } catch (e) {}
+
+// Badge visual mostrando em qual filial tá cadastrando
+window.addEventListener('DOMContentLoaded', () => {
+  if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;top:10px;right:10px;background:linear-gradient(135deg,#FF4D8F,#FF8533);color:#fff;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;z-index:90;box-shadow:0 4px 12px rgba(255,77,143,0.4);font-family:inherit';
+    badge.innerHTML = `📍 Drope ${CADASTRO_FILIAL.toUpperCase()} <button onclick="trocarFilialCadastro()" style="margin-left:8px;background:rgba(255,255,255,0.25);border:0;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit">trocar</button>`;
+    document.body.appendChild(badge);
+  }
+});
+function trocarFilialCadastro() {
+  const v = prompt('Qual filial vai cadastrar? (sp / santos)', CADASTRO_FILIAL);
+  if (!v) return;
+  const slug = v.toLowerCase().trim();
+  if (!['sp','santos'].includes(slug)) {
+    alert('Filial inválida. Use: sp ou santos');
+    return;
+  }
+  try { localStorage.setItem('drope_cadastro_filial', slug); } catch(_){}
+  location.reload();
+}
 
 function checkAuth() {
   // Link mágico: se veio com ?t=TOKEN no URL, salva e limpa do URL antes de qualquer coisa
@@ -1446,6 +1481,7 @@ async function confirmRegister() {
     // Fluxo receber: arte fica pendente até Andrade enviar foto do pod via /admin/pendentes
     defer_art: true,
     boxPhotoBase64: state.capPhotos.box,
+    filial_slug: CADASTRO_FILIAL || 'sp',
   };
 
   try {

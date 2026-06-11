@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0A14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Drope ✦ Painel da Filial</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<style>
+:root {
+  --bg: #0A0A14;
+  --bg2: #14141F;
+  --bg3: #1F1F2E;
+  --fg: #FFFFFF;
+  --fg-dim: #8B8BA0;
+  --border: #2A2A3E;
+  --lime: #D4FF2E;
+  --pink: #FF4D8F;
+  --orange: #FF8533;
+  --green: #4ADE80;
+  --yellow: #FFB800;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; padding-bottom: 40px; }
+header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,77,143,0.15), rgba(255,133,51,0.1)); border-bottom: 0.5px solid var(--border); }
+.hello { font-size: 22px; font-weight: 600; }
+.subtitle { font-size: 12px; color: var(--fg-dim); margin-top: 2px; }
+.section { padding: 16px; }
+.section h2 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 10px; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px; }
+.kpi.lime { background: linear-gradient(135deg, rgba(212,255,46,0.12), var(--bg2)); border-color: rgba(212,255,46,0.3); }
+.kpi.pink { background: linear-gradient(135deg, rgba(255,77,143,0.12), var(--bg2)); border-color: rgba(255,77,143,0.3); }
+.kpi-label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.kpi-value { font-size: 24px; font-weight: 700; }
+.kpi.lime .kpi-value { color: var(--lime); }
+.kpi.pink .kpi-value { color: var(--pink); }
+.kpi-sub { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
+.pedido-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.pedido-card.novo { border-color: var(--yellow); background: linear-gradient(135deg, rgba(255,184,0,0.1), var(--bg2)); }
+.pedido-card.entregue { opacity: 0.6; }
+.pedido-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+.cliente { font-size: 15px; font-weight: 600; }
+.status-badge { font-size: 10px; padding: 3px 8px; border-radius: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.status-novo { background: rgba(255,184,0,0.2); color: var(--yellow); }
+.status-entregue { background: rgba(74,222,128,0.15); color: var(--green); }
+.cliente-info { font-size: 11px; color: var(--fg-dim); margin-bottom: 8px; font-family: monospace; }
+.items { font-size: 12px; color: var(--fg); line-height: 1.6; }
+.items strong { color: var(--lime); }
+.total { font-size: 14px; font-weight: 700; color: var(--pink); margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border); display: flex; justify-content: space-between; }
+.ganho { color: var(--lime); }
+.empty { text-align: center; padding: 32px 16px; color: var(--fg-dim); font-size: 13px; }
+.auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.auth-box { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 16px; padding: 24px; max-width: 360px; width: 100%; }
+.auth-box h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; text-align: center; }
+.auth-box p { font-size: 13px; color: var(--fg-dim); margin-bottom: 14px; text-align: center; }
+.auth-box input { width: 100%; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 12px; border-radius: 10px; font-size: 14px; margin-bottom: 10px; }
+.auth-box button { width: 100%; background: var(--lime); color: #000; border: 0; padding: 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.refresh-btn { background: var(--bg3); border: 0.5px solid var(--border); color: var(--fg-dim); padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg2); border-bottom: 0.5px solid var(--border); font-size: 11px; color: var(--fg-dim); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+
+<!-- Auth modal -->
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-box">
+    <h1 id="auth-title">🏖️ Drope Filial</h1>
+    <p>Cola o teu código de acesso pra entrar</p>
+    <input type="password" id="access-code" placeholder="código de acesso" autofocus>
+    <button onclick="login()">entrar</button>
+    <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- Painel -->
+<div id="painel" style="display:none">
+  <header>
+    <div class="hello" id="hello">👋 Oi, ...</div>
+    <div class="subtitle" id="subtitle">filial ...</div>
+  </header>
+
+  <div class="status-bar">
+    <div class="dot"></div>
+    <span id="last-update">atualizando...</span>
+    <button class="refresh-btn" style="margin-left:auto" onclick="loadData(true)">↻ atualizar</button>
+  </div>
+
+  <div class="section">
+    <h2>📊 resumo</h2>
+    <div class="kpis">
+      <div class="kpi lime">
+        <div class="kpi-label">saldo pendente</div>
+        <div class="kpi-value" id="saldo">R$ 0</div>
+        <div class="kpi-sub">cai sábado 18h</div>
+      </div>
+      <div class="kpi pink">
+        <div class="kpi-label">vendas no mês</div>
+        <div class="kpi-value" id="vendas-mes">0</div>
+        <div class="kpi-sub" id="faturamento-mes">R$ 0 faturado</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🛵 pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
+    <div id="pendentes-list"></div>
+  </div>
+
+  <div class="section">
+    <h2>✅ últimas vendas</h2>
+    <div id="historico-list"></div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'drope_filial_code_v1';
+let ACCESS_CODE = '';
+let FILIAL_SLUG = '';
+try {
+  const u = new URL(location.href);
+  FILIAL_SLUG = (u.searchParams.get('filial') || '').toLowerCase().trim();
+} catch (e) {}
+try { ACCESS_CODE = localStorage.getItem(STORAGE_KEY) || ''; } catch(_){}
+
+function fmtBRL(cents) { return 'R$ ' + ((cents||0)/100).toFixed(2).replace('.', ','); }
+function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch(e){ return '—'; } }
+function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch(e){ return '—'; } }
+
+function login() {
+  const v = document.getElementById('access-code').value.trim();
+  if (!v) {
+    document.getElementById('auth-err').textContent = 'cola o código';
+    return;
+  }
+  ACCESS_CODE = v;
+  try { localStorage.setItem(STORAGE_KEY, v); } catch(_){}
+  loadData(true);
+}
+
+async function loadData(showLoading) {
+  if (!ACCESS_CODE || !FILIAL_SLUG) return;
+  if (showLoading) document.getElementById('last-update').textContent = 'atualizando...';
+  try {
+    const r = await fetch(`/api/webhook?action=filial_painel&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
+    if (r.status === 401) {
+      document.getElementById('auth-err').textContent = 'código inválido';
+      document.getElementById('auth-overlay').style.display = 'flex';
+      document.getElementById('painel').style.display = 'none';
+      return;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'erro');
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('painel').style.display = 'block';
+    render(data);
+    document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch (e) {
+    console.error('[load]', e);
+    document.getElementById('last-update').textContent = 'erro ✦ tentando de novo';
+  }
+}
+
+function render(d) {
+  const f = d.filial;
+  document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
+  document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
+  document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
+  document.getElementById('vendas-mes').textContent = d.vendas_mes;
+  document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents) + ' faturado';
+
+  const pendentes = d.pedidos_pendentes || [];
+  const pendList = document.getElementById('pendentes-list');
+  const pendCount = document.getElementById('pendentes-count');
+  if (pendentes.length > 0) {
+    pendCount.style.display = 'inline';
+    pendCount.textContent = pendentes.length;
+    pendList.innerHTML = pendentes.map(renderPedidoCard).join('');
+  } else {
+    pendCount.style.display = 'none';
+    pendList.innerHTML = '<div class="empty">📭 sem pedidos pendentes</div>';
+  }
+
+  const historico = d.historico || [];
+  const histList = document.getElementById('historico-list');
+  histList.innerHTML = historico.length
+    ? historico.map(p => renderPedidoCard(p, true)).join('')
+    : '<div class="empty">sem vendas ainda</div>';
+}
+
+function renderPedidoCard(p, isEntregue) {
+  const cls = isEntregue ? 'entregue' : 'novo';
+  const statusBadge = isEntregue
+    ? '<span class="status-badge status-entregue">✓ entregue</span>'
+    : '<span class="status-badge status-novo">🛵 pra entregar</span>';
+  const cust = p.customer || {};
+  const items = (p.items || []).map(it => `<div>• <strong>${it.qty||1}×</strong> ${it.name}</div>`).join('');
+  return `
+    <div class="pedido-card ${cls}">
+      <div class="pedido-head">
+        <div class="cliente">${cust.name || '—'}</div>
+        ${statusBadge}
+      </div>
+      <div class="cliente-info">${cust.phone || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
+      <div class="items">${items}</div>
+      <div class="total">
+        <span>total: ${fmtBRL(p.total_cents)}</span>
+        <span class="ganho">+ ${fmtBRL(p.ganho_cents)} ✦ pra ti</span>
+      </div>
+    </div>
+  `;
+}
+
+// Boot
+if (!FILIAL_SLUG) {
+  document.getElementById('auth-box').innerHTML = '<h1>⚠️ Filial não definida</h1><p>Use o link: /filial.html?filial=santos</p>';
+} else if (ACCESS_CODE) {
+  loadData(true);
+}
+// Polling 30s
+setInterval(() => loadData(false), 30000);
+</script>
+
+</body>
+</html>
