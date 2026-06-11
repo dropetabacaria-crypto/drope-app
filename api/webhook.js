@@ -4521,10 +4521,37 @@ async function handleFilialPainel(req, res) {
     const orders = await sbGet('drope_orders',
       `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,created_at,delivered_at,picked_up_at&order=created_at.desc&limit=80`);
 
+    // Calcular ganho da fundadora como (price - cost) / 2 por item
+    // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
+    const allItemProductIds = new Set();
+    (orders || []).forEach(o => {
+      if (Array.isArray(o.items)) o.items.forEach(it => {
+        const pid = it.product_id || it.id;
+        if (pid) allItemProductIds.add(pid);
+      });
+    });
+    const costMap = {};
+    if (allItemProductIds.size > 0) {
+      const ids = [...allItemProductIds].join(',');
+      const prodCosts = await sbGet('drope_products', `id=in.(${ids})&select=id,cost_cents,price_cents`);
+      (prodCosts || []).forEach(p => { costMap[p.id] = { cost: p.cost_cents || 0, price: p.price_cents || 0 }; });
+    }
+
     const pedidos = (orders || []).map(o => {
       const totalCents = Number(o.total_cents || 0);
-      // Ganho por venda = founder_share fixo
-      const ganhoCents = filial.founder_share_cents || 0;
+      // Calcula ganho meio-a-meio do lucro de cada item: ((price - cost) / 2) * qty
+      let ganhoCents = 0;
+      if (Array.isArray(o.items)) {
+        for (const it of o.items) {
+          const pid = it.product_id || it.id;
+          const meta = costMap[pid];
+          const qty = parseInt(it.qty || it.quantity) || 1;
+          if (meta && meta.price > 0 && meta.cost > 0) {
+            const lucroUnit = Math.max(0, meta.price - meta.cost);
+            ganhoCents += Math.floor(lucroUnit / 2) * qty;
+          }
+        }
+      }
       return {
         id: o.id,
         order_nsu: o.order_nsu,
@@ -4544,7 +4571,7 @@ async function handleFilialPainel(req, res) {
     const historico = pedidos.filter(p => FINALIZADOS.includes(p.status)).slice(0, 20);
 
     const faturamentoMesCents = pedidos.reduce((s, p) => s + p.total_cents, 0);
-    const saldoPendenteCents = (filial.founder_share_cents || 0) * pedidos.length;
+    const saldoPendenteCents = pedidos.reduce((s, p) => s + (p.ganho_cents || 0), 0);
 
     return res.status(200).json({
       ok: true,
@@ -14724,6 +14751,8 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       const descricaoQuebrada = cleanVisionField(reqBody.descricao_quebrada || '');
       let priceCents = reqBody.priceCents != null ? Number(reqBody.priceCents) : null;
       const deferArt = !!reqBody.defer_art;
+      // Custo (Santos: usado pra calcular ganho meio-a-meio da fundadora)
+      const costCents = Math.max(0, parseInt(reqBody.cost_cents) || 0);
       // FILIAL — Andrade 09/06: produto pode ser cadastrado pra filial específica
       const filialSlug = (reqBody.filial_slug || 'sp').toString().toLowerCase().trim();
       let filialId = 1; // default SP
@@ -14845,6 +14874,7 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
         box_photo_url: boxPhotoUrl || null,
         created_via: 'receber_app',
         filial_id: filialId,
+        cost_cents: costCents,
         descricao_quebrada: descricaoQuebrada || null,
         flavor_category: flavorCategory, // OSSO 22 — auto-classificação Vision/heurística
         metadata,

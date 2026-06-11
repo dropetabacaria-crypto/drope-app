@@ -567,9 +567,31 @@
         <label>puffs</label>
         <input type="number" id="f-puffs" inputmode="numeric">
       </div>
+      <div class="field" id="f-cost-wrap" style="display:none">
+        <label style="color:var(--pink)">custo (R$) <span style="font-size:10px;color:var(--fg-dim)">da nota</span></label>
+        <input type="number" id="f-cost" inputmode="decimal" step="0.01" placeholder="ex: 60" oninput="onCostChange()">
+      </div>
       <div class="field">
-        <label>preço (R$)</label>
-        <input type="number" id="f-price" inputmode="decimal" step="0.01" placeholder="ex: 110">
+        <label>preço (R$) <span style="font-size:10px;color:var(--fg-dim)" id="f-price-hint"></span></label>
+        <input type="number" id="f-price" inputmode="decimal" step="0.01" placeholder="ex: 110" oninput="onPriceChange()">
+      </div>
+    </div>
+    <!-- Atalhos de markup (só em filiais != sp) -->
+    <div id="markup-shortcuts" style="display:none;margin-top:-4px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--fg-dim);margin-bottom:6px">atalhos markup ✦ preenche preço a partir do custo</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+        <button type="button" class="btn" onclick="applyMarkup(30)" style="font-size:13px;font-weight:700;padding:10px 4px">+30</button>
+        <button type="button" class="btn" onclick="applyMarkup(35)" style="font-size:13px;font-weight:700;padding:10px 4px">+35</button>
+        <button type="button" class="btn" onclick="applyMarkup(40)" style="font-size:13px;font-weight:700;padding:10px 4px">+40</button>
+        <button type="button" class="btn" onclick="applyMarkup(50)" style="font-size:13px;font-weight:700;padding:10px 4px">+50</button>
+      </div>
+      <!-- Visor de lucro -->
+      <div id="profit-display" style="display:none;background:linear-gradient(135deg,rgba(212,255,46,0.12),rgba(255,77,143,0.08));border:0.5px solid rgba(212,255,46,0.3);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.5">
+        <div style="color:var(--fg-dim);margin-bottom:2px">lucro por venda ✦ meio a meio</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:18px;font-weight:700;color:var(--lime)" id="pd-total">R$ 0,00</span>
+          <span style="font-size:11px;color:var(--fg-dim)">tu <b style="color:var(--lime)" id="pd-andrade">R$ 0</b> ✦ Natalia <b style="color:var(--pink)" id="pd-natalia">R$ 0</b></span>
+        </div>
       </div>
     </div>
     <button type="button" class="btn btn-block" id="btn-price-photo" onclick="capturePricePhoto()" style="background:rgba(212,255,46,0.08);border:1px dashed var(--lime);color:var(--lime);margin-top:-4px;margin-bottom:8px;font-size:13px">📸 ler preço da etiqueta</button>
@@ -827,6 +849,59 @@ function trocarFilialCadastro() {
   }
   try { localStorage.setItem('drope_cadastro_filial', slug); } catch(_){}
   location.reload();
+}
+
+// === MARKUP HELPERS (Andrade 09/06 — só visível em filiais != sp) ===
+function showMarkupShortcutsIfNeeded() {
+  if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
+    const cw = document.getElementById('f-cost-wrap');
+    if (cw) cw.style.display = '';
+    const ms = document.getElementById('markup-shortcuts');
+    if (ms) ms.style.display = '';
+  }
+}
+function applyMarkup(markup) {
+  const costEl = document.getElementById('f-cost');
+  const priceEl = document.getElementById('f-price');
+  if (!costEl || !priceEl) return;
+  const cost = parseFloat((costEl.value || '').replace(',', '.')) || 0;
+  if (cost <= 0) {
+    alert('preenche o custo primeiro');
+    costEl.focus();
+    return;
+  }
+  const newPrice = cost + markup;
+  priceEl.value = newPrice.toFixed(2);
+  updateProfitDisplay();
+  // Hint visual rápido
+  const hint = document.getElementById('f-price-hint');
+  if (hint) {
+    hint.textContent = `(custo +R$${markup})`;
+    hint.style.color = 'var(--lime)';
+    setTimeout(() => { if (hint) hint.style.color = 'var(--fg-dim)'; }, 1500);
+  }
+}
+function onCostChange() {
+  updateProfitDisplay();
+}
+function onPriceChange() {
+  updateProfitDisplay();
+}
+function updateProfitDisplay() {
+  const disp = document.getElementById('profit-display');
+  if (!disp) return;
+  const cost = parseFloat((document.getElementById('f-cost')?.value || '').replace(',', '.')) || 0;
+  const price = parseFloat((document.getElementById('f-price')?.value || '').replace(',', '.')) || 0;
+  const profit = Math.max(0, price - cost);
+  if (cost > 0 && price > cost) {
+    disp.style.display = '';
+    const cada = profit / 2;
+    document.getElementById('pd-total').textContent = 'R$ ' + profit.toFixed(2).replace('.', ',');
+    document.getElementById('pd-andrade').textContent = 'R$ ' + cada.toFixed(2).replace('.', ',');
+    document.getElementById('pd-natalia').textContent = 'R$ ' + cada.toFixed(2).replace('.', ',');
+  } else {
+    disp.style.display = 'none';
+  }
 }
 
 function checkAuth() {
@@ -1151,8 +1226,90 @@ function handleNew(barcode) {
   setVfClass('new');
   bipNew();
   state.pendingBarcode = barcode;
+  // === Modo SUAVE Santos (Andrade 09/06) ===
+  // Em filiais diferentes de SP, pula o modal "cadastrar agora?" e tudo é automático:
+  // captura frame atual do vídeo como foto da caixa e chama o Vision direto.
+  if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
+    handleNewSuave(barcode);
+    return;
+  }
+  // Modo SP (manual) — mostra modal pra confirmar
   document.getElementById('new-barcode-line').textContent = `barcode: ${barcode}`;
   document.getElementById('modal-new').classList.add('show');
+}
+
+// Captura a frame atual do vídeo ZXing como base64 — "foto" da caixa sem clique
+function captureCurrentVideoFrame() {
+  try {
+    const video = document.getElementById('scanner-video');
+    if (!video || !video.videoWidth) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch (e) {
+    console.warn('[captureCurrentVideoFrame] err:', e.message);
+    return null;
+  }
+}
+
+// Fluxo SUAVE pra filiais (zero cliques): captura frame + Vision direto
+async function handleNewSuave(barcode) {
+  // Captura o frame ANTES de qualquer coisa (a câmera ainda tá ligada nesse momento)
+  const caixaBase64 = captureCurrentVideoFrame();
+  if (!caixaBase64) {
+    // Falhou em capturar — cai pro fluxo manual
+    document.getElementById('new-barcode-line').textContent = `barcode: ${barcode}`;
+    document.getElementById('modal-new').classList.add('show');
+    return;
+  }
+  // Salva a frame como "foto da caixa" e dispara Vision
+  state.capPhotos = { box: caixaBase64, pod: null };
+  showVisionOverlay();
+  document.getElementById('vision-step').textContent = '✦ modo Santos ✦ lendo a caixa direto da câmera';
+  try {
+    const r = await fetch('/api/webhook?action=analyze_photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify({ caixaBase64, podBase64: null }),
+    });
+    if (!r.ok) {
+      hideVisionOverlay();
+      if (r.status === 401) {
+        showVisionFail('🔑 admin token inválido', 'troca o token no 🔑 lá em cima.');
+        return;
+      }
+      showVisionFail('⚠️ erro do servidor (' + r.status + ')', 'tenta de novo apontando a câmera de novo pra caixa.');
+      return;
+    }
+    const json = await r.json();
+    if (!json.ok) {
+      hideVisionOverlay();
+      showVisionFail('⚠️ vision falhou', json.error || 'tenta de novo.');
+      return;
+    }
+    const data = json.data || {};
+    state.visionData = data;
+    hideVisionOverlay();
+    const brand = data.brand || '';
+    const model = data.model || '';
+    const flavor = data.flavor_pt || data.flavor_en || '';
+    const puffs = data.puffs || '';
+    if (!brand && !flavor) {
+      const alertas = Array.isArray(data.alertas) ? data.alertas.join(' ✦ ') : '';
+      showVisionFail('⚠️ não consegui ler', alertas || 'tenta apontar de novo pra caixa, de frente, bem iluminada.');
+      return;
+    }
+    document.getElementById('modal-form').classList.add('show');
+    fillForm({ brand, model, flavor, puffs });
+    document.getElementById('f-barcode').value = state.pendingBarcode || '';
+    showToast('✅ caixa lida ✦ preenche custo', 'new', 2500);
+  } catch (e) {
+    hideVisionOverlay();
+    showVisionFail('⚠️ erro de rede', e.message);
+  }
 }
 
 function setVfClass(cls) {
@@ -1405,6 +1562,13 @@ function fillForm({ brand, model, flavor, puffs }) {
   document.getElementById('f-flavor').value = flavor || '';
   document.getElementById('f-puffs').value = puffs || '';
   document.getElementById('f-price').value = '';
+  // Reset cost
+  const costEl = document.getElementById('f-cost');
+  if (costEl) costEl.value = '';
+  const disp = document.getElementById('profit-display');
+  if (disp) disp.style.display = 'none';
+  // Mostra atalhos de markup se for filial != sp
+  showMarkupShortcutsIfNeeded();
 }
 
 function closeCapture() {
@@ -1482,6 +1646,11 @@ async function confirmRegister() {
     defer_art: true,
     boxPhotoBase64: state.capPhotos.box,
     filial_slug: CADASTRO_FILIAL || 'sp',
+    cost_cents: (function(){
+      const cs = (document.getElementById('f-cost')?.value || '').trim();
+      if (!cs) return 0;
+      return Math.round(parseFloat(cs.replace(',','.')) * 100);
+    })(),
   };
 
   try {
