@@ -502,6 +502,30 @@
     </div>
   </div>
 </main>
+
+<!-- OVERLAYS DO FLUXO SUAVE SANTOS — Andrade 09/06 -->
+<!-- Etapa 1: aponta pra CAIXA, toca em qualquer lugar pra capturar -->
+<div id="overlay-caixa" onclick="capturarCaixaDoOverlay()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;cursor:pointer;animation:fadein 0.3s">
+  <div style="position:absolute;top:0;left:0;right:0;background:linear-gradient(180deg,rgba(212,255,46,0.95),rgba(212,255,46,0.5));color:#000;padding:18px 16px;text-align:center;font-weight:800;font-size:14px;letter-spacing:0.05em;text-transform:uppercase">
+    1/2 ✦ aponta pra CAIXA
+    <div style="font-size:11px;font-weight:600;margin-top:2px;opacity:0.7">toque em qualquer lugar pra capturar</div>
+  </div>
+  <div style="position:absolute;bottom:80px;left:0;right:0;text-align:center;color:#fff;font-size:13px;opacity:0.7">aponta pra frente da caixa<br>com marca + sabor visíveis</div>
+  <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:96px;animation:pulse 1.5s infinite;text-align:center">📦</div>
+</div>
+<!-- Etapa 2: aponta pro CÓDIGO de barras (ZXing detecta automatico) -->
+<div id="overlay-codigo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;pointer-events:none;animation:fadein 0.3s">
+  <div style="position:absolute;top:0;left:0;right:0;background:linear-gradient(180deg,rgba(255,77,143,0.95),rgba(255,77,143,0.5));color:#fff;padding:18px 16px;text-align:center;font-weight:800;font-size:14px;letter-spacing:0.05em;text-transform:uppercase">
+    2/2 ✦ aponta pro CÓDIGO de barras
+    <div style="font-size:11px;font-weight:600;margin-top:2px;opacity:0.85">a câmera detecta sozinha</div>
+  </div>
+  <div style="position:absolute;bottom:80px;left:0;right:0;text-align:center;color:#fff;font-size:13px;opacity:0.7">só apontar — sem clicar</div>
+  <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:96px;animation:pulse 1.5s infinite;text-align:center">📊</div>
+</div>
+<style>
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 0.9; } 50% { transform: translate(-50%,-50%) scale(1.1); opacity: 1; } }
+</style>
 <input type="file" id="photo-scan-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
 
 <!-- RESUMO FINAL -->
@@ -1226,16 +1250,106 @@ function handleNew(barcode) {
   setVfClass('new');
   bipNew();
   state.pendingBarcode = barcode;
-  // === Modo SUAVE Santos (Andrade 09/06) ===
-  // Em filiais diferentes de SP, pula o modal "cadastrar agora?" e tudo é automático:
-  // captura frame atual do vídeo como foto da caixa e chama o Vision direto.
+  // === Modo SUAVE Santos: 2 etapas ===
+  // Etapa 1: usuário aponta pra CAIXA → toque captura → Vision identifica
+  // Etapa 2: usuário aponta pro CÓDIGO → ZXing detecta → form abre
+  // Aqui já tamos NA etapa 2 (código detectado). Se Vision já rodou (state.visionData
+  // setado), abre form direto. Senão, faz fluxo único compacto (captura frame agora,
+  // serve como fallback se etapa 1 foi pulada).
   if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
-    handleNewSuave(barcode);
+    if (state.visionData && (state.visionData.brand || state.visionData.flavor_pt)) {
+      // Vision já rodou na etapa 1 — abre form direto
+      hideOverlayCaixa();
+      hideOverlayCodigo();
+      const d = state.visionData;
+      document.getElementById('modal-form').classList.add('show');
+      fillForm({
+        brand: d.brand || '',
+        model: d.model || '',
+        flavor: d.flavor_pt || d.flavor_en || '',
+        puffs: d.puffs || '',
+      });
+      document.getElementById('f-barcode').value = barcode;
+      showToast('✅ caixa lida + código ' + barcode.slice(-6), 'new', 2500);
+      return;
+    }
+    // Vision ainda não rodou — fluxo unificado (captura frame na hora)
+    handleNewSuaveUnificado(barcode);
     return;
   }
   // Modo SP (manual) — mostra modal pra confirmar
   document.getElementById('new-barcode-line').textContent = `barcode: ${barcode}`;
   document.getElementById('modal-new').classList.add('show');
+}
+
+// === FLUXO SUAVE SANTOS ✦ 2 ETAPAS ===
+function showOverlayCaixa() {
+  const el = document.getElementById('overlay-caixa');
+  if (el) el.style.display = 'block';
+  state.fluxoEtapa = 'caixa';
+}
+function hideOverlayCaixa() {
+  const el = document.getElementById('overlay-caixa');
+  if (el) el.style.display = 'none';
+}
+function showOverlayCodigo() {
+  const el = document.getElementById('overlay-codigo');
+  if (el) el.style.display = 'block';
+  state.fluxoEtapa = 'codigo';
+}
+function hideOverlayCodigo() {
+  const el = document.getElementById('overlay-codigo');
+  if (el) el.style.display = 'none';
+}
+
+// Inicia fluxo Santos (chamado no boot quando filial != sp)
+function iniciarFluxoSantos() {
+  // Limpa qualquer dado anterior
+  state.visionData = null;
+  state.capPhotos = { box: null, pod: null };
+  state.pendingBarcode = null;
+  // Mostra overlay etapa 1
+  showOverlayCaixa();
+}
+
+// Tap na overlay etapa 1 — captura frame e manda pro Vision
+async function capturarCaixaDoOverlay() {
+  const caixaBase64 = captureCurrentVideoFrame();
+  if (!caixaBase64) {
+    showToast('⚠️ câmera não pegou frame — tenta de novo', 'error', 2500);
+    return;
+  }
+  hideOverlayCaixa();
+  state.capPhotos = { box: caixaBase64, pod: null };
+  showVisionOverlay();
+  document.getElementById('vision-step').textContent = '✦ identificando marca, modelo e sabor';
+  try {
+    const r = await fetch('/api/webhook?action=analyze_photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.token },
+      body: JSON.stringify({ caixaBase64, podBase64: null }),
+    });
+    hideVisionOverlay();
+    if (!r.ok) {
+      showVisionFail('⚠️ erro do servidor (' + r.status + ')', 'aponta de novo pra caixa.');
+      showOverlayCaixa();
+      return;
+    }
+    const json = await r.json();
+    if (!json.ok || !json.data || (!json.data.brand && !json.data.flavor_pt && !json.data.flavor_en)) {
+      showVisionFail('⚠️ não identifiquei', 'aponta a caixa de frente, com a marca bem visível.');
+      showOverlayCaixa();
+      return;
+    }
+    state.visionData = json.data;
+    showToast('✓ ' + (json.data.brand || '') + ' ' + (json.data.flavor_pt || json.data.flavor_en || ''), 'new', 2000);
+    // Avança pra etapa 2 — aguarda código de barras
+    showOverlayCodigo();
+  } catch (e) {
+    hideVisionOverlay();
+    showVisionFail('⚠️ erro de rede', e.message);
+    showOverlayCaixa();
+  }
 }
 
 // Captura a frame atual do vídeo ZXing como base64 — "foto" da caixa sem clique
@@ -1255,8 +1369,8 @@ function captureCurrentVideoFrame() {
   }
 }
 
-// Fluxo SUAVE pra filiais (zero cliques): captura frame + Vision direto
-async function handleNewSuave(barcode) {
+// Fallback unificado: se etapa 1 (caixa) foi pulada, captura frame agora
+async function handleNewSuaveUnificado(barcode) {
   // Captura o frame ANTES de qualquer coisa (a câmera ainda tá ligada nesse momento)
   const caixaBase64 = captureCurrentVideoFrame();
   if (!caixaBase64) {
@@ -1715,6 +1829,10 @@ function closeForm() {
   resetVf();
   // Religa scanner ao vivo se foi parado pra abrir captura
   resumeScannerIfStopped();
+  // Em filial != sp, volta pro overlay etapa 1 pra próximo produto
+  if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
+    setTimeout(() => { iniciarFluxoSantos(); }, 400);
+  }
 }
 
 // ============ INPUT MANUAL (FALLBACK) ============
@@ -2029,6 +2147,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const photoBtn = document.getElementById('btn-photo');
   if (photoBtn) photoBtn.textContent = '📸 tirar foto (fallback)';
   startScanner();
+
+  // Modo Santos (filial != sp): após scanner iniciar, dispara fluxo 2-etapas
+  if (CADASTRO_FILIAL && CADASTRO_FILIAL !== 'sp') {
+    setTimeout(() => { iniciarFluxoSantos(); }, 800);
+  }
 
   // Veio do balanço com barcode pré-preenchido? Dispara o cadastro automaticamente.
   if (PREFILL_BARCODE && PREFILL_BARCODE.length >= 6) {
