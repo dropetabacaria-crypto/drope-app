@@ -4613,6 +4613,8 @@ async function handleSantosProdutos(req, res) {
       const lucroTotal = (p.price_cents || 0) - (p.cost_cents || 0);
       const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
       const drivePhotos = Array.isArray(p.metadata && p.metadata.drive_photos) ? p.metadata.drive_photos : [];
+      const pendingArtUrl = (p.metadata && p.metadata.pending_art_url) || null;
+      const qcScore = (p.metadata && p.metadata.qc_score) || null;
       const drivePhotosUrls = drivePhotos.map(dp => ({
         id: dp.id,
         is_box: !!dp.is_box,
@@ -4631,6 +4633,8 @@ async function handleSantosProdutos(req, res) {
         puffs: p.puffs,
         barcodes: p.barcodes || [],
         image_url: p.image_url,
+        pending_art_url: pendingArtUrl,
+        qc_score: qcScore,
         reference_image_url: p.reference_image_url,
         reference_candidates: candidates,
         candidates_count: candidates.length,
@@ -17170,6 +17174,53 @@ async function generateAll(){
       });
     } catch (e) {
       console.error('[santos_generate_one] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // action=santos_publish_art — POST: promove pending_art_url do metadata pra image_url final
+  // Quando o Grok gera a arte, ela fica salva em metadata.pending_art_url + qc_score.
+  // O passo final (promover pra image_url) às vezes não roda. Esse endpoint faz isso.
+  // body: { id: <product_id>, action: 'publish' | 'reject' }
+  if (req.url && req.url.indexOf('action=santos_publish_art') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const b = req.body || {};
+      const pid = b.id;
+      const op = b.action || 'publish';
+      if (!pid) return res.status(400).json({ ok: false, error: 'id obrigatório' });
+      const rows = await sbGet('drope_products', `id=eq.${pid}&select=metadata,image_url&limit=1`);
+      if (!rows || !rows[0]) return res.status(404).json({ ok: false, error: 'produto não encontrado' });
+      const meta = rows[0].metadata || {};
+      const pendingArtUrl = meta.pending_art_url;
+      if (op === 'publish') {
+        if (!pendingArtUrl) return res.status(400).json({ ok: false, error: 'sem arte gerada pra publicar' });
+        await sbUpdate('drope_products', `id=eq.${pid}`, {
+          image_url: pendingArtUrl,
+          art_status: 'complete',
+          image_status: 'ok',
+        });
+        return res.status(200).json({ ok: true, image_url: pendingArtUrl, message: 'arte publicada ✓' });
+      } else if (op === 'reject') {
+        // Limpa pending_art_url, volta pra reference_approved pra regerar
+        const newMeta = { ...meta };
+        delete newMeta.pending_art_url;
+        delete newMeta.qc_score;
+        await sbUpdate('drope_products', `id=eq.${pid}`, {
+          metadata: newMeta,
+          art_status: 'reference_approved',
+          image_status: 'pending_art',
+        });
+        return res.status(200).json({ ok: true, message: 'arte rejeitada — clica gerar de novo' });
+      }
+      return res.status(400).json({ ok: false, error: 'action inválida' });
+    } catch (e) {
+      console.error('[santos_publish_art] error:', e.message);
       return res.status(500).json({ ok: false, error: e.message });
     }
   }

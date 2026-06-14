@@ -110,10 +110,10 @@
 </div>
 
 <div class="stats">
-  <div class="stat"><div class="v" id="s-count">—</div><div class="l">Produtos</div></div>
-  <div class="stat"><div class="v warn" id="s-pending">—</div><div class="l">Sem ref</div></div>
-  <div class="stat"><div class="v info" id="s-cands">—</div><div class="l">Com cands</div></div>
-  <div class="stat"><div class="v accent" id="s-ok">—</div><div class="l">Arte ok</div></div>
+  <div class="stat"><div class="v" id="s-count">—</div><div class="l">Total</div></div>
+  <div class="stat"><div class="v warn" id="s-pending">—</div><div class="l">Falta escolher</div></div>
+  <div class="stat"><div class="v info" id="s-ready">—</div><div class="l">Arte aprovar</div></div>
+  <div class="stat"><div class="v accent" id="s-published">—</div><div class="l">Publicadas</div></div>
 </div>
 
 <div class="actions">
@@ -123,10 +123,11 @@
 
 <div class="filter" id="filter">
   <div class="chip active" data-f="all">Todos</div>
-  <div class="chip" data-f="sem-cands">Sem candidatos</div>
-  <div class="chip" data-f="com-cands">Com candidatos</div>
-  <div class="chip" data-f="aprovados">Aprovados</div>
-  <div class="chip" data-f="com-arte">Arte ok</div>
+  <div class="chip" data-f="ready-publish">🎨 Aprovar arte</div>
+  <div class="chip" data-f="need-pick">👀 Escolher ref</div>
+  <div class="chip" data-f="need-art">⏳ Falta gerar</div>
+  <div class="chip" data-f="no-cands">🔴 Sem cands</div>
+  <div class="chip" data-f="published">✓ Publicadas</div>
 </div>
 
 <div class="list" id="list">
@@ -202,10 +203,15 @@ async function load(){
     const j = await r.json();
     if(!j.ok) throw new Error(j.error||'erro');
     ALL = j.products;
+    const nNoCands = ALL.filter(p => p.candidates_count === 0 && !p.reference_image_url && !p.pending_art_url && !p.image_url).length;
+    const nNeedPick = ALL.filter(p => p.candidates_count > 0 && !p.reference_image_url && !p.pending_art_url && !p.image_url).length;
+    const nNeedArt = ALL.filter(p => p.reference_image_url && !p.pending_art_url && !p.image_url).length;
+    const nReadyPublish = ALL.filter(p => p.pending_art_url && !p.image_url).length;
+    const nPublished = ALL.filter(p => p.image_url).length;
     document.getElementById('s-count').textContent = j.count;
-    document.getElementById('s-pending').textContent = j.stats.sem_referencia;
-    document.getElementById('s-cands').textContent = ALL.filter(p => p.candidates_count > 0 && !p.reference_image_url).length;
-    document.getElementById('s-ok').textContent = ALL.filter(p => p.image_url).length;
+    document.getElementById('s-pending').textContent = nNoCands + nNeedPick;
+    document.getElementById('s-ready').textContent = nReadyPublish;
+    document.getElementById('s-published').textContent = nPublished;
     document.getElementById('updated').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     render();
   }catch(e){
@@ -216,10 +222,16 @@ async function load(){
 function render(){
   const list = document.getElementById('list');
   let items = ALL;
-  if(FILTER === 'sem-cands') items = items.filter(p => p.candidates_count === 0 && !p.reference_image_url);
-  else if(FILTER === 'com-cands') items = items.filter(p => p.candidates_count > 0);
-  else if(FILTER === 'aprovados') items = items.filter(p => p.reference_image_url && !p.image_url);
-  else if(FILTER === 'com-arte') items = items.filter(p => p.image_url);
+  if(FILTER === 'no-cands') items = items.filter(p => p.candidates_count === 0 && !p.reference_image_url && !p.pending_art_url && !p.image_url);
+  else if(FILTER === 'need-pick') items = items.filter(p => p.candidates_count > 0 && !p.reference_image_url && !p.pending_art_url && !p.image_url);
+  else if(FILTER === 'need-art') items = items.filter(p => p.reference_image_url && !p.pending_art_url && !p.image_url);
+  else if(FILTER === 'ready-publish') items = items.filter(p => p.pending_art_url && !p.image_url);
+  else if(FILTER === 'published') items = items.filter(p => p.image_url);
+  // Ordena: arte pronta primeiro, depois publicadas, depois ref escolhida, depois com cands, depois sem cands
+  items = [...items].sort((a,b) => {
+    const order = p => p.pending_art_url && !p.image_url ? 0 : (p.image_url ? 1 : (p.reference_image_url ? 2 : (p.candidates_count > 0 ? 3 : 4)));
+    return order(a) - order(b);
+  });
   if(items.length === 0){
     list.innerHTML = '<div class="loading">Nada nesse filtro.</div>';
     return;
@@ -228,53 +240,91 @@ function render(){
 }
 
 function card(p){
-  const refImg = p.image_url || p.reference_image_url;
-  const refTag = p.image_url ? 'ARTE FINAL' : 'REFERÊNCIA';
-  const refCls = p.image_url ? 'art' : 'ref';
+  // Decide ESTADO grande do card
+  // 1. PUBLICADA: image_url not null
+  // 2. ARTE GERADA: pending_art_url existe mas não image_url
+  // 3. SEM ARTE, COM REF: reference_image_url existe mas sem pending_art
+  // 4. SEM REF, COM CANDIDATOS: candidates_count > 0 mas reference_image_url null
+  // 5. SEM CANDIDATOS: nada
+  const isPublished = !!p.image_url;
+  const hasGeneratedArt = !!p.pending_art_url && !isPublished;
+  const hasRef = !!p.reference_image_url && !hasGeneratedArt && !isPublished;
+  const hasCandidates = p.candidates_count > 0;
+
+  let stateBadge, stateColor;
+  if(isPublished){ stateBadge='✓ PUBLICADA'; stateColor='var(--accent)'; }
+  else if(hasGeneratedArt){ stateBadge='🎨 ARTE PRONTA — APROVAR?'; stateColor='var(--info)'; }
+  else if(hasRef){ stateBadge='⏳ REF ESCOLHIDA · falta gerar arte'; stateColor='var(--warn)'; }
+  else if(hasCandidates){ stateBadge='👀 ESCOLHE A REFERÊNCIA'; stateColor='var(--warn)'; }
+  else { stateBadge='🔴 SEM CANDIDATOS — aperta buscar'; stateColor='var(--danger)'; }
+
+  // Coluna direita: arte / pending / ref / placeholder
+  let rightCell;
+  if(isPublished){
+    rightCell = `<div class="imgcell art"><span class="tag">✓ ARTE PUBLICADA</span><img src="${p.image_url}" loading="lazy"/></div>`;
+  } else if(hasGeneratedArt){
+    rightCell = `<div class="imgcell art"><span class="tag">🎨 GERADA · QC ${p.qc_score || '?'}</span><img src="${p.pending_art_url}" loading="lazy"/></div>`;
+  } else if(hasRef){
+    rightCell = `<div class="imgcell ref"><span class="tag">REFERÊNCIA</span><img src="${p.reference_image_url}" loading="lazy"/></div>`;
+  } else {
+    rightCell = `<div class="imgcell ref"><span class="tag">REFERÊNCIA</span><div class="placeholder">${hasCandidates ? 'escolhe abaixo ↓' : 'sem candidatos'}</div></div>`;
+  }
+
   const boxImg = p.box_lh_thumb || p.box_drive_thumb;
   const boxLink = p.box_drive_view;
-
-  const refCell = refImg
-    ? `<div class="imgcell ${refCls}"><span class="tag">${refTag}</span><img src="${refImg}" alt="ref" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>imagem quebrada</div>'"/></div>`
-    : `<div class="imgcell ref"><span class="tag">REFERÊNCIA</span><div class="placeholder">${p.candidates_count > 0 ? 'escolhe abaixo ↓' : 'sem candidatos'}</div></div>`;
-
   const nPhotos = (p.drive_photos||[]).length;
   const switcherBtn = nPhotos > 1 ? `<button class="box-switcher" onclick="event.stopPropagation();openPhotos(${p.id})">📸 ${nPhotos} fotos</button>` : '';
   const boxCell = boxImg
-    ? `<div class="imgcell" onclick="window.open('${boxLink}','_blank')"><span class="tag">FOTO CAIXA</span><img src="${boxImg}" alt="caixa" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>abrir no Drive ↗</div>';this.parentElement.onclick=()=>window.open('${boxLink}','_blank')"/>${switcherBtn}</div>`
+    ? `<div class="imgcell" onclick="window.open('${boxLink}','_blank')"><span class="tag">FOTO CAIXA</span><img src="${boxImg}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>abrir Drive ↗</div>'"/>${switcherBtn}</div>`
     : `<div class="imgcell"><span class="tag">FOTO CAIXA</span><div class="placeholder">sem foto</div></div>`;
 
   const eans = (p.barcodes||[]).map(b => `<span class="pill ean">${b}</span>`).join('');
-  const statusClass = p.art_status === 'ok' ? 'status-ok' : (p.art_status === 'needs_manual_photo' ? 'status-needs' : 'status-pending');
-  const statusLbl = p.art_status === 'ok' ? '✓ arte ok' : (p.art_status === 'needs_manual_photo' ? '⚠ foto manual' : '⏳ '+p.art_status);
 
-  // Galeria de candidates
+  // Ações ÓBVIAS por estado
+  let mainAction = '';
+  if(isPublished){
+    mainAction = `<button class="btn ghost" onclick="actRejectArt(${p.id})">🔄 Refazer arte</button>`;
+  } else if(hasGeneratedArt){
+    mainAction = `
+      <button class="btn" style="background:var(--info);color:#000" onclick="actPublishArt(${p.id})">✅ Publicar arte no app</button>
+      <button class="btn ghost" onclick="actRejectArt(${p.id})">🔄 Gerar de novo</button>
+    `;
+  } else if(hasRef){
+    mainAction = `<button class="btn warn" onclick="actGenerateOne(${p.id})">🎨 Gerar arte agora</button>`;
+  } else if(hasCandidates){
+    // Galeria abaixo
+    mainAction = '';
+  }
+
+  // Galeria de candidates (só mostra se não tem arte ainda)
   const cands = p.reference_candidates || [];
-  const candsHtml = cands.length > 0
-    ? `<div class="candgrid">${cands.slice(0,12).map(c => {
-        const u = c.url || c.image_url || c;
-        const isSelected = p.reference_image_url === u;
-        return `<div class="cand ${isSelected?'selected':''}" data-id="${p.id}" data-url="${encodeURIComponent(u)}" onclick="pickCand(this)"><img src="${u}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`;
-      }).join('')}</div>`
-    : `<div class="empty-cands">Nenhum candidato ainda. Aperta "🚀 Buscar referências" no topo, ou clica "🔄 Buscar de novo" abaixo.</div>`;
-
-  const candBar = `
-    <div class="candbar">
-      <div class="title"><span>Candidatos Serper (${cands.length})</span></div>
-      ${candsHtml}
-      <div class="actrow">
-        <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar de novo</button>
-        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa como ref</button>` : ''}
-        ${p.reference_image_url && !p.image_url ? `<button class="btn warn" onclick="actApprove(${p.id})">✓ Aprovar e gerar arte</button>` : ''}
+  let candsBlock = '';
+  if(!isPublished && !hasGeneratedArt){
+    const candsHtml = cands.length > 0
+      ? `<div class="candgrid">${cands.slice(0,12).map(c => {
+          const u = c.url || c.image_url || c;
+          const isSelected = p.reference_image_url === u;
+          return `<div class="cand ${isSelected?'selected':''}" data-id="${p.id}" data-url="${encodeURIComponent(u)}" onclick="pickCand(this)"><img src="${u}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`;
+        }).join('')}</div>`
+      : `<div class="empty-cands">Sem candidatos. Aperta "🚀 Buscar" no topo.</div>`;
+    candsBlock = `
+      <div class="candbar">
+        <div class="title"><span>Candidatos Serper (${cands.length}) · clica pra escolher</span></div>
+        ${candsHtml}
+        <div class="actrow">
+          <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar refs de novo</button>
+          ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa</button>` : ''}
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  }
 
   return `
     <div class="card" id="card-${p.id}">
+      <div style="background:${stateColor};color:#000;padding:8px 14px;font-size:11px;font-weight:700;letter-spacing:0.02em;text-align:center">${stateBadge}</div>
       <div class="imgrow">
         ${boxCell}
-        ${refCell}
+        ${rightCell}
       </div>
       <div class="body">
         <div class="name">${p.name}</div>
@@ -284,13 +334,61 @@ function card(p){
           <span class="pill price">preço ${BRL(p.price_cents)}</span>
           <span class="pill lucro">+${BRL(p.lucro_cada_cents)} c/um</span>
           ${p.puffs ? `<span class="pill">${fmtPuffs(p.puffs)} puffs</span>` : ''}
-          <span class="pill ${statusClass}">${statusLbl}</span>
           ${eans}
         </div>
+        ${mainAction ? `<div class="actrow" style="margin-top:12px">${mainAction}</div>` : ''}
       </div>
-      ${candBar}
+      ${candsBlock}
     </div>
   `;
+}
+
+async function actPublishArt(id){
+  if(!requireToken()) return;
+  try{
+    const r = await fetch('/api/webhook?action=santos_publish_art', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ id, action:'publish' })
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || 'erro');
+    toast('arte publicada ✓');
+    await load();
+  }catch(e){ toast('erro: '+e.message, true); }
+}
+
+async function actRejectArt(id){
+  if(!requireToken()) return;
+  if(!confirm('Rejeitar essa arte e gerar de novo?')) return;
+  try{
+    const r = await fetch('/api/webhook?action=santos_publish_art', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ id, action:'reject' })
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || 'erro');
+    toast('rejeitada · aperta "Gerar arte" pra refazer');
+    await load();
+  }catch(e){ toast('erro: '+e.message, true); }
+}
+
+async function actGenerateOne(id){
+  if(!requireToken()) return;
+  toast('gerando arte (40-60s)…');
+  try{
+    // Approve primeiro pra marcar pending_art
+    await postAction(id, 'approve');
+    // Agora dispara generate_one (que pega o próximo da fila)
+    const r = await fetch('/api/webhook?action=santos_generate_one', {
+      method:'POST', headers:{ 'x-admin-token': TOKEN }
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error || 'erro');
+    toast('arte gerada · revisar acima');
+    await load();
+  }catch(e){ toast('erro: '+e.message, true); }
 }
 
 async function postAction(id, op, extra={}){
