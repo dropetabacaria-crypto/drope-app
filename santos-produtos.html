@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Drope Santos — Produtos</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#0b0b0c" />
+<style>
+  :root{
+    --bg:#0b0b0c; --panel:#141416; --panel2:#1a1a1d; --line:#26262a;
+    --text:#f5f5f7; --dim:#a0a0aa; --accent:#54f99c; --warn:#f9c354; --danger:#ff6b6b; --info:#5fb3ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .top{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0b0b0c 80%,rgba(11,11,12,0));padding:14px 18px 8px;backdrop-filter:blur(20px)}
+  .top h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-0.02em}
+  .top .sub{color:var(--dim);font-size:12px;margin-top:2px;display:flex;align-items:center;gap:6px}
+  .pulse{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 18px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}
+  .stat .v{font-size:15px;font-weight:700}
+  .stat .l{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.04em;margin-top:1px}
+  .accent{color:var(--accent)}
+  .warn{color:var(--warn)}
+  .info{color:var(--info)}
+  .actions{display:flex;gap:8px;padding:10px 18px;flex-wrap:wrap}
+  .btn{flex:1;background:var(--accent);color:#000;border:0;padding:11px 16px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:-0.01em;min-height:44px}
+  .btn:disabled{opacity:0.5;cursor:wait}
+  .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+  .btn.warn{background:var(--warn);color:#000}
+  .filter{display:flex;gap:6px;padding:0 18px 8px;overflow-x:auto;scrollbar-width:none}
+  .filter::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);color:var(--text);padding:7px 12px;border-radius:18px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+  .chip.active{background:var(--accent);color:#000;border-color:var(--accent)}
+  .list{padding:6px 18px 80px;display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .imgrow{display:grid;grid-template-columns:1fr 1fr;background:#000;min-height:180px}
+  .imgcell{position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden}
+  .imgcell img{width:100%;height:100%;object-fit:contain;display:block}
+  .imgcell .placeholder{color:var(--dim);font-size:11px;text-align:center;padding:20px;line-height:1.4}
+  .imgcell .tag{position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.7);color:#fff;font-size:10px;padding:3px 7px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;z-index:2}
+  .imgcell.ref .tag{background:rgba(84,249,156,0.9);color:#000}
+  .imgcell.art .tag{background:rgba(95,179,255,0.9);color:#000}
+  .body{padding:14px 16px}
+  .name{font-size:15px;font-weight:600;letter-spacing:-0.01em;line-height:1.25}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .pill{background:var(--panel2);border:1px solid var(--line);padding:4px 9px;border-radius:10px;font-size:11px;color:var(--dim);font-weight:500}
+  .pill.cost{color:var(--warn)}
+  .pill.price{color:var(--accent)}
+  .pill.lucro{background:#1a2a1f;border-color:#2a4a35;color:var(--accent)}
+  .pill.ean{font-family:ui-monospace,Menlo,monospace;font-size:10px}
+  .pill.status-ok{color:var(--accent)}
+  .pill.status-pending{color:var(--warn)}
+  .pill.status-needs{color:var(--danger)}
+  .pill.id{font-family:ui-monospace,Menlo,monospace;color:var(--dim)}
+  .candbar{padding:10px 14px 14px;border-top:1px solid var(--line);background:var(--panel2)}
+  .candbar .title{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+  .candgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .cand{aspect-ratio:1;background:#000;border-radius:8px;overflow:hidden;cursor:pointer;position:relative;border:2px solid transparent;transition:border-color 0.15s}
+  .cand img{width:100%;height:100%;object-fit:cover;display:block}
+  .cand.selected{border-color:var(--accent)}
+  .cand.selected::after{content:'✓';position:absolute;top:4px;right:4px;width:18px;height:18px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .cand.loading::after{content:'…';position:absolute;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
+  .actrow{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .actrow .btn{flex:1 1 auto;font-size:11px;padding:9px;min-height:36px}
+  .empty-cands{text-align:center;padding:12px;color:var(--dim);font-size:11px;background:#1a1a1d;border:1px dashed var(--line);border-radius:10px}
+  .loading{padding:40px;text-align:center;color:var(--dim)}
+  .err{padding:14px;background:#3a1c1c;border:1px solid #5a2a2a;border-radius:12px;margin:18px;color:#ffb4b4;font-size:13px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:11px 18px;border-radius:14px;font-weight:600;font-size:13px;box-shadow:0 6px 22px rgba(0,0,0,0.4);z-index:100;display:none}
+  .toast.show{display:block;animation:in 0.2s}
+  .toast.err{background:var(--danger);color:#fff}
+  @keyframes in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+  /* Modal token */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;max-width:380px;width:100%}
+  .modal h2{margin:0 0 6px;font-size:18px;font-weight:700}
+  .modal p{margin:0 0 14px;color:var(--dim);font-size:13px;line-height:1.4}
+  .modal input{width:100%;background:#000;border:1px solid var(--line);color:var(--text);padding:13px;border-radius:10px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+
+  @media (min-width:720px){
+    .list{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:6px 18px 80px}
+    .candgrid{grid-template-columns:repeat(6,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🦎 Drope Santos · Revisão</h1>
+  <div class="sub"><span class="pulse"></span> <span id="updated">—</span></div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="v" id="s-count">—</div><div class="l">Produtos</div></div>
+  <div class="stat"><div class="v warn" id="s-pending">—</div><div class="l">Sem ref</div></div>
+  <div class="stat"><div class="v info" id="s-cands">—</div><div class="l">Com cands</div></div>
+  <div class="stat"><div class="v accent" id="s-ok">—</div><div class="l">Arte ok</div></div>
+</div>
+
+<div class="actions">
+  <button class="btn" id="btn-search">🚀 Buscar referências dos sem-candidatos</button>
+</div>
+
+<div class="filter" id="filter">
+  <div class="chip active" data-f="all">Todos</div>
+  <div class="chip" data-f="sem-cands">Sem candidatos</div>
+  <div class="chip" data-f="com-cands">Com candidatos</div>
+  <div class="chip" data-f="aprovados">Aprovados</div>
+  <div class="chip" data-f="com-arte">Arte ok</div>
+</div>
+
+<div class="list" id="list">
+  <div class="loading">Carregando…</div>
+</div>
+
+<div class="toast" id="toast">ok</div>
+
+<!-- Modal token -->
+<div class="modal-bg" id="modal-bg" style="display:none">
+  <div class="modal">
+    <h2>🔑 Token admin</h2>
+    <p>Pra poder buscar referências e aprovar artes, cola o ADMIN_TOKEN do Drope. Fica salvo aqui no celular.</p>
+    <input id="modal-token" type="password" placeholder="drope_..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn ghost" onclick="document.getElementById('modal-bg').style.display='none'">depois</button>
+      <button class="btn" onclick="saveToken()">salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BRL = c => 'R$ ' + ((c||0)/100).toFixed(0).replace('.', ',');
+const fmtPuffs = p => p >= 1000 ? Math.round(p/1000)+'K' : p;
+const TOKEN_KEY = 'drope_admin_token';
+
+let ALL = [];
+let FILTER = 'all';
+let TOKEN = localStorage.getItem(TOKEN_KEY) || '';
+
+function toast(msg, isErr=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(()=>{ t.className='toast'; }, 2400);
+}
+
+function saveToken(){
+  const v = document.getElementById('modal-token').value.trim();
+  if(!v){ toast('cola o token', true); return; }
+  TOKEN = v;
+  localStorage.setItem(TOKEN_KEY, v);
+  document.getElementById('modal-bg').style.display='none';
+  toast('token salvo');
+}
+
+function requireToken(){
+  if(TOKEN) return true;
+  document.getElementById('modal-bg').style.display='flex';
+  document.getElementById('modal-token').focus();
+  return false;
+}
+
+async function load(){
+  try{
+    const r = await fetch('/api/webhook?action=santos_produtos', { cache:'no-store' });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'erro');
+    ALL = j.products;
+    document.getElementById('s-count').textContent = j.count;
+    document.getElementById('s-pending').textContent = j.stats.sem_referencia;
+    document.getElementById('s-cands').textContent = ALL.filter(p => p.candidates_count > 0 && !p.reference_image_url).length;
+    document.getElementById('s-ok').textContent = ALL.filter(p => p.image_url).length;
+    document.getElementById('updated').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    render();
+  }catch(e){
+    document.getElementById('list').innerHTML = '<div class="err">Erro: '+e.message+'</div>';
+  }
+}
+
+function render(){
+  const list = document.getElementById('list');
+  let items = ALL;
+  if(FILTER === 'sem-cands') items = items.filter(p => p.candidates_count === 0 && !p.reference_image_url);
+  else if(FILTER === 'com-cands') items = items.filter(p => p.candidates_count > 0);
+  else if(FILTER === 'aprovados') items = items.filter(p => p.reference_image_url && !p.image_url);
+  else if(FILTER === 'com-arte') items = items.filter(p => p.image_url);
+  if(items.length === 0){
+    list.innerHTML = '<div class="loading">Nada nesse filtro.</div>';
+    return;
+  }
+  list.innerHTML = items.map(p => card(p)).join('');
+}
+
+function card(p){
+  const refImg = p.image_url || p.reference_image_url;
+  const refTag = p.image_url ? 'ARTE FINAL' : 'REFERÊNCIA';
+  const refCls = p.image_url ? 'art' : 'ref';
+  const boxImg = p.box_lh_thumb || p.box_drive_thumb;
+  const boxLink = p.box_drive_view;
+
+  const refCell = refImg
+    ? `<div class="imgcell ${refCls}"><span class="tag">${refTag}</span><img src="${refImg}" alt="ref" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>imagem quebrada</div>'"/></div>`
+    : `<div class="imgcell ref"><span class="tag">REFERÊNCIA</span><div class="placeholder">${p.candidates_count > 0 ? 'escolhe abaixo ↓' : 'sem candidatos'}</div></div>`;
+
+  const boxCell = boxImg
+    ? `<div class="imgcell" onclick="window.open('${boxLink}','_blank')"><span class="tag">FOTO CAIXA</span><img src="${boxImg}" alt="caixa" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>abrir no Drive ↗</div>';this.parentElement.onclick=()=>window.open('${boxLink}','_blank')"/></div>`
+    : `<div class="imgcell"><span class="tag">FOTO CAIXA</span><div class="placeholder">sem foto</div></div>`;
+
+  const eans = (p.barcodes||[]).map(b => `<span class="pill ean">${b}</span>`).join('');
+  const statusClass = p.art_status === 'ok' ? 'status-ok' : (p.art_status === 'needs_manual_photo' ? 'status-needs' : 'status-pending');
+  const statusLbl = p.art_status === 'ok' ? '✓ arte ok' : (p.art_status === 'needs_manual_photo' ? '⚠ foto manual' : '⏳ '+p.art_status);
+
+  // Galeria de candidates
+  const cands = p.reference_candidates || [];
+  const candsHtml = cands.length > 0
+    ? `<div class="candgrid">${cands.slice(0,12).map(c => {
+        const u = c.url || c.image_url || c;
+        const isSelected = p.reference_image_url === u;
+        return `<div class="cand ${isSelected?'selected':''}" data-id="${p.id}" data-url="${encodeURIComponent(u)}" onclick="pickCand(this)"><img src="${u}" loading="lazy" onerror="this.parentElement.style.display='none'"/></div>`;
+      }).join('')}</div>`
+    : `<div class="empty-cands">Nenhum candidato ainda. Aperta "🚀 Buscar referências" no topo, ou clica "🔄 Buscar de novo" abaixo.</div>`;
+
+  const candBar = `
+    <div class="candbar">
+      <div class="title"><span>Candidatos Serper (${cands.length})</span></div>
+      ${candsHtml}
+      <div class="actrow">
+        <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar de novo</button>
+        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa como ref</button>` : ''}
+        ${p.reference_image_url && !p.image_url ? `<button class="btn warn" onclick="actApprove(${p.id})">✓ Aprovar e gerar arte</button>` : ''}
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="card" id="card-${p.id}">
+      <div class="imgrow">
+        ${boxCell}
+        ${refCell}
+      </div>
+      <div class="body">
+        <div class="name">${p.name}</div>
+        <div class="meta">
+          <span class="pill id">#${p.id}</span>
+          <span class="pill cost">custo ${BRL(p.cost_cents)}</span>
+          <span class="pill price">preço ${BRL(p.price_cents)}</span>
+          <span class="pill lucro">+${BRL(p.lucro_cada_cents)} c/um</span>
+          ${p.puffs ? `<span class="pill">${fmtPuffs(p.puffs)} puffs</span>` : ''}
+          <span class="pill ${statusClass}">${statusLbl}</span>
+          ${eans}
+        </div>
+      </div>
+      ${candBar}
+    </div>
+  `;
+}
+
+async function postAction(id, op, extra={}){
+  if(!requireToken()) return null;
+  try{
+    const r = await fetch('/api/webhook?action=ref_gallery_action', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ id, op, ...extra })
+    });
+    const j = await r.json();
+    if(!j.ok){
+      if(r.status === 401){
+        localStorage.removeItem(TOKEN_KEY);
+        TOKEN = '';
+        toast('token inválido — cola de novo', true);
+        document.getElementById('modal-bg').style.display='flex';
+        return null;
+      }
+      throw new Error(j.error || 'erro');
+    }
+    return j;
+  }catch(e){
+    toast('erro: '+e.message, true);
+    return null;
+  }
+}
+
+async function pickCand(el){
+  const id = +el.dataset.id;
+  const url = decodeURIComponent(el.dataset.url);
+  el.classList.add('loading');
+  const j = await postAction(id, 'switch_ref', { candidate_url: url });
+  el.classList.remove('loading');
+  if(j){
+    toast('referência trocada');
+    await load();
+  }
+}
+
+async function actSearch(id){
+  toast('buscando refs...');
+  const j = await postAction(id, 'research_refs');
+  if(j){
+    toast('aguarda ~30s e recarrega');
+    setTimeout(load, 30000);
+  }
+}
+
+async function actBoxAsRef(id){
+  const j = await postAction(id, 'use_box_as_ref');
+  if(j){ toast('caixa setada como ref'); await load(); }
+}
+
+async function actApprove(id){
+  if(!confirm('Aprovar essa referência e disparar Grok pra gerar a arte?')) return;
+  const j = await postAction(id, 'approve');
+  if(j){ toast('aprovado · arte sendo gerada'); await load(); }
+}
+
+document.getElementById('btn-search').onclick = async () => {
+  if(!requireToken()) return;
+  const btn = document.getElementById('btn-search');
+  btn.disabled = true;
+  btn.textContent = '⏳ disparando…';
+  try{
+    const r = await fetch('/api/webhook?action=mass_kickoff_search', {
+      method:'POST',
+      headers:{ 'x-admin-token': TOKEN }
+    });
+    const j = await r.json();
+    if(j.ok){
+      toast(`${j.dispatched} produtos disparados · recarrega em 1min`);
+      setTimeout(load, 60000);
+    } else if(r.status === 401){
+      localStorage.removeItem(TOKEN_KEY);
+      TOKEN = '';
+      toast('token inválido', true);
+      document.getElementById('modal-bg').style.display='flex';
+    } else {
+      throw new Error(j.error || 'erro');
+    }
+  }catch(e){
+    toast('erro: '+e.message, true);
+  }
+  btn.disabled = false;
+  btn.textContent = '🚀 Buscar referências dos sem-candidatos';
+};
+
+document.getElementById('filter').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if(!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  FILTER = chip.dataset.f;
+  render();
+});
+
+if(!TOKEN){
+  setTimeout(()=>document.getElementById('modal-bg').style.display='flex', 800);
+}
+
+load();
+setInterval(load, 30000);
+</script>
+
+</body>
+</html>

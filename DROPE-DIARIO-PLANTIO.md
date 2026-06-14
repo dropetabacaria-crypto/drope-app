@@ -8,6 +8,29 @@ A regra: voltar aqui semanalmente. Ler entradas anteriores ANTES de fazer a nova
 
 ---
 
+## #001-COMPROMISSO-CADASTRO — 02/06/2026
+
+**Compromisso explícito do Andrade, registrado para uso futuro:**
+
+> "Já coloca na cabeça. Me recusa aí pra frente se eu não cadastrar tudo, mano. Me recusa."
+
+**Regra ativada:** todo produto físico da loja Drope existe no app. Sem exceção. Os 272 fotos enviadas pela Yasmin viram 272 produtos cadastrados — não 200, não 50. **Todos.**
+
+**Autorização pro Arquiteto:** se Andrade vier pedir pra pular, postergar, ou "deixar pra depois" qualquer produto físico, o Arquiteto deve **recusar e citar essa entrada do diário**. Esse não é palpite — é regra que Andrade mesmo estabeleceu.
+
+**Como isso será executado (sem virar nova muralha):**
+- Cadastro acontece em **ondas**, não em "tudo de uma vez"
+- Onda 1 (até 04/06): top 15 mais vendidos — pra lançar quarta
+- Onda 2 (até 09/06): mais 50 — durante a semana de lançamento, Yasmin via `/receber.html`
+- Onda 3 (até 15/06): demais 207 — Yasmin termina nas semanas seguintes
+- **Lançamento NÃO espera onda 3 estar completa.** Lançamento acontece com onda 1.
+- Mas onda 3 também não vira esquecimento: Arquiteto revisa progresso semanal no Plantio.
+
+**Por que esse formato respeita o compromisso E não vira muralha:**
+"Cadastrar tudo" ≠ "cadastrar tudo ANTES de lançar". O compromisso é com a totalidade do catálogo, não com a sequência. Andrade autorizou enquanto repetia o padrão de adiar lançamento; o Arquiteto aceita o compromisso com a totalidade mas mantém a sequência de lançamento independente disso.
+
+---
+
 ## #001-ADENDO — 02/06/2026 (3 dias depois)
 
 **Quebra consciente do Plantio #001.**

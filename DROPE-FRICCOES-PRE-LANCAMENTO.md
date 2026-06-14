@@ -120,6 +120,60 @@ Provavelmente relacionado a alguma integração com InfinitePay ou Mercado Pago 
 
 ---
 
+## #012 — Dashboard admin precisa de auditoria UX (tirar ruído, deixar só essencial)
+
+Reportado em 03/06 durante cadastro pelo scanner.
+
+**O que:** o dashboard admin tem muitos botões, alguns redundantes ou pouco usados. Andrade quer:
+- Tirar o que não importa
+- Deixar só o essencial pro fluxo dele
+- Adicionar atalhos pro que ele USA de verdade (ex.: gallery de aprovar artes — hoje é só URL solta)
+
+**Exemplo concreto mencionado por ele:** "esse negócio agora de ver a arte e aceitar ela é importante de estar aqui pra mim poder escolher, entendeu, mas não tá".
+
+**Ação futura:**
+1. Auditar todos os botões do dashboard (linha ~3860-3902 do index.html)
+2. Conversar com Andrade pra mapear: usa MUITO / usa às vezes / nunca usa
+3. Reorganizar: tier 1 (botões grandes/destaque), tier 2 (botões médios), tier 3 (esconder em "mais opções")
+4. Adicionar **"🎨 aprovar artes pendentes"** com badge mostrando quantas tem (similar ao "4 dropes com estoque baixo")
+5. Link direto pra gallery com token já embutido
+
+**Não fazer agora.** Andrade explicitamente disse pra deixar pra depois pra não distrair do cadastro em andamento.
+
+---
+
+## #010 — Vision: nome do sabor em PT precisa ser MARKETING, não tradução literal
+
+Reportado em 02/06 durante cadastro pelo scanner.
+
+**O que:** quando a Vision identifica o sabor de uma caixa em inglês (ex "Sour Apple Ice"), ela traduz literal demais ("Maçã Verde Azeda Gelada"). Andrade quer nome com vibe atrativa, marketing Gen Z brasileiro.
+
+**Onde corrigir:** prompt do `analyzeProductImage` em `api/webhook.js` linha 4250.
+
+Anotação dele: *"Eu acho que na hora que o claude vision identificar, o nome do sabor precisa ser pesquisado, pra poder colocar de uma maneira atraente, não a tradução do sabor, mas o sabor real em linguagem atraente."*
+
+**Mitigação por hora:** Andrade edita o campo "sabor" na tela do scanner antes de confirmar, deixando mais atrativo manualmente.
+
+---
+
+## #011 — Auto-transformação de preço pra .99 (psicológico)
+
+Reportado em 02/06 durante cadastro pelo scanner.
+
+**O que:** quando preço digitado for redondo (80, 90, 100), transformar automaticamente em 79.99, 89.99, 99.99 antes de salvar. Truque clássico de pricing psicológico.
+
+**Regra exata:** se `price === Math.floor(price)` (sem decimais), subtrair 0.01.
+
+**Onde implementar:** 2 lugares
+- Frontend (`receber.html` `confirmRegister()`) — transforma antes do POST, mostra no preview
+- Backend (`api/webhook.js` `quick_register` handler) — defesa, transforma se vier redondo
+
+Anotação dele: *"sempre quando eu digitar o preço cheio de 80, 90, transformar automaticamente para 79,99 ou 89,99 no catálogo."*
+
+**Mitigação por hora:** Andrade já digita .99 manual no scanner.
+
+---
+
 ## #009 — Sem modo teste — não dá pra simular fluxo até confirmação sem pagar de verdade
 
 Andrade conseguiu chegar até a tela de pagamento Pix (passo 2 do checkout) mas não conseguiu testar as telas seguintes (passo 3 "confirmar" + tela final) porque o avanço depende de pagamento real (clicar "já paguei, mandar comprovante" presumivelmente exige comprovante real OU validação no backend de que o Pix chegou).

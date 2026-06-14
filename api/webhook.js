@@ -4594,6 +4594,77 @@ async function handleFilialPainel(req, res) {
   }
 }
 
+// ============ SANTOS PRODUTOS — REVISÃO ADMIN (11/06/2026) ============
+// Andrade quer ver os 28 produtos cadastrados em Santos com foto da caixa
+// (que ele tirou e jogou no Drive) + referência gerada pelo Grok lado a lado
+// pra revisar visualmente. Endpoint enxuto: lê filial_id=2 e enriquece com
+// thumbnails do Drive a partir do metadata.box_drive_id.
+async function handleSantosProdutos(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  try {
+    const rows = await sbGet('drope_products',
+      'filial_id=eq.2&select=id,slug,name,price_cents,cost_cents,puffs,barcodes,image_url,reference_image_url,reference_candidates,art_status,ref_status,image_status,status,hidden,metadata,created_at&order=id.asc');
+
+    const products = (rows || []).map(p => {
+      const driveId = (p.metadata && p.metadata.box_drive_id) || null;
+      const lucroTotal = (p.price_cents || 0) - (p.cost_cents || 0);
+      const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+      return {
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        price_cents: p.price_cents,
+        cost_cents: p.cost_cents,
+        lucro_total_cents: lucroTotal,
+        lucro_cada_cents: Math.floor(lucroTotal / 2),
+        puffs: p.puffs,
+        barcodes: p.barcodes || [],
+        image_url: p.image_url,
+        reference_image_url: p.reference_image_url,
+        reference_candidates: candidates,
+        candidates_count: candidates.length,
+        art_status: p.art_status,
+        ref_status: p.ref_status,
+        image_status: p.image_status,
+        status: p.status,
+        hidden: p.hidden,
+        box_drive_id: driveId,
+        box_drive_view: driveId ? `https://drive.google.com/file/d/${driveId}/view` : null,
+        box_drive_thumb: driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null,
+        box_lh_thumb: driveId ? `https://lh3.googleusercontent.com/d/${driveId}=w800` : null,
+        caixa_timestamp: (p.metadata && p.metadata.caixa_timestamp) || null,
+        created_at: p.created_at,
+      };
+    });
+
+    const totalCusto = products.reduce((s, p) => s + (p.cost_cents || 0), 0);
+    const totalPreco = products.reduce((s, p) => s + (p.price_cents || 0), 0);
+    const totalLucro = totalPreco - totalCusto;
+    const comReferencia = products.filter(p => p.image_url || p.reference_image_url).length;
+
+    return res.status(200).json({
+      ok: true,
+      filial: 'santos',
+      count: products.length,
+      stats: {
+        custo_total_cents: totalCusto,
+        preco_total_cents: totalPreco,
+        lucro_total_cents: totalLucro,
+        lucro_cada_cents: Math.floor(totalLucro / 2),
+        com_referencia: comReferencia,
+        sem_referencia: products.length - comReferencia,
+      },
+      products,
+    });
+  } catch (err) {
+    console.error('[santos_produtos] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 // ============ DASHBOARD LIVE (07/06/2026) ============
 // Andrade quer um dashboard no dock do Mac que atualiza sozinho.
 // Endpoint retorna TUDO numa requisição só pra polling de 30s ficar barato.
@@ -17043,6 +17114,11 @@ async function generateAll(){
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
+  }
+
+  // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin
+  if (req.url && req.url.indexOf('action=santos_produtos') >= 0) {
+    return await handleSantosProdutos(req, res);
   }
 
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====
