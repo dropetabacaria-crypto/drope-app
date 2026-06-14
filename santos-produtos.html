@@ -384,9 +384,29 @@ function renderWizard(){
   } else if(state === 'gen'){
     rightCell = `<div class="wiz-cell"><span class="tag">REF ESCOLHIDA</span><img src="${p.reference_image_url}" loading="lazy"/></div>`;
     stateBanner = `<div class="wiz-state s-gen">⏳ FALTA GERAR ARTE</div>`;
+    // Mostra galeria pra ele trocar a ref se a atual estiver errada
+    const cands = p.reference_candidates || [];
+    if(cands.length > 0){
+      candsHtml = `
+        <div class="cands">
+          <div class="lbl">⚠️ ref errada? clica em outra abaixo (${cands.length} opções)</div>
+          <div class="cand-grid">
+            ${cands.slice(0,12).map(c => {
+              const u = c.url || c.image_url || c;
+              const isSelected = p.reference_image_url === u;
+              return `<div class="cand ${isSelected?'selected':''}" data-url="${encodeURIComponent(u)}" onclick="pickCand(this, ${p.id})"><img src="${u}" loading="lazy" onerror="this.parentElement.style.opacity=0.3"/></div>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
     actionsHtml = `
-      <button class="btn warn" onclick="actGenerateOne(${p.id})">🎨 Gerar arte agora <span style="opacity:0.6">(40-60s)</span></button>
-      <button class="btn ghost" onclick="navProd(1)">⏭ Pular pro próximo</button>
+      <button class="btn warn" onclick="actGenerateOne(${p.id})">🎨 Gerar arte com essa ref <span style="opacity:0.6">(40-60s)</span></button>
+      <div class="btn-row">
+        <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar outras refs</button>
+        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa</button>` : ''}
+      </div>
+      <button class="btn ghost" onclick="navProd(1)">⏭ Pular</button>
     `;
   } else if(state === 'pick'){
     rightCell = `<div class="wiz-cell"><span class="tag">REFERÊNCIA</span><div class="placeholder">escolhe<br>abaixo ↓</div></div>`;
