@@ -17317,6 +17317,167 @@ async function generateAll(){
     });
   }
 
+  // action=santos_vision_remap — POST: usa Claude Vision pra re-classificar todas as 62
+  // fotos do Drive e atribuir a foto correta a cada um dos 28 produtos. Conserta os
+  // mapeamentos errados que vieram do OCR (que estava com problema).
+  if (req.url && req.url.indexOf('action=santos_vision_remap') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      // Lista das 62 fotos
+      const allDriveIds = [
+        '1uHjhU30TJfEfvqT14A031jJ77wDj13NZ','1rAN8hRsNHJsfqK29h-jGXzbBVeE2Vx1T','1uRHfc2YcWqDJZolzpF60Wv4UF_54CWcd',
+        '1G6dt4r1p5Vq5gsNoscYYmAiTCGrUgO7X','1DYtu4y8pA1Fje1M1fahE-J28LYEqfvcw','15PIYX89SVK3KiAgNbJZGa8xSzNOWuxAq',
+        '12cDqIV84MQbW0w5MlldEPiXZ_WVuMPD7','1gmkhlKzTHP1irhlDLMPUMzUrMDSSvE1S','1GRDaRoOSK7O1t09d8ynSAz-FmDTjM9ka',
+        '1uy869bdnGw4qsDMa24SBjXriikZfd821','1vqvzIvIn2ghXohx8ZCoHdzLRF8q9YzE2','1DC-SG-2cPwAcjrTT9x6T-9dCLBPh1DjK',
+        '1wx2EmD4yZb5r5TLVYVQd3oHNcXD6YEpV','1Ci6v_JK-8ew96qnY0qxPxvKPhFxgb5hO','1pHh-k-tg7GKjgnYdj-asO8AEEJmNv5qt',
+        '1AdgTKZ-k6hB-VaGc9SUh8YnmaImYiGkI','1Nee8_CyTyRLc3mIwNADESDFhzm_Q3ueX','1R-6s2Tn3HejAhr0vjqUfXQZHroYj8u5f',
+        '1vlSxN9Z-3NAAg_qNOZHIQYhmelk2NU92','1JqMZRN6Q6sEGCYioE2Qo4rFxfHIrcu_2','1dIOHEEzER-UAz_GslETQW-9Dt2paO_0s',
+        '1TE0E7U_TVe9dj-Akey9k9gypTb2xOnH6','1RIRGX7beldkA_u6SE_c4JJlDoz2Rk5Pm','169cVamK5rVyW-9hIk5uGZKP7ZIyifNZu',
+        '1Yq_pGf0eti47WFa82Hh2yFhAx3lEY7x7','1fpof5X4jmIoS1AOH1MANVD1FWj273c-l','1Hd-0U5LeC6LCxCLh94X_jZT4Tillp5yz',
+        '1qKy20p8622S0kR5L8XLPwP2D0RaDqhNu','1DFrwl2-XU3VwbapyXWekm3CB6GS92cvi','1lLM08mj64qi_Ilfl31dWId9UCcRkQnxr',
+        '1bFmw9kuTArI8lCFvB7uioFyQ81XOj7nE','11oSig7wyYy6yUy2xvIMu18krJLsZxKuu','1R6-EQkmf1XIK4zUqrjBVrCWwvK8Eim5y',
+        '131yGeJcAdVcn-1_fk8rDySQrpHXPWt9O','1vh3R0s8dgrVfLHhNkQ1Eta6H40QMOM80','1CyQG03TxzlV1VnLGMBN0D47UqZ7R1Ep4',
+        '1qqyv6rk-6RhcTuGMAKzJGBHN4jQMn6YB','1EXJyEvpCS0vGrYfx0Scr2N4exxPQXj4Z','1WrCI651q4K2nbMga4Wpd8SZrzJGkjMHd',
+        '1SKNeJB4Ui3ixjGXVCaQ2kOTlu3L8N2Ou','1-_VW1yqzKl5W1DMPfpHL4KWzkSBmYQiJ','1GeYEt_PjnhHqoQyoQtTcTSGHQXJJkKJj',
+        '1cjYhahA-qQ4hzzfUdd0gaFV1TJthyBps','16KTjxX5egtZCchVtJ9JWHUuKMaU9B_ia','1wEij-GQjTGjNN69ZV5n0zRcGhZOJrGBm',
+        '1d22PW-eDw6B0eFLxOafBLRHCxCt-us2L','1BTsHRCpFiwTsi_VyQl0cjZKLNF6Gxss7','1A57EvjykYmD2U356b3ON90FgD-ebMs1M',
+        '1-MRj2yJLn0YCtm5TwSH_oTQkdLFWlO66','1y3ApU01yloHz0D0CfsgQg7sE_lxiLIow','1WW56vi-CrOHt7n7k11mheLGLGJxCYoD3',
+        '16KXxBRdsGkSU-ZCzjO1KDfxcXV5kDLDb','16sLcADJ6zyiWK24JPWjIsXNYza3_nKKi','1PZ495bJn5E0U6ziCFfA0tbGj2mV1CBtu',
+        '1JwZXz3uov32n1gP9UarW5oxfxPz6bPK7','1R62sctWxwe8e1rfUgcCw0w5Li3LJt8fy','1Br5w8tGBK1fl03n0xAalaB_dKRCCdu3R',
+        '1YmSEBr3Tl91c8Tgrjv2SaRf_3Kth_5De','10I0fWIKIEH0de-L0kmzGoTzSjpFKcvJh','1O6EHjwvi5HvwEyzwsOCrpGh2qxnHAlsW',
+        '1OYrAvd0HX1vjWKziMHiLttpF1zuIzlPB','1MLmQQuTZIILAyHh6ZDKqdCLmDDwAKO6r','17CPiKRbZrO2lrRMlKVcju3NQIsL0kvZc',
+      ];
+      const body = (typeof req.body === 'string') ? JSON.parse(req.body || '{}') : (req.body || {});
+      const offset = body.offset || 0;
+      const chunkSize = 6; // 6 fotos por batch (cada Vision call ~5-8s)
+      const chunk = allDriveIds.slice(offset, offset + chunkSize);
+
+      const classifyOne = async (driveId) => {
+        try {
+          const imgUrl = `https://lh3.googleusercontent.com/d/${driveId}=w600`;
+          const imgBuf = await downloadImage(imgUrl);
+          if (!imgBuf || !Buffer.isBuffer(imgBuf)) {
+            return { drive_id: driveId, error: 'download failed' };
+          }
+          const b64 = imgBuf.toString('base64');
+          const vRes = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 200,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+                  { type: 'text', text: 'Foto de caixa de vape pod. JSON apenas (sem markdown): {"brand":"marca em CAPS ou null","model":"modelo+puffs (ex: TE30K, GH33000 PRO, Frozen 20K, V300 30K) ou null","flavor":"sabor em lowercase ou null","is_box_front":true/false}. is_box_front=true se vê a frente da caixa com nome legível. is_box_front=false se foto zoom em código de barras ou parte sem identificação.' }
+                ]
+              }]
+            }),
+          });
+          const vData = await vRes.json();
+          if (vData.error) return { drive_id: driveId, error: vData.error.message };
+          const text = (vData.content && vData.content[0] && vData.content[0].text) || '';
+          const m = text.match(/\{[\s\S]*\}/);
+          if (!m) return { drive_id: driveId, error: 'no json' };
+          try {
+            const parsed = JSON.parse(m[0]);
+            return { drive_id: driveId, ...parsed };
+          } catch (e) { return { drive_id: driveId, error: 'parse: ' + e.message }; }
+        } catch (e) {
+          return { drive_id: driveId, error: e.message };
+        }
+      };
+
+      const results = await Promise.all(chunk.map(classifyOne));
+
+      // Persiste resultados num metadata da filial pra usar depois no remap
+      const filiais = await sbGet('drope_filiais', 'id=eq.2&select=metadata&limit=1');
+      const fMeta = (filiais && filiais[0] && filiais[0].metadata) || {};
+      const photoIndex = fMeta.vision_photo_index || {};
+      for (const r of results) {
+        if (!r.error) photoIndex[r.drive_id] = { brand: r.brand, model: r.model, flavor: r.flavor, is_box_front: r.is_box_front };
+      }
+      fMeta.vision_photo_index = photoIndex;
+      await sbUpdate('drope_filiais', 'id=eq.2', { metadata: fMeta });
+
+      const nextOffset = offset + chunkSize;
+      const done = nextOffset >= allDriveIds.length;
+      return res.status(200).json({
+        ok: true,
+        processed: results.length,
+        offset: nextOffset,
+        total: allDriveIds.length,
+        done,
+        results: results.map(r => ({ id: r.drive_id, brand: r.brand, model: r.model, is_box_front: r.is_box_front, error: r.error })),
+      });
+    } catch (e) {
+      console.error('[santos_vision_remap] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // action=santos_apply_remap — POST: usa o vision_photo_index pra atualizar box_drive_id
+  // de cada produto. Roda DEPOIS de santos_vision_remap terminar.
+  if (req.url && req.url.indexOf('action=santos_apply_remap') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const filiais = await sbGet('drope_filiais', 'id=eq.2&select=metadata&limit=1');
+      const photoIndex = (filiais && filiais[0] && filiais[0].metadata && filiais[0].metadata.vision_photo_index) || {};
+      if (Object.keys(photoIndex).length === 0) {
+        return res.status(400).json({ ok: false, error: 'photo_index vazio · roda santos_vision_remap primeiro' });
+      }
+      // Pega produtos de Santos
+      const products = await sbGet('drope_products',
+        'filial_id=eq.2&hidden=eq.false&select=id,name,metadata');
+      const normalize = s => (s || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const score = (a, b) => {
+        const aw = normalize(a).split(' ').filter(Boolean);
+        const bw = normalize(b).split(' ').filter(Boolean);
+        let hits = 0;
+        for (const w of aw) if (bw.includes(w)) hits++;
+        return hits / Math.max(1, aw.length);
+      };
+      const updates = [];
+      for (const p of products) {
+        const meta = p.metadata || {};
+        const productBrand = meta.brand || '';
+        const productModel = meta.model || '';
+        const productFlavor = meta.flavor_en || meta.flavor_pt || '';
+        const productKey = `${productBrand} ${productModel} ${productFlavor}`;
+        let best = { score: 0, driveId: null };
+        for (const [driveId, info] of Object.entries(photoIndex)) {
+          if (!info.is_box_front) continue; // só fotos frente
+          if (!info.brand) continue;
+          const candKey = `${info.brand} ${info.model || ''} ${info.flavor || ''}`;
+          const s = score(productKey, candKey);
+          if (s > best.score) best = { score: s, driveId };
+        }
+        if (best.driveId && best.score >= 0.4) {
+          const newMeta = { ...meta, box_drive_id: best.driveId, vision_match_score: best.score };
+          await sbUpdate('drope_products', `id=eq.${p.id}`, { metadata: newMeta });
+          updates.push({ id: p.id, name: p.name, new_box: best.driveId, score: best.score });
+        } else {
+          updates.push({ id: p.id, name: p.name, new_box: null, score: best.score, error: 'no good match' });
+        }
+      }
+      return res.status(200).json({ ok: true, updated: updates.filter(u => u.new_box).length, total: products.length, updates });
+    } catch (e) {
+      console.error('[santos_apply_remap] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // action=santos_publish_art — POST: promove pending_art_url do metadata pra image_url final
   // Quando o Grok gera a arte, ela fica salva em metadata.pending_art_url + qc_score.
   // O passo final (promover pra image_url) às vezes não roda. Esse endpoint faz isso.
