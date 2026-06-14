@@ -320,23 +320,29 @@ document.getElementById('btn-search').onclick = async () => {
   if(!requireToken()) return;
   const btn = document.getElementById('btn-search');
   btn.disabled = true;
-  btn.textContent = '⏳ disparando…';
+  let totalProcessed = 0;
   try{
-    const r = await fetch('/api/webhook?action=mass_kickoff_search', {
-      method:'POST',
-      headers:{ 'x-admin-token': TOKEN }
-    });
-    const j = await r.json();
-    if(j.ok){
-      toast(`${j.dispatched} produtos disparados · recarrega em 1min`);
-      setTimeout(load, 60000);
-    } else if(r.status === 401){
-      localStorage.removeItem(TOKEN_KEY);
-      TOKEN = '';
-      toast('token inválido', true);
-      document.getElementById('modal-bg').style.display='flex';
-    } else {
-      throw new Error(j.error || 'erro');
+    while(true){
+      btn.textContent = `⏳ processando lote (${totalProcessed} já feitos)…`;
+      const r = await fetch('/api/webhook?action=santos_search_batch', {
+        method:'POST',
+        headers:{ 'x-admin-token': TOKEN }
+      });
+      if(r.status === 401){
+        localStorage.removeItem(TOKEN_KEY);
+        TOKEN = '';
+        toast('token inválido', true);
+        document.getElementById('modal-bg').style.display='flex';
+        break;
+      }
+      const j = await r.json();
+      if(!j.ok) throw new Error(j.error || 'erro');
+      totalProcessed += j.processed;
+      await load();
+      if(j.processed === 0 || j.remaining === 0){
+        toast(`pronto · ${totalProcessed} produtos com candidatos`);
+        break;
+      }
     }
   }catch(e){
     toast('erro: '+e.message, true);

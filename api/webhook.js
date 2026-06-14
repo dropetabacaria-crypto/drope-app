@@ -17121,6 +17121,48 @@ async function generateAll(){
     return await handleSantosProdutos(req, res);
   }
 
+  // action=santos_search_batch — POST: processa SÍNCRONO até 3 produtos de Santos
+  // sem candidatos. mass_kickoff_search é fire-and-forget e Vercel mata os children.
+  // Esse endpoint roda searchProductReferences DENTRO da mesma invocação (50s ok).
+  // Chamar várias vezes até zerar (cada chamada processa até 3).
+  if (req.url && req.url.indexOf('action=santos_search_batch') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const pending = await sbGet('drope_products',
+        'filial_id=eq.2&hidden=eq.false&art_status=eq.pending_reference&image_url=is.null&select=id,name,metadata&order=id.asc&limit=20');
+      const todo = (pending || []).filter(p => {
+        const refs = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+        return refs.length === 0;
+      });
+      const toProcess = todo.slice(0, 3);
+      const results = [];
+      for (const p of toProcess) {
+        const m = p.metadata || {};
+        try {
+          const candidates = await searchProductReferences(p.id, m.brand || '', m.model || '', m.flavor_en || m.flavor_pt || '');
+          results.push({ id: p.id, name: p.name, candidates: Array.isArray(candidates) ? candidates.length : 0, ok: true });
+        } catch (e) {
+          results.push({ id: p.id, name: p.name, ok: false, error: e.message });
+        }
+      }
+      return res.status(200).json({
+        ok: true,
+        processed: results.length,
+        remaining: Math.max(0, todo.length - results.length),
+        results,
+        message: results.length === 0 ? 'todos com candidatos já' : `processados ${results.length} · faltam ${Math.max(0, todo.length - results.length)} · chama de novo`,
+      });
+    } catch (e) {
+      console.error('[santos_search_batch] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // ===== ROTAS PÓS-CATÁLOGO (30/04/2026) =====
   // health_check: público, monitoramento. Os outros: auth via CRON_TOKEN/ADMIN_TOKEN.
   if (req.url && req.url.indexOf('action=health_check') >= 0) {
