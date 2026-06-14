@@ -4612,6 +4612,14 @@ async function handleSantosProdutos(req, res) {
       const driveId = (p.metadata && p.metadata.box_drive_id) || null;
       const lucroTotal = (p.price_cents || 0) - (p.cost_cents || 0);
       const candidates = Array.isArray(p.reference_candidates) ? p.reference_candidates : [];
+      const drivePhotos = Array.isArray(p.metadata && p.metadata.drive_photos) ? p.metadata.drive_photos : [];
+      const drivePhotosUrls = drivePhotos.map(dp => ({
+        id: dp.id,
+        is_box: !!dp.is_box,
+        thumb: `https://lh3.googleusercontent.com/d/${dp.id}=w400`,
+        view: `https://drive.google.com/file/d/${dp.id}/view`,
+        is_current: dp.id === driveId,
+      }));
       return {
         id: p.id,
         slug: p.slug,
@@ -4635,6 +4643,7 @@ async function handleSantosProdutos(req, res) {
         box_drive_view: driveId ? `https://drive.google.com/file/d/${driveId}/view` : null,
         box_drive_thumb: driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null,
         box_lh_thumb: driveId ? `https://lh3.googleusercontent.com/d/${driveId}=w800` : null,
+        drive_photos: drivePhotosUrls,
         caixa_timestamp: (p.metadata && p.metadata.caixa_timestamp) || null,
         created_at: p.created_at,
       };
@@ -17119,6 +17128,54 @@ async function generateAll(){
   // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin
   if (req.url && req.url.indexOf('action=santos_produtos') >= 0) {
     return await handleSantosProdutos(req, res);
+  }
+
+  // action=santos_set_box — POST: muda a foto da caixa principal do produto
+  // body: { id: <product_id>, drive_id: <novo_drive_id> }
+  // Também aceita remove_drive_id pra remover foto do array drive_photos (ex: foto errada).
+  if (req.url && req.url.indexOf('action=santos_set_box') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const b = req.body || {};
+      const pid = b.id;
+      const newDriveId = b.drive_id;
+      const removeDriveId = b.remove_drive_id;
+      if (!pid) return res.status(400).json({ ok: false, error: 'id obrigatório' });
+      const rows = await sbGet('drope_products', `id=eq.${pid}&select=metadata&limit=1`);
+      if (!rows || !rows[0]) return res.status(404).json({ ok: false, error: 'produto não encontrado' });
+      const meta = rows[0].metadata || {};
+      let photos = Array.isArray(meta.drive_photos) ? meta.drive_photos : [];
+      if (removeDriveId) {
+        photos = photos.filter(p => p.id !== removeDriveId);
+      }
+      const updates = { drive_photos: photos };
+      if (newDriveId) {
+        // garante que ele existe na lista
+        if (!photos.find(p => p.id === newDriveId)) {
+          photos.push({ id: newDriveId, is_box: true });
+        }
+        updates.box_drive_id = newDriveId;
+      } else if (removeDriveId && meta.box_drive_id === removeDriveId) {
+        // se removeu a foto que era a principal, escolhe a primeira is_box restante
+        const next = photos.find(p => p.is_box) || photos[0];
+        updates.box_drive_id = next ? next.id : null;
+      }
+      const newMeta = { ...meta, ...updates };
+      await sbUpdate('drope_products', `id=eq.${pid}`, { metadata: newMeta });
+      return res.status(200).json({
+        ok: true,
+        box_drive_id: newMeta.box_drive_id,
+        drive_photos: newMeta.drive_photos,
+      });
+    } catch (e) {
+      console.error('[santos_set_box] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
   }
 
   // action=santos_search_batch — POST: processa SÍNCRONO até 3 produtos de Santos
