@@ -4606,7 +4606,7 @@ async function handleSantosProdutos(req, res) {
 
   try {
     const rows = await sbGet('drope_products',
-      'filial_id=eq.2&select=id,slug,name,price_cents,cost_cents,puffs,barcodes,image_url,reference_image_url,reference_candidates,art_status,ref_status,image_status,status,hidden,metadata,created_at&order=id.asc');
+      'filial_id=eq.2&hidden=eq.false&select=id,slug,name,price_cents,cost_cents,puffs,barcodes,image_url,reference_image_url,reference_candidates,art_status,ref_status,image_status,status,hidden,metadata,created_at&order=id.asc');
 
     const products = (rows || []).map(p => {
       const driveId = (p.metadata && p.metadata.box_drive_id) || null;
