@@ -205,9 +205,13 @@
 
 <!-- Modal fotos -->
 <div class="modal-bg" id="modal-photos">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
     <h2 id="photos-title">Fotos do produto</h2>
-    <p>Clica numa pra usar como foto da caixa.</p>
+    <p>Clica na foto certa da caixa pra usar como referência visual.</p>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button class="btn ghost" style="flex:1;font-size:12px;padding:10px;min-height:auto" id="tab-prod" onclick="setPhotosTab('product')">Do produto</button>
+      <button class="btn ghost" style="flex:1;font-size:12px;padding:10px;min-height:auto" id="tab-all" onclick="setPhotosTab('all')">🔍 Todas as 62</button>
+    </div>
     <div class="photos-grid" id="photos-grid"></div>
     <div style="margin-top:14px">
       <button class="btn ghost" onclick="closePhotosModal()">fechar</button>
@@ -533,25 +537,68 @@ async function actRejectArt(productId){
 }
 
 // ===== Photos modal =====
+let PHOTOS_TAB = 'product';
+let ALL_DRIVE_PHOTOS = null; // cache
+
 function openPhotosModal(){
   const p = getCurrent(); if(!p) return;
   document.getElementById('photos-title').textContent = p.name;
-  const grid = document.getElementById('photos-grid');
-  const photos = p.drive_photos || [];
-  grid.innerHTML = photos.map(ph => `
-    <div class="photo-opt ${ph.is_box?'box':'code'} ${ph.is_current?'current':''}" onclick="setBoxPhoto('${ph.id}')">
-      <span class="tag">${ph.is_box?'caixa':'lateral'}${ph.is_current?' ✓':''}</span>
-      <img src="${ph.thumb}" loading="lazy"/>
-    </div>
-  `).join('');
+  PHOTOS_TAB = 'product';
+  document.getElementById('tab-prod').style.background = 'var(--accent)';
+  document.getElementById('tab-prod').style.color = '#000';
+  document.getElementById('tab-all').style.background = '';
+  document.getElementById('tab-all').style.color = '';
+  renderPhotosGrid();
   document.getElementById('modal-photos').classList.add('show');
 }
 function closePhotosModal(){ document.getElementById('modal-photos').classList.remove('show'); }
 
+async function setPhotosTab(tab){
+  PHOTOS_TAB = tab;
+  document.getElementById('tab-prod').style.background = tab==='product' ? 'var(--accent)' : '';
+  document.getElementById('tab-prod').style.color = tab==='product' ? '#000' : '';
+  document.getElementById('tab-all').style.background = tab==='all' ? 'var(--accent)' : '';
+  document.getElementById('tab-all').style.color = tab==='all' ? '#000' : '';
+  if(tab === 'all' && !ALL_DRIVE_PHOTOS){
+    document.getElementById('photos-grid').innerHTML = '<div class="loader" style="grid-column:1/-1">carregando 62 fotos…</div>';
+    try{
+      const r = await fetch('/api/webhook?action=santos_drive_browse');
+      const j = await r.json();
+      if(j.ok) ALL_DRIVE_PHOTOS = j.photos;
+    }catch(e){ toast('erro: '+e.message, true); }
+  }
+  renderPhotosGrid();
+}
+
+function renderPhotosGrid(){
+  const p = getCurrent(); if(!p) return;
+  const grid = document.getElementById('photos-grid');
+  if(PHOTOS_TAB === 'product'){
+    const photos = p.drive_photos || [];
+    grid.innerHTML = photos.map(ph => `
+      <div class="photo-opt ${ph.is_box?'box':'code'} ${ph.is_current?'current':''}" onclick="setBoxPhoto('${ph.id}')">
+        <span class="tag">${ph.is_box?'caixa':'lateral'}${ph.is_current?' ✓':''}</span>
+        <img src="${ph.thumb}" loading="lazy"/>
+      </div>
+    `).join('');
+  } else {
+    if(!ALL_DRIVE_PHOTOS){ grid.innerHTML = '<div class="loader" style="grid-column:1/-1">carregando…</div>'; return; }
+    grid.innerHTML = ALL_DRIVE_PHOTOS.map(ph => {
+      const isCurrent = ph.id === p.box_drive_id;
+      return `
+        <div class="photo-opt ${isCurrent?'current':''}" onclick="setBoxPhoto('${ph.id}')">
+          <span class="tag">${ph.ts}${isCurrent?' ✓':''}</span>
+          <img src="${ph.thumb}" loading="lazy"/>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
 async function setBoxPhoto(driveId){
   const p = getCurrent(); if(!p) return;
   const j = await apiPost('santos_set_box', { id: p.id, drive_id: driveId });
-  if(j){ toast('foto trocada'); closePhotosModal(); await load(); }
+  if(j){ toast('foto trocada ✓'); closePhotosModal(); await load(); }
 }
 
 // ===== Init =====

@@ -17235,6 +17235,88 @@ async function generateAll(){
     }
   }
 
+  // action=santos_drive_browse — GET: retorna TODAS as fotos do Drive em ordem cronológica
+  // pro Andrade escolher manualmente quando o auto-mapeamento errou.
+  if (req.url && req.url.indexOf('action=santos_drive_browse') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    const allPhotos = [
+      { ts: '22:49:02', id: '1uHjhU30TJfEfvqT14A031jJ77wDj13NZ' },
+      { ts: '22:49:07', id: '1rAN8hRsNHJsfqK29h-jGXzbBVeE2Vx1T' },
+      { ts: '22:49:11', id: '1uRHfc2YcWqDJZolzpF60Wv4UF_54CWcd' },
+      { ts: '22:49:18', id: '1G6dt4r1p5Vq5gsNoscYYmAiTCGrUgO7X' },
+      { ts: '22:49:23', id: '1DYtu4y8pA1Fje1M1fahE-J28LYEqfvcw' },
+      { ts: '22:49:29', id: '15PIYX89SVK3KiAgNbJZGa8xSzNOWuxAq' },
+      { ts: '22:49:32', id: '12cDqIV84MQbW0w5MlldEPiXZ_WVuMPD7' },
+      { ts: '22:49:36', id: '1gmkhlKzTHP1irhlDLMPUMzUrMDSSvE1S' },
+      { ts: '22:49:39', id: '1GRDaRoOSK7O1t09d8ynSAz-FmDTjM9ka' },
+      { ts: '22:49:44', id: '1uy869bdnGw4qsDMa24SBjXriikZfd821' },
+      { ts: '22:49:48', id: '1vqvzIvIn2ghXohx8ZCoHdzLRF8q9YzE2' },
+      { ts: '22:49:54', id: '1DC-SG-2cPwAcjrTT9x6T-9dCLBPh1DjK' },
+      { ts: '22:50:04', id: '1wx2EmD4yZb5r5TLVYVQd3oHNcXD6YEpV' },
+      { ts: '22:50:09', id: '1Ci6v_JK-8ew96qnY0qxPxvKPhFxgb5hO' },
+      { ts: '22:50:12', id: '1pHh-k-tg7GKjgnYdj-asO8AEEJmNv5qt' },
+      { ts: '22:50:16', id: '1AdgTKZ-k6hB-VaGc9SUh8YnmaImYiGkI' },
+      { ts: '22:50:20', id: '1Nee8_CyTyRLc3mIwNADESDFhzm_Q3ueX' },
+      { ts: '22:50:25', id: '1R-6s2Tn3HejAhr0vjqUfXQZHroYj8u5f' },
+      { ts: '22:50:30', id: '1vlSxN9Z-3NAAg_qNOZHIQYhmelk2NU92' },
+      { ts: '22:50:34', id: '1JqMZRN6Q6sEGCYioE2Qo4rFxfHIrcu_2' },
+      { ts: '22:50:39', id: '1dIOHEEzER-UAz_GslETQW-9Dt2paO_0s' },
+      { ts: '22:50:44', id: '1TE0E7U_TVe9dj-Akey9k9gypTb2xOnH6' },
+      { ts: '22:50:48', id: '1RIRGX7beldkA_u6SE_c4JJlDoz2Rk5Pm' },
+      { ts: '22:50:53', id: '169cVamK5rVyW-9hIk5uGZKP7ZIyifNZu' },
+      { ts: '22:51:20', id: '1Yq_pGf0eti47WFa82Hh2yFhAx3lEY7x7' },
+      { ts: '22:52:17', id: '1fpof5X4jmIoS1AOH1MANVD1FWj273c-l' },
+      { ts: '22:52:32', id: '1Hd-0U5LeC6LCxCLh94X_jZT4Tillp5yz' },
+      { ts: '22:52:38', id: '1qKy20p8622S0kR5L8XLPwP2D0RaDqhNu' },
+      { ts: '22:52:45', id: '1DFrwl2-XU3VwbapyXWekm3CB6GS92cvi' },
+      { ts: '22:52:49', id: '1lLM08mj64qi_Ilfl31dWId9UCcRkQnxr' },
+      { ts: '22:52:54', id: '1bFmw9kuTArI8lCFvB7uioFyQ81XOj7nE' },
+      { ts: '22:52:59', id: '11oSig7wyYy6yUy2xvIMu18krJLsZxKuu' },
+      { ts: '22:53:07', id: '1R6-EQkmf1XIK4zUqrjBVrCWwvK8Eim5y' },
+      { ts: '22:53:12', id: '131yGeJcAdVcn-1_fk8rDySQrpHXPWt9O' },
+      { ts: '22:53:16', id: '1vh3R0s8dgrVfLHhNkQ1Eta6H40QMOM80' },
+      { ts: '22:53:20', id: '1CyQG03TxzlV1VnLGMBN0D47UqZ7R1Ep4' },
+      { ts: '22:53:23', id: '1qqyv6rk-6RhcTuGMAKzJGBHN4jQMn6YB' },
+      { ts: '22:53:28', id: '1EXJyEvpCS0vGrYfx0Scr2N4exxPQXj4Z' },
+      { ts: '22:53:33', id: '1WrCI651q4K2nbMga4Wpd8SZrzJGkjMHd' },
+      { ts: '22:53:37', id: '1SKNeJB4Ui3ixjGXVCaQ2kOTlu3L8N2Ou' },
+      { ts: '22:53:39', id: '1-_VW1yqzKl5W1DMPfpHL4KWzkSBmYQiJ' },
+      { ts: '22:53:50', id: '1GeYEt_PjnhHqoQyoQtTcTSGHQXJJkKJj' },
+      { ts: '22:53:56', id: '1cjYhahA-qQ4hzzfUdd0gaFV1TJthyBps' },
+      { ts: '22:54:02', id: '16KTjxX5egtZCchVtJ9JWHUuKMaU9B_ia' },
+      { ts: '22:54:07', id: '1wEij-GQjTGjNN69ZV5n0zRcGhZOJrGBm' },
+      { ts: '22:54:11', id: '1d22PW-eDw6B0eFLxOafBLRHCxCt-us2L' },
+      { ts: '22:54:16', id: '1BTsHRCpFiwTsi_VyQl0cjZKLNF6Gxss7' },
+      { ts: '22:54:20', id: '1A57EvjykYmD2U356b3ON90FgD-ebMs1M' },
+      { ts: '22:54:22', id: '1-MRj2yJLn0YCtm5TwSH_oTQkdLFWlO66' },
+      { ts: '22:54:26', id: '1y3ApU01yloHz0D0CfsgQg7sE_lxiLIow' },
+      { ts: '22:54:29', id: '1WW56vi-CrOHt7n7k11mheLGLGJxCYoD3' },
+      { ts: '22:54:34', id: '16KXxBRdsGkSU-ZCzjO1KDfxcXV5kDLDb' },
+      { ts: '22:54:38', id: '16sLcADJ6zyiWK24JPWjIsXNYza3_nKKi' },
+      { ts: '22:54:42', id: '1PZ495bJn5E0U6ziCFfA0tbGj2mV1CBtu' },
+      { ts: '22:54:46', id: '1JwZXz3uov32n1gP9UarW5oxfxPz6bPK7' },
+      { ts: '22:54:50', id: '1R62sctWxwe8e1rfUgcCw0w5Li3LJt8fy' },
+      { ts: '22:54:55', id: '1Br5w8tGBK1fl03n0xAalaB_dKRCCdu3R' },
+      { ts: '22:55:00', id: '1YmSEBr3Tl91c8Tgrjv2SaRf_3Kth_5De' },
+      { ts: '22:55:03', id: '10I0fWIKIEH0de-L0kmzGoTzSjpFKcvJh' },
+      { ts: '22:55:07', id: '1O6EHjwvi5HvwEyzwsOCrpGh2qxnHAlsW' },
+      { ts: '22:55:13', id: '1OYrAvd0HX1vjWKziMHiLttpF1zuIzlPB' },
+      { ts: '22:55:17', id: '1MLmQQuTZIILAyHh6ZDKqdCLmDDwAKO6r' },
+      { ts: '22:55:20', id: '17CPiKRbZrO2lrRMlKVcju3NQIsL0kvZc' },
+    ];
+    return res.status(200).json({
+      ok: true,
+      count: allPhotos.length,
+      photos: allPhotos.map(p => ({
+        id: p.id,
+        ts: p.ts,
+        thumb: `https://lh3.googleusercontent.com/d/${p.id}=w400`,
+        view: `https://drive.google.com/file/d/${p.id}/view`,
+      })),
+    });
+  }
+
   // action=santos_publish_art — POST: promove pending_art_url do metadata pra image_url final
   // Quando o Grok gera a arte, ela fica salva em metadata.pending_art_url + qc_score.
   // O passo final (promover pra image_url) às vezes não roda. Esse endpoint faz isso.
