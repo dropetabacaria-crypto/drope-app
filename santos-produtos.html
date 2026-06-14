@@ -117,7 +117,8 @@
 </div>
 
 <div class="actions">
-  <button class="btn" id="btn-search">🚀 Buscar referências dos sem-candidatos</button>
+  <button class="btn" id="btn-search">🚀 Buscar referências</button>
+  <button class="btn warn" id="btn-gen">🎨 Gerar artes aprovadas</button>
 </div>
 
 <div class="filter" id="filter">
@@ -471,6 +472,42 @@ document.getElementById('btn-search').onclick = async () => {
   }
   btn.disabled = false;
   btn.textContent = '🚀 Buscar referências dos sem-candidatos';
+};
+
+document.getElementById('btn-gen').onclick = async () => {
+  if(!requireToken()) return;
+  const btn = document.getElementById('btn-gen');
+  btn.disabled = true;
+  let processed = 0;
+  try{
+    while(true){
+      btn.textContent = `⏳ gerando arte ${processed+1}…`;
+      const r = await fetch('/api/webhook?action=santos_generate_one', {
+        method:'POST',
+        headers:{ 'x-admin-token': TOKEN }
+      });
+      if(r.status === 401){
+        localStorage.removeItem(TOKEN_KEY);
+        TOKEN = '';
+        toast('token inválido', true);
+        document.getElementById('modal-bg').style.display='flex';
+        break;
+      }
+      const j = await r.json();
+      if(!j.ok) throw new Error(j.error || 'erro');
+      if(j.done){
+        toast(`pronto · ${processed} artes geradas`);
+        await load();
+        break;
+      }
+      processed++;
+      await load();
+    }
+  }catch(e){
+    toast('erro: '+e.message, true);
+  }
+  btn.disabled = false;
+  btn.textContent = '🎨 Gerar artes aprovadas';
 };
 
 document.getElementById('filter').addEventListener('click', e => {

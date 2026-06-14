@@ -17130,6 +17130,50 @@ async function generateAll(){
     return await handleSantosProdutos(req, res);
   }
 
+  // action=santos_generate_one — POST: gera arte SÍNCRONO pra UM produto aprovado de Santos
+  // O fireBackgroundArtGeneration é fire-and-forget e morre no Vercel. Esse endpoint
+  // roda runArtGeneration SYNC dentro da invocação (60s timeout suficiente).
+  // Frontend chama em loop até zerar pending_art.
+  if (req.url && req.url.indexOf('action=santos_generate_one') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      // Pega o próximo produto de Santos com referência aprovada mas sem arte ainda
+      const pending = await sbGet('drope_products',
+        'filial_id=eq.2&hidden=eq.false&art_status=in.(reference_approved,generating)&image_url=is.null&select=id,name&order=id.asc&limit=1');
+      if (!pending || pending.length === 0) {
+        return res.status(200).json({ ok: true, done: true, message: 'todas as artes prontas' });
+      }
+      const p = pending[0];
+      // Marca generating pra evitar dupla execução em chamadas paralelas
+      await sbUpdate('drope_products', `id=eq.${p.id}`, { art_status: 'generating', image_status: 'pending_art' });
+      try {
+        await runArtGeneration(p.id, ADMIN_LUCAS || '5511997015590', 1);
+      } catch (e) {
+        console.error('[santos_generate_one runArt] error:', e.message);
+        // Não falha o endpoint — deixa frontend continuar pro próximo
+        return res.status(200).json({ ok: true, done: false, processed: p, error: e.message });
+      }
+      // Verifica se gerou de fato
+      const after = await sbGet('drope_products', `id=eq.${p.id}&select=image_url,art_status&limit=1`);
+      const hasArt = !!(after && after[0] && after[0].image_url);
+      return res.status(200).json({
+        ok: true,
+        done: false,
+        processed: p,
+        has_art: hasArt,
+        art_status: after && after[0] && after[0].art_status,
+      });
+    } catch (e) {
+      console.error('[santos_generate_one] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // action=santos_set_box — POST: muda a foto da caixa principal do produto
   // body: { id: <product_id>, drive_id: <novo_drive_id> }
   // Também aceita remove_drive_id pra remover foto do array drive_photos (ex: foto errada).
