@@ -17146,31 +17146,48 @@ async function generateAll(){
     const provided = (req.headers && req.headers['x-admin-token']) || '';
     if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
     try {
-      // Pega o próximo produto de Santos com referência aprovada mas sem arte ainda
-      const pending = await sbGet('drope_products',
-        'filial_id=eq.2&hidden=eq.false&art_status=in.(reference_approved,generating)&image_url=is.null&select=id,name&order=id.asc&limit=1');
-      if (!pending || pending.length === 0) {
-        return res.status(200).json({ ok: true, done: true, message: 'todas as artes prontas' });
+      // Aceita {id: X} pra gerar UM produto específico, ou sem body pra pegar próximo da fila
+      const b = (typeof req.body === 'string') ? JSON.parse(req.body || '{}') : (req.body || {});
+      const specificId = b.id;
+      let p;
+      if (specificId) {
+        const rows = await sbGet('drope_products',
+          `id=eq.${specificId}&filial_id=eq.2&hidden=eq.false&select=id,name,reference_image_url&limit=1`);
+        if (!rows || !rows[0]) return res.status(404).json({ ok: false, error: 'produto não encontrado' });
+        p = rows[0];
+        if (!p.reference_image_url) return res.status(400).json({ ok: false, error: 'produto sem referência escolhida' });
+      } else {
+        // Pega o próximo produto de Santos com referência aprovada mas sem arte ainda
+        const pending = await sbGet('drope_products',
+          'filial_id=eq.2&hidden=eq.false&art_status=in.(reference_approved,generating)&image_url=is.null&select=id,name&order=id.asc&limit=1');
+        if (!pending || pending.length === 0) {
+          return res.status(200).json({ ok: true, done: true, message: 'todas as artes prontas' });
+        }
+        p = pending[0];
       }
-      const p = pending[0];
       // Marca generating pra evitar dupla execução em chamadas paralelas
-      await sbUpdate('drope_products', `id=eq.${p.id}`, { art_status: 'generating', image_status: 'pending_art' });
+      await sbUpdate('drope_products', `id=eq.${p.id}`,
+        { art_status: 'generating', image_status: 'pending_art' });
+      console.log(`[santos_generate_one] PROCESSING productId=${p.id} name="${p.name}"`);
       try {
         await runArtGeneration(p.id, ADMIN_LUCAS || '5511997015590', 1);
       } catch (e) {
         console.error('[santos_generate_one runArt] error:', e.message);
-        // Não falha o endpoint — deixa frontend continuar pro próximo
         return res.status(200).json({ ok: true, done: false, processed: p, error: e.message });
       }
       // Verifica se gerou de fato
-      const after = await sbGet('drope_products', `id=eq.${p.id}&select=image_url,art_status&limit=1`);
-      const hasArt = !!(after && after[0] && after[0].image_url);
+      const after = await sbGet('drope_products',
+        `id=eq.${p.id}&select=image_url,art_status,metadata&limit=1`);
+      const arow = after && after[0];
+      const hasArt = !!(arow && arow.image_url);
+      const hasPending = !!(arow && arow.metadata && arow.metadata.pending_art_url);
       return res.status(200).json({
         ok: true,
         done: false,
         processed: p,
         has_art: hasArt,
-        art_status: after && after[0] && after[0].art_status,
+        has_pending: hasPending,
+        art_status: arow && arow.art_status,
       });
     } catch (e) {
       console.error('[santos_generate_one] error:', e.message);

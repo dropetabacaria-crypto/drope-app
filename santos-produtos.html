@@ -486,11 +486,12 @@ async function actBoxAsRef(productId){
 
 async function actGenerateOne(productId){
   toast('gerando arte (~60s)...');
-  // approve marca pra que santos_generate_one pegue
-  await apiPost('ref_gallery_action', { id: productId, op: 'approve' });
-  const j = await apiPost('santos_generate_one');
+  // Manda o id ESPECÍFICO pra garantir que gera o produto certo
+  const j = await apiPost('santos_generate_one', { id: productId });
   if(j){
-    toast('✓ arte gerada');
+    if(j.has_art){ toast('✓ arte publicada direto'); }
+    else if(j.has_pending){ toast('✓ arte gerada · revisa em cima'); }
+    else { toast('arte processada · verifica'); }
     await load();
     autoAdvance();
   }
