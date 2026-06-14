@@ -11438,14 +11438,54 @@ async function handleRefGalleryAction(req, res) {
     // OSSO-2PORTOES: use_box_as_ref usa a foto da caixa (scanner) como referência
     // Útil quando SERPER não acha referência boa: o pod geralmente aparece desenhado
     // no design da caixa, então Grok pode usar como base. Resultado: hit-or-miss.
+    // FIX 14/06: produtos de Santos não têm box_photo_url, mas têm metadata.box_drive_id
+    // (Google Drive). Cai pra esse fallback. URL público do Drive thumbnail funciona com Grok.
     if (op === 'use_box_as_ref') {
       const rows2 = await sbGet('drope_products',
-        `id=eq.${encodeURIComponent(id)}&select=box_photo_url&limit=1`);
-      const boxUrl = rows2?.[0]?.box_photo_url;
-      if (!boxUrl) return res.status(400).json({ ok: false, error: 'produto sem foto da caixa pra usar como ref' });
+        `id=eq.${encodeURIComponent(id)}&select=box_photo_url,metadata,slug&limit=1`);
+      let boxUrl = rows2?.[0]?.box_photo_url;
+      const meta = rows2?.[0]?.metadata || {};
+      const driveId = meta.box_drive_id;
+      const slug = rows2?.[0]?.slug || `product-${id}`;
+      // FIX 14/06: pra produtos de Santos (Drive privado), baixa a foto e re-uploaded
+      // pro Storage público — Grok precisa de URL público pra baixar a ref.
+      if (!boxUrl && driveId) {
+        const driveThumbUrl = `https://lh3.googleusercontent.com/d/${driveId}=w1600`;
+        try {
+          const imgBuf = await downloadImage(driveThumbUrl);
+          if (imgBuf && Buffer.isBuffer(imgBuf)) {
+            const path = `box-refs/${slug}-${driveId}.jpg`;
+            const upUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`;
+            const upR = await fetch(upUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'apikey': SUPABASE_KEY,
+                'Content-Type': 'image/jpeg',
+                'x-upsert': 'true',
+                'Cache-Control': 'public, max-age=86400',
+              },
+              body: imgBuf,
+            });
+            if (upR.ok) {
+              boxUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
+            } else {
+              console.warn('[use_box_as_ref] upload falhou:', upR.status, await upR.text());
+            }
+          } else {
+            console.warn('[use_box_as_ref] download do Drive falhou — provavelmente pasta privada');
+          }
+        } catch (e) {
+          console.warn('[use_box_as_ref] erro baixando do Drive:', e.message);
+        }
+      }
+      if (!boxUrl) return res.status(400).json({
+        ok: false,
+        error: 'foto do Drive privada — compartilha a pasta como "qualquer pessoa com link" no Drive'
+      });
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}`,
         { reference_image_url: boxUrl });
-      return res.status(200).json({ ok: true, message: 'foto da caixa setada como referência — recarrega pra confirmar e aprovar' });
+      return res.status(200).json({ ok: true, message: 'foto da caixa setada como referência ✓' });
     }
 
     if (op === 'approve') {

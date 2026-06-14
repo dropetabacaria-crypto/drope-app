@@ -365,14 +365,18 @@ function renderWizard(){
   const state = stateOf(p);
   let rightCell, stateBanner, actionsHtml, candsHtml = '';
 
+  // Esconde a foto da caixa em telas onde o foco é a ARTE
+  let hideBox = false;
   if(state === 'done'){
-    rightCell = `<div class="wiz-cell done"><span class="tag">✓ NO APP</span><img src="${p.image_url}" loading="lazy"/></div>`;
+    hideBox = true;
+    rightCell = `<div class="wiz-cell done" style="grid-column:span 2;min-height:380px"><span class="tag">✓ NO APP</span><img src="${p.image_url}" loading="lazy"/></div>`;
     stateBanner = `<div class="wiz-state s-done">✓ PUBLICADA NO APP</div>`;
     actionsHtml = `
       <button class="btn ghost" onclick="actRejectArt(${p.id})">🔄 Refazer arte</button>
     `;
   } else if(state === 'publish'){
-    rightCell = `<div class="wiz-cell art"><span class="tag">🎨 GERADA · QC ${p.qc_score||'?'}</span><img src="${p.pending_art_url}" loading="lazy"/></div>`;
+    hideBox = true;
+    rightCell = `<div class="wiz-cell art" style="grid-column:span 2;min-height:420px"><span class="tag">🎨 GERADA · QC ${p.qc_score||'?'}</span><img src="${p.pending_art_url}" loading="lazy"/></div>`;
     stateBanner = `<div class="wiz-state s-publish">🎨 ARTE PRONTA — APROVA?</div>`;
     actionsHtml = `
       <button class="btn publish" onclick="actPublishArt(${p.id})">✅ Publicar no app</button>
@@ -445,7 +449,7 @@ function renderWizard(){
   document.getElementById('wiz-content').innerHTML = `
     <div class="wiz-card">
       ${stateBanner}
-      <div class="wiz-images">${boxCell}${rightCell}</div>
+      <div class="wiz-images" ${hideBox ? 'style="grid-template-columns:1fr"' : ''}>${hideBox ? '' : boxCell}${rightCell}</div>
       <div class="wiz-meta">
         <div class="name">${p.name}</div>
         <div class="pills">
