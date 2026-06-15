@@ -8308,7 +8308,11 @@
       }
     }
 
-    if (kind === 'pod') {
+    // Filial Santos: cartão liberado, esconde os avisos de "só Pix"
+    const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
+    if (isSantos) {
+      warn.style.display = 'none';
+    } else if (kind === 'pod') {
       warn.style.display = 'block';
       warn.innerHTML = `<div class="pay-chip pix-only">⚡ só Pix ✦ regra da casa pra drops</div>`;
     } else if (kind === 'mix') {
@@ -8363,7 +8367,9 @@
         </div>
       `;
 
-      if (kind === 'tabac') {
+      // Filial Santos: libera cartão SEMPRE (independente da categoria do produto)
+      const cardLiberado = kind === 'tabac' || (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
+      if (cardLiberado) {
         html += `
           <div class="co-method" onclick="${blockCard}">
             <div class="co-method-icon">💳</div>
