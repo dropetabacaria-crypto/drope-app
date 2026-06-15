@@ -17478,6 +17478,51 @@ async function generateAll(){
     }
   }
 
+  // action=santos_upload_box_ref — POST: aceita base64 + product_id, faz upload pro Storage
+  // e seta como reference_image_url. Workaround pra pasta Drive privada.
+  // body: { id: <product_id>, base64: <jpeg_base64>, set_as_box?: bool }
+  if (req.url && req.url.indexOf('action=santos_upload_box_ref') >= 0) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    const provided = (req.headers && req.headers['x-admin-token']) || '';
+    if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const b = (typeof req.body === 'string') ? JSON.parse(req.body) : (req.body || {});
+      const pid = b.id;
+      const b64 = b.base64 || '';
+      if (!pid || !b64) return res.status(400).json({ ok: false, error: 'missing id or base64' });
+      const cleanB64 = b64.replace(/^data:image\/\w+;base64,/, '');
+      const buf = Buffer.from(cleanB64, 'base64');
+      // Pega slug do produto
+      const rows = await sbGet('drope_products', `id=eq.${pid}&select=slug&limit=1`);
+      const slug = (rows && rows[0] && rows[0].slug) || `product-${pid}`;
+      const path = `box-refs/${slug}.jpg`;
+      const upUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${path}`;
+      const upR = await fetch(upUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'image/jpeg',
+          'x-upsert': 'true',
+        },
+        body: buf,
+      });
+      if (!upR.ok) {
+        const errTxt = await upR.text();
+        return res.status(500).json({ ok: false, error: 'upload falhou: ' + errTxt });
+      }
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`;
+      await sbUpdate('drope_products', `id=eq.${pid}`, { reference_image_url: publicUrl });
+      return res.status(200).json({ ok: true, reference_image_url: publicUrl });
+    } catch (e) {
+      console.error('[santos_upload_box_ref] error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // action=santos_publish_art — POST: promove pending_art_url do metadata pra image_url final
   // Quando o Grok gera a arte, ela fica salva em metadata.pending_art_url + qc_score.
   // O passo final (promover pra image_url) às vezes não roda. Esse endpoint faz isso.
