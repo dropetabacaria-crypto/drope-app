@@ -8051,8 +8051,13 @@
       const wrap = document.getElementById('co-coupon-wrap'); if (wrap) wrap.style.display = 'none';
       const tog = document.getElementById('co-coupon-toggle'); if (tog) tog.classList.remove('open');
       autoApplyWelcomeCoupon();
-      renderDelivery();
-      renderCheckout();
+      // Filial Santos: só retirada (sem entrega no balcão)
+      if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') {
+        setDeliveryMode('pickup');
+      } else {
+        renderDelivery();
+        renderCheckout();
+      }
     }
     if (screen === 'order-tracking') renderOrderTracking();
   }
@@ -8087,9 +8092,19 @@
   let deliveryMode = 'delivery'; // 'delivery' | 'pickup'
   let payWhen = 'now'; // 'now' | 'later' — só relevante quando deliveryMode === 'pickup'
   function setDeliveryMode(m) {
+    // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
+    if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
     deliveryMode = m;
-    document.getElementById('co-mode-delivery').classList.toggle('active', m === 'delivery');
-    document.getElementById('co-mode-pickup').classList.toggle('active', m === 'pickup');
+    const dEl = document.getElementById('co-mode-delivery');
+    const pEl = document.getElementById('co-mode-pickup');
+    if (dEl) dEl.classList.toggle('active', m === 'delivery');
+    if (pEl) pEl.classList.toggle('active', m === 'pickup');
+    // Em Santos: esconde a opção entrega e deixa pickup full-width
+    if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos' && dEl && pEl) {
+      dEl.style.display = 'none';
+      pEl.style.width = '100%';
+      pEl.style.cursor = 'default';
+    }
     renderDelivery();
     renderCheckout();
   }
@@ -8100,12 +8115,15 @@
     const addrWrap = document.getElementById('co-address-wrap');
     if (addrWrap) {
       if (deliveryMode === 'pickup') {
+        const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
+        const lojaNome = isSantos ? 'Drope Santos' : store.name;
+        const lojaEnd = isSantos ? 'combina retirada com a Natalia no whats ✦ +55 11 98926-0808' : store.address;
         addrWrap.innerHTML = `
           <div class="co-address" style="cursor:default">
             <div class="ic">🏪</div>
             <div class="info">
               <div class="lbl">retirar em</div>
-              <div class="val">${store.name} ✦ ${store.address}</div>
+              <div class="val">${lojaNome} ✦ ${lojaEnd}</div>
             </div>
           </div>`;
       } else {
