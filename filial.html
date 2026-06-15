@@ -125,6 +125,13 @@ let FILIAL_SLUG = '';
 try {
   const u = new URL(location.href);
   FILIAL_SLUG = (u.searchParams.get('filial') || '').toLowerCase().trim();
+  // Fallback: extrai da pathname (ex: /santos/painel → "santos")
+  if (!FILIAL_SLUG) {
+    const m = u.pathname.match(/^\/([a-z0-9-]+)\/painel/i);
+    if (m) FILIAL_SLUG = m[1].toLowerCase();
+  }
+  // Último fallback: assume "santos" se ainda vazio (tem só uma filial além de SP)
+  if (!FILIAL_SLUG) FILIAL_SLUG = 'santos';
 } catch (e) {}
 try { ACCESS_CODE = localStorage.getItem(STORAGE_KEY) || ''; } catch(_){}
 
@@ -138,8 +145,13 @@ function login() {
     document.getElementById('auth-err').textContent = 'cola o código';
     return;
   }
+  if (!FILIAL_SLUG) {
+    document.getElementById('auth-err').textContent = 'URL errada — usa drope-app.vercel.app/santos/painel';
+    return;
+  }
   ACCESS_CODE = v;
   try { localStorage.setItem(STORAGE_KEY, v); } catch(_){}
+  document.getElementById('auth-err').textContent = 'entrando...';
   loadData(true);
 }
 
