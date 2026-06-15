@@ -502,10 +502,21 @@ async function pickCand(el, productId){
 }
 
 async function actSearch(productId){
-  toast('buscando refs (30-40s)...');
-  const j = await apiPost('santos_search_batch');
-  if(j) toast(`${j.processed||0} processados`);
-  await load();
+  toast('buscando refs novas pra esse produto (30-50s)...');
+  try{
+    const r = await fetch('/api/webhook?action=retry_search', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-admin-token': TOKEN },
+      body: JSON.stringify({ productId })
+    });
+    if(r.status === 401){
+      localStorage.removeItem(TOKEN_KEY); TOKEN=''; toast('token inválido', true); openTokenModal(); return;
+    }
+    const j = await r.json();
+    if(j.error) throw new Error(j.error);
+    toast(`✓ ${j.candidates_count||0} candidatos novos`);
+    await load();
+  }catch(e){ toast('erro: '+e.message, true); }
 }
 
 async function actBoxAsRef(productId){
