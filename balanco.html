@@ -80,6 +80,19 @@ main { padding: 12px 16px 100px; }
 .summary-final .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
 .summary-final .row .label { color: var(--fg-dim); }
 .summary-final .row .val { font-weight: 600; }
+/* Reconciliação (OSSO 35) */
+.recon-block { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.recon-block h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.recon-big { font-size: 26px; font-weight: 800; }
+.recon-line { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.recon-line:last-child { border-bottom: 0; }
+.recon-line .r-name { flex: 1; min-width: 0; }
+.recon-line .r-name small { display: block; color: var(--fg-dim); font-size: 11px; margin-top: 2px; }
+.recon-empty { color: var(--fg-dim); font-size: 12px; padding: 4px 0; }
+.diverg-sobrou { color: var(--yellow); font-weight: 700; white-space: nowrap; }
+.diverg-faltou { color: var(--red); font-weight: 700; white-space: nowrap; }
+.esconder-warn { border-color: var(--red); }
+.esconder-list { max-height: 240px; overflow-y: auto; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
 </style>
 </head>
 <body>
@@ -90,7 +103,7 @@ main { padding: 12px 16px 100px; }
   <button class="btn-back" onclick="resetBalanco()" aria-label="zerar balanço" title="zerar">🗑️</button>
 </header>
 
-<div class="banner" id="banner">📸 escaneia cada pod ✦ ao final, clica "ver relatório"</div>
+<div class="banner" id="banner">📸 escaneia cada pod ✦ ao final, clica "finalizar e reconciliar"</div>
 <div id="staff-banner" style="display:none;background:linear-gradient(90deg,rgba(212,255,46,0.18),rgba(255,77,143,0.18));border-bottom:1px solid var(--border);padding:12px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--lime)"></div>
 
 <!-- TELA "QUEM É VOCÊ?" — primeira coisa que aparece -->
@@ -143,7 +156,7 @@ main { padding: 12px 16px 100px; }
 
 <!-- Botão FIXO no rodapé — sempre visível enquanto tu rolar -->
 <div id="sticky-bottom" style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(10,10,20,0.95) 40%);padding:14px 16px;z-index:50;pointer-events:none">
-  <button class="btn btn-finalize" onclick="finalizar()" style="pointer-events:auto;width:100%;font-size:16px;padding:16px;box-shadow:0 8px 24px rgba(255,77,143,0.4)">✅ ver relatório do balanço</button>
+  <button class="btn btn-finalize" onclick="finalizar()" style="pointer-events:auto;width:100%;font-size:16px;padding:16px;box-shadow:0 8px 24px rgba(255,77,143,0.4)">✅ finalizar e reconciliar</button>
 </div>
 
 <!-- MODAL: cadastro inline de produto desconhecido -->
@@ -189,34 +202,24 @@ main { padding: 12px 16px 100px; }
 
 <input type="file" id="photo-input" accept="image/*" capture="environment" style="position:absolute;left:-9999px;top:-9999px">
 
-<!-- ============ TELA DE RELATÓRIO ============ -->
+<!-- ============ TELA DE RECONCILIAÇÃO (OSSO 35) ============ -->
 <section id="report-screen">
-  <div style="padding: 12px 16px 100px">
-    <div class="summary-final">
-      <h2>📊 relatório do balanço</h2>
-      <div class="sub" id="report-time">—</div>
-      <div class="row"><span class="label">total contado</span><span class="val" id="r-total">0</span></div>
-      <div class="row"><span class="label">total no sistema</span><span class="val" id="r-sys">0</span></div>
-      <div class="row"><span class="label">diferença total</span><span class="val" id="r-diff">0</span></div>
-      <div class="row"><span class="label">não cadastrados</span><span class="val" id="r-unknown" style="color:var(--orange)">0</span></div>
-    </div>
-
-    <div style="margin-bottom: 12px;">
-      <div class="report-row header">
-        <div>produto</div>
-        <div style="text-align:center">sistema</div>
-        <div style="text-align:center">contado</div>
-        <div style="text-align:right">diferença</div>
-      </div>
-      <div id="report-rows"></div>
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-ghost" onclick="voltarPraScanner()">← continuar contando</button>
-      <button class="btn btn-finalize" onclick="salvarBalanco()">💾 salvar balanço</button>
-    </div>
+  <div style="padding: 12px 16px 140px">
+    <h2 style="font-size:18px;margin-bottom:4px">🧮 reconciliação do balanço</h2>
+    <div class="sub" id="recon-time" style="color:var(--fg-dim);font-size:12px;margin-bottom:14px">—</div>
+    <div id="recon-loading" style="text-align:center;padding:40px 16px;color:var(--fg-dim);font-size:14px">⏳ calculando contra o estoque atual…</div>
+    <div id="recon-body" style="display:none"></div>
+    <div id="recon-done" style="display:none"></div>
   </div>
 </section>
+
+<!-- botão fixo da reconciliação -->
+<div id="recon-bottom" style="display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(10,10,20,0.97) 35%);padding:14px 16px;z-index:50">
+  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;max-width:560px;margin:0 auto">
+    <button class="btn btn-ghost" onclick="voltarPraScanner()">← continuar</button>
+    <button id="btn-gravar" class="btn btn-finalize" onclick="confirmarEGravar()" style="font-weight:800">✅ confirmar e gravar</button>
+  </div>
+</div>
 
 <script>
 // ============ ESTADO ============
@@ -235,6 +238,7 @@ const state = {
   staffName: STAFF_NAME,
   counts: {},   // CONFIRMADOS: { productId: { id, name, qty_system, qty_counted, barcode } }
   unknown: {},  // CONFIRMADOS não cadastrados: { barcode: qty }
+  perdas: {},   // DEFEITO/perda (situação 6): { key: { product_id|null, name, barcode, qty, motivo } }
   // ATUAL — produto lido aguardando confirmação. null = vazio.
   current: null,  // { kind:'product'|'unknown', id?, name?, qty_system?, qty_pending, barcode }
   controls: null,
@@ -284,6 +288,7 @@ function loadState() {
     if (saved.startedAt) state.startedAt = saved.startedAt;
     if (saved.counts) state.counts = saved.counts;
     if (saved.unknown) state.unknown = saved.unknown;
+    if (saved.perdas) state.perdas = saved.perdas;
     if (saved.current) state.current = saved.current;
   } catch (e) {}
 }
@@ -293,6 +298,7 @@ function persistState() {
       startedAt: state.startedAt,
       counts: state.counts,
       unknown: state.unknown,
+      perdas: state.perdas,
       current: state.current,
     }));
   } catch (e) {}
@@ -302,6 +308,7 @@ function resetBalanco() {
   state.startedAt = Date.now();
   state.counts = {};
   state.unknown = {};
+  state.perdas = {};
   state.current = null;
   persistState();
   render();
@@ -575,6 +582,51 @@ function editarPending() {
 // (compat antiga) "fecharAtual" agora confirma
 function fecharAtual() { confirmarAtual(); }
 
+// ============ DEFEITO / PERDA (situação 6) ============
+// Tira o ATUAL da contagem vendável e lança como perda. No FINALIZAR vai pra drope_perdas.
+function marcarDefeito() {
+  if (!state.current) return;
+  const c = state.current;
+  const qty = Math.max(1, parseInt(c.qty_pending) || 1);
+  let motivo = prompt('motivo da perda?\n\ndefeito / vencido / quebrado / devolucao / amostra / outro', 'defeito');
+  if (motivo === null) return; // cancelou
+  motivo = (motivo || 'defeito').trim().toLowerCase();
+  if (c.kind === 'product') {
+    const key = 'p' + c.id;
+    if (state.perdas[key]) state.perdas[key].qty += qty;
+    else state.perdas[key] = { product_id: c.id, name: c.name, barcode: c.barcode, qty, motivo };
+  } else {
+    const key = 'u' + c.barcode;
+    if (state.perdas[key]) state.perdas[key].qty += qty;
+    else state.perdas[key] = { product_id: null, name: 'não cadastrado', barcode: c.barcode, qty, motivo };
+  }
+  state.current = null;
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+  showToast(`⚠️ ${qty} lançado como perda (${motivo})`, 'ok');
+  persistState();
+  render();
+}
+function removerPerda(key) {
+  if (!state.perdas[key]) return;
+  delete state.perdas[key];
+  showToast('✓ perda removida — volta a contar normal', 'ok');
+  persistState();
+  render();
+}
+
+// ADMIN TOKEN (compartilhado — preview/commit/cadastro exigem header x-admin-token)
+async function getToken() {
+  let t = '';
+  try { t = localStorage.getItem('drope_admin_token') || ''; } catch (_) {}
+  if (!t) {
+    t = prompt('cola o ADMIN_TOKEN do Drope (só dessa vez):');
+    if (!t) return '';
+    t = t.trim();
+    try { localStorage.setItem('drope_admin_token', t); } catch (_) {}
+  }
+  return t;
+}
+
 // ============ RENDER ============
 function render() {
   const counts = Object.values(state.counts);
@@ -582,6 +634,7 @@ function render() {
     + Object.values(state.unknown).reduce((s, n) => s + n, 0);
   const uniqueCount = counts.length;
   const unknownCount = Object.keys(state.unknown).length;
+  const perdasCount = Object.keys(state.perdas).length;
 
   document.getElementById('stat-total').textContent = totalCounted;
   document.getElementById('stat-unique').textContent = uniqueCount;
@@ -599,13 +652,13 @@ function render() {
   // Lista
   const list = document.getElementById('counted-list');
   const empty = document.getElementById('empty-state');
-  if (counts.length === 0 && unknownCount === 0) {
+  if (counts.length === 0 && unknownCount === 0 && perdasCount === 0) {
     empty.style.display = '';
-    list.querySelectorAll('.counted-item, .atual-card, .contados-header').forEach(el => el.remove());
+    list.querySelectorAll('.counted-item, .atual-card, .contados-header, .perda-item, .perdas-header').forEach(el => el.remove());
     return;
   }
   empty.style.display = 'none';
-  list.querySelectorAll('.counted-item, .atual-card, .contados-header').forEach(el => el.remove());
+  list.querySelectorAll('.counted-item, .atual-card, .contados-header, .perda-item, .perdas-header').forEach(el => el.remove());
 
   // ATUAL — produto aguardando confirmação (state.current)
   const cur = state.current;
@@ -632,6 +685,7 @@ function render() {
         <button onclick="ajustarPending(1)" style="background:var(--green);border:0;color:#000;width:56px;height:56px;border-radius:14px;font-size:28px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(74,222,128,0.3)">+</button>
       </div>
       ${!isProduct ? `<button onclick="cadastrarAgora('${cur.barcode}')" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.18),rgba(212,255,46,0.12));border:1px dashed var(--lime);color:var(--lime);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📦 cadastrar esse pod agora</button>` : ''}
+      <button onclick="marcarDefeito()" style="width:100%;background:transparent;border:1px solid var(--yellow);color:var(--yellow);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">⚠️ defeito/aberto/vencido (não vende)</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button onclick="descartarAtual()" style="background:transparent;border:1px solid var(--red);color:var(--red);padding:14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✕ descartar</button>
         <button onclick="confirmarAtual()" style="background:${corPrincipal};border:0;color:#000;padding:14px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(${corCorBordaShadow},0.4)">✓ confirmar</button>
@@ -681,6 +735,28 @@ function render() {
     `;
     list.appendChild(div);
   });
+
+  // PERDAS — defeito/vencido/aberto (situação 6). Não conta como vendável.
+  const perdasEntries = Object.entries(state.perdas);
+  if (perdasEntries.length > 0) {
+    const ph = document.createElement('div');
+    ph.className = 'perdas-header';
+    ph.style.cssText = 'font-size:11px;color:var(--yellow);text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:8px;padding:0 4px;font-weight:600';
+    ph.textContent = `⚠️ perdas/defeito (${perdasEntries.length})`;
+    list.appendChild(ph);
+    perdasEntries.forEach(([key, p]) => {
+      const div = document.createElement('div');
+      div.className = 'counted-item perda-item';
+      div.innerHTML = `
+        <div class="name" style="color:var(--yellow)">${p.name}<small>${p.motivo} ✦ cod: ${p.barcode || '—'}</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="qty" style="color:var(--yellow);background:rgba(255,184,0,0.12)">${p.qty}</div>
+          <button onclick="removerPerda('${key}')" style="background:rgba(255,61,92,0.15);border:1px solid var(--red);color:var(--red);width:32px;height:32px;border-radius:8px;font-size:14px;cursor:pointer" title="remover perda">✕</button>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  }
 }
 
 // ============ CADASTRO INLINE (sem sair do balanço) ============
@@ -875,112 +951,218 @@ function editQty(kind, key) {
   render();
 }
 
-// ============ RELATÓRIO ============
+// ============ RECONCILIAÇÃO (OSSO 35) ============
 function finalizar() {
-  // SITUAÇÃO 6: auto-salva ATUAL antes de gerar relatório (não perde leitura)
-  if (state.current) {
-    confirmarAtual({ silent: true });
-  }
+  // auto-salva ATUAL antes de reconciliar (não perde leitura)
+  if (state.current) confirmarAtual({ silent: true });
+  const vazio = Object.keys(state.counts).length === 0
+    && Object.keys(state.unknown).length === 0
+    && Object.keys(state.perdas).length === 0;
+  if (vazio) { showToast('balanço vazio ✦ escaneia algo antes', 'err'); return; }
+  state.scanLooping = false;
   document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('sticky-bottom').style.display = 'none';
   document.getElementById('report-screen').classList.add('show');
-  renderReport();
+  document.getElementById('recon-bottom').style.display = '';
+  carregarReconciliacao();
 }
 function voltarPraScanner() {
   document.getElementById('report-screen').classList.remove('show');
+  document.getElementById('recon-bottom').style.display = 'none';
   document.getElementById('main-screen').style.display = '';
+  document.getElementById('sticky-bottom').style.display = '';
+  state.scanLooping = true;
 }
-function renderReport() {
-  const counts = Object.values(state.counts);
-  const totalCounted = counts.reduce((s, c) => s + c.qty_counted, 0);
-  const totalSystem = counts.reduce((s, c) => s + c.qty_system, 0);
-  const diffTotal = totalCounted - totalSystem;
-  const unknownCount = Object.values(state.unknown).reduce((s, n) => s + n, 0);
 
-  document.getElementById('r-total').textContent = totalCounted;
-  document.getElementById('r-sys').textContent = totalSystem;
-  const diffEl = document.getElementById('r-diff');
-  diffEl.textContent = (diffTotal > 0 ? '+' : '') + diffTotal;
-  diffEl.style.color = diffTotal === 0 ? 'var(--green)' : (diffTotal < 0 ? 'var(--red)' : 'var(--yellow)');
-  document.getElementById('r-unknown').textContent = unknownCount;
+let RECON = null;        // resultado do preview
+let ESCONDER_ON = false; // se vai esconder os não-escaneados no commit
 
+const _r$ = (c) => 'R$ ' + ((c || 0) / 100).toFixed(2).replace('.', ',');
+const _esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+async function carregarReconciliacao() {
+  ESCONDER_ON = false;
   const dt = new Date(state.startedAt);
-  document.getElementById('report-time').textContent =
-    `iniciado: ${dt.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}`;
-
-  const rows = document.getElementById('report-rows');
-  rows.innerHTML = '';
-
-  // Ordena: maiores divergências primeiro
-  const sorted = [...counts].sort((a, b) => {
-    const da = Math.abs(a.qty_counted - a.qty_system);
-    const db = Math.abs(b.qty_counted - b.qty_system);
-    return db - da;
-  });
-
-  sorted.forEach(c => {
-    const d = c.qty_counted - c.qty_system;
-    const cls = d === 0 ? 'diff-zero' : (d > 0 ? 'diff-pos' : 'diff-neg');
-    const row = document.createElement('div');
-    row.className = 'report-row';
-    row.innerHTML = `
-      <div class="name">${c.name}<small>cod: ${c.barcode || '—'}</small></div>
-      <div style="text-align:center">${c.qty_system}</div>
-      <div style="text-align:center">${c.qty_counted}</div>
-      <div class="${cls}" style="text-align:right">${d > 0 ? '+' : ''}${d}</div>
-    `;
-    rows.appendChild(row);
-  });
-
-  // Não cadastrados
-  Object.entries(state.unknown).forEach(([bc, qty]) => {
-    const row = document.createElement('div');
-    row.className = 'report-row';
-    row.innerHTML = `
-      <div class="name" style="color:var(--orange)">não cadastrado<small>cod: ${bc}</small></div>
-      <div style="text-align:center">—</div>
-      <div style="text-align:center">${qty}</div>
-      <div style="text-align:right;color:var(--orange)">novo</div>
-    `;
-    rows.appendChild(row);
-  });
+  document.getElementById('recon-time').textContent =
+    `${STAFF_NAME || 'sem nome'} ✦ iniciado ${dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+  document.getElementById('recon-loading').style.display = '';
+  document.getElementById('recon-body').style.display = 'none';
+  const t = await getToken();
+  if (!t) { showToast('precisa do admin token pra reconciliar', 'err'); voltarPraScanner(); return; }
+  const counts = Object.values(state.counts);
+  try {
+    const r = await fetch('/api/webhook?action=balanco_preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': t },
+      body: JSON.stringify({
+        counts: counts.map(c => ({ product_id: c.id, qty_counted: c.qty_counted })),
+        unknown: state.unknown,
+        perdas: Object.values(state.perdas).filter(p => p.product_id).map(p => ({ product_id: p.product_id })),
+      }),
+    });
+    const data = await r.json();
+    if (!data || !data.ok) {
+      showToast('erro ao reconciliar: ' + ((data && data.error) || r.status), 'err');
+      voltarPraScanner();
+      return;
+    }
+    RECON = data;
+    renderRecon(data);
+  } catch (e) {
+    showToast('erro de rede: ' + e.message, 'err');
+    voltarPraScanner();
+  }
 }
 
-// ============ SALVAR BALANÇO ============
-async function salvarBalanco() {
-  const counts = Object.values(state.counts);
-  if (counts.length === 0 && Object.keys(state.unknown).length === 0) {
-    showToast('balanço vazio ✦ escaneia algo antes', 'err');
-    return;
+function renderRecon(d) {
+  document.getElementById('recon-loading').style.display = 'none';
+  const body = document.getElementById('recon-body');
+  body.style.display = '';
+
+  const perdas = Object.values(state.perdas);
+  const perdaUn = perdas.reduce((s, p) => s + (p.qty || 0), 0);
+
+  // BLOCO 1 — vendável
+  let html = `
+    <div class="recon-block">
+      <h3>✅ vendável</h3>
+      <div class="recon-big" style="color:var(--green)">${d.vendavel_un} <span style="font-size:13px;color:var(--fg-dim);font-weight:500">un em ${d.vendavel_skus} sabores</span></div>
+    </div>`;
+
+  // BLOCO 2 — divergências (sobrou/faltou + R$)
+  html += `<div class="recon-block"><h3>⚠️ divergências (${d.divergencias.length})</h3>`;
+  if (d.divergencias.length === 0) {
+    html += `<div class="recon-empty">tudo bateu com o sistema 🎯</div>`;
+  } else {
+    d.divergencias.forEach(x => {
+      const sobrou = x.diff > 0;
+      const tag = sobrou ? `<span class="diverg-sobrou">SOBROU +${x.diff}</span>` : `<span class="diverg-faltou">FALTOU ${x.diff}</span>`;
+      const resv = x.reservado ? ` ✦ ${x.reservado} reservado` : '';
+      html += `
+        <div class="recon-line">
+          <div class="r-name">${_esc(x.nome)}<small>sistema ${x.sistema} → contei ${x.contado}${resv}</small></div>
+          <div style="text-align:right">${tag}<div style="font-size:11px;color:var(--fg-dim)">${_r$(x.valor_cents)}</div></div>
+        </div>`;
+    });
+    if (d.perda_total_cents > 0) {
+      html += `<div class="recon-line" style="border-top:1px solid var(--border);margin-top:4px"><div class="r-name" style="color:var(--red);font-weight:700">💸 perda estimada nas faltas</div><div class="diverg-faltou">${_r$(d.perda_total_cents)}</div></div>`;
+    }
   }
+  html += `</div>`;
+
+  // BLOCO 3 — achados
+  html += `<div class="recon-block"><h3>🆕 achados (${d.achados.length})</h3>`;
+  if (d.achados.length === 0) {
+    html += `<div class="recon-empty">nenhum código novo</div>`;
+  } else {
+    html += `<div class="recon-empty">vão ser cadastrados (ocultos até completar marca/preço):</div>`;
+    d.achados.forEach(a => {
+      html += `<div class="recon-line"><div class="r-name">código ${_esc(a.barcode)}</div><div style="color:var(--orange);font-weight:700">${a.qty}x</div></div>`;
+    });
+  }
+  html += `</div>`;
+
+  // BLOCO 4 — perda/defeito (situação 6)
+  html += `<div class="recon-block"><h3>⚠️ perda/defeito (${perdas.length})</h3>`;
+  if (perdas.length === 0) {
+    html += `<div class="recon-empty">nenhuma perda lançada</div>`;
+  } else {
+    html += `<div class="recon-empty">vão pro registro de perdas (${perdaUn} un — não contam como vendável):</div>`;
+    perdas.forEach(p => {
+      html += `<div class="recon-line"><div class="r-name">${_esc(p.name)}<small>${_esc(p.motivo)}</small></div><div style="color:var(--yellow);font-weight:700">${p.qty}x</div></div>`;
+    });
+  }
+  html += `</div>`;
+
+  // BLOCO 5 — esconder não-escaneados (DESTRUTIVO — situação 4)
+  const ne = d.nao_escaneados || [];
+  html += `<div class="recon-block ${ne.length ? 'esconder-warn' : ''}"><h3>🙈 não escaneados (${ne.length})</h3>`;
+  if (ne.length === 0) {
+    html += `<div class="recon-empty">todo produto com estoque foi conferido 👏</div>`;
+  } else {
+    html += `<div class="recon-empty">${ne.length} produtos visíveis (${d.nao_escaneados_un} un no sistema) que ninguém contou. Se esconder, somem do app pro cliente e zeram.</div>`;
+    html += `<label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--red)">
+      <input type="checkbox" id="chk-esconder" onchange="ESCONDER_ON=this.checked" style="width:20px;height:20px;accent-color:var(--red)">
+      esconder e zerar esses ${ne.length} do app
+    </label>`;
+    html += `<button onclick="toggleEsconderLista()" style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--fg-dim);padding:8px;border-radius:8px;font-size:12px;cursor:pointer;width:100%">ver lista (${ne.length})</button>`;
+    html += `<div id="esconder-list" class="esconder-list" style="display:none">`;
+    ne.forEach(p => {
+      html += `<div class="recon-line"><div class="r-name">${_esc(p.nome)}</div><div style="color:var(--fg-dim)">sist: ${p.qty_available}</div></div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  body.innerHTML = html;
+}
+
+function toggleEsconderLista() {
+  const el = document.getElementById('esconder-list');
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+async function confirmarEGravar() {
+  if (!RECON) return;
+  const t = await getToken();
+  if (!t) { showToast('precisa do admin token', 'err'); return; }
+  const ne = RECON.nao_escaneados || [];
+  const esconderQtd = ESCONDER_ON ? ne.length : 0;
+  let msg = 'Confirmar e GRAVAR no estoque real?';
+  if (esconderQtd) msg += `\n\n⚠️ ${esconderQtd} produtos NÃO escaneados vão ser ZERADOS e ESCONDIDOS do app.`;
+  if (!confirm(msg)) return;
+
+  const btn = document.getElementById('btn-gravar');
+  if (btn) { btn.textContent = 'gravando…'; btn.disabled = true; }
+  const counts = Object.values(state.counts);
+  const perdas = Object.values(state.perdas);
+  const achados = Object.entries(state.unknown).map(([bc, q]) => ({ barcode: bc, qty: q }));
   try {
-    const r = await fetch('/api/webhook?action=balanco_finalize', {
+    const r = await fetch('/api/webhook?action=balanco_commit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': t },
       body: JSON.stringify({
         started_at: new Date(state.startedAt).toISOString(),
         created_by: STAFF_NAME || 'sem nome',
-        counts: counts.map(c => ({
-          product_id: c.id,
-          barcode: c.barcode,
-          qty_system: c.qty_system,
-          qty_counted: c.qty_counted,
-        })),
-        unknown: state.unknown,
+        contados: counts.map(c => ({ product_id: c.id, qty: c.qty_counted })),
+        esconder: ESCONDER_ON ? ne.map(p => p.id) : [],
+        perdas: perdas.map(p => ({ product_id: p.product_id, qty: p.qty, motivo: p.motivo, barcode: p.barcode, name: p.name })),
+        achados,
       }),
     });
     const data = await r.json();
     if (data && data.ok) {
-      showToast('✦ balanço salvo ✦', 'ok');
-      setTimeout(() => {
-        localStorage.removeItem(STORAGE_KEY);
-        location.href = '/balanco.html';
-      }, 1500);
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      mostrarSucesso(data);
     } else {
-      showToast('erro ao salvar: ' + (data.error || 'desconhecido'), 'err');
+      showToast('erro ao gravar: ' + ((data && data.error) || r.status), 'err');
+      if (btn) { btn.textContent = '✅ confirmar e gravar'; btn.disabled = false; }
     }
   } catch (e) {
     showToast('erro de rede: ' + e.message, 'err');
+    if (btn) { btn.textContent = '✅ confirmar e gravar'; btn.disabled = false; }
   }
+}
+
+function mostrarSucesso(d) {
+  document.getElementById('recon-bottom').style.display = 'none';
+  document.getElementById('recon-body').style.display = 'none';
+  const done = document.getElementById('recon-done');
+  done.style.display = '';
+  done.innerHTML = `
+    <div class="recon-block" style="border-color:var(--green);text-align:center">
+      <div style="font-size:42px;margin-bottom:6px">✅</div>
+      <h3 style="justify-content:center;color:var(--green)">balanço gravado no estoque</h3>
+      <div class="recon-line"><div class="r-name">vendável</div><div style="color:var(--green);font-weight:700">${d.vendavel_un} un / ${d.vendavel_skus} sabores</div></div>
+      <div class="recon-line"><div class="r-name">divergências</div><div style="font-weight:700">${d.divergencias.length}</div></div>
+      <div class="recon-line"><div class="r-name">perda nas faltas</div><div class="diverg-faltou">${_r$(d.perda_total_cents)}</div></div>
+      <div class="recon-line"><div class="r-name">achados criados</div><div style="font-weight:700">${d.achados_count}</div></div>
+      <div class="recon-line"><div class="r-name">perdas/defeito</div><div style="font-weight:700">${d.perdas_count}</div></div>
+      <div class="recon-line"><div class="r-name">escondidos</div><div style="font-weight:700">${d.escondidos}</div></div>
+    </div>
+    <div style="text-align:center;color:var(--fg-dim);font-size:12px;margin-bottom:14px">📲 resumo enviado pro Andrade no WhatsApp</div>
+    <button class="btn btn-primary" style="width:100%" onclick="location.href='/balanco.html'">novo balanço</button>
+  `;
 }
 
 // ============ NAVEGAÇÃO ============

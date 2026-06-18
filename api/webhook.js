@@ -4996,6 +4996,317 @@ async function handleBalancoFinalize(req, res) {
   }
 }
 
+// ============ BALANÇO — RECONCILIAÇÃO + COMMIT (OSSO 35) ============
+// Diferença pra "receber": balanço CONTA E CRAVA (qty = total contado na sessão),
+// não soma. O commit lê o estoque ANTES de gravar pra calcular divergência real.
+
+// Soma reservada por slug em pedidos abertos (situação 9 do OSSO 35).
+// qty_available no banco JÁ é líquido de reservas (drope_consume_stock decrementa
+// na criação do pedido), mas as unidades reservadas ainda estão FISICAMENTE na
+// prateleira — então o Andrade vai contá-las. Logo: disponível = contado − reservado.
+async function balancoReservedBySlug() {
+  const map = {};
+  try {
+    // Pedidos abertos = mercadoria prometida mas ainda na loja.
+    const orders = await sbGet('drope_orders',
+      'status=in.(created,waiting_proof,pending_pickup)&select=items&limit=3000');
+    for (const o of (orders || [])) {
+      let items = o && o.items;
+      if (typeof items === 'string') { try { items = JSON.parse(items); } catch (_) { items = []; } }
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        const slug = it && (it.slug || it.product_slug);
+        const q = parseInt(it && (it.qty != null ? it.qty : it.quantity)) || 0;
+        if (slug && q > 0) map[slug] = (map[slug] || 0) + q;
+      }
+    }
+  } catch (e) {
+    console.warn('[balanco] reserved calc fail:', e.message);
+  }
+  return map;
+}
+
+const BALANCO_MOTIVOS = ['defeito', 'vencido', 'quebrado', 'devolucao', 'amostra', 'outro'];
+
+// POST /api/webhook?action=balanco_preview (x-admin-token)
+// READ-ONLY: monta a tela de reconciliação SEM tocar no banco. Lê o estoque atual,
+// calcula divergências (com R$), reservas, vendável, lista de NÃO-ESCANEADOS (que
+// seriam escondidos) e achados. O frontend usa isso pra mostrar antes de confirmar.
+// Body: { counts: [{product_id, qty_counted}], unknown: {barcode: qty}, perdas: [{product_id}] }
+async function handleBalancoPreview(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const counts = Array.isArray(body.counts) ? body.counts : [];
+    const unknown = (body.unknown && typeof body.unknown === 'object') ? body.unknown : {};
+    const perdas = Array.isArray(body.perdas) ? body.perdas : [];
+
+    const countedIds = [...new Set(counts.map(c => parseInt(c.product_id)).filter(Boolean))];
+    const perdaIds = [...new Set(perdas.map(p => parseInt(p.product_id)).filter(Boolean))];
+    const skipIds = new Set([...countedIds, ...perdaIds]);
+
+    const reservedMap = await balancoReservedBySlug();
+
+    // Lê o estoque atual dos produtos contados (autoritativo).
+    const byId = {};
+    if (countedIds.length) {
+      const rows = await sbGet('drope_products',
+        `id=in.(${countedIds.join(',')})&select=id,slug,name,qty_available,price_cents,hidden,barcode`);
+      for (const r of (rows || [])) byId[r.id] = r;
+    }
+
+    const divergencias = [];
+    let vendavel_un = 0, vendavel_skus = 0, perda_total_cents = 0;
+    for (const c of counts) {
+      const p = byId[parseInt(c.product_id)];
+      if (!p) continue;
+      const atual = p.qty_available || 0;
+      const reservado = reservedMap[p.slug] || 0;
+      const sistema = atual + reservado;             // físico esperado na prateleira
+      const contado = parseInt(c.qty_counted) || 0;
+      const diff = contado - sistema;
+      const novo = Math.max(0, contado - reservado); // vendável (não vende o que é de cliente)
+      const price = p.price_cents || 0;
+      vendavel_un += novo;
+      if (contado > 0) vendavel_skus++;
+      if (diff !== 0) {
+        divergencias.push({ product_id: p.id, slug: p.slug, nome: p.name, sistema, contado, diff, reservado, valor_cents: Math.abs(diff) * price });
+        if (diff < 0) perda_total_cents += Math.abs(diff) * price;
+      }
+    }
+    divergencias.sort((a, b) => b.valor_cents - a.valor_cents);
+
+    // NÃO-ESCANEADOS: produtos visíveis com estoque que ninguém contou (situação 4).
+    const visiveis = await sbGet('drope_products',
+      'hidden=eq.false&qty_available=gt.0&select=id,slug,name,qty_available&order=name&limit=2000');
+    const nao_escaneados = [];
+    let nao_escaneados_un = 0;
+    for (const p of (visiveis || [])) {
+      if (skipIds.has(p.id)) continue;
+      nao_escaneados.push({ id: p.id, slug: p.slug, nome: p.name, qty_available: p.qty_available || 0 });
+      nao_escaneados_un += (p.qty_available || 0);
+    }
+
+    const achados = Object.entries(unknown)
+      .map(([barcode, qty]) => ({ barcode, qty: parseInt(qty) || 0 }))
+      .filter(a => a.qty > 0);
+
+    return res.status(200).json({
+      ok: true,
+      vendavel_un, vendavel_skus,
+      divergencias, perda_total_cents,
+      nao_escaneados, nao_escaneados_un,
+      achados,
+    });
+  } catch (err) {
+    console.error('[balanco_preview] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// POST /api/webhook?action=balanco_commit (x-admin-token)
+// GRAVA: seta qty absoluto (= contado − reservado), esconde não-escaneados confirmados,
+// lança perdas, cria achados e salva o balanço em drope_balancos + avisa o Andrade.
+// Body: {
+//   started_at, created_by,
+//   contados: [{product_id, qty}],          // SET absoluto
+//   esconder: [product_id, ...],            // qty=0 + hidden=true (subset confirmado pelo user)
+//   perdas:   [{product_id, qty, motivo, barcode, name, slug}],
+//   achados:  [{barcode, qty, brand, model, flavor, price_cents}]
+// }
+async function handleBalancoCommit(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const startedAt = body.started_at || new Date().toISOString();
+    const createdBy = (body.created_by || 'sem nome').toString().slice(0, 100);
+    const contados = Array.isArray(body.contados) ? body.contados : [];
+    const esconder = Array.isArray(body.esconder) ? [...new Set(body.esconder.map(x => parseInt(x)).filter(Boolean))] : [];
+    const perdas = Array.isArray(body.perdas) ? body.perdas : [];
+    const achados = Array.isArray(body.achados) ? body.achados : [];
+
+    const reservedMap = await balancoReservedBySlug();
+
+    // Lê o estoque ANTES de gravar (divergência autoritativa).
+    const allIds = [...new Set([
+      ...contados.map(c => parseInt(c.product_id)).filter(Boolean),
+      ...esconder,
+      ...perdas.map(p => parseInt(p.product_id)).filter(Boolean),
+    ])];
+    const byId = {};
+    if (allIds.length) {
+      const rows = await sbGet('drope_products',
+        `id=in.(${allIds.join(',')})&select=id,slug,name,qty_available,price_cents,hidden,barcode`);
+      for (const r of (rows || [])) byId[r.id] = r;
+    }
+
+    const divergencias = [];
+    let vendavel_un = 0, vendavel_skus = 0, perda_total_cents = 0;
+    let total_counted = 0, total_system = 0;
+
+    // 1) CONTADOS → set absoluto (= contado − reservado).
+    for (const c of contados) {
+      const p = byId[parseInt(c.product_id)];
+      if (!p) continue;
+      const atual = p.qty_available || 0;
+      const reservado = reservedMap[p.slug] || 0;
+      const sistema = atual + reservado;
+      const contado = Math.max(0, parseInt(c.qty) || 0);
+      const diff = contado - sistema;
+      const novo = Math.max(0, contado - reservado);
+      const price = p.price_cents || 0;
+      total_counted += contado;
+      total_system += sistema;
+      await sbUpdate('drope_products', `id=eq.${p.id}`, { qty_available: novo });
+      vendavel_un += novo;
+      if (contado > 0) vendavel_skus++;
+      if (diff !== 0) {
+        divergencias.push({ product_id: p.id, slug: p.slug, nome: p.name, sistema, contado, diff, reservado, valor_cents: Math.abs(diff) * price });
+        if (diff < 0) perda_total_cents += Math.abs(diff) * price;
+      }
+    }
+
+    // 2) ESCONDER não-escaneados (situação 4) — destrutivo, só o subset confirmado.
+    let escondidos = 0;
+    for (const id of esconder) {
+      const p = byId[id];
+      if (!p) continue;
+      await sbUpdate('drope_products', `id=eq.${id}`, { qty_available: 0, hidden: true });
+      escondidos++;
+    }
+
+    // 3) PERDAS/DEFEITO (situação 6) → drope_perdas, não conta como vendável.
+    let perdas_count = 0;
+    for (const perda of perdas) {
+      const p = byId[parseInt(perda.product_id)];
+      const motivo = BALANCO_MOTIVOS.includes((perda.motivo || '').toLowerCase()) ? perda.motivo.toLowerCase() : 'defeito';
+      const qty = Math.max(1, Math.min(50, parseInt(perda.qty) || 1));
+      const ins = await sbInsert('drope_perdas', {
+        product_id: p ? p.id : null,
+        product_slug: p ? p.slug : (perda.slug || null),
+        product_name: p ? p.name : (perda.name || 'desconhecido'),
+        barcode: p ? p.barcode : (perda.barcode || null),
+        operator: createdBy,
+        motivo,
+        qty,
+      });
+      if (ins) perdas_count++;
+    }
+
+    // 4) ACHADOS (situação 5) → cadastra produto novo (oculto até completar cadastro).
+    let achados_count = 0;
+    for (const a of achados) {
+      const bc = (a.barcode || '').toString().replace(/\D/g, '');
+      const qty = Math.max(1, parseInt(a.qty) || 1);
+      if (!bc || bc.length < 6) continue;
+      const existing = await sbGet('drope_products',
+        `or=(barcode.eq.${encodeURIComponent(bc)},barcodes.cs.{${encodeURIComponent(bc)}})&select=id,qty_available&limit=1`);
+      if (existing && existing[0]) {
+        await sbUpdate('drope_products', `id=eq.${existing[0].id}`, { qty_available: (existing[0].qty_available || 0) + qty });
+        achados_count++;
+        continue;
+      }
+      const brand = (a.brand || '').toString().trim();
+      const model = (a.model || '').toString().trim();
+      const flavor = (a.flavor || '').toString().trim();
+      const nameParts = `${brand} ${model} ${flavor}`.replace(/\s+/g, ' ').trim();
+      const name = nameParts || `Achado ${bc}`;
+      const priceCents = Math.max(0, parseInt(a.price_cents) || 0);
+      const ins = await sbInsert('drope_products', {
+        name,
+        slug: `achado-${bc}`,
+        category: 'pod',
+        barcode: bc,
+        barcodes: [bc],
+        qty_available: qty,
+        price_cents: priceCents,
+        hidden: priceCents === 0,        // sem preço → fica oculto até completar cadastro
+        created_via: 'pdv',              // origem: operação física de balcão (valor aceito pela constraint)
+        image_status: 'pending_pod_photo',
+        art_status: 'needs_manual_photo',
+      });
+      if (ins) achados_count++;
+    }
+
+    const diff_total = total_counted - total_system;
+
+    // 5) Salva o balanço (auditoria). Tenta com as colunas ricas (migration osso35);
+    // se elas ainda não existirem, faz fallback só com as colunas base — assim o
+    // commit nunca deixa estado parcial (estoque mexido mas registro perdido).
+    const baseRow = {
+      started_at: startedAt,
+      finalized_at: new Date().toISOString(),
+      total_counted, total_system, diff_total,
+      unknown_count: achados.length,
+      counts: contados,
+      unknown: achados.reduce((o, a) => { o[a.barcode] = a.qty; return o; }, {}),
+      created_by: createdBy,
+    };
+    let inserted = await sbInsert('drope_balancos', {
+      ...baseRow,
+      vendavel_un, vendavel_skus,
+      divergencias, perda_total_cents,
+      escondidos, perdas_count, achados_count,
+      committed: true,
+      raw: body,
+    });
+    if (!inserted) {
+      console.warn('[balanco_commit] insert rico falhou (migration osso35 pendente?), fallback base:', sbInsert._lastError);
+      inserted = await sbInsert('drope_balancos', baseRow);
+    }
+
+    // 6) Avisa o Andrade no WhatsApp.
+    try {
+      if (typeof sendText === 'function' && ADMIN_LUCAS) {
+        const r$ = (c) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
+        const top = divergencias.slice(0, 6).map(d =>
+          `   ${d.diff > 0 ? 'SOBROU +' + d.diff : 'FALTOU ' + d.diff}  ${d.nome} (sist ${d.sistema} → contei ${d.contado})`);
+        const lines = [
+          `🧮 *BALANÇO RECONCILIADO* ✦`, ``,
+          `👤 por: *${createdBy}*`,
+          `✅ vendável: *${vendavel_un} un* em ${vendavel_skus} sabores`,
+          `⚠️ divergências: *${divergencias.length}*`,
+          ...(top.length ? top : []),
+          divergencias.length > 6 ? `   …e mais ${divergencias.length - 6}` : '',
+          perda_total_cents > 0 ? `💸 perda estimada nas faltas: *${r$(perda_total_cents)}*` : '',
+          `🆕 achados criados: ${achados_count}`,
+          `⚠️ perdas/defeito: ${perdas_count}`,
+          `🙈 escondidos (não escaneados): ${escondidos}`,
+        ].filter(Boolean);
+        await sendText(ADMIN_LUCAS, lines.join('\n'));
+      }
+    } catch (e) { console.warn('[balanco_commit] whats err:', e.message); }
+
+    return res.status(200).json({
+      ok: true,
+      balanco_id: inserted ? inserted.id : null,
+      vendavel_un, vendavel_skus,
+      divergencias, perda_total_cents,
+      escondidos, perdas_count, achados_count,
+      diff_total,
+    });
+  } catch (err) {
+    console.error('[balanco_commit] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 // COLLECT EAN CANDIDATES (08/05/2026) — cascade OFF + UPCitemDB + Serper pra UM produto
 // Reusa logica do handler auto_search_ean. Retorna array de candidatos { ean, source, confidence }.
 async function _collectEanCandidates(brand, model, flavor) {
@@ -17154,9 +17465,19 @@ async function generateAll(){
     return await handleEanLookup(req, res);
   }
 
-  // action=balanco_finalize — POST: salva contagem em drope_balancos
+  // action=balanco_finalize — POST: salva contagem em drope_balancos (legado, só histórico)
   if (req.url && req.url.indexOf('action=balanco_finalize') >= 0) {
     return await handleBalancoFinalize(req, res);
+  }
+
+  // action=balanco_preview — POST: monta a reconciliação SEM gravar (read-only)
+  if (req.url && req.url.indexOf('action=balanco_preview') >= 0) {
+    return await handleBalancoPreview(req, res);
+  }
+
+  // action=balanco_commit — POST: crava estoque, esconde, perdas, achados + WhatsApp
+  if (req.url && req.url.indexOf('action=balanco_commit') >= 0) {
+    return await handleBalancoCommit(req, res);
   }
 
   // action=dashboard_data — GET: stats live pro dashboard desktop do Andrade
