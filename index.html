@@ -3182,6 +3182,21 @@
   .adm-item > span { font-size: 14px; font-weight: 700; text-transform: lowercase; }
   .adm-item > small { font-size: 11px; color: var(--text-dim); text-transform: lowercase; line-height: 1.25; }
 
+  /* Dashboard colapsável (resumo do dia) */
+  .adm-dash-wrap { padding: 4px 20px 0; }
+  .adm-dash-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 13px 16px; cursor: pointer; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .adm-dash-toggle .adm-chev { width: 18px; height: 18px; color: var(--text-dim); transition: transform .2s; flex-shrink: 0; }
+  .adm-dash-wrap.collapsed .adm-chev { transform: rotate(-90deg); }
+  .adm-dash-body { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+  .adm-dash-wrap.collapsed .adm-dash-body { display: none; }
+  .adm-dash-body .dash-chart-card, .adm-dash-body .dash-top-card { margin-left: 0; margin-right: 0; }
+  .adm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .adm-stat { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 13px 14px; cursor: pointer; }
+  .adm-stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: lowercase; margin-bottom: 6px; line-height: 1.2; }
+  .adm-stat .val { font-size: 22px; font-weight: 800; font-family: 'Space Grotesk'; }
+  .adm-stat .val.violet { color: var(--violet); }
+  .adm-stat .val.lime { color: var(--lime); }
+
   /* ===== PDV (venda presencial) ===== */
   .pos-search-wrap { position: relative; padding: 8px 20px 12px; }
   .pos-search-ic { position: absolute; left: 32px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; fill: none; stroke: var(--text-dim); stroke-width: 2; }
@@ -3496,30 +3511,22 @@
       margin: 0 auto;
     }
 
-    /* 4-col grid for dashboard cards */
-    body.admin-mode #admin-dash .admin-grid {
-      grid-template-columns: repeat(4, 1fr);
-      max-width: 1000px;
+    /* Dashboard novo (resumo colapsável) — layout desktop */
+    body.admin-mode #admin-dash #adm-lowstock-wrap { max-width: 1000px; margin-left: auto; margin-right: auto; }
+    /* gráfico e top drops lado a lado; KPIs ocupam a linha toda */
+    body.admin-mode #admin-dash .adm-dash-wrap:not(.collapsed) .adm-dash-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: stretch;
     }
-    body.admin-mode #admin-dash .admin-card.wide {
-      grid-column: span 2;
-    }
+    body.admin-mode #admin-dash .adm-stats { grid-column: 1 / -1; }
     body.admin-mode #admin-dash .dash-chart-card,
-    body.admin-mode #admin-dash .dash-top-card,
-    body.admin-mode #admin-dash #adm-lowstock-wrap {
-      max-width: 1000px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    body.admin-mode #admin-dash .dcc-chart {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-    body.admin-mode #admin-dash .dcc-labels {
-      max-width: 900px;
-      margin-left: auto;
-      margin-right: auto;
-    }
+    body.admin-mode #admin-dash .dash-top-card { max-width: none; margin: 0; }
+    body.admin-mode #admin-dash .dcc-chart,
+    body.admin-mode #admin-dash .dcc-labels { max-width: none; margin: 0; }
+    /* menu de ações em 3 colunas no desktop */
+    body.admin-mode #admin-dash .adm-menu { grid-template-columns: repeat(3, 1fr); }
 
     /* Wider POS grid on big screen */
     body.admin-mode #admin-pos .pos-grid {
@@ -4427,41 +4434,45 @@
       </div>
     </div>
 
-    <div class="admin-grid">
-      <div class="admin-card wide" onclick="openAdminOrders('waiting')">
-        <div class="lbl">aguardando comprovante</div>
-        <div class="val pink" id="adm-waiting">0</div>
-      </div>
-      <div class="admin-card" onclick="openAdminOrders('way')">
-        <div class="lbl">saiu pra entrega</div>
-        <div class="val violet" id="adm-way">0</div>
-      </div>
-      <div class="admin-card" onclick="openAdminOrders('done')">
-        <div class="lbl">entregues hoje</div>
-        <div class="val lime" id="adm-done">0</div>
-      </div>
-      <div class="admin-card wide">
-        <div class="lbl">vendas hoje</div>
-        <div class="val small" id="adm-sales">r$ 0</div>
-      </div>
-    </div>
-
     <div id="adm-lowstock-wrap" style="padding: 0 20px 10px"></div>
 
-    <div class="dash-chart-card">
-      <div class="dcc-head">
-        <div class="dcc-title">vendas ✦ últimos 7 dias</div>
-        <div class="dcc-total" id="dcc-week-total">r$ 0</div>
-      </div>
-      <div class="dcc-chart" id="dcc-chart"></div>
-      <div class="dcc-labels" id="dcc-labels"></div>
-    </div>
+    <div class="adm-dash-wrap collapsed" id="adm-dash-wrap">
+      <button class="adm-dash-toggle" onclick="toggleAdminDash()" aria-expanded="false">
+        <span>📊 resumo do dia</span>
+        <svg class="adm-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="adm-dash-body" id="adm-dash-body">
+        <div class="adm-stats">
+          <div class="adm-stat" onclick="openAdminOrders('way')">
+            <div class="lbl">saiu pra entrega</div>
+            <div class="val violet" id="adm-way">0</div>
+          </div>
+          <div class="adm-stat" onclick="openAdminOrders('done')">
+            <div class="lbl">entregues hoje</div>
+            <div class="val lime" id="adm-done">0</div>
+          </div>
+          <div class="adm-stat">
+            <div class="lbl">vendas hoje</div>
+            <div class="val" id="adm-sales">r$ 0</div>
+          </div>
+        </div>
 
-    <div class="dash-top-card">
-      <div class="dtc-head">
-        <div class="dtc-title">top drops ✦ mais vendidos</div>
+        <div class="dash-chart-card">
+          <div class="dcc-head">
+            <div class="dcc-title">vendas ✦ últimos 7 dias</div>
+            <div class="dcc-total" id="dcc-week-total">r$ 0</div>
+          </div>
+          <div class="dcc-chart" id="dcc-chart"></div>
+          <div class="dcc-labels" id="dcc-labels"></div>
+        </div>
+
+        <div class="dash-top-card">
+          <div class="dtc-head">
+            <div class="dtc-title">top drops ✦ mais vendidos</div>
+          </div>
+          <div class="dtc-list" id="dtc-list"></div>
+        </div>
       </div>
-      <div class="dtc-list" id="dtc-list"></div>
     </div>
 
     <div class="adm-actions">
@@ -5820,7 +5831,11 @@
   function _splashSkip() {
     let confirmed = false;
     try { confirmed = localStorage.getItem('drope_age_confirmed') === '1'; } catch(e) {}
-    if (window.location.hash === '#admin') { go('admin-login'); return; }
+    if (window.location.hash === '#admin') {
+      go(_isAdmin() ? 'admin-dash' : 'admin-login');
+      if (_isAdmin() && typeof renderAdminDash === 'function') { try { renderAdminDash(); } catch(e) {} }
+      return;
+    }
     go(confirmed ? 'home' : 'onboard');
   }
   // Efeito camaleão: dispara a camuflagem do logo pouco antes de trocar de tela
@@ -5913,6 +5928,8 @@
     configurable: false
   });
   const _adminSig = Symbol('drope-admin');
+  // Login admin fica salvo entre reloads (portão cosmético; ações reais usam ADMIN_TOKEN).
+  try { if (localStorage.getItem('drope_admin_authed') === '1') _adminToken.v = _adminSig; } catch(e) {}
   let currentAdminOrder = null;
 
   function _isAdmin() { return _adminToken.v === _adminSig; }
@@ -5936,6 +5953,7 @@
     const hash = await sha256(pw);
     if (hash === ADMIN_HASH) {
       _adminToken.v = _adminSig;
+      try { localStorage.setItem('drope_admin_authed', '1'); } catch(e) {}
       document.getElementById('admin-pw').value = '';
       go('admin-dash');
       renderAdminDash();
@@ -5947,8 +5965,17 @@
 
   function adminLogout() {
     _adminToken.v = null;
+    try { localStorage.removeItem('drope_admin_authed'); } catch(e) {}
     location.hash = '';
     go('home');
+  }
+
+  function toggleAdminDash() {
+    const w = document.getElementById('adm-dash-wrap');
+    if (!w) return;
+    const collapsed = w.classList.toggle('collapsed');
+    const t = w.querySelector('.adm-dash-toggle');
+    if (t) t.setAttribute('aria-expanded', String(!collapsed));
   }
 
   function renderAdminDash() {
@@ -5961,10 +5988,9 @@
     const way = orders.filter(o => o.statusCls === 'way' || o.statusCls === 'separating' || o.statusCls === 'ready').length;
     const doneToday = todayOrders.filter(o => o.statusCls === 'done').length;
     const salesToday = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
-    document.getElementById('adm-waiting').textContent = waiting;
-    document.getElementById('adm-way').textContent = way;
-    document.getElementById('adm-done').textContent = doneToday;
-    document.getElementById('adm-sales').textContent = `r$ ${salesToday}`;
+    const wayEl = document.getElementById('adm-way'); if (wayEl) wayEl.textContent = way;
+    const doneEl = document.getElementById('adm-done'); if (doneEl) doneEl.textContent = doneToday;
+    const salesEl = document.getElementById('adm-sales'); if (salesEl) salesEl.textContent = money(salesToday);
 
     // ===== 7-day sales chart =====
     const days = [];
