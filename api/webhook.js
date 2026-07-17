@@ -14107,12 +14107,10 @@ async function handleInfinitePayCheckout(req, res) {
     if (response.ok && data.url) {
       return res.status(200).json({ url: data.url, id: data.id || data.invoice_slug });
     }
-    if (handle && total) {
-      const fallbackUrl = `https://infinitepay.io/${handle}?amount=${total}`;
-      console.log('[InfinitePay] usando fallback URL:', fallbackUrl);
-      return res.status(200).json({ url: fallbackUrl, fallback: true });
-    }
-    return res.status(502).json({ error: 'infinitepay error', details: data });
+    // Sem fallback quebrado: a URL antiga (infinitepay.io/handle?amount=) dava 404.
+    // Se a API nao retornou url, devolve erro claro — o frontend mostra "tenta de novo".
+    console.error('[InfinitePay] API sem url:', response.status, JSON.stringify(data).substring(0, 200));
+    return res.status(502).json({ error: 'infinitepay_no_url', details: data });
   } catch (err) {
     console.error('[InfinitePay] ERROR:', err.message);
     return res.status(500).json({ error: err.message });
