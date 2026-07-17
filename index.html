@@ -1686,6 +1686,7 @@
   .co-coupon-msg { font-size: 12px; margin-top: 8px; min-height: 14px; }
   .co-coupon-msg.ok { color: var(--lime); }
   .co-coupon-msg.err { color: var(--pink); }
+  .coupon-remove { color: var(--pink); text-decoration: underline; cursor: pointer; margin-left: 10px; font-weight: 700; }
 
   .steps-bar {
     display: flex; align-items: center; gap: 8px;
@@ -5634,6 +5635,26 @@
     }
   }
 
+  // Mostra o cupom aplicado + link "✕ remover" (ou limpa a msg se não há cupom)
+  function _syncCouponMsg(msgId) {
+    const msg = document.getElementById(msgId);
+    if (!msg) return;
+    if (!appliedCoupon) { msg.className = 'co-coupon-msg'; msg.innerHTML = ''; return; }
+    msg.className = 'co-coupon-msg ok';
+    const label = appliedCoupon.isTest
+      ? '🧪 MODO TESTE ATIVO — total zerado'
+      : `cupom ${appliedCoupon.code} ✦ -${money(appliedCoupon.discount)}`;
+    msg.innerHTML = `${label} <span class="coupon-remove" onclick="removeCoupon()">✕ remover</span>`;
+  }
+  function removeCoupon() {
+    appliedCoupon = null;
+    const ci = document.getElementById('cart-coupon-input'); if (ci) ci.value = '';
+    const oi = document.getElementById('co-coupon-input'); if (oi) oi.value = '';
+    if (typeof renderCart === 'function') { try { renderCart(); } catch (e) {} }
+    if (typeof renderCheckout === 'function') { try { renderCheckout(); } catch (e) {} }
+    toast('cupom removido ✦');
+  }
+
   function applyCoupon() {
     const inp = document.getElementById('co-coupon-input');
     const msg = document.getElementById('co-coupon-msg');
@@ -5644,8 +5665,7 @@
     // FRICÇÃO #009 (Andrade): cupom isTest bypassa validação de pedido mínimo
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
     appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
-    msg.className = 'co-coupon-msg ok';
-    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -${money(c.discount)}`;
+    _syncCouponMsg('co-coupon-msg');
     renderCheckout();
     toast('cupom aplicado ✦');
   }
@@ -8523,8 +8543,7 @@
     // FRICÇÃO #009: cupom isTest bypassa validação de pedido mínimo
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
     appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
-    msg.className = 'co-coupon-msg ok';
-    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -${money(c.discount)}`;
+    _syncCouponMsg('cart-coupon-msg');
     toast(c.isTest ? '🧪 modo teste ativo' : 'cupom aplicado ✦');
     renderCart();
   }
@@ -8533,6 +8552,11 @@
     // FRICÇÃO #009: mostra/esconde banner MODO TESTE
     const banner = document.getElementById('test-mode-banner');
     if (banner) banner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+    if (appliedCoupon) {
+      const w = document.getElementById('co-coupon-wrap'); if (w) w.style.display = 'block';
+      const t = document.getElementById('co-coupon-toggle'); if (t) t.classList.add('open');
+    }
+    _syncCouponMsg('co-coupon-msg');
 
     // Andrade 04/06: cota taxa de entrega do endereço selecionado se ainda não tem
     if (deliveryMode === 'delivery') {
@@ -9784,6 +9808,12 @@
     // Sync cupom visual no carrinho
     const cartCouponArea = document.getElementById('cart-coupon-area');
     if (cartCouponArea) cartCouponArea.style.display = cart.length > 0 ? 'block' : 'none';
+    // Cupom aplicado: abre o box e mostra o "remover"
+    if (appliedCoupon) {
+      const w = document.getElementById('cart-coupon-wrap'); if (w) w.style.display = 'block';
+      const t = document.getElementById('cart-coupon-toggle'); if (t) t.classList.add('open');
+    }
+    _syncCouponMsg('cart-coupon-msg');
   }
 
   function cartQty(idx, delta) {
