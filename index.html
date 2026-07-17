@@ -5399,6 +5399,7 @@
     // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
     // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
     { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
+    { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: '🛵 frete grátis ✦ entrega por nossa conta', active: true },
   ];
   let appliedCoupon = null;
   function saveCoupons() {
@@ -5415,6 +5416,7 @@
       { code: 'DROPE10', discount: 10, desc: 'r$ 10 off ✦ boas-vindas', active: true },
       { code: 'HYPE20', discount: 20, desc: 'r$ 20 off ✦ pedido de honra', active: true },
       { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
+      { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: '🛵 frete grátis ✦ entrega por nossa conta', active: true },
     ];
     BUILT_IN.forEach(bc => {
       if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
@@ -5556,7 +5558,12 @@
       const customer = {};
       if (profile.name) customer.name = profile.name;
       if (profile.email) customer.email = profile.email;
-      if (profile.phone) customer.phone_number = '+55' + profile.phone.replace(/[^0-9]/g, '');
+      if (profile.phone) {
+        // BUGFIX: profile.phone já inclui o 55 nos dígitos → não prefixar '+55' de novo
+        // (gerava +55 duplicado → InfinitePay recusava "not a valid phone number").
+        const _d = profile.phone.replace(/[^0-9]/g, '');
+        customer.phone_number = '+' + (_d.startsWith('55') ? _d : '55' + _d);
+      }
 
       // FIX 04/06 (Andrade #008): rota /api/infinitepay-checkout tava dando 404
       // porque o vercel.json `routes` não rotava como esperado. Chamando direto
@@ -5572,9 +5579,7 @@
       // Salva o pedido como PENDENTE antes de pagar (infinitepay → status 'created').
       // Reserva estoque atômico; o cron de expiração libera se não for pago.
       const addr = getSelectedAddress();
-      const dQuote = window._deliveryQuote;
-      const deliveryFeeCents = (deliveryMode === 'delivery' && dQuote && dQuote.ok && !dQuote.out_of_range) ? dQuote.fee_cents : 0;
-      const deliveryFeeReais = (deliveryFeeCents || 0) / 100;
+      const deliveryFeeReais = deliveryFee(); // reais; já considera cupom frete grátis
       try {
         const saveResp = await fetch('/api/save-order', {
           method: 'POST',
@@ -5643,7 +5648,9 @@
     msg.className = 'co-coupon-msg ok';
     const label = appliedCoupon.isTest
       ? '🧪 MODO TESTE ATIVO — total zerado'
-      : `cupom ${appliedCoupon.code} ✦ -${money(appliedCoupon.discount)}`;
+      : appliedCoupon.freeShipping
+        ? `cupom ${appliedCoupon.code} ✦ 🛵 frete grátis`
+        : `cupom ${appliedCoupon.code} ✦ -${money(appliedCoupon.discount)}`;
     msg.innerHTML = `${label} <span class="coupon-remove" onclick="removeCoupon()">✕ remover</span>`;
   }
   function removeCoupon() {
@@ -5664,7 +5671,7 @@
     if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCheckout(); return; }
     // FRICÇÃO #009 (Andrade): cupom isTest bypassa validação de pedido mínimo
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
+    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest, freeShipping: !!c.freeShipping };
     _syncCouponMsg('co-coupon-msg');
     renderCheckout();
     toast('cupom aplicado ✦');
@@ -8364,6 +8371,7 @@
   // Armazenada em window._deliveryQuote por fetchDeliveryQuote().
   function deliveryFee() {
     if (deliveryMode !== 'delivery') return 0;
+    if (appliedCoupon && appliedCoupon.freeShipping) return 0; // cupom FRETEGRATIS zera o frete
     const q = window._deliveryQuote;
     if (!q || !q.ok || q.out_of_range) return 0;
     return (q.fee_cents || 0) / 100;
@@ -8542,7 +8550,7 @@
     if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCart(); return; }
     // FRICÇÃO #009: cupom isTest bypassa validação de pedido mínimo
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
+    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest, freeShipping: !!c.freeShipping };
     _syncCouponMsg('cart-coupon-msg');
     toast(c.isTest ? '🧪 modo teste ativo' : 'cupom aplicado ✦');
     renderCart();
@@ -8576,18 +8584,24 @@
     const bits = [];
     if (appliedCoupon && appliedCoupon.isTest) {
       bits.push(`🧪 modo teste ativo ✦ total zerado`);
+    } else if (appliedCoupon && appliedCoupon.freeShipping) {
+      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ 🛵 frete grátis`);
     } else if (appliedCoupon) {
       bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -${money(appliedCoupon.discount)}`);
     }
     // Andrade 04/06: mostra taxa de entrega real (calculada via CEP)
     if (deliveryMode === 'delivery') {
-      const q = window._deliveryQuote;
-      if (q && q.ok && !q.out_of_range) {
-        bits.push(`🛵 entrega ${q.fmt} (~${q.km}km)`);
-      } else if (q && q.out_of_range) {
-        bits.push(`🛵 entrega: longe ✦ confirmar`);
+      if (appliedCoupon && appliedCoupon.freeShipping) {
+        bits.push(`🛵 entrega grátis ✦ cupom`);
       } else {
-        bits.push(`🛵 taxa calculada após preencher CEP`);
+        const q = window._deliveryQuote;
+        if (q && q.ok && !q.out_of_range) {
+          bits.push(`🛵 entrega ${q.fmt} (~${q.km}km)`);
+        } else if (q && q.out_of_range) {
+          bits.push(`🛵 entrega: longe ✦ confirmar`);
+        } else {
+          bits.push(`🛵 taxa calculada após preencher CEP`);
+        }
       }
     }
     totalEl.innerHTML = `r$ ${total.toFixed(2).replace('.',',')}${bits.length ? `<div class="co-total-discount">${bits.join(' • ')}</div>` : ''}`;
@@ -8710,7 +8724,7 @@
       recap.innerHTML = `
         <div class="rec-row"><span class="rec-lbl">subtotal</span><span class="rec-val">${money(subtotal)}</span></div>
         ${discount ? `<div class="rec-row"><span class="rec-lbl">cupom</span><span class="rec-val" style="color:var(--lime)">-${money(discount)}</span></div>` : ''}
-        ${fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">${money(fee)}</span></div>` : ''}
+        ${(appliedCoupon && appliedCoupon.freeShipping && deliveryMode === 'delivery') ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val" style="color:var(--lime)">grátis 🛵</span></div>` : (fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">${money(fee)}</span></div>` : '')}
         <div class="rec-row"><span class="rec-lbl">onde</span><span class="rec-val">${where}</span></div>
         <div class="rec-row"><span class="rec-lbl">contato</span><span class="rec-val">${profile.name} ✦ ${profile.phone}</span></div>
       `;
