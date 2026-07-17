@@ -3164,6 +3164,24 @@
   .admin-detail-block .txt { font-size: 15px; color: var(--text); }
   .admin-detail-block .big { font-size: 24px; font-weight: 700; font-family: 'Space Grotesk'; color: var(--pink); }
 
+  /* ===== ADMIN — menu organizado (fricção #012) ===== */
+  .adm-actions { padding: 4px 20px 28px; }
+  .adm-sec-label { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-dim); margin: 24px 4px 10px; }
+  .adm-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .adm-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 14px 13px; border-radius: 16px; border: none; cursor: pointer; text-align: left; color: #000; font-family: inherit; transition: transform .12s; }
+  .adm-tile:active { transform: scale(.97); }
+  .adm-tile .ti { font-size: 22px; line-height: 1.3; }
+  .adm-tile .tt { font-size: 14px; font-weight: 800; text-transform: lowercase; line-height: 1.15; }
+  .adm-tile .ts { font-size: 11px; font-weight: 600; opacity: .68; text-transform: lowercase; }
+  .adm-tile.pink { background: var(--pink); }
+  .adm-tile.lime { background: var(--lime); }
+  .adm-tile.amber { background: #FFB800; }
+  .adm-menu { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .adm-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 13px 15px; border-radius: 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); cursor: pointer; text-align: left; color: var(--text); font-family: inherit; transition: background .15s, border-color .15s; }
+  .adm-item:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,45,111,0.4); }
+  .adm-item > span { font-size: 14px; font-weight: 700; text-transform: lowercase; }
+  .adm-item > small { font-size: 11px; color: var(--text-dim); text-transform: lowercase; line-height: 1.25; }
+
   /* ===== PDV (venda presencial) ===== */
   .pos-search-wrap { position: relative; padding: 8px 20px 12px; }
   .pos-search-ic { position: absolute; left: 32px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; fill: none; stroke: var(--text-dim); stroke-width: 2; }
@@ -4446,21 +4464,40 @@
       <div class="dtc-list" id="dtc-list"></div>
     </div>
 
-    <div style="padding: 20px">
-      <button class="btn-primary" onclick="openPOS()">venda presencial ✦ balcão 💰</button>
-      <button class="btn-primary" onclick="openReceberWithToken()" style="background:var(--lime);color:#000">📦 receber estoque ✦ scanner</button>
-      <button class="btn-primary" onclick="openBalancoWithToken()" style="background:#FFB800;color:#000">📊 fazer balanço ✦ contagem</button>
-      <button class="btn-secondary" onclick="openPendentesPodPhoto()">📸 pendentes de foto do pod</button>
-      <button class="btn-secondary" onclick="openRevisarReferencias()">🖼️ revisar referências (pipeline novo)</button>
-      <button class="btn-secondary" onclick="go('admin-ai')">agente drope ✦ ia 🤖</button>
-      <button class="btn-secondary" onclick="openAdminOrders('all')">ver todos os pedidos</button>
-      <button class="btn-secondary" onclick="go('admin-products')">gerenciar drops</button>
-      <button class="btn-secondary" onclick="openImportDrops()">importar drops ✦ em lote 📦</button>
-      <button class="btn-secondary" onclick="go('admin-coupons')">gerenciar cupons</button>
-      <button class="btn-secondary" onclick="go('admin-customers')">ver clientes ✦ crm</button>
-      <button class="btn-secondary" onclick="go('admin-store')">config da loja</button>
-      <button class="btn-secondary" onclick="exportOrdersCSV()">exportar pedidos (CSV)</button>
-      <button class="btn-secondary" onclick="syncToCloud()" id="btn-sync-cloud">☁️ sincronizar com nuvem</button>
+    <div class="adm-actions">
+      <div class="adm-sec-label">⚡ ações rápidas</div>
+      <div class="adm-quick">
+        <button class="adm-tile pink" onclick="openPOS()"><span class="ti">💰</span><span class="tt">vender no balcão</span><span class="ts">PDV presencial</span></button>
+        <button class="adm-tile lime" onclick="openReceberWithToken()"><span class="ti">📦</span><span class="tt">receber estoque</span><span class="ts">scanner</span></button>
+        <button class="adm-tile amber" onclick="openBalancoWithToken()"><span class="ti">📊</span><span class="tt">fazer balanço</span><span class="ts">contagem</span></button>
+      </div>
+
+      <div class="adm-sec-label">🛒 pedidos</div>
+      <div class="adm-menu">
+        <button class="adm-item" onclick="openAdminOrders('all')"><span>ver todos os pedidos</span><small>lista completa</small></button>
+        <button class="adm-item" onclick="exportOrdersCSV()"><span>exportar pedidos</span><small>planilha CSV</small></button>
+      </div>
+
+      <div class="adm-sec-label">📦 estoque & produtos</div>
+      <div class="adm-menu">
+        <button class="adm-item" onclick="go('admin-products')"><span>gerenciar drops</span><small>preço, estoque, esconder</small></button>
+        <button class="adm-item" onclick="openImportDrops()"><span>importar em lote</span><small>vários drops de uma vez</small></button>
+        <button class="adm-item" onclick="openPendentesPodPhoto()"><span>fotos pendentes</span><small>aprovar foto do pod</small></button>
+        <button class="adm-item" onclick="openRevisarReferencias()"><span>revisar artes</span><small>pipeline de referências</small></button>
+      </div>
+
+      <div class="adm-sec-label">👥 clientes & marketing</div>
+      <div class="adm-menu">
+        <button class="adm-item" onclick="go('admin-customers')"><span>clientes (CRM)</span><small>quem já comprou</small></button>
+        <button class="adm-item" onclick="go('admin-coupons')"><span>cupons</span><small>criar e gerenciar</small></button>
+      </div>
+
+      <div class="adm-sec-label">⚙️ config & ferramentas</div>
+      <div class="adm-menu">
+        <button class="adm-item" onclick="go('admin-store')"><span>config da loja</span><small>dados, chaves, whats</small></button>
+        <button class="adm-item" onclick="go('admin-ai')"><span>agente Drope (IA)</span><small>assistente</small></button>
+        <button class="adm-item" id="btn-sync-cloud" onclick="syncToCloud()"><span>☁️ sincronizar nuvem</span><small>subir dados locais</small></button>
+      </div>
     </div>
   </div>
 
