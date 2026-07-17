@@ -185,6 +185,16 @@
     transition: transform 0.2s;
   }
   .hero:active { transform: scale(0.985); }
+  /* Carrossel "dropou agora" — desliza horizontal, mostra os últimos drops em estoque */
+  .hero-carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding: 0 20px 14px; scrollbar-width: none; }
+  .hero-carousel::-webkit-scrollbar { display: none; }
+  .hero-carousel .hero { flex: 0 0 86%; margin: 0; scroll-snap-align: center; }
+  .hero-carousel .hero.sold-out { opacity: 0.72; }
+  .hero-carousel .hero-seeall { flex: 0 0 58%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: var(--card); border: 1px dashed var(--border); cursor: pointer; }
+  .hero-carousel .hero-seeall .hero-seeall-arrow { font-size: 34px; color: var(--neon, #b026ff); line-height: 1; margin-bottom: 10px; }
+  .hero-carousel .hero-seeall .hero-name { font-size: 20px; }
+  .hero-carousel .hero-seeall .hero-seeall-sub { font-size: 12px; color: var(--text-dim); text-transform: lowercase; margin-top: 6px; }
+  @media (min-width: 1000px) { .hero-carousel .hero { flex-basis: 360px; } }
   .hero .tag {
     display: inline-block;
     background: rgba(91, 33, 182, 0.85);
@@ -3893,21 +3903,13 @@
       </button>
     </div>
 
-    <div class="hero" id="home-hero" onclick="openProduct(0)">
-      <div class="tag">dropou agora ✦</div>
-      <div id="hero-visual" class="emoji"></div>
-      <div class="hero-name display" id="hero-name"></div>
-      <div class="hero-sub">
-        <span class="pink" id="hero-price"></span>
-        chega em 30min 🛵
-      </div>
-      <button class="hero-cta">vou levar ✦</button>
-    </div>
+    <div class="hero-carousel" id="hero-carousel"></div>
 
     <div id="home-last-order-wrap"></div>
 
     <div class="cat-section">drops</div>
     <div class="grid" id="grid-pods"></div>
+    <div id="pods-more"></div>
 
     <div class="cat-section">tabacaria</div>
     <div class="grid" id="grid-tabac"></div>
@@ -8161,20 +8163,57 @@
     }, 3000);
   })();
 
+  let _podsExpanded = false;
+  function _soldOut(p) { return typeof p.stock === 'number' && p.stock <= 0; }
+  // em estoque primeiro; dentro do grupo, mais novos (id desc)
+  function _sortStockThenNew(a, b) {
+    const sa = _soldOut(a.p) ? 1 : 0, sb = _soldOut(b.p) ? 1 : 0;
+    if (sa !== sb) return sa - sb;
+    return (b.p.id || 0) - (a.p.id || 0);
+  }
+  function showAllPods() { _podsExpanded = true; renderGrid(); }
+  function verUltimosDrops() {
+    _podsExpanded = true; renderGrid();
+    const el = document.querySelector('#home .cat-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function collapsePods() {
+    _podsExpanded = false; renderGrid();
+    const el = document.querySelector('#home .cat-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function renderGrid() {
-    // FIX 04/06 (Andrade): hero respeita filtros — atualiza junto com grid
     if (typeof updateHero === 'function') updateHero();
     const podsEl = document.getElementById('grid-pods');
     const tabacEl = document.getElementById('grid-tabac');
+    const moreEl = document.getElementById('pods-more');
     const filtered = products.map((p, i) => ({ p, i })).filter(({ p }) => matchFilter(p));
-    const pods = filtered.filter(({ p, i }) => p.cat === 'pod');
-    const tabac = filtered.filter(({ p }) => p.cat === 'tabac');
+    const pods = filtered.filter(({ p }) => p.cat === 'pod').sort(_sortStockThenNew);
+    const tabac = filtered.filter(({ p }) => p.cat === 'tabac').sort(_sortStockThenNew);
 
-    podsEl.innerHTML = pods.length
-      ? pods.map(({ p, i }) => tileHTML(p, i)).join('')
+    // Sem filtro/vibe ativos: mostra só 4 drops + "ver todos". Com filtro: mostra tudo.
+    const noFilter = !hasAdvancedFilters() && (!filterState.perfil || filterState.perfil === 'tudo');
+    const limitPods = noFilter && !_podsExpanded;
+    const shownPods = limitPods ? pods.slice(0, 4) : pods;
+
+    podsEl.innerHTML = shownPods.length
+      ? shownPods.map(({ p, i }) => tileHTML(p, i)).join('')
       : '<div class="empty-mini">nenhum drop bate com os filtros ✦</div>';
 
-    // Esconde seção tabacaria quando filtro de puffs/marca tá ativo
+    if (moreEl) {
+      if (limitPods && pods.length > 4) {
+        moreEl.innerHTML = `<div class="see-all-link" onclick="showAllPods()">ver todos os ${pods.length} drops →</div>`;
+        moreEl.style.display = '';
+      } else if (noFilter && _podsExpanded && pods.length > 4) {
+        moreEl.innerHTML = `<div class="see-all-link" onclick="collapsePods()">ver menos ↑</div>`;
+        moreEl.style.display = '';
+      } else {
+        moreEl.innerHTML = '';
+        moreEl.style.display = 'none';
+      }
+    }
+
     const tabacSection = document.querySelector('.cat-section:nth-of-type(2)') || tabacEl.previousElementSibling;
     if (hasAdvancedFilters()) {
       tabacEl.style.display = 'none';
@@ -8187,33 +8226,49 @@
   }
   renderGrid();
 
-  // ===== Hero dinâmico (primeiro produto que BATE com filtros ativos) =====
-  // OSSO 25 — sabor hero + brand muted abaixo
-  // FIX 04/06 (Andrade): hero respeita filtros — esconde quando nada bate
-  // OU mostra o 1º produto filtrado em vez de products[0] fixo.
+  // ===== Carrossel "dropou agora" — últimos drops EM ESTOQUE (desliza p/ esquerda) =====
   function updateHero() {
-    const hero = document.getElementById('home-hero');
-    if (!hero) return;
-    const filtered = products.filter(p => matchFilter(p));
-    const p = filtered[0];
-    if (!p) {
-      hero.style.display = 'none';
-      return;
-    }
-    hero.style.display = '';
-    // Atualiza onclick pra abrir o produto certo (não products[0] fixo)
-    const idx = products.findIndex(x => x.slug === p.slug);
-    if (idx >= 0) hero.onclick = () => openProduct(idx);
-    const vis = document.getElementById('hero-visual');
-    const nm = document.getElementById('hero-name');
-    const pr = document.getElementById('hero-price');
-    if (vis && p.img) vis.innerHTML = `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;">`;
-    else if (vis) vis.textContent = p.emoji;
-    const labels = productLabels(p);
-    if (nm) {
-      nm.innerHTML = `${escapeHtml(labels.hero)}${labels.muted ? `<div style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;letter-spacing:0.02em;margin-top:4px;font-family:'Inter',sans-serif;">${escapeHtml(labels.muted)}</div>` : ''}`;
-    }
-    if (pr) pr.textContent = money(p.price);
+    const wrap = document.getElementById('hero-carousel');
+    if (!wrap) return;
+    // Últimos cadastrados (id desc), com os EM ESTOQUE na frente. Ignora escondidos/sem preço.
+    const latest = products
+      .filter(p => matchFilter(p) && typeof p.price === 'number' && p.price > 0 && !p.hidden)
+      .sort((a, b) => {
+        const sa = _soldOut(a) ? 1 : 0, sb = _soldOut(b) ? 1 : 0;
+        if (sa !== sb) return sa - sb;
+        return (b.id || 0) - (a.id || 0);
+      })
+      .slice(0, 5);
+    if (!latest.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+    wrap.style.display = '';
+    wrap.innerHTML = latest.map(p => {
+      const idx = products.findIndex(x => x.slug === p.slug);
+      const labels = productLabels(p);
+      const soldOut = _soldOut(p);
+      const visual = p.img
+        ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
+        : `<div class="emoji">${p.emoji || '🦎'}</div>`;
+      const muted = labels.muted ? `<div style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
+      const cta = soldOut
+        ? `<button class="hero-cta" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">esgotado — toca pra avisar</button>`
+        : `<button class="hero-cta">vou levar ✦</button>`;
+      const sub = soldOut
+        ? `<span class="pink">${money(p.price)}</span> esgotado`
+        : `<span class="pink">${money(p.price)}</span> chega em 30min 🛵`;
+      return `
+        <div class="hero${soldOut ? ' sold-out' : ''}" onclick="openProduct(${idx})">
+          <div class="tag">dropou agora ✦</div>
+          ${visual}
+          <div class="hero-name display">${escapeHtml(labels.hero)}${muted}</div>
+          <div class="hero-sub">${sub}</div>
+          ${cta}
+        </div>`;
+    }).join('') + `
+      <div class="hero hero-seeall" onclick="verUltimosDrops()">
+        <div class="hero-seeall-arrow">→</div>
+        <div class="hero-name display">ver todos<br>os drops</div>
+        <div class="hero-seeall-sub">explora o catálogo</div>
+      </div>`;
   }
   updateHero();
 
