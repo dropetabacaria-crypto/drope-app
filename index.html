@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" translate="no">
 <head>
 <meta charset="UTF-8">
+<meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#5B21B6">
 <meta name="description" content="Drope ✦ drops em minutos. Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
@@ -1242,6 +1243,10 @@
     width: 40px; height: 4px; border-radius: 2px;
     background: var(--border); margin: 0 auto 16px;
   }
+  /* Editor de estoque (admin) */
+  .se-lbl { display:block; font-size:12px; color:var(--text-dim); text-transform:lowercase; margin:12px 2px 5px; }
+  .se-check { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); margin-top:14px; cursor:pointer; text-transform:lowercase; }
+  .se-check input { width:18px; height:18px; accent-color: var(--pink); }
 
   /* Added-to-cart sheet */
   /* FRICÇÃO #006 (04/06 Andrade): toast slim no rodapé pra confirmar adição.
@@ -3826,6 +3831,21 @@
       <div class="welcome-privacy">🛟 zero spam, zero venda pra terceiros.</div>
     </div>
     <button class="btn-primary" id="gate-btn" onclick="finishGateRegister()" disabled style="opacity:0.4; margin-top:12px; width:100%">cadastrar e dropar ✦</button>
+  </div>
+
+  <!-- ============ EDITAR ESTOQUE (modal admin) ============ -->
+  <div class="guest-gate-backdrop" id="stock-edit-bd" onclick="closeStockEdit()"></div>
+  <div class="guest-gate" id="stock-edit-sheet">
+    <div class="guest-gate-handle"></div>
+    <div class="onboard-title" id="se-title" style="margin-bottom:4px">editar drope</div>
+    <div class="onboard-sub" style="margin-bottom:6px">ajusta estoque, preço ou esconde do catálogo</div>
+    <label class="se-lbl">estoque (unidades)</label>
+    <input type="number" id="se-stock" class="card-input" inputmode="numeric" min="0" placeholder="0">
+    <label class="se-lbl">preço (R$)</label>
+    <input type="text" id="se-price" class="card-input" inputmode="decimal" placeholder="ex: 109,99">
+    <label class="se-check"><input type="checkbox" id="se-hidden"> esconder do catálogo</label>
+    <button class="btn-primary" id="se-save" onclick="saveStockEdit()" style="margin-top:16px; width:100%">salvar ✦</button>
+    <button class="btn-secondary" onclick="closeStockEdit()" style="margin-top:8px; width:100%">cancelar</button>
   </div>
 
   <!-- ============ HOME ============ -->
@@ -7466,37 +7486,84 @@
     `;}).join('');
   }
 
+  let _seIdx = null;
+  // Editar drope pelo painel: estoque, preço e esconder — salva no Supabase via
+  // /api/admin-update-stock (exige ADMIN_TOKEN). Cadastro NOVO segue pelo scanner/bot.
   function openProductForm(idx) {
-    // REFATOR 30/04/2026: catálogo é gerenciado pelo bot WhatsApp + admin gallery.
-    // Edição/criação aqui foi desativada pra evitar bifurcação. Atalho amigável:
-    // - Pra cadastrar novo: manda 'cadastra' no WhatsApp do bot
-    // - Pra editar/aprovar arte: /api/webhook?action=gallery&token=...
-    toast('cadastro/edição agora é pelo bot WhatsApp ou /api/webhook?action=gallery 🦎');
-    return;
-    /* eslint-disable */ // legado mantido pra referência — não executa
-    editingIdx = (typeof idx === 'number') ? idx : null;
-    const isEdit = editingIdx !== null;
-    const p = isEdit ? products[editingIdx] : { emoji: '', name: '', desc: '', price: '', cat: 'pod', perfil: '', puffs: '', sabor: '', marca: '' };
+    if (typeof idx !== 'number') {
+      toast('pra cadastrar drope novo, usa "receber estoque" (scanner) ou o bot 🦎');
+      return;
+    }
+    const p = products[idx];
+    if (!p) { toast('drope não encontrado'); return; }
+    _seIdx = idx;
+    document.getElementById('se-title').textContent = p.name || 'editar drope';
+    document.getElementById('se-stock').value = (typeof p.stock === 'number') ? p.stock : 0;
+    document.getElementById('se-price').value = (typeof p.price === 'number' && p.price > 0) ? String(p.price).replace('.', ',') : '';
+    document.getElementById('se-hidden').checked = p.hidden === true;
+    document.getElementById('stock-edit-bd').classList.add('open');
+    document.getElementById('stock-edit-sheet').classList.add('open');
+  }
 
-    formState = { ...p };
-    document.getElementById('af-title').textContent = isEdit ? 'editar drope' : 'novo drope';
-    document.getElementById('af-emoji').value = p.emoji || '';
-    document.getElementById('af-name').value = p.name || '';
-    document.getElementById('af-desc').value = p.desc || '';
-    document.getElementById('af-price').value = p.price || '';
-    document.getElementById('af-stock').value = (typeof p.stock === 'number') ? p.stock : (isEdit ? 0 : 10);
-    document.getElementById('af-barcode').value = p.barcode || '';
-    const barcodeHint = document.getElementById('af-barcode-hint');
-    barcodeHint.style.display = (p.barcode && p.created_via === 'pdv') ? 'block' : 'none';
-    document.getElementById('af-delete').style.display = isEdit ? 'block' : 'none';
+  function closeStockEdit() {
+    document.getElementById('stock-edit-bd').classList.remove('open');
+    document.getElementById('stock-edit-sheet').classList.remove('open');
+    _seIdx = null;
+  }
 
-    selectCat(p.cat || 'pod');
-    bindChipGroup('af-perfil', 'perfil', p.perfil || '');
-    bindChipGroup('af-puffs', 'puffs', String(p.puffs || ''));
-    bindChipGroup('af-sabor', 'sabor', p.sabor || '');
-    bindChipGroup('af-marca', 'marca', p.marca || '');
-    updateFormPreview();
-    go('admin-form');
+  function _getAdminTokenPrompt() {
+    let t = localStorage.getItem('drope_admin_token');
+    if (!t) {
+      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
+      if (t) { t = t.trim(); localStorage.setItem('drope_admin_token', t); }
+    }
+    return t || '';
+  }
+
+  async function saveStockEdit() {
+    if (_seIdx === null) return;
+    const p = products[_seIdx];
+    if (!p) { closeStockEdit(); return; }
+    if (!p.slug) { toast('esse drope não tem slug — edição pelo bot/Supabase'); return; }
+    const token = _getAdminTokenPrompt();
+    if (!token) { toast('precisa do ADMIN_TOKEN pra salvar'); return; }
+    const btn = document.getElementById('se-save');
+    const stockRaw = (document.getElementById('se-stock').value || '').trim();
+    const priceRaw = (document.getElementById('se-price').value || '').trim().replace(/\./g, '').replace(',', '.');
+    const hidden = document.getElementById('se-hidden').checked;
+    const body = { slug: p.slug, hidden };
+    if (stockRaw !== '') body.qty_available = Math.max(0, parseInt(stockRaw, 10) || 0);
+    if (priceRaw !== '') { const pr = parseFloat(priceRaw); if (pr > 0) body.price_cents = Math.round(pr * 100); }
+    btn.disabled = true; btn.textContent = 'salvando...';
+    try {
+      const r = await fetch('/api/admin-update-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify(body),
+      });
+      if (r.status === 401) {
+        localStorage.removeItem('drope_admin_token');
+        toast('ADMIN_TOKEN inválido ✦ tenta salvar de novo');
+        btn.disabled = false; btn.textContent = 'salvar ✦';
+        return;
+      }
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) {
+        if (body.qty_available !== undefined) p.stock = body.qty_available;
+        if (body.price_cents !== undefined) p.price = body.price_cents / 100;
+        p.hidden = hidden;
+        toast('salvo ✦');
+        closeStockEdit();
+        if (typeof renderAdminProducts === 'function') renderAdminProducts();
+        if (typeof fetchCatalog === 'function') { try { fetchCatalog(); } catch(e) {} }
+      } else {
+        toast('erro ao salvar ✦ ' + (data.error || r.status));
+        btn.disabled = false; btn.textContent = 'salvar ✦';
+      }
+    } catch (e) {
+      toast('erro de rede ✦ tenta de novo');
+      btn.disabled = false; btn.textContent = 'salvar ✦';
+    }
   }
 
   function bindChipGroup(containerId, field, currentVal) {
