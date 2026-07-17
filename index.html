@@ -5530,14 +5530,55 @@
       // Anexa código do embaixador (se cliente veio via link /?ref=CACAU)
       const ambassadorRef = getAmbassadorRef();
 
+      // order_nsu estável, usado NO save-order E no checkout. O webhook da InfinitePay
+      // confirma o pedido procurando por esse nsu (PATCH status='paid'). Sem isso, o
+      // pagamento cai mas nenhum pedido é registrado.
+      const orderNsu = `dr-${Date.now().toString(36)}`;
+
+      // Salva o pedido como PENDENTE antes de pagar (infinitepay → status 'created').
+      // Reserva estoque atômico; o cron de expiração libera se não for pago.
+      const addr = getSelectedAddress();
+      const dQuote = window._deliveryQuote;
+      const deliveryFeeCents = (deliveryMode === 'delivery' && dQuote && dQuote.ok && !dQuote.out_of_range) ? dQuote.fee_cents : 0;
+      const deliveryFeeReais = (deliveryFeeCents || 0) / 100;
+      try {
+        const saveResp = await fetch('/api/save-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_nsu: orderNsu,
+            payment_method: 'infinitepay',
+            subtotal: subtotal,
+            delivery_fee: deliveryFeeReais,
+            total: total + deliveryFeeReais,
+            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            delivery_mode: deliveryMode,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+          }),
+        });
+        const saveData = await saveResp.json().catch(() => ({}));
+        if (saveResp.status === 409 && saveData.error === 'out_of_stock') {
+          toast('estoque acabou ✦ ' + (saveData.item || 'item indisponível'));
+          btn.textContent = 'pagar agora ✦'; btn.disabled = false;
+          go('cart'); renderCart(); renderGrid();
+          return;
+        }
+      } catch (eSave) {
+        console.error('[save-order/infinitepay] erro:', eSave && eSave.message);
+        // não bloqueia a venda; segue pro checkout
+      }
+
       const res = await fetch('/api/webhook?action=infinitepay_checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           handle: INFINITEPAY_HANDLE,
-          items,
-          total: Math.round(total * 100),
-          order_id: `dr-${Date.now().toString(36)}`,
+          // Cobra o VALOR TOTAL do pedido numa linha só (subtotal - desconto + entrega),
+          // garantindo que o desconto do cupom E a taxa de entrega entrem na cobrança.
+          items: [{ quantity: 1, price: Math.round((total + deliveryFeeReais) * 100), description: 'Pedido Drope' }],
+          total: Math.round((total + deliveryFeeReais) * 100),
+          order_id: orderNsu,
           customer,
           ambassador_ref: ambassadorRef || undefined,
         })
@@ -5554,8 +5595,8 @@
       }
     } catch(e) {
       console.error('[InfinitePay]', e);
-      toast('erro no pagamento rápido — usa o Pix manual');
-      btn.textContent = 'pagar agora';
+      toast('erro ao gerar o Pix ✦ tenta de novo');
+      btn.textContent = 'pagar agora ✦';
       btn.disabled = false;
     }
   }
@@ -8447,7 +8488,7 @@
           <div class="co-method-icon">⚡</div>
           <div class="co-method-body">
             <div class="co-method-title">Pix</div>
-            <div class="co-method-sub">aprovação na hora ✦ manda comprovante no whats</div>
+            <div class="co-method-sub">aprovação automática ✦ sem comprovante</div>
           </div>
           <div class="co-method-arrow">→</div>
         </div>
