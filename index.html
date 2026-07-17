@@ -5534,7 +5534,7 @@
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
     appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
     msg.className = 'co-coupon-msg ok';
-    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -r$ ${c.discount}`;
+    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -${money(c.discount)}`;
     renderCheckout();
     toast('cupom aplicado ✦');
   }
@@ -8090,12 +8090,16 @@
     }
     if (screen === 'pix') renderPixScreen();
     if (screen === 'checkout') {
-      appliedCoupon = null;
-      const inp = document.getElementById('co-coupon-input'); if (inp) inp.value = '';
-      const m = document.getElementById('co-coupon-msg'); if (m) { m.textContent = ''; m.className = 'co-coupon-msg'; }
-      const wrap = document.getElementById('co-coupon-wrap'); if (wrap) wrap.style.display = 'none';
-      const tog = document.getElementById('co-coupon-toggle'); if (tog) tog.classList.remove('open');
-      autoApplyWelcomeCoupon();
+      // BUGFIX cupom: NÃO zerar um cupom já aplicado ao (re)entrar no checkout.
+      // Antes, voltar do fluxo de endereço apagava o cupom, e o auto-boas-vindas
+      // (DROPE10) atropelava um cupom manual (ex.: TESTE100OFF → saía do modo teste).
+      if (!appliedCoupon) {
+        const inp = document.getElementById('co-coupon-input'); if (inp) inp.value = '';
+        const m = document.getElementById('co-coupon-msg'); if (m) { m.textContent = ''; m.className = 'co-coupon-msg'; }
+        const wrap = document.getElementById('co-coupon-wrap'); if (wrap) wrap.style.display = 'none';
+        const tog = document.getElementById('co-coupon-toggle'); if (tog) tog.classList.remove('open');
+        autoApplyWelcomeCoupon();
+      }
       // Filial Santos: só retirada (sem entrega no balcão)
       if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') {
         setDeliveryMode('pickup');
@@ -8294,7 +8298,7 @@
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
     appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest };
     msg.className = 'co-coupon-msg ok';
-    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -r$ ${c.discount}`;
+    msg.textContent = c.isTest ? '🧪 MODO TESTE ATIVO — total zerado' : `cupom ativo ✦ -${money(c.discount)}`;
     toast(c.isTest ? '🧪 modo teste ativo' : 'cupom aplicado ✦');
     renderCart();
   }
@@ -8323,7 +8327,7 @@
     if (appliedCoupon && appliedCoupon.isTest) {
       bits.push(`🧪 modo teste ativo ✦ total zerado`);
     } else if (appliedCoupon) {
-      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -r$ ${appliedCoupon.discount}`);
+      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -${money(appliedCoupon.discount)}`);
     }
     // Andrade 04/06: mostra taxa de entrega real (calculada via CEP)
     if (deliveryMode === 'delivery') {
@@ -8455,7 +8459,7 @@
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
       recap.innerHTML = `
         <div class="rec-row"><span class="rec-lbl">subtotal</span><span class="rec-val">${money(subtotal)}</span></div>
-        ${discount ? `<div class="rec-row"><span class="rec-lbl">cupom</span><span class="rec-val" style="color:var(--lime)">-r$ ${discount}</span></div>` : ''}
+        ${discount ? `<div class="rec-row"><span class="rec-lbl">cupom</span><span class="rec-val" style="color:var(--lime)">-${money(discount)}</span></div>` : ''}
         ${fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">${money(fee)}</span></div>` : ''}
         <div class="rec-row"><span class="rec-lbl">onde</span><span class="rec-val">${where}</span></div>
         <div class="rec-row"><span class="rec-lbl">contato</span><span class="rec-val">${profile.name} ✦ ${profile.phone}</span></div>
@@ -9523,7 +9527,7 @@
       const lbl = productLabels(i);
       return `
       <div class="cart-item">
-        <div class="thumb">${i.emoji}</div>
+        <div class="thumb">${i.img ? `<img class="prod-img" src="${i.img}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '🦎').replace(/'/g,'')}'">` : (i.emoji || '🦎')}</div>
         <div class="info">
           <div class="n">${escapeHtml(lbl.hero)}</div>
           ${lbl.muted ? `<div class="b">${escapeHtml(lbl.muted)}</div>` : ''}
@@ -9544,8 +9548,10 @@
     const sum = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
     const finalVal = Math.max(0, sum - discount);
-    if (discount > 0) {
-      document.getElementById('cart-total-val').innerHTML = `r$ ${finalVal} <span style="font-size:14px;color:var(--lime);font-weight:600">(-r$ ${discount})</span>`;
+    if (appliedCoupon && appliedCoupon.isTest) {
+      document.getElementById('cart-total-val').innerHTML = `r$ 0,00 <span style="font-size:13px;color:var(--lime);font-weight:600">🧪 modo teste</span>`;
+    } else if (discount > 0) {
+      document.getElementById('cart-total-val').innerHTML = `${money(finalVal)} <span style="font-size:14px;color:var(--lime);font-weight:600">(-${money(discount)})</span>`;
     } else {
       document.getElementById('cart-total-val').textContent = money(sum);
     }
