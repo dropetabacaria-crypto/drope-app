@@ -14034,7 +14034,7 @@ async function handleInfinitePayCheckout(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
   try {
-    const { handle, items, total, order_id, customer, ambassador_ref, address } = req.body || {};
+    const { handle, items, total, order_id, customer, ambassador_ref } = req.body || {};
     if (!handle || !items || !items.length) return res.status(400).json({ error: 'missing handle or items' });
 
     const protocol = (req.headers['x-forwarded-proto'] || 'https');
@@ -14093,13 +14093,6 @@ async function handleInfinitePayCheckout(req, res) {
       if (customer.name) payload.customer.name = customer.name;
       if (customer.email) payload.customer.email = customer.email;
       if (customer.phone_number) payload.customer.phone_number = customer.phone_number;
-    }
-    // Endereço já coletado no app → manda pro InfinitePay pré-preencher/pular a etapa de entrega
-    if (address && (address.cep || address.number)) {
-      payload.address = {};
-      if (address.cep) payload.address.cep = String(address.cep).replace(/\D/g, '');
-      if (address.number) payload.address.number = String(address.number);
-      if (address.complement) payload.address.complement = String(address.complement);
     }
 
     console.log('[InfinitePay] payload:', JSON.stringify(payload).substring(0, 400));
