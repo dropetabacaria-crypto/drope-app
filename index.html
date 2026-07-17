@@ -9579,7 +9579,7 @@
     }, 2200);
   }
 
-  function confirmOrder() {
+  async function confirmOrder() {
     if (cart.length === 0) return;
     // Fix #1: re-valida estoque na hora de fechar (cliente pode ter ficado tempo no checkout, ou outro device comprou)
     const stockProblems = [];
@@ -9613,6 +9613,50 @@
     const dQuote = window._deliveryQuote;
     const deliveryFeeCents = (deliveryMode === 'delivery' && dQuote && dQuote.ok && !dQuote.out_of_range) ? dQuote.fee_cents : 0;
     const deliveryKm = (deliveryMode === 'delivery' && dQuote) ? dQuote.km : null;
+
+    // ===== Persiste o pedido no backend (fonte única de verdade + baixa de estoque atômica) =====
+    // Pedido teste (TESTE100OFF) NÃO grava nem mexe em estoque.
+    const isTestOrder = appliedCoupon && appliedCoupon.isTest;
+    const orderNsu = `dr-${orderNum}`;
+    let _trackToken = null, _trackUrl = null;
+    if (!isTestOrder) {
+      const deliveryFeeReais = (deliveryFeeCents || 0) / 100;
+      const paymentMethod = isPayLater ? 'pickup_later' : 'pix_manual';
+      try {
+        const resp = await fetch('/api/save-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_nsu: orderNsu,
+            payment_method: paymentMethod,
+            subtotal: subtotal,
+            delivery_fee: deliveryFeeReais,
+            total: Math.max(0, subtotal - discount) + deliveryFeeReais,
+            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            delivery_mode: deliveryMode,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.status === 409 && data.error === 'out_of_stock') {
+          // Estoque acabou entre o checkout e o fechamento — aborta sem criar pedido.
+          toast('estoque acabou ✦ ' + (data.item || 'item indisponível'));
+          go('cart'); renderCart(); renderGrid();
+          return;
+        }
+        if (resp.ok && data.ok) {
+          _trackToken = data.track_token || null;
+          _trackUrl = data.track_url || null;
+        } else {
+          // Backend falhou — NÃO bloqueia a venda; segue no fluxo local + whats.
+          console.error('[save-order] falhou:', resp.status, data);
+        }
+      } catch (e) {
+        console.error('[save-order] erro de rede:', e && e.message);
+      }
+    }
+
     orders.unshift({
       num: orderNum,
       status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando comprovante',
@@ -9639,8 +9683,13 @@
         orders[0].statusCls = 'test';
       }
     }
-    // FRICÇÃO #009: modo teste NÃO decrementa estoque
-    const isTestOrder = appliedCoupon && appliedCoupon.isTest;
+    // Rastreio vindo do backend (fonte única de verdade)
+    if (_trackToken) {
+      orders[0].order_nsu = orderNsu;
+      orders[0].track_token = _trackToken;
+      orders[0].track_url = _trackUrl;
+    }
+    // FRICÇÃO #009: modo teste NÃO decrementa estoque (isTestOrder já definido acima)
     if (!isTestOrder) {
       cart.forEach(item => {
         const pIdx = products.findIndex(pp => pp.name === item.name);
