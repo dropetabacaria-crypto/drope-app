@@ -22,7 +22,10 @@ const EXPIRY_MINUTES = parseInt(process.env.EXPIRY_MINUTES || "30", 10);
 
 // TODO[multi-tenant]: filtrar por tenant_id quando Plataforma sair do dormindo
 
-const RESERVED_STATUSES = ['created', 'waiting_proof', 'pending_pickup'];
+// 'created' (infinitepay pendente) NÃO reserva mais estoque — a baixa só acontece
+// no webhook ao confirmar o pagamento. Então o cron não deve devolver estoque de
+// pedidos 'created' (senão sobe fantasma). Só waiting_proof/pending_pickup reservam.
+const RESERVED_STATUSES = ['waiting_proof', 'pending_pickup'];
 
 module.exports = async function handler(req, res) {
   // Aceita POST (cron-job.org, manual) e GET (Vercel Cron usa GET)

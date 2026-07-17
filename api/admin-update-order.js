@@ -79,8 +79,10 @@ module.exports = async function handler(req, res) {
     const updated = await updRes.json();
     if (!updRes.ok) return res.status(502).json({ error: 'supabase update failed', details: updated });
 
-    // 🔒 Se cancelado, devolve estoque dos itens com slug
-    if (status === 'cancelled' && oldOrder.status !== 'cancelled') {
+    // 🔒 Se cancelado, devolve estoque dos itens com slug — MAS só se o estoque
+    // realmente saiu. Pedido 'created' (infinitepay pendente, não pago) nunca baixou
+    // estoque, então cancelar não deve devolver (senão o estoque sobe fantasma).
+    if (status === 'cancelled' && oldOrder.status !== 'cancelled' && oldOrder.status !== 'created') {
       const items = oldOrder.items || [];
       for (const it of items) {
         if (it.slug && it.qty) {

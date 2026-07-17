@@ -133,7 +133,10 @@ module.exports = async function handler(req, res) {
     const stockReleases = []; // pra rollback se algo der errado depois
     const itemsWithSlug = items.filter(i => i.slug && typeof i.slug === 'string');
 
-    if (itemsWithSlug.length > 0) {
+    // Estoque só sai na CONFIRMAÇÃO do pagamento. Pedido infinitepay nasce 'created'
+    // (pendente) e NÃO baixa estoque aqui — o webhook baixa quando o Pix cair.
+    // (pix_manual/pickup_later seguem reservando na criação, como antes.)
+    if (itemsWithSlug.length > 0 && payment_method !== 'infinitepay') {
       for (const it of itemsWithSlug) {
         try {
           const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {

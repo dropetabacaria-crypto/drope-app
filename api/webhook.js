@@ -14162,8 +14162,9 @@ async function handleInfinitePayWebhook(req, res) {
     let updatedAmbassadorRef = '';
     if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
       try {
+        // Só confirma se ainda estiver 'created' → idempotente (2º webhook não reprocessa)
         const updateRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
+          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}&status=eq.created`,
           {
             method: 'PATCH',
             headers: {
@@ -14187,6 +14188,19 @@ async function handleInfinitePayWebhook(req, res) {
           updatedOrderId = updated[0].id || null;
           updatedAmbassadorId = updated[0].ambassador_id || null;
           updatedAmbassadorRef = updated[0].ambassador_ref || '';
+          // ✅ Pagamento confirmado → AGORA baixa o estoque (só na transição created→paid).
+          const _its = Array.isArray(updated[0].items) ? updated[0].items : [];
+          for (const it of _its) {
+            if (it && it.slug && it.qty) {
+              try {
+                await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {
+                  method: 'POST',
+                  headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+                });
+              } catch (eStock) { console.error('[InfinitePay Webhook] stock consume err:', eStock.message); }
+            }
+          }
         }
       } catch (e) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
