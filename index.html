@@ -5619,6 +5619,7 @@
           total: Math.round((total + deliveryFeeReais) * 100),
           order_id: orderNsu,
           customer,
+          address: (deliveryMode === 'delivery' && addr) ? { cep: addr.cep, number: addr.num, complement: addr.comp || '' } : undefined,
           ambassador_ref: ambassadorRef || undefined,
         })
       });
