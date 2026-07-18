@@ -348,6 +348,24 @@
     gap: 10px;
     padding: 0 20px;
   }
+  /* Página de catálogo dedicada: 3 por fileira + paginação */
+  .catalog-grid { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .cat-count-row { padding: 4px 20px 10px; color: var(--text-dim); font-size: 13px; }
+  .catalog-pager {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 20px; margin-top: 4px;
+  }
+  .cat-page-btn {
+    background: rgba(150,120,255,0.10); color: var(--text);
+    border: none; border-radius: 12px; padding: 11px 16px;
+    font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 6px 16px rgba(0,0,0,0.3);
+    transition: transform .12s, opacity .15s;
+  }
+  .cat-page-btn:active { transform: scale(0.94); }
+  .cat-page-btn[disabled] { opacity: 0.35; pointer-events: none; }
+  .cat-page-ind { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+  @media (max-width: 380px) { .catalog-grid .tile .flavor { font-size: 13px; } }
   .tile {
     /* Card futurista: glow radial forte saindo do topo + borda neon + profundidade */
     background:
@@ -4133,6 +4151,36 @@
 
     <div class="cat-section">tabacaria</div>
     <div class="grid" id="grid-tabac"></div>
+  </div>
+
+  <!-- ============ CATÁLOGO (página dedicada, paginada) ============ -->
+  <div class="screen no-nav" id="catalog">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('home')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Catálogo</div>
+      <div style="width:40px"></div>
+    </div>
+    <div class="search-bar-wrap" style="position:static">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="catalog-search" class="search-input" placeholder="Busca por marca, sabor ou puffs..." oninput="catalogSearch(this.value)" autocomplete="off">
+        <button class="search-clear" id="catalog-search-clear" onclick="clearCatalogSearch()" style="display:none">×</button>
+        <button class="search-filter-btn" id="catalog-filter-btn" onclick="openFilters()" aria-label="Filtros" title="Filtros">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/>
+            <circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/>
+          </svg>
+          <span class="filter-badge" id="catalog-filter-badge" style="display:none">0</span>
+        </button>
+      </div>
+    </div>
+    <div class="cat-count-row"><span id="catalog-count"></span></div>
+    <div class="grid catalog-grid" id="catalog-grid"></div>
+    <div class="catalog-pager" id="catalog-pager"></div>
   </div>
 
   <!-- ============ DETAIL ============ -->
@@ -8009,18 +8057,17 @@
 
   function updateFilterBadge() {
     const n = filterCount();
-    // Busca + filtros unificados: o botão de filtro fica dentro da barra de busca
-    const btn = document.getElementById('search-filter-btn') || document.querySelector('.filter-cta') || document.querySelector('.filter-btn');
-    const badge = document.getElementById('filter-badge');
-    if (!btn || !badge) return;
-    if (n > 0) {
-      btn.classList.add('has-filters');
-      badge.style.display = 'flex';
-      badge.textContent = n;
-    } else {
-      btn.classList.remove('has-filters');
-      badge.style.display = 'none';
-    }
+    // Busca + filtros unificados: cada barra (home e catálogo) tem seu botão
+    document.querySelectorAll('.search-filter-btn').forEach(btn => {
+      const badge = btn.querySelector('.filter-badge');
+      if (n > 0) {
+        btn.classList.add('has-filters');
+        if (badge) { badge.style.display = 'flex'; badge.textContent = n; }
+      } else {
+        btn.classList.remove('has-filters');
+        if (badge) badge.style.display = 'none';
+      }
+    });
   }
 
   function setPerfil(p, el) {
@@ -8433,6 +8480,69 @@
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // ===== Página de catálogo dedicada (3 por fileira, 9 por página, paginado) =====
+  const CATALOG_PAGE_SIZE = 9;
+  let catalogState = { page: 0 };
+  function openCatalog() {
+    catalogState.page = 0;
+    // sincroniza o campo de busca do catálogo com a busca atual
+    const inp = document.getElementById('catalog-search');
+    if (inp) inp.value = homeState.searchText || '';
+    const cb = document.getElementById('catalog-search-clear');
+    if (cb) cb.style.display = homeState.searchText ? 'flex' : 'none';
+    go('catalog');
+    renderCatalog();
+    window.scrollTo(0, 0);
+  }
+  function _catalogList() {
+    return products.map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.cat === 'pod' && !p.hidden && matchFilter(p))
+      .sort(_sortStockThenNew);
+  }
+  function renderCatalog() {
+    const grid = document.getElementById('catalog-grid');
+    const pager = document.getElementById('catalog-pager');
+    const countEl = document.getElementById('catalog-count');
+    if (!grid) return;
+    const list = _catalogList();
+    const total = list.length;
+    const pages = Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE));
+    if (catalogState.page >= pages) catalogState.page = pages - 1;
+    if (catalogState.page < 0) catalogState.page = 0;
+    const start = catalogState.page * CATALOG_PAGE_SIZE;
+    const pageItems = list.slice(start, start + CATALOG_PAGE_SIZE);
+    grid.innerHTML = pageItems.length
+      ? pageItems.map(({ p, i }) => tileHTML(p, i)).join('')
+      : '<div class="empty-mini" style="grid-column:1/-1">Nenhum drop encontrado ✦</div>';
+    if (countEl) countEl.textContent = total ? `${total} drop${total !== 1 ? 's' : ''}` : '';
+    if (pager) {
+      if (pages <= 1) { pager.innerHTML = ''; pager.style.display = 'none'; }
+      else {
+        pager.style.display = 'flex';
+        const prevDis = catalogState.page === 0 ? 'disabled' : '';
+        const nextDis = catalogState.page >= pages - 1 ? 'disabled' : '';
+        pager.innerHTML =
+          `<button class="cat-page-btn" ${prevDis} onclick="catalogPrevPage()">← anterior</button>` +
+          `<span class="cat-page-ind">Página ${catalogState.page + 1} de ${pages}</span>` +
+          `<button class="cat-page-btn" ${nextDis} onclick="catalogNextPage()">próxima →</button>`;
+      }
+    }
+  }
+  function catalogPrevPage() { if (catalogState.page > 0) { catalogState.page--; renderCatalog(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }
+  function catalogNextPage() { catalogState.page++; renderCatalog(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function catalogSearch(v) {
+    homeState.searchText = (v || '').toLowerCase().trim();
+    const cb = document.getElementById('catalog-search-clear');
+    if (cb) cb.style.display = homeState.searchText ? 'flex' : 'none';
+    catalogState.page = 0;
+    renderCatalog();
+  }
+  function clearCatalogSearch() {
+    const inp = document.getElementById('catalog-search');
+    if (inp) inp.value = '';
+    catalogSearch('');
+  }
+
   function renderGrid() {
     if (typeof updateHero === 'function') updateHero();
     const podsEl = document.getElementById('grid-pods');
@@ -8453,7 +8563,7 @@
 
     if (moreEl) {
       if (limitPods && pods.length > 4) {
-        moreEl.innerHTML = `<div class="see-all-link" onclick="showAllPods()">ver todos os ${pods.length} drops →</div>`;
+        moreEl.innerHTML = `<div class="see-all-link" onclick="openCatalog()">ver todos os ${pods.length} drops →</div>`;
         moreEl.style.display = '';
       } else if (noFilter && _podsExpanded && pods.length > 4) {
         moreEl.innerHTML = `<div class="see-all-link" onclick="collapsePods()">ver menos ↑</div>`;
@@ -8472,6 +8582,11 @@
       tabacEl.style.display = '';
       if (tabacSection) tabacSection.style.display = '';
       tabacEl.innerHTML = tabac.map(({ p, i }) => tileHTML(p, i)).join('');
+    }
+    // Se a página de catálogo estiver aberta, reflete filtros/busca nela também
+    const catScreen = document.getElementById('catalog');
+    if (catScreen && catScreen.classList.contains('active') && typeof renderCatalog === 'function') {
+      renderCatalog();
     }
   }
   renderGrid();
