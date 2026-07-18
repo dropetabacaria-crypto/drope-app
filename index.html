@@ -4059,7 +4059,7 @@
             <div class="wg-body">
               <div class="wg-title">seu cupom de estreia</div>
               <div class="wg-code">DROPE10</div>
-              <div class="wg-sub">r$ 10 off no primeiro pedido ✦</div>
+              <div class="wg-sub">R$ 10 off no primeiro pedido ✦</div>
             </div>
           </div>
         </div>
@@ -4201,7 +4201,7 @@
     <div class="product-name display" id="d-name"></div>
     <div class="product-meta" id="d-meta"></div>
     <div class="product-desc" id="d-desc">gelado intenso ✦ menta + limão</div>
-    <div class="product-price" id="d-price">r$ 45</div>
+    <div class="product-price" id="d-price">R$ 45</div>
     <div id="d-paybadge" class="pay-badge pix pay-badge-lg">só Pix</div>
 
     <div class="stepper" id="d-stepper">
@@ -4221,7 +4221,7 @@
     <div style="height: 100px"></div>
 
     <div class="sticky-cta">
-      <button class="btn-primary" id="d-addbtn" onclick="addToCart()">quero levar ✦ <span id="d-btnprice">r$ 45</span></button>
+      <button class="btn-primary" id="d-addbtn" onclick="addToCart()">quero levar ✦ <span id="d-btnprice">R$ 45</span></button>
     </div>
   </div>
 
@@ -4265,13 +4265,13 @@
 
     <div class="cart-total" id="cart-total">
       <div class="lbl">total</div>
-      <div class="val" id="cart-total-val">r$ 0</div>
+      <div class="val" id="cart-total-val">R$ 0</div>
     </div>
 
     <div style="height: 100px"></div>
 
     <div class="sticky-cta" id="cart-cta">
-      <button class="btn-primary" onclick="goCheckout()">dropar ✦ pagar</button>
+      <button class="btn-primary" onclick="goCheckout()">Ir para pagamento ✦</button>
     </div>
   </div>
 
@@ -4321,7 +4321,7 @@
       <div class="co-section-lbl">total</div>
       <div class="co-total">
         <div class="co-total-lbl">seu pedido</div>
-        <div class="co-total-val display" id="co-total">r$ 0</div>
+        <div class="co-total-val display" id="co-total">R$ 0</div>
       </div>
 
       <div id="co-warning" style="display:none"></div>
@@ -4344,16 +4344,8 @@
 
       <div class="co-methods" id="co-methods"></div>
 
-      <div class="co-coupon-toggle" id="co-coupon-toggle" onclick="toggleCouponBox()">
-        🎟️ tem cupom?
-      </div>
-      <div class="co-coupon" id="co-coupon-wrap" style="display:none">
-        <div class="co-coupon-row">
-          <input class="co-coupon-input" id="co-coupon-input" type="text" placeholder="digita o código" maxlength="20">
-          <button class="co-coupon-btn" onclick="applyCoupon()">aplicar</button>
-        </div>
-        <div id="co-coupon-msg" class="co-coupon-msg"></div>
-      </div>
+      <!-- Cupom fica só no carrinho (não pedir duas vezes). O desconto aplicado
+           aparece no resumo abaixo (linha "cupom -R$"). -->
 
       <div class="co-recap" id="co-recap"></div>
     </div>
@@ -4412,7 +4404,7 @@
     <div style="height: 100px"></div>
 
     <div class="sticky-cta">
-      <button class="btn-primary" onclick="processCard()">pagar r$ <span id="card-btn-val">0</span></button>
+      <button class="btn-primary" onclick="processCard()">pagar R$ <span id="card-btn-val">0</span></button>
     </div>
   </div>
 
@@ -4743,14 +4735,14 @@
           </div>
           <div class="adm-stat">
             <div class="lbl">vendas hoje</div>
-            <div class="val" id="adm-sales">r$ 0</div>
+            <div class="val" id="adm-sales">R$ 0</div>
           </div>
         </div>
 
         <div class="dash-chart-card">
           <div class="dcc-head">
             <div class="dcc-title">vendas ✦ últimos 7 dias</div>
-            <div class="dcc-total" id="dcc-week-total">r$ 0</div>
+            <div class="dcc-total" id="dcc-week-total">R$ 0</div>
           </div>
           <div class="dcc-chart" id="dcc-chart"></div>
           <div class="dcc-labels" id="dcc-labels"></div>
@@ -4871,7 +4863,7 @@
     <div class="pos-summary" id="pos-summary" style="display:none">
       <div class="pos-summary-head">
         <div class="pos-sh-title display">carrinho</div>
-        <div class="pos-sh-total" id="pos-total">r$ 0</div>
+        <div class="pos-sh-total" id="pos-total">R$ 0</div>
       </div>
       <div id="pos-cart-list" class="pos-cart-list"></div>
 
@@ -5071,7 +5063,7 @@
 
     <div class="admin-detail-block">
       <div class="lab">total</div>
-      <div class="big" id="adm-det-total">r$ 0</div>
+      <div class="big" id="adm-det-total">R$ 0</div>
     </div>
 
     <div class="admin-detail-block">
@@ -5144,7 +5136,7 @@
         <div class="af-preview-emoji" id="af-pv-emoji">🧊</div>
         <div class="af-preview-name" id="af-pv-name">nome do drope</div>
         <div class="af-preview-desc" id="af-pv-desc">descrição curta</div>
-        <div class="af-preview-price" id="af-pv-price">r$ 0</div>
+        <div class="af-preview-price" id="af-pv-price">R$ 0</div>
       </div>
 
       <label class="card-lbl">categoria</label>
@@ -5615,7 +5607,7 @@
   let allProducts = []; // legacy compat — refs externas (admin) leem live via products diretamente
   function payLabel(cat) { return cat === 'pod' ? 'só Pix' : 'Pix + cartão'; }
 
-  // FRICÇÃO #011: formata preço com vírgula e à prova de float (109.99*2 → "r$ 219,98")
+  // FRICÇÃO #011: formata preço com vírgula e à prova de float (109.99*2 → "R$ 219,98")
   function money(v) {
     const n = (typeof v === 'number' && isFinite(v)) ? v : 0;
     return 'R$ ' + (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
@@ -5661,8 +5653,8 @@
   // ===== Cupons =====
   const COUPONS_KEY = 'drope_coupons_v1';
   let coupons = [
-    { code: 'DROPE10', discount: 10, desc: 'r$ 10 off ✦ boas-vindas', active: true },
-    { code: 'HYPE20', discount: 20, desc: 'r$ 20 off ✦ pedido de honra', active: true },
+    { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
+    { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
     // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
     // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
     { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
@@ -5680,8 +5672,8 @@
     // FRICÇÃO #009 (04/06 Andrade): garante que built-in coupons sempre existem,
     // mesmo se o localStorage tem versão antiga sem eles.
     const BUILT_IN = [
-      { code: 'DROPE10', discount: 10, desc: 'r$ 10 off ✦ boas-vindas', active: true },
-      { code: 'HYPE20', discount: 20, desc: 'r$ 20 off ✦ pedido de honra', active: true },
+      { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
+      { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
       { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
       { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: '🛵 frete grátis ✦ entrega por nossa conta', active: true },
     ];
@@ -6015,7 +6007,7 @@
     if (cartTotal() < c.discount) return;
     appliedCoupon = { code: c.code, discount: c.discount };
     try { localStorage.removeItem('drope_welcome_coupon'); } catch(e) {}
-    toast('cupom DROPE10 aplicado ✦ -r$ 10');
+    toast('cupom DROPE10 aplicado ✦ -R$ 10');
   }
 
   function finishOnboard() {
@@ -6476,7 +6468,7 @@
         <div class="coupon-body">
           <div class="coupon-code">${c.code}</div>
           <div class="coupon-desc">${c.desc || ''}</div>
-          <div class="coupon-val">-r$ ${c.discount}</div>
+          <div class="coupon-val">-R$ ${c.discount}</div>
         </div>
         <div class="coupon-acts">
           <button class="coupon-toggle" onclick="toggleCoupon(${i})">${c.active?'ativo':'inativo'}</button>
@@ -6897,7 +6889,7 @@
     let filtered = adminFilter === 'all' ? orders : orders.filter(o => o.statusCls === adminFilter);
     if (adminSearch) {
       filtered = filtered.filter(o => {
-        const hay = `#dr-${o.num} ${o.summary} r$ ${o.total}`.toLowerCase();
+        const hay = `#dr-${o.num} ${o.summary} R$ ${o.total}`.toLowerCase();
         return hay.includes(adminSearch);
       });
     }
@@ -7904,7 +7896,7 @@
     document.getElementById('af-pv-emoji').textContent = emoji;
     document.getElementById('af-pv-name').textContent = name;
     document.getElementById('af-pv-desc').textContent = desc;
-    document.getElementById('af-pv-price').textContent = `r$ ${price}`;
+    document.getElementById('af-pv-price').textContent = `R$ ${price}`;
   }
 
   function saveProduct() {
@@ -7987,7 +7979,7 @@
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
     // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
-    // "preço a confirmar" em vez de "r$ 0" pro cliente.
+    // "preço a confirmar" em vez de "R$ 0" pro cliente.
     const hasValidPrice = typeof p.price === 'number' && p.price > 0;
     const priceLabel = hasValidPrice ? money(p.price) : 'preço a confirmar';
     return `
@@ -8942,7 +8934,7 @@
         }
       }
     }
-    totalEl.innerHTML = `r$ ${total.toFixed(2).replace('.',',')}${bits.length ? `<div class="co-total-discount">${bits.join(' • ')}</div>` : ''}`;
+    totalEl.innerHTML = `R$ ${total.toFixed(2).replace('.',',')}${bits.length ? `<div class="co-total-discount">${bits.join(' • ')}</div>` : ''}`;
     const kind = cartKind();
     const warn = document.getElementById('co-warning');
     const methods = document.getElementById('co-methods');
@@ -9316,7 +9308,7 @@
     // FRICÇÃO #004 (04/06): popula cards informativos com specs + perfil + vibe
     if (typeof populateInfoCards === 'function') populateInfoCards(p);
     // OSSO-FIX-PRECO-ZERO: produto sem preço (0/null/undefined) não pode vazar
-    // pro cliente como "r$ 0". Mostra placeholder e mais à frente desabilita o
+    // pro cliente como "R$ 0". Mostra placeholder e mais à frente desabilita o
     // botão de compra (caindo no fluxo de WhatsApp pra cliente perguntar).
     const hasValidPrice = typeof p.price === 'number' && p.price > 0;
     document.getElementById('d-price').textContent = hasValidPrice ? money(p.price) : 'preço a confirmar';
@@ -10129,7 +10121,7 @@
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
     const finalVal = Math.max(0, sum - discount);
     if (appliedCoupon && appliedCoupon.isTest) {
-      document.getElementById('cart-total-val').innerHTML = `r$ 0,00 <span style="font-size:13px;color:var(--lime);font-weight:600">🧪 modo teste</span>`;
+      document.getElementById('cart-total-val').innerHTML = `R$ 0,00 <span style="font-size:13px;color:var(--lime);font-weight:600">🧪 modo teste</span>`;
     } else if (discount > 0) {
       document.getElementById('cart-total-val').innerHTML = `${money(finalVal)} <span style="font-size:14px;color:var(--lime);font-weight:600">(-${money(discount)})</span>`;
     } else {
@@ -10372,9 +10364,9 @@
       '',
       ...(last.items || []).map(i => `• ${i.qty}× ${i.name} — ${money(i.price * i.qty)}`),
       '',
-      last.discount ? `cupom ${last.coupon}: -r$ ${last.discount}` : '',
+      last.discount ? `cupom ${last.coupon}: -R$ ${last.discount}` : '',
       `*${isPayLater ? 'total' : 'subtotal'}:* ${money(last.total)}`,
-      last.mode === 'delivery' && last.delivery_fee_cents ? `🛵 taxa de entrega: r$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : (last.mode === 'delivery' ? `_+ taxa de motoboy (cálculo após CEP)_` : ''),
+      last.mode === 'delivery' && last.delivery_fee_cents ? `🛵 taxa de entrega: R$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : (last.mode === 'delivery' ? `_+ taxa de motoboy (cálculo após CEP)_` : ''),
       isPayLater ? `_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
       '',
       whereLine,
