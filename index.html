@@ -155,7 +155,21 @@
   .order-items::first-letter,
   .pw-title::first-letter,
   .dcc-title::first-letter,
-  .dtc-title::first-letter {
+  .dtc-title::first-letter,
+  .btn-primary::first-letter,
+  .hero-cta::first-letter,
+  .reorder-cta::first-letter,
+  .reorder-meta::first-letter,
+  .hero .tag::first-letter,
+  .stock-badge::first-letter,
+  .pay-badge::first-letter,
+  .cart-total .lbl::first-letter,
+  .co-total-lbl::first-letter,
+  .co-section-lbl::first-letter,
+  .filter-cta-text::first-letter,
+  .hero-muted::first-letter,
+  .see-all-link::first-letter,
+  .cart-item .info .each::first-letter {
     text-transform: uppercase !important;
   }
 
@@ -1623,13 +1637,14 @@
   /* Card "dropar de novo" — recompra 1 toque */
   .reorder-card {
     margin: 8px 20px 16px;
-    padding: 14px 16px;
+    padding: 16px;
     border-radius: 22px;
     background: linear-gradient(135deg, rgba(255,45,111,0.20), rgba(212,255,46,0.10));
     border: 1px solid rgba(255,45,111,0.30);
-    display: flex; align-items: center; gap: 14px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 14px;
     cursor: pointer; transition: transform 0.12s;
   }
+  .reorder-top { display: flex; align-items: center; gap: 14px; }
   .reorder-card:active { transform: scale(0.98); }
   .reorder-card.disabled { opacity: 0.7; cursor: default; }
   .reorder-card.disabled:active { transform: none; }
@@ -1643,17 +1658,19 @@
   .reorder-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .reorder-body { flex: 1; min-width: 0; }
   .reorder-title { font-size: 12px; color: var(--lime); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
-  .reorder-flavor { font-size: 16px; color: var(--text); font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; }
+  .reorder-flavor { font-size: 17px; color: var(--text); font-weight: 700; margin-top: 2px; line-height: 1.2; text-transform: lowercase; }
   .reorder-brand { font-size: 11px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; letter-spacing: 0.02em; }
   /* legacy */
   .reorder-name { font-size: 15px; color: var(--text); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; }
   .reorder-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
   .reorder-cta {
-    padding: 9px 14px; border-radius: 14px;
+    width: 100%;
+    padding: 13px 16px; border-radius: 16px;
     background: var(--pink); color: #fff;
-    font-size: 12px; font-weight: 700;
-    white-space: nowrap; flex: 0 0 auto;
-    border: none;
+    font-size: 15px; font-weight: 800;
+    white-space: nowrap;
+    border: none; cursor: pointer;
+    box-shadow: 0 8px 22px rgba(255,45,111,0.35);
   }
   .reorder-card.disabled .reorder-cta {
     background: rgba(255,255,255,0.08); color: var(--text-dim);
@@ -5542,7 +5559,7 @@
   // FRICÇÃO #011: formata preço com vírgula e à prova de float (109.99*2 → "r$ 219,98")
   function money(v) {
     const n = (typeof v === 'number' && isFinite(v)) ? v : 0;
-    return 'r$ ' + (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+    return 'R$ ' + (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
   }
   // FRICÇÃO #011: preço redondo vira .99 (80→79,99 / 90→89,99). Mesma regra do cadastro (receber.html).
   // Idempotente: aplicar de novo num preço já .99 não muda nada.
@@ -8482,13 +8499,13 @@
       const visual = p.img
         ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
         : `<div class="emoji">${p.emoji || '🦎'}</div>`;
-      const muted = labels.muted ? `<div style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
+      const muted = labels.muted ? `<div class="hero-muted" style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
       const cta = soldOut
         ? `<button class="hero-cta" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">esgotado — toca pra avisar</button>`
         : `<button class="hero-cta">vou levar ✦</button>`;
       const sub = soldOut
         ? `<span class="pink">${money(p.price)}</span> esgotado`
-        : `<span class="pink">${money(p.price)}</span> chega em 30min 🛵`;
+        : `<span class="pink">${money(p.price)}</span>`;
       return `
         <div class="hero${soldOut ? ' sold-out' : ''}" onclick="openProduct(${idx})">
           <div class="tag">dropou agora ✦</div>
@@ -9450,9 +9467,9 @@
         const inStock = !!lo.in_stock;
         const days = (typeof lo.days_ago === 'number') ? lo.days_ago : null;
         const meta = (days !== null)
-          ? `comprou ${days === 0 ? 'hoje' : (days === 1 ? 'há 1 dia' : `há ${days} dias`)}`
+          ? `Comprou ${days === 0 ? 'hoje' : (days === 1 ? 'há 1 dia' : `há ${days} dias`)}`
           : `Seu último drop`;
-        const ctaTxt = inStock ? `dropar de novo ✦ R$ ${lo.product_price.toFixed(2).replace('.', ',')}` : `esgotou — te aviso`;
+        const ctaTxt = inStock ? `Dropar de novo ✦ R$ ${lo.product_price.toFixed(2).replace('.', ',')}` : `Esgotou — te aviso`;
         const cls = inStock ? 'reorder-card' : 'reorder-card disabled';
         const onclick = inStock ? `onclick="dropAgainFromHome(event)"` : '';
         const thumb = lo.product_image
@@ -9469,41 +9486,19 @@
         });
         html += `
           <div class="${cls}" ${onclick} data-product-id="${escapeHtml(lo.product_id)}" data-slug="${escapeHtml(lo.slug || '')}">
-            <div class="reorder-thumb">${thumb}</div>
-            <div class="reorder-body">
-              <div class="reorder-title">🔄 Seu último drop</div>
-              <div class="reorder-flavor">${escapeHtml(loLabels.hero)}</div>
-              ${loLabels.muted ? `<div class="reorder-brand">${escapeHtml(loLabels.muted)}</div>` : ''}
-              <div class="reorder-meta">${escapeHtml(meta)}</div>
+            <div class="reorder-top">
+              <div class="reorder-thumb">${thumb}</div>
+              <div class="reorder-body">
+                <div class="reorder-title">🔄 Seu último drop</div>
+                <div class="reorder-flavor">${escapeHtml(loLabels.hero)}</div>
+                ${loLabels.muted ? `<div class="reorder-brand">${escapeHtml(loLabels.muted)}</div>` : ''}
+                <div class="reorder-meta">${escapeHtml(meta)}</div>
+              </div>
             </div>
             <button class="reorder-cta" type="button">${ctaTxt}</button>
           </div>`;
-        // Recomendações: 3 cards horizontais — sabor hero + marca muted
-        const recos = (data.recommendations || []).slice(0, 3);
-        if (recos.length) {
-          html += `<div class="reco-row">`;
-          recos.forEach(r => {
-            const thumbR = r.image_url
-              ? `<img src="${escapeHtml(r.image_url)}" alt="${escapeHtml(r.name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(r.emoji || '🦎')}'}))">`
-              : `<span>${escapeHtml(r.emoji || '🦎')}</span>`;
-            const rLabels = productLabels({
-              name: r.name,
-              sabor: r.flavor || r.sabor,
-              marca: r.brand || r.marca,
-              modelo: r.model || r.modelo,
-            });
-            html += `
-              <div class="reco-card" onclick="openProductBySlug('${escapeHtml(r.slug || '')}')">
-                <div class="reco-thumb">${thumbR}</div>
-                <div class="reco-flavor">${escapeHtml(rLabels.hero)}</div>
-                ${rLabels.muted ? `<div class="reco-brand">${escapeHtml(rLabels.muted)}</div>` : ''}
-                <div class="reco-price">R$ ${(r.price || 0).toFixed(2).replace('.', ',')}</div>
-                ${r.match_score >= 0.3 ? `<div class="reco-badge">🦎 combina</div>` : ''}
-              </div>`;
-          });
-          html += `</div>`;
-        }
-        html += `<div class="see-all-link" onclick="scrollToCatalog()">ver tudo →</div>`;
+        // Recomendações e "ver tudo" removidos: a seção vai direto pra "Separei
+        // pra você" → CATÁLOGO (mais limpo, sem card de teste nem link morto).
       } else {
         // Cliente novo (ou sem perfil ainda)
         const greeting = greetName ? `E aí, ${escapeHtml(greetName)}! Qual vibe você curte?` : `E aí! Qual vibe você curte? 🦎`;
@@ -9511,10 +9506,10 @@
         html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
         html += `
           <div class="vibe-row">
-            <div class="vibe-chip" data-flavor="fruity" onclick="pickVibe('fruity', this)">🍇 frutado</div>
-            <div class="vibe-chip" data-flavor="sweet" onclick="pickVibe('sweet', this)">🍬 doce</div>
-            <div class="vibe-chip" data-flavor="icy" onclick="pickVibe('icy', this)">🧊 gelado</div>
-            <div class="vibe-chip" data-flavor="menthol" onclick="pickVibe('menthol', this)">🌿 mentol</div>
+            <div class="vibe-chip" data-flavor="fruity" onclick="pickVibe('fruity', this)">🍇 Frutado</div>
+            <div class="vibe-chip" data-flavor="sweet" onclick="pickVibe('sweet', this)">🍬 Doce</div>
+            <div class="vibe-chip" data-flavor="icy" onclick="pickVibe('icy', this)">🧊 Gelado</div>
+            <div class="vibe-chip" data-flavor="menthol" onclick="pickVibe('menthol', this)">🌿 Mentol</div>
           </div>
           <div class="see-all-link" onclick="pickVibe('', null)">ver tudo →</div>`;
       }
