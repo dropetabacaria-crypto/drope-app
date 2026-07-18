@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#5B21B6">
 <meta name="description" content="Drope ✦ drops em minutos. Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
-<title>Drope ✦ drops em minutos</title>
+<title>DROPE ✦ drops em minutos</title>
 
 <!-- Open Graph (whats, facebook, linkedin, imessage) -->
 <meta property="og:type" content="website">
@@ -125,6 +125,39 @@
     to   { filter: hue-rotate(300deg); }
   }
   .screen { position: relative; z-index: 1; }
+
+  /* CAPITALIZAÇÃO — primeira letra MAIÚSCULA em nomes/títulos/frases do cliente,
+     mesmo onde o CSS força text-transform: lowercase (mantém o estilo casual no resto). */
+  .flavor::first-letter,
+  .brand::first-letter,
+  .reorder-flavor::first-letter,
+  .reorder-brand::first-letter,
+  .reorder-name::first-letter,
+  .reco-flavor::first-letter,
+  .reco-brand::first-letter,
+  .reco-name::first-letter,
+  .cart-item .info .n::first-letter,
+  .cart-item .info .b::first-letter,
+  .similar-name::first-letter,
+  .similar-meta::first-letter,
+  .product-name::first-letter,
+  .product-desc::first-letter,
+  .hero-name::first-letter,
+  .cat-section::first-letter,
+  .section-title::first-letter,
+  .section-title span::first-letter,
+  .onboard-title::first-letter,
+  .empty .t::first-letter,
+  .empty .s::first-letter,
+  .empty-mini::first-letter,
+  .vibe-greet::first-letter,
+  .greet::first-letter,
+  .order-items::first-letter,
+  .pw-title::first-letter,
+  .dcc-title::first-letter,
+  .dtc-title::first-letter {
+    text-transform: uppercase !important;
+  }
 
   /* Números estilo matriz de pontos / LED (cara futurista Ai OS) */
   .tile .price, .hero-sub .pink, #d-price, #d-btnprice, .co-total-val, #cart-total-val, .adm-stat .val, .dcc-total {
@@ -3874,7 +3907,7 @@
   <div style="max-width:420px;width:100%;text-align:center">
     <div style="font-size:48px;margin-bottom:8px">📍</div>
     <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">De onde você é?</h2>
-    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:28px;line-height:1.5">A gente mostra os pods da tua região ✦ pode trocar depois no menu</p>
+    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:28px;line-height:1.5">A gente mostra os pods da sua região ✦ pode trocar depois no menu</p>
     <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
       <span style="font-size:24px">🏙️</span>
       <span style="flex:1">
@@ -3942,7 +3975,7 @@
       <div id="onboard-step-1" class="onboard-step">
         <div class="onboard-body">
           <div class="onboard-title">opa ✦ antes de entrar</div>
-          <div class="onboard-sub">Drope é só pra maiores de 18. nicotina causa dependência ✦ produto proibido pra menores, gestantes e pessoas com problemas cardíacos.</div>
+          <div class="onboard-sub">DROPE é só pra maiores de 18. nicotina causa dependência ✦ produto proibido pra menores, gestantes e pessoas com problemas cardíacos.</div>
         </div>
         <div class="age-confirm-box">
           <label class="age-check">
@@ -3961,19 +3994,19 @@
       <div id="onboard-step-2" class="onboard-step" style="display:none">
         <div class="onboard-body">
           <div class="onboard-title">boas-vindas ✦</div>
-          <div class="onboard-sub">só 3 coisinhas e tu tá dentro</div>
+          <div class="onboard-sub">só 3 coisinhas e você tá dentro</div>
         </div>
         <div class="welcome-form">
-          <input type="text" id="welcome-name" class="card-input" placeholder="teu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateWelcomeBtn()">
+          <input type="text" id="welcome-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateWelcomeBtn()">
           <input type="tel" id="welcome-phone" class="card-input" placeholder="celular com ddd ✦ ex: 11 91234-5678" autocomplete="tel" inputmode="tel" oninput="formatWelcomePhone(this); updateWelcomeBtn()">
           <input type="email" id="welcome-email" class="card-input" placeholder="email (obrigatório)" autocomplete="email" inputmode="email" oninput="updateWelcomeBtn()" required>
           <div class="welcome-privacy">
-            🛟 a gente usa teus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
+            🛟 a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
           </div>
           <div class="welcome-gift">
             <div class="wg-emoji">🎁</div>
             <div class="wg-body">
-              <div class="wg-title">teu cupom de estreia</div>
+              <div class="wg-title">seu cupom de estreia</div>
               <div class="wg-code">DROPE10</div>
               <div class="wg-sub">r$ 10 off no primeiro pedido ✦</div>
             </div>
@@ -3992,9 +4025,9 @@
   <div class="guest-gate" id="guest-gate">
     <div class="guest-gate-handle"></div>
     <div class="onboard-title" style="margin-bottom:4px">antes de dropar ✦</div>
-    <div class="onboard-sub" style="margin-bottom:16px">pra fechar o pedido, a gente precisa saber quem tu é</div>
+    <div class="onboard-sub" style="margin-bottom:16px">pra fechar o pedido, a gente precisa saber quem é você</div>
     <div class="welcome-form">
-      <input type="text" id="gate-name" class="card-input" placeholder="teu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateGateBtn()">
+      <input type="text" id="gate-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateGateBtn()">
       <input type="tel" id="gate-phone" class="card-input" placeholder="celular com ddd ✦ ex: 11 91234-5678" autocomplete="tel" inputmode="tel" oninput="formatGatePhone(this); updateGateBtn()">
       <input type="email" id="gate-email" class="card-input" placeholder="email (obrigatório)" autocomplete="email" inputmode="email" oninput="updateGateBtn()" required>
       <div class="welcome-privacy">🛟 zero spam, zero venda pra terceiros.</div>
@@ -4021,7 +4054,7 @@
   <div class="screen" id="home">
     <div class="header">
       <div class="avatar avatar-emoji" id="home-avatar" onclick="go('profile')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="greet">oi, <b id="home-greet-name">Lucas</b> ✦</div>
+      <div class="greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div class="cart-btn" onclick="goCartSafe()">
         <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
         <div class="cart-badge" id="cart-badge">0</div>
@@ -4047,7 +4080,7 @@
     <!-- OSSO 21 — Home personalizada (vibes pra novo, recompra+reco pra recorrente) -->
     <div id="home-personalized-wrap"></div>
 
-    <div class="section-title display">Catálogo<span>o que dropou hoje</span></div>
+    <div class="section-title display">CATÁLOGO</div>
 
     <!-- DROPE HOME v2.1 (04/06/2026 Andrade) — Botão de filtros TROCADO de ícone pequeno
          escondido pra botão grande com texto, fica óbvio que tem filtros disponíveis -->
@@ -4080,7 +4113,7 @@
       <div class="icon-btn" onclick="go(detailOrigin || 'home')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Drope</div>
+      <div class="brand-small">DROPE</div>
       <div class="icon-btn heart-btn" id="heart-btn" onclick="toggleFavorite()">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       </div>
@@ -4122,7 +4155,7 @@
       <div class="icon-btn" onclick="go('home')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Teu pedido</div>
+      <div class="brand-small">Seu pedido</div>
       <div style="width: 42px"></div>
     </div>
 
@@ -4135,7 +4168,7 @@
 
     <div class="cart-empty" id="cart-empty" style="display:none">
       <div class="big">🏜️</div>
-      <div class="t">Teu carrinho tá seco</div>
+      <div class="t">Seu carrinho tá seco</div>
       <div class="s">bora dropar algum sabor?</div>
       <button class="btn-primary" onclick="go('home')" style="max-width: 220px">ver catálogo</button>
     </div>
@@ -4211,7 +4244,7 @@
 
       <div class="co-section-lbl">total</div>
       <div class="co-total">
-        <div class="co-total-lbl">teu pedido</div>
+        <div class="co-total-lbl">seu pedido</div>
         <div class="co-total-val display" id="co-total">r$ 0</div>
       </div>
 
@@ -4487,7 +4520,7 @@
 
   <!-- ============ SEARCH ============ -->
   <div class="screen" id="search">
-    <div class="section-title display" style="padding-top: 24px">Buscar<span>acha teu drope</span></div>
+    <div class="section-title display" style="padding-top: 24px">Buscar<span>acha seu drope</span></div>
 
     <div class="search-bar">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -4504,7 +4537,7 @@
       <div class="icon-btn" onclick="go('home')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Teus favoritos</div>
+      <div class="brand-small">Seus favoritos</div>
       <div style="width: 42px"></div>
     </div>
     <div id="favs-wrap"></div>
@@ -4561,18 +4594,18 @@
     </div>
     <div class="pe-wrap">
       <div class="pe-avatar-preview" id="pe-avatar-preview"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="pe-avatar-hint">escolhe teu vibe ✦</div>
+      <div class="pe-avatar-hint">escolhe seu vibe ✦</div>
       <div class="pe-avatar-picker" id="pe-avatar-wrap"></div>
 
       <div class="pe-card">
         <label class="card-lbl">nome</label>
-        <input class="card-input" type="text" id="pe-name" placeholder="teu nome ou apelido" maxlength="40">
+        <input class="card-input" type="text" id="pe-name" placeholder="seu nome ou apelido" maxlength="40">
 
         <label class="card-lbl">whatsapp</label>
         <input class="card-input" type="tel" id="pe-phone" placeholder="(11) 98765-4321" maxlength="20">
 
         <label class="card-lbl">email</label>
-        <input class="card-input" type="email" id="pe-email" placeholder="teu@email.com" maxlength="80" inputmode="email">
+        <input class="card-input" type="email" id="pe-email" placeholder="seu@email.com" maxlength="80" inputmode="email">
       </div>
 
       <button class="btn-primary" onclick="saveProfile()">salvar ✦</button>
@@ -4597,7 +4630,7 @@
   <!-- ============ ADMIN LOGIN ============ -->
   <div class="screen no-nav" id="admin-login">
     <div class="login-wrap">
-      <div class="admin-brand">Drope <span class="tag">admin</span></div>
+      <div class="admin-brand">DROPE <span class="tag">admin</span></div>
       <div style="color: var(--text-dim); font-size: 14px; margin-top: 20px">entra pra gerenciar o Drope</div>
       <input id="admin-pw" type="password" placeholder="senha" autocomplete="current-password" enterkeyhint="go" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();adminLogin();}" />
       <button class="btn-primary" type="button" onclick="adminLogin()" onpointerdown="event.preventDefault();this.click()">entrar</button>
@@ -4609,7 +4642,7 @@
   <!-- ============ ADMIN DASHBOARD ============ -->
   <div class="screen no-nav" id="admin-dash">
     <div class="admin-header">
-      <div class="admin-brand">Drope <span class="tag">admin</span></div>
+      <div class="admin-brand">DROPE <span class="tag">admin</span></div>
       <div class="icon-btn" onclick="adminLogout()" title="sair">
         <svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5M21 12H9M13 3H5a2 2 0 00-2 2v14a2 2 0 002 2h8"/></svg>
       </div>
@@ -4730,7 +4763,7 @@
 
       </div>
       <div style="background: rgba(212,255,46,0.06); border: 1px solid rgba(212,255,46,0.25); border-radius: 14px; padding: 12px 14px; margin: 14px 0; font-size: 12px; color: var(--text-dim)">
-        🛵 <b style="color: var(--lime)">entrega</b> ✦ taxa cotada por motoboy (99, Uber, Lalamove). Cliente combina contigo no whats antes de liberar.
+        🛵 <b style="color: var(--lime)">entrega</b> ✦ taxa cotada por motoboy (99, Uber, Lalamove). Cliente combina com você no whats antes de liberar.
       </div>
       <button class="btn-primary" onclick="saveStoreConfig()">salvar ✦</button>
       <div style="color: var(--text-dim); font-size: 12px; margin-top: 16px; text-align: center">
@@ -7009,11 +7042,11 @@
     if (!digits) { toast('whats inválido'); return; }
     const num = digits.length <= 11 ? '55' + digits : digits;
     let msg = '';
-    if (o.statusCls === 'waiting') msg = `oi ${o.customer.name} ✦ recebemos teu pedido #dr-${o.num}, tô confirmando o pagamento`;
-    else if (o.statusCls === 'separating') msg = `oi ${o.customer.name} ✦ tô separando teu pedido #dr-${o.num}, já já fica pronto`;
-    else if (o.statusCls === 'ready') msg = `oi ${o.customer.name} ✦ teu pedido #dr-${o.num} tá pronto pra retirar na loja 🏪✦`;
-    else if (o.statusCls === 'way') msg = `oi ${o.customer.name} ✦ teu pedido #dr-${o.num} saiu pra entrega 🛵✦`;
-    else msg = `oi ${o.customer.name} ✦ sobre teu pedido #dr-${o.num}`;
+    if (o.statusCls === 'waiting') msg = `Oi ${o.customer.name} ✦ recebemos seu pedido #dr-${o.num}, tô confirmando o pagamento`;
+    else if (o.statusCls === 'separating') msg = `Oi ${o.customer.name} ✦ tô separando seu pedido #dr-${o.num}, já já fica pronto`;
+    else if (o.statusCls === 'ready') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} tá pronto pra retirar na loja 🏪✦`;
+    else if (o.statusCls === 'way') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} saiu pra entrega 🛵✦`;
+    else msg = `Oi ${o.customer.name} ✦ sobre seu pedido #dr-${o.num}`;
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
   }
 
@@ -7207,8 +7240,8 @@
     const p = document.getElementById('pe-phone').value.trim();
     const eEl = document.getElementById('pe-email');
     const e = eEl ? eEl.value.trim() : (profile.email || '');
-    if (!n) { toast('põe teu nome ✦'); return; }
-    if (!p) { toast('põe teu whats ✦'); return; }
+    if (!n) { toast('põe seu nome ✦'); return; }
+    if (!p) { toast('põe seu whats ✦'); return; }
     if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { toast('email inválido ✦'); return; }
     profile = { ...profile, name: n, phone: p, email: e, avatar: pickedAvatar };
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}
@@ -7339,7 +7372,7 @@
         <div class="addr-empty">
           <div class="icon">📍</div>
           <div class="t">Nenhum endereço ainda</div>
-          <div class="s">cadastra um pra dropar direto na tua porta</div>
+          <div class="s">cadastra um pra dropar direto na sua porta</div>
           <button class="btn-primary" onclick="openAddressForm()" style="max-width: 240px; margin: 0 auto">cadastrar endereço ✦</button>
         </div>`;
       cta.style.display = 'none';
@@ -8331,14 +8364,14 @@
     // Render: cada marca vira bolinha. Primeiro item = "tudo" pra resetar.
     let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
       <div class="brand-bubble-circle" style="background:linear-gradient(135deg,#b026ff,#ff2d95);">🌎</div>
-      <div class="brand-bubble-name">tudo</div>
+      <div class="brand-bubble-name">TUDO</div>
     </div>`;
     brands.forEach(([brand, count]) => {
       // Pega 1ª e 2ª letras pra fallback visual (até ter logos reais)
       const initials = brand.length >= 2 ? brand.slice(0, brand.length >= 6 ? 4 : 2).toUpperCase() : brand;
       html += `<div class="brand-bubble" data-brand="${escapeHtml(brand)}" onclick="selectBrand('${escapeHtml(brand)}')">
         <div class="brand-bubble-circle">${escapeHtml(initials)}</div>
-        <div class="brand-bubble-name">${escapeHtml(brand.toLowerCase())}</div>
+        <div class="brand-bubble-name">${escapeHtml(brand.toUpperCase())}</div>
       </div>`;
     });
     scroll.innerHTML = html;
@@ -8354,7 +8387,7 @@
       'ex: uva gelada',
       'ex: 50K puffs',
       'ex: BLACKSHEEP',
-      'digita o que tu quer 🦎',
+      'digita o que você quer 🦎',
     ];
     let idx = 0;
     setInterval(() => {
@@ -8835,7 +8868,7 @@
           <div class="co-method-arrow">→</div>
         </div>
         <div class="reserve-note">
-          🛟 separamos pra ti ✦ vem buscar em até <b>2h</b> depois do pedido
+          🛟 separamos pra você ✦ vem buscar em até <b>2h</b> depois do pedido
         </div>
       `;
     } else {
@@ -9275,7 +9308,7 @@
   function renderFavorites() {
     const wrap = document.getElementById('favs-wrap');
     if (favorites.size === 0) {
-      wrap.innerHTML = `<div class="empty"><div class="big">💜</div><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar teus dropes</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="big">💜</div><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar seus dropes</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
     }
     const favProducts = products.filter(p => favorites.has(p.name));
@@ -9418,14 +9451,14 @@
         const days = (typeof lo.days_ago === 'number') ? lo.days_ago : null;
         const meta = (days !== null)
           ? `comprou ${days === 0 ? 'hoje' : (days === 1 ? 'há 1 dia' : `há ${days} dias`)}`
-          : `seu último drop`;
+          : `Seu último drop`;
         const ctaTxt = inStock ? `dropar de novo ✦ R$ ${lo.product_price.toFixed(2).replace('.', ',')}` : `esgotou — te aviso`;
         const cls = inStock ? 'reorder-card' : 'reorder-card disabled';
         const onclick = inStock ? `onclick="dropAgainFromHome(event)"` : '';
         const thumb = lo.product_image
           ? `<img src="${escapeHtml(lo.product_image)}" alt="${escapeHtml(lo.product_name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(lo.emoji || '🦎')}'}))">`
           : `<span>${escapeHtml(lo.emoji || '🦎')}</span>`;
-        const greeting = greetName ? `fala, ${escapeHtml(greetName)}! separei pra você 🦎` : `fala! separei uns pra você 🦎`;
+        const greeting = greetName ? `Fala, ${escapeHtml(greetName)}! Separei pra você 🦎` : `Fala! Separei uns pra você 🦎`;
         html += `<div class="vibe-greet">${greeting}</div>`;
         // OSSO 25 — sabor hero + brand muted no card de "dropar de novo"
         const loLabels = productLabels({
@@ -9438,7 +9471,7 @@
           <div class="${cls}" ${onclick} data-product-id="${escapeHtml(lo.product_id)}" data-slug="${escapeHtml(lo.slug || '')}">
             <div class="reorder-thumb">${thumb}</div>
             <div class="reorder-body">
-              <div class="reorder-title">🔄 seu último drop</div>
+              <div class="reorder-title">🔄 Seu último drop</div>
               <div class="reorder-flavor">${escapeHtml(loLabels.hero)}</div>
               ${loLabels.muted ? `<div class="reorder-brand">${escapeHtml(loLabels.muted)}</div>` : ''}
               <div class="reorder-meta">${escapeHtml(meta)}</div>
@@ -9473,8 +9506,8 @@
         html += `<div class="see-all-link" onclick="scrollToCatalog()">ver tudo →</div>`;
       } else {
         // Cliente novo (ou sem perfil ainda)
-        const greeting = greetName ? `e aí, ${escapeHtml(greetName)}! qual vibe você curte?` : `e aí! qual vibe você curte? 🦎`;
-        const sub = `escolhe uma — ou explora tudo`;
+        const greeting = greetName ? `E aí, ${escapeHtml(greetName)}! Qual vibe você curte?` : `E aí! Qual vibe você curte? 🦎`;
+        const sub = `Escolhe uma — ou explora tudo`;
         html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
         html += `
           <div class="vibe-row">
@@ -9597,7 +9630,7 @@
         body.innerHTML = `
           <div style="padding:60px 20px;text-align:center">
             <div style="font-size:48px;margin-bottom:16px">🦎</div>
-            <div style="font-family:var(--font-display);font-size:22px;color:var(--text);margin-bottom:8px">teu perfil aparece aqui</div>
+            <div style="font-family:var(--font-display);font-size:22px;color:var(--text);margin-bottom:8px">seu perfil aparece aqui</div>
             <div style="color:var(--text-dim);font-size:14px">faz o primeiro drop pra começar</div>
           </div>`;
         return;
@@ -9614,12 +9647,12 @@
       let html = `
         <div style="padding:24px 20px 8px;text-align:center">
           <div style="font-size:48px">🦎</div>
-          <div style="font-family:var(--font-display);font-size:24px;color:var(--text);margin-top:6px">teu perfil de sabor</div>
+          <div style="font-family:var(--font-display);font-size:24px;color:var(--text);margin-top:6px">seu perfil de sabor</div>
           <div style="color:var(--text-dim);font-size:13px;margin-top:4px">${total} drop${total === 1 ? '' : 's'} e contando</div>
         </div>`;
 
       if (entries.length === 0) {
-        html += `<div style="padding:30px 20px;text-align:center;color:var(--text-dim)">teu primeiro drop pinta o perfil 🦎</div>`;
+        html += `<div style="padding:30px 20px;text-align:center;color:var(--text-dim)">seu primeiro drop pinta o perfil 🦎</div>`;
       } else {
         html += `<div class="flavor-bars">`;
         for (const [cat, pct] of entries) {
@@ -9736,7 +9769,7 @@
     ctx.fillText('drope-app.vercel.app', W/2, H - 180);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '28px sans-serif';
-    ctx.fillText('teu sabor, teu drop 🦎', W/2, H - 130);
+    ctx.fillText('seu sabor, seu drop 🦎', W/2, H - 130);
 
     c.toBlob(blob => {
       if (!blob) { toast('falhou gerar imagem ✦'); return; }
@@ -9767,7 +9800,7 @@
     const isDone = last.statusCls === 'done';
     const isCancelled = last.statusCls === 'cancelled';
     if (isCancelled) { wrap.innerHTML = ''; return; }
-    const title = isDone ? 'teu último drop chegou ✦' : 'acompanhar pedido';
+    const title = isDone ? 'seu último drop chegou ✦' : 'acompanhar pedido';
     const sub = isDone
       ? `#dr-${last.num} ✦ ${last.summary}`
       : `#dr-${last.num} ✦ ${last.status}`;
@@ -9952,11 +9985,11 @@
     const hasTabac = cart.some(i => i.cat === 'tabac');
     const notice = document.getElementById('cart-notice');
     if (hasPod && hasTabac) {
-      notice.innerHTML = `<div class="mix-warn">teu carrinho mistura <b>só Pix</b> com <b>aceita cartão</b> ✦ vamos fechar tudo no Pix dessa vez pra não complicar</div>`;
+      notice.innerHTML = `<div class="mix-warn">seu carrinho mistura <b>só Pix</b> com <b>aceita cartão</b> ✦ vamos fechar tudo no Pix dessa vez pra não complicar</div>`;
     } else if (hasPod) {
       notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">drops são <b>só no Pix</b> ✦ é a regra da casa</div>`;
     } else if (hasTabac) {
-      notice.innerHTML = `<div class="mix-warn" style="background: rgba(212,255,46,0.08); border-color: rgba(212,255,46,0.35); color: var(--text)">tabacaria <b style="color: var(--lime)">aceita Pix ou cartão</b> ✦ tu escolhe no checkout</div>`;
+      notice.innerHTML = `<div class="mix-warn" style="background: rgba(212,255,46,0.08); border-color: rgba(212,255,46,0.35); color: var(--text)">tabacaria <b style="color: var(--lime)">aceita Pix ou cartão</b> ✦ você escolhe no checkout</div>`;
     } else {
       notice.innerHTML = '';
     }
@@ -10276,7 +10309,7 @@
           <div class="display" style="font-size:22px;color:var(--text);margin-bottom:8px">mensagem copiada ✦</div>
           <div style="color:var(--text-dim);font-size:14px;line-height:1.5;margin-bottom:18px">
             a loja ainda não cadastrou o whats oficial.<br>
-            copiamos a mensagem pra ti — cola no contato do <b style="color:var(--lime)">Drope</b> que tu já tem e manda
+            copiamos a mensagem pra você — cola no contato do <b style="color:var(--lime)">DROPE</b> que você já tem e manda
           </div>
           <pre id="no-whats-preview" style="background:var(--bg);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px;text-align:left;font-size:11px;color:var(--text-dim);max-height:160px;overflow-y:auto;white-space:pre-wrap;margin-bottom:16px;font-family:monospace"></pre>
           <button class="btn-primary" style="margin:0" onclick="closeNoWhatsModal()">entendi ✦</button>
@@ -10298,7 +10331,7 @@
   }
 
   function logoutAccount() {
-    if (!confirm('sair da conta? ✦ teus dados locais (perfil, endereços, favoritos) serão apagados deste aparelho. Pedidos feitos continuam no histórico da loja.')) return;
+    if (!confirm('sair da conta? ✦ seus dados locais (perfil, endereços, favoritos) serão apagados deste aparelho. Pedidos feitos continuam no histórico da loja.')) return;
     try {
       // Bug 01/05: faltava limpar drope_age_confirmed → o boot achava que o cara
       // ainda tava logado e jogava direto pro catálogo em vez do onboard.
