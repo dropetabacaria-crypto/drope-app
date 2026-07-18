@@ -558,6 +558,22 @@
     justify-content: center;
     flex-shrink: 0;
   }
+  /* Botão de filtros unificado dentro da barra de busca */
+  .search-filter-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    margin-left: 2px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 11px;
+    background: rgba(176,38,255,0.16);
+    cursor: pointer;
+    transition: background .15s, transform .12s;
+  }
+  .search-filter-btn:active { transform: scale(0.92); }
+  .search-filter-btn svg { width: 19px; height: 19px; color: var(--neon, #b026ff); }
+  .search-filter-btn.has-filters { background: rgba(255,45,111,0.22); }
+  .search-filter-btn.has-filters svg { color: var(--pink, #ff2d6f); }
   .brands-wrap {
     padding: 10px 16px 14px;
     overflow: hidden;
@@ -4084,8 +4100,15 @@
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" id="home-search" class="search-input" placeholder="procura por marca, sabor ou puffs..." oninput="searchProducts(this.value)" autocomplete="off">
+        <input type="text" id="home-search" class="search-input" placeholder="Busca por marca, sabor ou puffs..." oninput="searchProducts(this.value)" autocomplete="off">
         <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+        <button class="search-filter-btn" id="search-filter-btn" onclick="openFilters()" aria-label="Filtros" title="Filtros">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/>
+            <circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/>
+          </svg>
+          <span class="filter-badge" id="filter-badge" style="display:none">0</span>
+        </button>
       </div>
     </div>
 
@@ -4097,20 +4120,8 @@
     <!-- OSSO 21 — Home personalizada (vibes pra novo, recompra+reco pra recorrente) -->
     <div id="home-personalized-wrap"></div>
 
+    <!-- Busca e filtros ficam unificados na barra do topo (ícone de filtro dentro da busca) -->
     <div class="section-title display">CATÁLOGO</div>
-
-    <!-- DROPE HOME v2.1 (04/06/2026 Andrade) — Botão de filtros TROCADO de ícone pequeno
-         escondido pra botão grande com texto, fica óbvio que tem filtros disponíveis -->
-    <div class="filter-cta-wrap">
-      <button class="filter-cta" onclick="openFilters()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/>
-          <circle cx="6" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/><circle cx="8" cy="6" r="2" fill="currentColor"/>
-        </svg>
-        <span class="filter-cta-text">filtrar por marca, puffs, sabor, preço...</span>
-        <div class="filter-badge" id="filter-badge" style="display:none">0</div>
-      </button>
-    </div>
 
     <div class="hero-carousel" id="hero-carousel"></div>
 
@@ -5219,7 +5230,7 @@
   <div class="sheet" id="filter-sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-head">
-      <div class="sheet-title display">filtros</div>
+      <div class="sheet-title display">Filtros</div>
       <button class="sheet-close" onclick="closeFilters()">✕</button>
     </div>
 
@@ -7998,29 +8009,17 @@
 
   function updateFilterBadge() {
     const n = filterCount();
-    // DROPE HOME v2.1 — usa .filter-cta (botão grande) em vez do .filter-btn antigo
-    const btn = document.querySelector('.filter-cta') || document.querySelector('.filter-btn');
-    const txt = document.querySelector('.filter-cta-text');
+    // Busca + filtros unificados: o botão de filtro fica dentro da barra de busca
+    const btn = document.getElementById('search-filter-btn') || document.querySelector('.filter-cta') || document.querySelector('.filter-btn');
     const badge = document.getElementById('filter-badge');
     if (!btn || !badge) return;
     if (n > 0) {
       btn.classList.add('has-filters');
       badge.style.display = 'flex';
       badge.textContent = n;
-      // Atualiza texto pra mostrar filtros ativos
-      if (txt) {
-        const parts = [];
-        if (filterState.marca) parts.push(filterState.marca.toUpperCase());
-        if (filterState.modelo) parts.push(filterState.modelo);
-        if (filterState.puffs) parts.push((filterState.puffs/1000) + 'k puffs');
-        if (filterState.sabor) parts.push(filterState.sabor);
-        if (filterState.priceMax) parts.push('até R$' + filterState.priceMax);
-        txt.textContent = parts.length ? parts.join(' · ') : 'filtros ativos';
-      }
     } else {
       btn.classList.remove('has-filters');
       badge.style.display = 'none';
-      if (txt) txt.textContent = 'filtrar por marca, puffs, sabor, preço...';
     }
   }
 
