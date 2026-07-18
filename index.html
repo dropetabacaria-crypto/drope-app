@@ -154,6 +154,15 @@
   .greet::first-letter,
   .order-items::first-letter,
   .pw-title::first-letter,
+  .pw-lbl::first-letter,
+  .pw-sub::first-letter,
+  .co-method-title::first-letter,
+  .co-method-sub::first-letter,
+  .dfn-title::first-letter,
+  .dfn-sub::first-letter,
+  .co-contact-mini .lbl::first-letter,
+  .rec-lbl::first-letter,
+  .co-section-lbl::first-letter,
   .dcc-title::first-letter,
   .dtc-title::first-letter,
   .btn-primary::first-letter,
@@ -4292,18 +4301,18 @@
 
     <!-- Step indicator -->
     <div class="step-indicator">
-      <div class="step active"><span class="step-num">1</span> entrega</div>
+      <div class="step active"><span class="step-num">1</span> Entrega</div>
       <div class="step-line"></div>
-      <div class="step"><span class="step-num">2</span> pagamento</div>
+      <div class="step"><span class="step-num">2</span> Pagamento</div>
       <div class="step-line"></div>
-      <div class="step"><span class="step-num">3</span> confirmar</div>
+      <div class="step"><span class="step-num">3</span> Confirmar</div>
     </div>
 
     <div class="co-wrap">
       <div class="co-section-lbl">como quer receber</div>
       <div class="co-mode" id="co-mode">
-        <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">🛵 entrega</div>
-        <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">🏪 retirar na loja</div>
+        <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">🛵 Entrega</div>
+        <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">🏪 Retirar na loja</div>
       </div>
       <div id="co-address-wrap"></div>
 
@@ -4443,11 +4452,11 @@
 
     <!-- Step indicator -->
     <div class="step-indicator">
-      <div class="step done"><span class="step-num">✓</span> entrega</div>
+      <div class="step done"><span class="step-num">✓</span> Entrega</div>
       <div class="step-line done"></div>
-      <div class="step active"><span class="step-num">2</span> pagamento</div>
+      <div class="step active"><span class="step-num">2</span> Pagamento</div>
       <div class="step-line"></div>
-      <div class="step"><span class="step-num">3</span> confirmar</div>
+      <div class="step"><span class="step-num">3</span> Confirmar</div>
     </div>
 
     <div class="pix-wrap">
@@ -8621,7 +8630,7 @@
           ${cta}
         </div>`;
     }).join('') + `
-      <div class="hero hero-seeall" onclick="verUltimosDrops()">
+      <div class="hero hero-seeall" onclick="openCatalog()">
         <div class="hero-seeall-arrow">→</div>
         <div class="hero-name display">ver todos<br>os drops</div>
         <div class="hero-seeall-sub">explora o catálogo</div>
@@ -8957,7 +8966,7 @@
       warn.style.display = 'none';
     } else if (kind === 'pod') {
       warn.style.display = 'block';
-      warn.innerHTML = `<div class="pay-chip pix-only">⚡ só Pix ✦ regra da casa pra drops</div>`;
+      warn.innerHTML = `<div class="pay-chip pix-only">⚡ Só Pix ✦ regra da casa pra drops</div>`;
     } else if (kind === 'mix') {
       warn.style.display = 'block';
       warn.innerHTML = `<div class="pay-chip mix">⚡ carrinho misto ✦ só Pix libera tudo</div>`;
