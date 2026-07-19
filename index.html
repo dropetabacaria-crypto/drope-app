@@ -6336,11 +6336,12 @@
   function renderAdminDash() {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const valid = orders.filter(o => o.statusCls !== 'cancelled');
+    // "valid" = vendas (pago em diante); exclui cancelado e 'waiting' (pendente/não pago).
+    const valid = adminOrders.filter(o => o.statusCls !== 'cancelled' && o.statusCls !== 'waiting');
     const todayOrders = valid.filter(o => (o.createdAt || 0) >= startOfDay);
 
-    const waiting = orders.filter(o => o.statusCls === 'waiting').length;
-    const way = orders.filter(o => o.statusCls === 'way' || o.statusCls === 'separating' || o.statusCls === 'ready').length;
+    const waiting = adminOrders.filter(o => o.statusCls === 'waiting').length;
+    const way = adminOrders.filter(o => o.statusCls === 'way' || o.statusCls === 'separating' || o.statusCls === 'ready').length;
     const doneToday = todayOrders.filter(o => o.statusCls === 'done').length;
     const salesToday = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
     const wayEl = document.getElementById('adm-way'); if (wayEl) wayEl.textContent = way;
@@ -6918,7 +6919,7 @@
     const title = document.getElementById('admin-orders-title');
     const titles = { all: 'Todos os pedidos', waiting: 'Aguardando', way: 'Na rua', done: 'Entregues' };
     title.textContent = titles[adminFilter] || 'Pedidos';
-    let filtered = adminFilter === 'all' ? orders : orders.filter(o => o.statusCls === adminFilter);
+    let filtered = adminFilter === 'all' ? adminOrders : adminOrders.filter(o => o.statusCls === adminFilter);
     if (adminSearch) {
       filtered = filtered.filter(o => {
         const hay = `#dr-${o.num} ${o.summary} R$ ${o.total}`.toLowerCase();
@@ -6930,7 +6931,7 @@
       return;
     }
     list.innerHTML = filtered.map(o => `
-      <div class="order-row-admin" onclick="openAdminOrderDetail(${o.num})">
+      <div class="order-row-admin" onclick="openAdminOrderDetail('${o.order_nsu}')">
         <div class="info">
           <div class="num">#dr-${o.num}${o.mode === 'pos' ? ' <span class="pos-tag">balcão</span>' : ''}</div>
           <div class="items">${o.summary}</div>
@@ -6941,8 +6942,8 @@
     `).join('');
   }
 
-  function openAdminOrderDetail(num) {
-    const o = orders.find(x => x.num === num);
+  function openAdminOrderDetail(nsu) {
+    const o = adminOrders.find(x => x.order_nsu === nsu) || orders.find(x => x.order_nsu === nsu || x.num === nsu);
     if (!o) return;
     currentAdminOrder = o;
     document.getElementById('adm-det-num').textContent = `#dr-${o.num}`;
@@ -6990,13 +6991,22 @@
     // Botão cancelar: esconde se for POS (usa estorno em vez)
     if (cancelBtn) cancelBtn.style.display = o.mode === 'pos' ? 'none' : 'block';
 
-    if (o.statusCls === 'waiting') btn.textContent = isPickup ? 'confirmar pagamento e separar' : 'confirmar pagamento e liberar';
-    else if (o.statusCls === 'reserved') btn.textContent = 'separar pedido reservado';
-    else if (o.statusCls === 'separating') btn.textContent = isPickup && o.payWhen === 'later' ? 'marcar pronto (receber na retirada)' : 'marcar como pronto pra retirar';
-    else if (o.statusCls === 'ready') btn.textContent = 'marcar como retirado';
-    else if (o.statusCls === 'way') btn.textContent = 'marcar como entregue';
-    else { btn.textContent = 'pedido finalizado'; btn.disabled = true; btn.style.opacity = 0.4; }
-    if (o.statusCls !== 'done' && o.statusCls !== 'cancelled') { btn.disabled = false; btn.style.opacity = 1; }
+    // Rótulo do botão pelo STATUS REAL do backend (funciona com pedido já pago via Pix)
+    const bs = o.backendStatus;
+    const finished = (bs === 'delivered' || bs === 'picked_up' || bs === 'cancelled');
+    if (finished) { btn.textContent = 'pedido finalizado'; btn.disabled = true; btn.style.opacity = 0.4; }
+    else {
+      btn.disabled = false; btn.style.opacity = 1;
+      if (isPickup) {
+        if (bs === 'ready_for_pickup') btn.textContent = 'marcar como retirado';
+        else if (bs === 'preparing') btn.textContent = 'marcar pronto pra retirar 🏪';
+        else btn.textContent = 'separar pedido';
+      } else {
+        if (bs === 'out_for_delivery') btn.textContent = 'marcar como entregue ✓';
+        else if (bs === 'preparing') btn.textContent = 'liberar pra entrega 🛵';
+        else btn.textContent = 'preparar pedido';
+      }
+    }
     go('admin-order-detail');
   }
 
@@ -7005,7 +7015,7 @@
     if (!list) return;
     // Agregar por phone, excluindo POS
     const map = {};
-    orders.forEach(o => {
+    adminOrders.forEach(o => {
       if (o.mode === 'pos') return; // Não contar vendas presenciais
       if (!o.customer || !o.customer.phone) return;
       const key = o.customer.phone;
@@ -7076,39 +7086,32 @@
     toast('CSV de clientes baixado ✦');
   }
 
-  function advanceOrder() {
+  async function advanceOrder() {
     if (!currentAdminOrder) return;
     const o = currentAdminOrder;
     const isPickup = o.mode === 'pickup';
-    if (o.statusCls === 'reserved') {
-      o.statusCls = 'separating';
-      o.status = 'separando pedido';
-      toast('reserva ativa ✦ separa pro cliente');
-    } else if (o.statusCls === 'waiting') {
-      if (isPickup) {
-        o.statusCls = 'separating';
-        o.status = 'separando pedido';
-        toast('pagamento ok ✦ separa o pedido');
-      } else {
-        o.statusCls = 'way';
-        o.status = 'saiu pra entrega';
-        toast('pagamento confirmado ✦ pedido liberado');
-      }
-    } else if (o.statusCls === 'separating') {
-      o.statusCls = 'ready';
-      o.status = 'pronto pra retirar';
-      toast('separado ✦ cliente pode retirar');
-    } else if (o.statusCls === 'ready') {
-      o.statusCls = 'done';
-      o.status = 'retirado';
-      toast(o.payWhen === 'later' ? 'dropou ✦ retirado e pago na hora' : 'dropou ✦ pedido retirado');
-    } else if (o.statusCls === 'way') {
-      o.statusCls = 'done';
-      o.status = 'entregue';
-      toast('dropou ✦ pedido entregue');
+    const bs = o.backendStatus;
+    // Calcula o próximo status no vocabulário do backend
+    let next = null;
+    if (isPickup) {
+      if (bs === 'preparing') next = 'ready_for_pickup';
+      else if (bs === 'ready_for_pickup') next = 'picked_up';
+      else next = 'preparing'; // created/paid/waiting_proof/reserved/pending_pickup
+    } else {
+      if (bs === 'preparing') next = 'out_for_delivery';
+      else if (bs === 'out_for_delivery') next = 'delivered';
+      else next = 'preparing';
     }
-    saveOrders();
-    openAdminOrderDetail(o.num);
+    if (!next) { toast('pedido finalizado ✦'); return; }
+    const btn = document.getElementById('adm-confirm-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = 0.5; }
+    const ok = await _adminUpdateStatus(o.order_nsu, next);
+    if (!ok) { if (btn) { btn.disabled = false; btn.style.opacity = 1; } return; }
+    toast('status atualizado ✦ cliente já vê');
+    await loadAdminOrders();
+    const fresh = adminOrders.find(x => x.order_nsu === o.order_nsu);
+    if (fresh) openAdminOrderDetail(fresh.order_nsu);
+    else go('admin-orders');
     renderAdminDash();
   }
 
@@ -7159,22 +7162,12 @@
       icon: '🚫',
       okLabel: 'sim, cancelar',
       danger: true,
-    }, () => {
-      o.statusCls = 'cancelled';
-      o.status = 'cancelado';
-      // devolve estoque
-      if (o.items) {
-        o.items.forEach(item => {
-          const pIdx = products.findIndex(pp => pp.name === item.name);
-          if (pIdx >= 0 && typeof products[pIdx].stock === 'number') {
-            products[pIdx].stock += item.qty;
-          }
-        });
-        saveProducts();
-        renderGrid();
-      }
-      saveOrders();
-      toast('pedido cancelado');
+    }, async () => {
+      // Cancela no backend (devolve estoque server-side conforme a regra do admin-update-order)
+      const ok = await _adminUpdateStatus(o.order_nsu, 'cancelled');
+      if (!ok) return;
+      toast('pedido cancelado ✦');
+      await loadAdminOrders();
       renderAdminDash();
       go('admin-orders');
     });
@@ -8685,8 +8678,8 @@
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
     if (screen === 'addresses') renderAddresses();
-    if (screen === 'admin-orders') renderAdminOrders();
-    if (screen === 'admin-dash') renderAdminDash();
+    if (screen === 'admin-orders') { renderAdminOrders(); loadAdminOrders(); }
+    if (screen === 'admin-dash') { renderAdminDash(); loadAdminOrders(); }
     if (screen === 'admin-products') renderAdminProducts();
     if (screen === 'profile') {
       const pn = document.getElementById('prof-name');
@@ -8697,7 +8690,7 @@
     }
     if (screen === 'profile-edit') fillProfileEdit();
     if (screen === 'admin-products') renderAdminProducts();
-    if (screen === 'admin-customers') renderCustomers();
+    if (screen === 'admin-customers') { renderCustomers(); loadAdminOrders(); }
     if (screen === 'admin-coupons') renderCoupons();
     if (screen === 'admin-store') fillStoreForm();
     if (screen === 'admin-ai') {
@@ -9497,7 +9490,11 @@
   // Mapeia o status REAL do backend → passo do acompanhamento + rótulo amigável.
   function _mapBackendOrder(o) {
     const mode = o.delivery_mode === 'pickup' ? 'pickup' : 'delivery';
-    const st = o.status;
+    // Normaliza os dois vocabulários de status que existem no backend
+    // (admin-update-order usa preparing/out_for_delivery; orders_update_status usa prepared/dispatched).
+    let st = o.status;
+    if (st === 'prepared' || st === 'accepted') st = 'preparing';
+    if (st === 'dispatched') st = 'out_for_delivery';
     let statusCls, label;
     if (st === 'cancelled') { statusCls = 'cancelled'; label = 'cancelado'; }
     else if (mode === 'pickup') {
@@ -9517,8 +9514,10 @@
     }
     const items = Array.isArray(o.items) ? o.items : [];
     return {
+      id: o.id || null,
       num: (o.order_nsu || '').replace(/^dr-/, ''),
       order_nsu: o.order_nsu,
+      backendStatus: st,
       status: label,
       statusCls,
       mode,
@@ -9551,6 +9550,54 @@
       }
     } catch (e) { console.warn('[my-orders]', e && e.message); }
     finally { _loadingMyOrders = false; }
+  }
+
+  // ===== ADMIN — pedidos de TODOS os clientes (fonte: backend) =====
+  let adminOrders = [];
+  let _loadingAdminOrders = false;
+  let _adminTokenPrompted = false;
+  async function loadAdminOrders() {
+    if (_loadingAdminOrders) return;
+    let token = (() => { try { return localStorage.getItem('drope_admin_token'); } catch (e) { return null; } })();
+    // 1ª vez na sessão: pede o ADMIN_TOKEN (fica salvo) pra conseguir listar os pedidos
+    if (!token && !_adminTokenPrompted && typeof _getAdminTokenPrompt === 'function') {
+      _adminTokenPrompted = true;
+      token = _getAdminTokenPrompt();
+    }
+    if (!token) return;
+    _loadingAdminOrders = true;
+    try {
+      const r = await fetch('/api/webhook?action=orders_list&token=' + encodeURIComponent(token), { cache: 'no-store' });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && Array.isArray(d.orders)) {
+          adminOrders = d.orders.map(_mapBackendOrder);
+          const active = document.querySelector('.screen.active')?.id;
+          if (active === 'admin-dash') renderAdminDash();
+          if (active === 'admin-orders') renderAdminOrders();
+          if (active === 'admin-customers') renderCustomers();
+        }
+      } else if (r.status === 401) {
+        try { localStorage.removeItem('drope_admin_token'); } catch (e) {}
+      }
+    } catch (e) { console.warn('[admin-orders]', e && e.message); }
+    finally { _loadingAdminOrders = false; }
+  }
+  // Atualiza o status do pedido no backend (persiste → o cliente vê no acompanhamento).
+  async function _adminUpdateStatus(order_nsu, newStatus) {
+    const token = (() => { try { return localStorage.getItem('drope_admin_token'); } catch (e) { return null; } })();
+    if (!token) { toast('precisa do ADMIN_TOKEN ✦'); return false; }
+    try {
+      const r = await fetch('/api/admin-update-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ order_nsu, status: newStatus }),
+      });
+      if (r.ok) return true;
+      const d = await r.json().catch(() => ({}));
+      toast('erro ao atualizar ✦ ' + (d.error || r.status));
+      return false;
+    } catch (e) { toast('erro de rede ✦'); return false; }
   }
 
   function renderOrders() {
