@@ -5848,6 +5848,15 @@
       // Reserva estoque atômico; o cron de expiração libera se não for pago.
       const addr = getSelectedAddress();
       const deliveryFeeReais = deliveryFee(); // reais; já considera cupom frete grátis
+      // InfinitePay exige total > R$1,00. Com cupom de frete grátis num item barato
+      // (ex.: produto teste R$0,99) o total cai abaixo do mínimo e a API recusava com
+      // erro genérico. Aqui a gente avisa de forma clara e não tenta gerar o link.
+      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+      if (chargeCents <= 100) {
+        toast('pedido mínimo de R$ 1,00 pra pagar no Pix ✦');
+        btn.textContent = 'pagar agora ✦'; btn.disabled = false;
+        return;
+      }
       try {
         const saveResp = await fetch('/api/save-order', {
           method: 'POST',
