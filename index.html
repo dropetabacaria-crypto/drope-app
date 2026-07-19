@@ -6160,6 +6160,22 @@
       if (_isAdmin() && typeof renderAdminDash === 'function') { try { renderAdminDash(); } catch(e) {} }
       return;
     }
+    // Retorno do pagamento InfinitePay (?capture_method=pix / transaction_nsu / #success-pay):
+    // cai direto no acompanhamento do pedido e busca o status real (webhook confirma em segundos).
+    try {
+      const u = new URL(window.location.href);
+      const payReturn = u.searchParams.get('capture_method') || u.searchParams.get('transaction_nsu') || u.hash === '#success-pay';
+      if (payReturn) {
+        history.replaceState(null, '', u.origin + u.pathname);
+        go('order-tracking');
+        loadMyOrders();
+        // webhook pode levar alguns segundos pra confirmar → re-busca o status
+        setTimeout(loadMyOrders, 4000);
+        setTimeout(loadMyOrders, 12000);
+        toast('pagamento recebido ✦ acompanhe teu pedido');
+        return;
+      }
+    } catch(e) {}
     go(confirmed ? 'home' : 'onboard');
   }
   // Efeito camaleão: dispara a camuflagem do logo pouco antes de trocar de tela
@@ -8661,12 +8677,13 @@
     });
     window.scrollTo(0, 0);
     if (screen === 'cart') renderCart();
-    if (screen === 'home') { renderHomeLastOrder(); renderPersonalizedHome(); }
+    if (screen === 'home') { renderHomeLastOrder(); renderPersonalizedHome(); loadMyOrders(); }
     if (screen === 'flavor-profile') renderFlavorProfile();
     if (screen === 'card') renderCardScreen();
     if (screen === 'search') renderSearch();
     if (screen === 'favorites') renderFavorites();
-    if (screen === 'orders') renderOrders();
+    if (screen === 'orders') { renderOrders(); loadMyOrders(); }
+    if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
     if (screen === 'addresses') renderAddresses();
     if (screen === 'admin-orders') renderAdminOrders();
     if (screen === 'admin-dash') renderAdminDash();
@@ -9465,7 +9482,7 @@
 
   const ORDER_STEPS_DELIVERY = [
     { key: 'waiting', lbl: 'pendente' },
-    { key: 'confirmed', lbl: 'confirmado' },
+    { key: 'confirmed', lbl: 'preparando' },
     { key: 'way', lbl: 'a caminho' },
     { key: 'done', lbl: 'entregue' },
   ];
@@ -9476,6 +9493,65 @@
     { key: 'done', lbl: 'retirado' },
   ];
   const ORDER_STEPS = ORDER_STEPS_DELIVERY; // compat
+
+  // Mapeia o status REAL do backend → passo do acompanhamento + rótulo amigável.
+  function _mapBackendOrder(o) {
+    const mode = o.delivery_mode === 'pickup' ? 'pickup' : 'delivery';
+    const st = o.status;
+    let statusCls, label;
+    if (st === 'cancelled') { statusCls = 'cancelled'; label = 'cancelado'; }
+    else if (mode === 'pickup') {
+      if (st === 'picked_up') { statusCls = 'done'; label = 'retirado ✓'; }
+      else if (st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar 🏪'; }
+      else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
+      else if (st === 'paid') { statusCls = 'separating'; label = 'pago ✦ separando'; }
+      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'separating'; label = 'reservado ✦ pague na retirada'; }
+      else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
+    } else {
+      if (st === 'delivered') { statusCls = 'done'; label = 'entregue ✓'; }
+      else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho 🛵 ✦ motoboy retirou na loja'; }
+      else if (st === 'preparing') { statusCls = 'confirmed'; label = 'preparando teu pedido'; }
+      else if (st === 'paid') { statusCls = 'confirmed'; label = 'pago ✦ preparando'; }
+      else if (st === 'waiting_proof') { statusCls = 'waiting'; label = 'aguardando confirmação'; }
+      else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
+    }
+    const items = Array.isArray(o.items) ? o.items : [];
+    return {
+      num: (o.order_nsu || '').replace(/^dr-/, ''),
+      order_nsu: o.order_nsu,
+      status: label,
+      statusCls,
+      mode,
+      summary: items.map(i => `${i.qty}× ${i.name}`).join(', '),
+      items: items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+      total: (o.total_cents || 0) / 100,
+      address: o.address || null,
+      customer: o.customer_snapshot || o.customer || {},
+      createdAt: o.created_at ? new Date(o.created_at).getTime() : Date.now(),
+      _backend: true,
+    };
+  }
+  // Busca os pedidos do cliente no backend (fonte de verdade do status) e re-renderiza.
+  let _loadingMyOrders = false;
+  async function loadMyOrders() {
+    if (!profile || !profile.phone || _loadingMyOrders) return;
+    _loadingMyOrders = true;
+    try {
+      const r = await fetch('/api/webhook?action=customer_orders&phone=' + encodeURIComponent(profile.phone), { cache: 'no-store' });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && Array.isArray(d.orders)) {
+          orders = d.orders.map(_mapBackendOrder);
+          try { saveOrders(); } catch (e) {}
+          const active = document.querySelector('.screen.active')?.id;
+          if (active === 'orders') renderOrders();
+          if (active === 'order-tracking') renderOrderTracking();
+          if (active === 'home') renderHomeLastOrder();
+        }
+      }
+    } catch (e) { console.warn('[my-orders]', e && e.message); }
+    finally { _loadingMyOrders = false; }
+  }
 
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');

@@ -12196,6 +12196,49 @@ function inferPerfil(category, flavor, descricao) {
   return 'frutado';
 }
 
+// GET /api/webhook?action=customer_orders&phone=<phone>
+// Retorna os pedidos do cliente (casados por telefone) com o status real do backend,
+// pro app montar o acompanhamento (pendente → preparando → a caminho/pronto → entregue/retirado).
+// NOTA[segurança]: lookup por telefone sem auth — endurecer depois (token por cliente).
+async function handleCustomerOrders(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+
+  const qs = (req.url && req.url.includes('?')) ? req.url.split('?')[1] : '';
+  const params = {};
+  qs.split('&').forEach(p => { const [k, v] = p.split('='); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+  const norm = (s) => { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; };
+  const wanted = norm(params.phone);
+  if (wanted.length < 10) return res.status(400).json({ ok: false, error: 'invalid phone' });
+
+  try {
+    const rows = await sbGet('drope_orders',
+      'select=order_nsu,status,total_cents,items,delivery_mode,address,customer_snapshot,created_at' +
+      '&status=not.eq.expired&order=created_at.desc&limit=300');
+    const list = (Array.isArray(rows) ? rows : [])
+      .filter(o => norm(o.customer_snapshot && o.customer_snapshot.phone) === wanted)
+      .slice(0, 25)
+      .map(o => ({
+        order_nsu: o.order_nsu,
+        status: o.status,
+        total_cents: o.total_cents,
+        items: o.items || [],
+        delivery_mode: o.delivery_mode,
+        address: o.address || null,
+        created_at: o.created_at,
+      }));
+    return res.status(200).json({ ok: true, orders: list });
+  } catch (err) {
+    console.error('[customer_orders] ERROR:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 async function handleCatalog(req, res) {
   // CORS — pode vir do próprio domínio ou localhost de dev
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
@@ -14838,6 +14881,12 @@ module.exports = async function handler(req, res) {
   // Público (sem auth) — é o catálogo que o app cliente consome.
   if (req.url && req.url.indexOf('action=catalog') >= 0) {
     return await handleCatalog(req, res);
+  }
+
+  // GET /api/webhook?action=customer_orders&phone=<phone>
+  // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.
+  if (req.url && req.url.indexOf('action=customer_orders') >= 0) {
+    return await handleCustomerOrders(req, res);
   }
 
   // ===== ROTAS OSSO 21 — IA-FIRST CLIENTE (01/05/2026) =====
