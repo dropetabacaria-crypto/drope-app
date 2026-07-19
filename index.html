@@ -8718,6 +8718,15 @@
       }
     }
     if (screen === 'order-tracking') renderOrderTracking();
+
+    // ===== Auto-refresh por tela (pausa quando a aba não está visível) =====
+    _stopPoll();
+    if (screen === 'order-tracking') {
+      _startPoll(loadMyOrders, 60000);           // acompanhamento do cliente: 1 min
+    } else if (screen === 'admin-dash' || screen === 'admin-orders') {
+      _requestNotifyPerm();                        // pede permissão de notificação (1x)
+      _startPoll(loadAdminOrders, 20000);          // admin: 20s + som/notificação de pedido novo
+    }
   }
 
   function cartTotal() {
@@ -9572,6 +9581,7 @@
         const d = await r.json();
         if (d && Array.isArray(d.orders)) {
           adminOrders = d.orders.map(_mapBackendOrder);
+          _detectNewOrders(adminOrders);
           const active = document.querySelector('.screen.active')?.id;
           if (active === 'admin-dash') renderAdminDash();
           if (active === 'admin-orders') renderAdminOrders();
@@ -9599,6 +9609,58 @@
       return false;
     } catch (e) { toast('erro de rede ✦'); return false; }
   }
+
+  // ===== Alerta instantâneo de pedido novo (som + notificação + toast) =====
+  let _alertedNsus = null;
+  function _detectNewOrders(list) {
+    // só alerta pedidos "reais" (pago/aguardando/reservado…), não 'created' (checkout não pago) nem cancelado
+    const alertable = list.filter(o => o.backendStatus !== 'created' && o.statusCls !== 'cancelled');
+    if (_alertedNsus === null) { _alertedNsus = new Set(alertable.map(o => o.order_nsu)); return; } // baseline (1ª carga não alerta)
+    const fresh = alertable.filter(o => !_alertedNsus.has(o.order_nsu));
+    fresh.forEach(o => _alertedNsus.add(o.order_nsu));
+    if (!fresh.length) return;
+    _beepNewOrder();
+    const f = fresh[0];
+    const txt = fresh.length > 1 ? `${fresh.length} novos pedidos!` : `Novo pedido ✦ ${f.summary}`;
+    try { toast('🛎️ ' + txt); } catch (e) {}
+    _notifyNewOrder('🛎️ Novo pedido no DROPE!', fresh.length > 1 ? txt : `${f.summary} ✦ ${money(f.total)}`);
+  }
+  function _beepNewOrder() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      const ctx = new AC();
+      const tone = (freq, at) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+        g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + at + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.35);
+        o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 0.37);
+      };
+      tone(880, 0); tone(1175, 0.22); // ding-dong
+    } catch (e) {}
+  }
+  function _notifyNewOrder(title, body) {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const icon = (document.getElementById('splash-logo-img') || {}).src || undefined;
+      new Notification(title, { body, icon, tag: 'drope-order', renotify: true });
+    } catch (e) {}
+  }
+  function _requestNotifyPerm() {
+    try { if (('Notification' in window) && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+  }
+
+  // ===== Auto-refresh (polling) — pausa quando a aba não está visível (economiza) =====
+  let _pollHandle = null, _pollFn = null;
+  function _stopPoll() { if (_pollHandle) { clearInterval(_pollHandle); _pollHandle = null; } _pollFn = null; }
+  function _startPoll(fn, ms) {
+    _stopPoll(); _pollFn = fn;
+    _pollHandle = setInterval(() => { if (document.visibilityState === 'visible' && _pollFn) _pollFn(); }, ms);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && _pollFn) _pollFn(); // ao voltar pra aba, atualiza na hora
+  });
 
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');
