@@ -3968,18 +3968,17 @@
     <div style="font-size:48px;margin-bottom:8px">📍</div>
     <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">De onde você é?</h2>
     <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:28px;line-height:1.5">A gente mostra os pods da sua região ✦ pode trocar depois no menu</p>
-    <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-      <span style="font-size:24px">🏙️</span>
-      <span style="flex:1">
-        <div>São Paulo</div>
-      </span>
-    </button>
-    <button onclick="pickClientFilial('santos')" style="display:block;width:100%;background:linear-gradient(90deg,#FF4D8F,#FF8533);color:#fff;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-      <span style="font-size:24px">🏖️</span>
-      <span style="flex:1">
-        <div>Santos</div>
-      </span>
-    </button>
+    <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
+    <div id="filial-picker-list">
+      <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🏙️</span>
+        <span style="flex:1"><div>São Paulo</div></span>
+      </button>
+      <button onclick="pickClientFilial('santos')" style="display:block;width:100%;background:linear-gradient(90deg,#FF4D8F,#FF8533);color:#fff;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🏖️</span>
+        <span style="flex:1"><div>Santos</div></span>
+      </button>
+    </div>
     <div onclick="document.getElementById('filial-picker-overlay').style.display='none'; go('lojista-signup');"
          style="margin-top:22px; font-size:13px; color:rgba(255,255,255,0.6); cursor:pointer">
       É dono de tabacaria? <span style="color:var(--lime,#D4FF2E); font-weight:700">Cadastre sua loja →</span>
@@ -7318,6 +7317,34 @@
   function trocarFilialCliente() {
     const overlay = document.getElementById('filial-picker-overlay');
     if (overlay) overlay.style.display = 'flex';
+    renderFilialPicker();
+  }
+  // Monta os botões do seletor a partir das lojas ATIVAS do backend.
+  // Fallback: se falhar/vier vazio, mantém o SP/Santos que já está no HTML.
+  const _FILIAL_STYLES = [
+    ['#D4FF2E', '#9CE600', '#000'],
+    ['#FF4D8F', '#FF8533', '#fff'],
+    ['#8C50FF', '#B026FF', '#fff'],
+    ['#2DD4FF', '#3B82F6', '#012'],
+    ['#FFB000', '#FF6B00', '#000'],
+  ];
+  async function renderFilialPicker() {
+    const list = document.getElementById('filial-picker-list');
+    if (!list) return;
+    try {
+      const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (!d || !Array.isArray(d.filiais) || !d.filiais.length) return; // mantém fallback
+      list.innerHTML = d.filiais.map((f, i) => {
+        const g = _FILIAL_STYLES[i % _FILIAL_STYLES.length];
+        const label = (f.city || f.name || '').replace(/^Drope\s+/i, '');
+        return `<button onclick="pickClientFilial('${f.slug}')" style="display:flex;align-items:center;gap:12px;width:100%;background:linear-gradient(90deg,${g[0]},${g[1]});color:${g[2]};border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left">
+          <span style="font-size:24px">📍</span>
+          <span style="flex:1"><div>${label}</div></span>
+        </button>`;
+      }).join('');
+    } catch (e) { /* mantém fallback */ }
   }
   // Boot: mostra overlay se ainda não escolheu (default 'sp' sem localStorage = nova abertura)
   (function checkFilialOnBoot() {
@@ -7327,6 +7354,7 @@
       const overlay = document.getElementById('filial-picker-overlay');
       if (overlay) overlay.style.display = 'flex';
     }
+    renderFilialPicker();
   })();
 
   function loadProducts() {
