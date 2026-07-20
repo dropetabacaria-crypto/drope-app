@@ -2109,6 +2109,18 @@
     outline: none;
   }
   .card-input:focus { border-color: var(--pink); }
+  /* ===== Cadastro de tabacaria (lojista) — layout harmônico ===== */
+  #lojista-signup .onboard-title { font-size: 26px; margin-bottom: 8px; }
+  .lj-sec-label { font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--lime); margin: 22px 0 12px; }
+  .lj-field { display: block; margin-bottom: 12px; }
+  .lj-lbl { display: block; font-size: 12px; color: var(--text-dim); margin: 0 0 6px 2px; }
+  .lj-row { display: flex; gap: 12px; align-items: flex-end; }
+  .lj-select {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239a8fbf' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 34px; cursor: pointer;
+  }
+  .lj-note { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 16px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
   .card-row { display: flex; gap: 12px; }
   .card-note {
     margin-top: 18px;
@@ -4215,28 +4227,55 @@
       <div class="brand-small">Seja parceiro</div>
       <div style="width:40px"></div>
     </div>
-    <div id="lojista-form-wrap" style="padding: 0 20px">
-      <div class="onboard-title" style="margin-top:8px">Cadastre sua tabacaria 🦎</div>
-      <div class="onboard-sub" style="margin-bottom:18px">Venda seus pods no DROPE. Você recebe direto na sua conta ✦ a gente cuida do app, do catálogo e da entrega.</div>
-      <input id="lj-store" class="card-input" placeholder="nome da loja" maxlength="40" oninput="_ljBtn()">
-      <div style="display:flex; gap:8px">
-        <input id="lj-city" class="card-input" placeholder="cidade" style="flex:2" maxlength="40" oninput="_ljBtn()">
-        <select id="lj-uf" class="card-input" style="flex:1" onchange="_ljBtn()">
-          <option value="">UF</option>
-          <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option>
-          <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option>
-          <option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option>
-          <option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option>
-          <option>SP</option><option>SE</option><option>TO</option>
-        </select>
+    <div id="lojista-form-wrap" style="padding: 0 20px 40px">
+      <div class="onboard-title" style="margin-top:8px">Cadastre sua tabacaria</div>
+      <div class="onboard-sub" style="margin-bottom:8px">Venda seus pods no DROPE. Você recebe direto na sua conta ✦ a gente cuida do app, do catálogo e da entrega.</div>
+
+      <div class="lj-sec lj-sec-label">Sua loja</div>
+      <label class="lj-field">
+        <span class="lj-lbl">Nome da loja</span>
+        <input id="lj-store" class="card-input" placeholder="ex: Tabacaria do Zé" maxlength="40" oninput="_ljBtn()">
+      </label>
+      <div class="lj-row">
+        <label class="lj-field" style="flex:2">
+          <span class="lj-lbl">Cidade</span>
+          <input id="lj-city" class="card-input" placeholder="ex: Santos" maxlength="40" oninput="_ljBtn()">
+        </label>
+        <label class="lj-field" style="flex:1">
+          <span class="lj-lbl">Estado</span>
+          <select id="lj-uf" class="card-input lj-select" onchange="_ljBtn()">
+            <option value="">UF</option>
+            <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option>
+            <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+            <option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option>
+            <option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+            <option>SP</option><option>SE</option><option>TO</option>
+          </select>
+        </label>
       </div>
-      <input id="lj-name" class="card-input" placeholder="seu nome" maxlength="40" oninput="_ljBtn()">
-      <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="seu whatsapp (com ddd)" oninput="formatLjPhone(this); _ljBtn()">
-      <div style="font-size:12px;color:var(--text-dim);margin:14px 0 6px">Crie seu login pra acessar o painel da loja:</div>
-      <input id="lj-email" class="card-input" type="email" inputmode="email" autocomplete="email" placeholder="seu email (login)" maxlength="80" oninput="_ljBtn()">
-      <input id="lj-pass" class="card-input" type="password" autocomplete="new-password" placeholder="senha (mín. 6 caracteres)" maxlength="60" oninput="_ljBtn()">
-      <button class="btn-primary" id="lj-submit" onclick="submitFilialRegister()" disabled style="opacity:0.4; width:100%; margin-top:14px">cadastrar loja ✦</button>
-      <div class="onboard-sub" style="margin-top:12px; font-size:12px">Depois do cadastro você conecta a conta de recebimento pra receber das vendas (com uma pequena comissão do DROPE por venda).</div>
+
+      <div class="lj-sec lj-sec-label">Seu contato</div>
+      <label class="lj-field">
+        <span class="lj-lbl">Seu nome</span>
+        <input id="lj-name" class="card-input" placeholder="como te chamamos" maxlength="40" oninput="_ljBtn()">
+      </label>
+      <label class="lj-field">
+        <span class="lj-lbl">WhatsApp</span>
+        <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLjPhone(this); _ljBtn()">
+      </label>
+
+      <div class="lj-sec lj-sec-label">Seu acesso ao painel</div>
+      <label class="lj-field">
+        <span class="lj-lbl">Email (login)</span>
+        <input id="lj-email" class="card-input" type="email" inputmode="email" autocomplete="email" placeholder="voce@email.com" maxlength="80" oninput="_ljBtn()">
+      </label>
+      <label class="lj-field">
+        <span class="lj-lbl">Senha</span>
+        <input id="lj-pass" class="card-input" type="password" autocomplete="new-password" placeholder="mín. 6 caracteres" maxlength="60" oninput="_ljBtn()">
+      </label>
+
+      <button class="btn-primary" id="lj-submit" onclick="submitFilialRegister()" disabled style="opacity:0.4; width:100%; margin-top:20px">Cadastrar loja ✦</button>
+      <div class="lj-note">🔒 Depois do cadastro você conecta a conta de recebimento pra receber das vendas (com uma pequena comissão do DROPE por venda).</div>
     </div>
     <div id="lojista-done-wrap" style="display:none; padding: 30px 20px; text-align:center">
       <div style="font-size:56px">🎉</div>
