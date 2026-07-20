@@ -4128,7 +4128,7 @@
   <div class="screen" id="home">
     <div class="header">
       <div class="avatar avatar-emoji" id="home-avatar" onclick="go('profile')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
+      <div class="greet" id="home-greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div class="cart-btn" onclick="goCartSafe()">
         <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
         <div class="cart-badge" id="cart-badge">0</div>
@@ -4708,14 +4708,16 @@
     </div>
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
-        <div class="profile-row" onclick="go('profile-edit')">editar perfil <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">criar minha conta ✦ <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('flavor-profile')">meu perfil de sabor 🦎 <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('favorites')">favoritos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('addresses')">endereços <span class="arrow">›</span></div>
         <div class="profile-row" onclick="shareDrope()">compartilhar app <span class="arrow">›</span></div>
         <div class="profile-row" onclick="openHelpWhats()">ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="logoutAccount()" style="color: var(--pink)">sair da conta <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="go('lojista-signup')">🏪 cadastrar minha tabacaria <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">sair da conta <span class="arrow">›</span></div>
       </div>
     </div>
   </div>
@@ -6072,14 +6074,12 @@
     const box = document.getElementById('age-check-box');
     if (!box || !box.checked) return;
     try { localStorage.setItem('drope_age_confirmed', '1'); } catch(e) {}
-    // Se já tem perfil salvo (usuário recorrente), pula direto
-    if (profile && profile.name && profile.name !== 'Lucas') {
-      go('home');
-      return;
-    }
-    document.getElementById('onboard-step-1').style.display = 'none';
-    document.getElementById('onboard-step-2').style.display = 'flex';
-    setTimeout(() => { const ni = document.getElementById('welcome-name'); if (ni) ni.focus(); }, 100);
+    // Modelo: convidado entra DIRETO no catálogo. Não força cadastro aqui — a
+    // conta só é criada na hora de pedir (guest gate no checkout). Nada de "conta
+    // de visitante" persistida.
+    if (!(profile && profile.onboarded)) { profile.onboarded = false; }
+    updateProfileAvatar();
+    go('home');
   }
 
   function ageDeny() {
@@ -6248,10 +6248,18 @@
     if (pendingAfterGate === 'cart') {
       go('cart');
       renderCart();
-    } else {
+    } else if (pendingAfterGate === 'checkout') {
       go('checkout');
+    } else {
+      // criação de conta a partir do perfil (sem pedido em andamento)
+      go('home');
     }
     pendingAfterGate = null;
+  }
+  // Criar conta a partir do perfil (convidado) — sem pedido em andamento
+  function openAccountCreate() {
+    pendingAfterGate = 'account';
+    openGuestGate();
   }
 
   // QUICK WIN (04/06 Andrade): splash 1.8s → 1.2s + skip ao toque na logo
@@ -7575,13 +7583,18 @@
   function updateProfileAvatar() {
     renderAvatarInto(document.getElementById('prof-avatar-big'), profile.avatar);
     renderAvatarInto(document.getElementById('home-avatar'), profile.avatar);
-    const greetName = document.getElementById('home-greet-name');
-    const displayName = (profile.name && profile.name !== 'Lucas' && profile.name !== 'visitante') ? profile.name : (profile.onboarded ? profile.name : 'visitante');
-    if (greetName) greetName.textContent = displayName;
+    const guest = isGuest();
+    // Saudação da home: convidado não tem "nome de conta" — mostra algo neutro.
+    const greet = document.getElementById('home-greet');
+    if (greet) {
+      greet.innerHTML = guest
+        ? 'E aí ✦'
+        : `Oi, <b id="home-greet-name">${escapeHtml(profile.name)}</b> ✦`;
+    }
     const pn = document.getElementById('prof-name');
-    if (pn) pn.textContent = displayName;
+    if (pn) pn.textContent = guest ? 'Convidado' : profile.name;
     const pp = document.getElementById('prof-phone');
-    if (pp) pp.textContent = profile.phone || '';
+    if (pp) pp.textContent = guest ? 'crie sua conta pra pedir ✦' : (profile.phone || '');
   }
   function pickAvatar(em) {
     pickedAvatar = em;
@@ -8932,11 +8945,13 @@
     if (screen === 'admin-dash') { renderAdminDash(); loadAdminOrders(); }
     if (screen === 'admin-products') renderAdminProducts();
     if (screen === 'profile') {
-      const pn = document.getElementById('prof-name');
-      const pp = document.getElementById('prof-phone');
-      if (pn) pn.textContent = profile.name;
-      if (pp) pp.textContent = profile.phone;
-      updateProfileAvatar();
+      updateProfileAvatar(); // define nome/telefone (ou estado de convidado)
+      // Convidado: mostra "criar conta", esconde editar/sair (não há conta ainda)
+      const guest = isGuest();
+      const setDisp = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+      setDisp('pr-create', guest);
+      setDisp('pr-edit', !guest);
+      setDisp('pr-logout', !guest);
     }
     if (screen === 'profile-edit') fillProfileEdit();
     if (screen === 'admin-products') renderAdminProducts();
