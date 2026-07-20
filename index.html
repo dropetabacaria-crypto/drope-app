@@ -4747,6 +4747,7 @@
     </div>
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
+        <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">🏪 Meu painel da loja <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
@@ -6306,6 +6307,21 @@
     pendingAfterGate = 'account';
     openGuestGate();
   }
+  // Detecta se este aparelho tem uma tabacaria (cadastrou aqui OU logou no painel).
+  // App e filial.html dividem o mesmo localStorage (mesma origem).
+  function _lojistaSlug() {
+    try {
+      const s = localStorage.getItem('drope_lojista_slug');
+      if (s) return s;
+      const sess = JSON.parse(localStorage.getItem('drope_filial_session_v1') || 'null');
+      if (sess && sess.slug) return sess.slug;
+    } catch (e) {}
+    return '';
+  }
+  function goMeuPainel() {
+    const slug = _lojistaSlug();
+    location.href = slug ? ('/' + encodeURIComponent(slug) + '/painel') : '/filial.html';
+  }
 
   // QUICK WIN (04/06 Andrade): splash 1.8s → 1.2s + skip ao toque na logo
   // ===== LOJISTA — cadastro de tabacaria (SaaS) =====
@@ -6350,6 +6366,8 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
         _ljNewSlug = (d.filial && d.filial.slug) || '';
+        // marca este aparelho como dono de tabacaria → mostra "Meu painel" no perfil
+        try { if (_ljNewSlug) localStorage.setItem('drope_lojista_slug', _ljNewSlug); } catch (e) {}
         const msg = document.getElementById('lj-done-msg');
         if (msg) msg.textContent = `A loja ${(d.filial && d.filial.name) || ''} foi criada.`;
         document.getElementById('lojista-form-wrap').style.display = 'none';
@@ -8997,6 +9015,8 @@
       setDisp('pr-create', guest);
       setDisp('pr-edit', !guest);
       setDisp('pr-logout', !guest);
+      // "Meu painel da loja" só pra quem tem tabacaria neste aparelho
+      setDisp('pr-painel', !!_lojistaSlug());
     }
     if (screen === 'profile-edit') fillProfileEdit();
     if (screen === 'admin-products') renderAdminProducts();

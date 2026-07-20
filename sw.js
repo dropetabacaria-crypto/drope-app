@@ -4,7 +4,7 @@
 //     Resolve o problema histórico de "versão velha no cache do Chrome do Xiaomi".
 //   - Assets estáticos (.js .css imagens): cache-first com revalidação em background.
 //   - /api/*: NUNCA cachear (são dados ao vivo).
-const CACHE = 'drope-v5';
+const CACHE = 'drope-v6';
 // Páginas que NUNCA são cacheadas — sempre busca da rede.
 // Inclui receber.html porque o fluxo de scanner muda muito; cache antigo causou travamento.
 const NEVER_CACHE = ['/receber.html', '/receber', '/index.html', '/'];
@@ -46,9 +46,11 @@ self.addEventListener('fetch', (event) => {
   // Nunca cachear API (sempre dados ao vivo)
   if (url.pathname.startsWith('/api/')) return;
 
-  // Páginas críticas: network-only (sempre fresh, nunca cache)
+  // Páginas críticas: network-first (sempre fresh, nunca cache).
+  // Inclui TODA navegação (req.mode === 'navigate') — ex: /<slug>/painel, que
+  // não termina em .html e, como asset cache-first, servia um index.html velho.
   const path = url.pathname;
-  if (NEVER_CACHE.includes(path) || path.endsWith('.html')) {
+  if (req.mode === 'navigate' || NEVER_CACHE.includes(path) || path.endsWith('.html')) {
     event.respondWith(
       fetch(req, { cache: 'no-store' }).catch(() => caches.match(req))
     );
