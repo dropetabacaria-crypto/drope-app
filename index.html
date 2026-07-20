@@ -4708,16 +4708,18 @@
     </div>
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
-        <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">criar minha conta ✦ <span class="arrow">›</span></div>
-        <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">editar perfil <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="go('flavor-profile')">meu perfil de sabor 🦎 <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="go('orders')">meus pedidos <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="go('favorites')">favoritos <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="go('addresses')">endereços <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="shareDrope()">compartilhar app <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="openHelpWhats()">ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="go('lojista-signup')">🏪 cadastrar minha tabacaria <span class="arrow">›</span></div>
-        <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">sair da conta <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="go('favorites')">Favoritos <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="shareDrope()">Compartilhar app <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="openHelpWhats()">Ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
+      </div>
+      <!-- CTA lojista: vira texto (não botão) embaixo do menu -->
+      <div style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
+        Tem tabacaria?<br>
+        <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Seja parceiro DROPE ✦</span>
       </div>
     </div>
   </div>
@@ -4747,7 +4749,11 @@
         <input class="card-input" type="email" id="pe-email" placeholder="seu@email.com" maxlength="80" inputmode="email">
       </div>
 
-      <button class="btn-primary" onclick="saveProfile()">salvar ✦</button>
+      <div class="pe-card" style="padding:0; margin-top:14px">
+        <div class="profile-row" onclick="go('addresses')" style="border-bottom:none">Endereços <span class="arrow">›</span></div>
+      </div>
+
+      <button class="btn-primary" onclick="saveProfile()" style="margin-top:16px">salvar ✦</button>
     </div>
   </div>
 
