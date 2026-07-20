@@ -4579,10 +4579,14 @@ async function handleFilialPainel(req, res) {
 
     // Produtos da loja (pro lojista gerenciar estoque/preço)
     const prods = await sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,category&order=name.asc&limit=300`);
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata&order=name.asc&limit=300`);
     const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
-      stock: p.qty_available, hidden: !!p.hidden, image_url: p.image_url || null, category: p.category || 'pod',
+      stock: p.qty_available, hidden: !!p.hidden,
+      image_url: p.image_url || null, image_status: p.image_status || null,
+      category: p.category || 'pod',
+      marca: ((p.metadata || {}).marca) || null,
+      sabor: ((p.metadata || {}).sabor) || null,
     }));
 
     return res.status(200).json({
@@ -4607,8 +4611,23 @@ async function handleFilialPainel(req, res) {
   }
 }
 
+// Auth compartilhada dos endpoints do lojista: aceita o token de SESSÃO (login
+// por email+senha, hash em metadata.login.session_hash) OU o código legado (4
+// últimos dígitos do whats da fundadora). Retorna a filial ou null.
+async function _filialAuthBySlug(filialSlug, token) {
+  if (!filialSlug || !token) return null;
+  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,slug,name,founder_phone,markup_cents,founder_share_cents,metadata&limit=1`);
+  const filial = Array.isArray(fr) && fr[0];
+  if (!filial) return null;
+  const sessionHash = (((filial.metadata || {}).login) || {}).session_hash || '';
+  const bySession = !!sessionHash && _sha256hex(token) === sessionHash;
+  const last4 = (filial.founder_phone || '').slice(-4);
+  const byLegacy = !!last4 && token === last4;
+  return (bySession || byLegacy) ? filial : null;
+}
+
 // POST action=filial_product_save — lojista adiciona/edita produto da loja dele.
-// Auth: filial slug + token (4 últimos dígitos do whats da fundadora). Escopo por filial_id.
+// Auth: filial slug + token de sessão (ou código legado). Escopo por filial_id.
 async function handleFilialProductSave(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -4620,10 +4639,8 @@ async function handleFilialProductSave(req, res) {
     const filialSlug = String(body.filial || '').toLowerCase().trim();
     const token = String(body.token || '').trim();
     if (!filialSlug) return res.status(400).json({ ok: false, error: 'missing filial' });
-    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,founder_phone&limit=1`);
-    const filial = Array.isArray(fr) && fr[0];
-    if (!filial) return res.status(404).json({ ok: false, error: 'filial not found' });
-    if (token !== (filial.founder_phone || '').slice(-4)) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const filial = await _filialAuthBySlug(filialSlug, token);
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
 
     const id = body.id;
     const priceCents = Math.round(Number(body.price) * 100);
@@ -4645,6 +4662,8 @@ async function handleFilialProductSave(req, res) {
     // novo produto
     const name = String(body.name || '').trim();
     const sabor = String(body.sabor || '').trim();
+    const marca = String(body.marca || '').trim();
+    const puffs = String(body.puffs || '').replace(/\D/g, '');
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome inválido' });
     if (!isFinite(priceCents) || priceCents < 0) return res.status(400).json({ ok: false, error: 'preço inválido' });
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pod';
@@ -4656,12 +4675,62 @@ async function handleFilialProductSave(req, res) {
       hidden: false, image_status: 'ok',
       image_url: imageUrl || null,
       category: 'pod',
-      metadata: { sabor: sabor || null, created_via: 'lojista_panel' },
+      metadata: {
+        sabor: sabor || null, marca: marca || null, puffs: puffs ? parseInt(puffs, 10) : null,
+        // campos que a pipeline de arte usa (slug único do arquivo + contexto do prompt)
+        brand: marca || null, model: name, flavor_pt: sabor || null,
+        created_via: 'lojista_panel',
+      },
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
     return res.status(200).json({ ok: true, id: row.id, slug: row.slug });
   } catch (e) {
     console.error('[filial_product_save] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// POST action=filial_product_art — lojista gera a arte (IA) de um produto DELE.
+// Auth pela sessão da loja; o ADMIN_TOKEN e a pipeline ficam 100% no servidor.
+// Roda a MESMA runArtGeneration do admin (inline, ~30s).
+async function handleFilialProductArt(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filialSlug = String(body.filial || '').toLowerCase().trim();
+    const token = String(body.token || '').trim();
+    const productId = body.product_id;
+    if (!filialSlug || !productId) return res.status(400).json({ ok: false, error: 'missing filial or product_id' });
+    const filial = await _filialAuthBySlug(filialSlug, token);
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(productId)}&filial_id=eq.${filial.id}&select=id&limit=1`);
+    if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'produto não é da sua loja' });
+    await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, { image_status: 'pending_art' });
+    try {
+      await runArtGeneration(productId, filial.founder_phone || '5511999999999', 1);
+    } catch (e) {
+      console.error('[filial_product_art] runArtGeneration:', e.message);
+    }
+    const after = await sbGet('drope_products', `id=eq.${encodeURIComponent(productId)}&select=id,image_url,image_status,metadata&limit=1`);
+    const p = (after && after[0]) || {};
+    let imageUrl = p.image_url || null;
+    let imageStatus = p.image_status || null;
+    const pendingArt = (p.metadata || {}).pending_art_url || null;
+    // Auto-aprova pro lojista (dono do produto): a arte passou pelo QC e fica em
+    // 'awaiting_approval' esperando o admin. Aqui publicamos direto.
+    if (!imageUrl && pendingArt) {
+      const md = { ...(p.metadata || {}), pending_art_url: null, lojista_auto_approved: true };
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, { image_url: pendingArt, image_status: 'ok', metadata: md });
+      imageUrl = pendingArt;
+      imageStatus = 'ok';
+    }
+    return res.status(200).json({ ok: true, image_url: imageUrl, image_status: imageStatus });
+  } catch (e) {
+    console.error('[filial_product_art] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -17947,6 +18016,10 @@ async function generateAll(){
   // action=filial_product_save — POST: lojista adiciona/edita produto da loja dele
   if (req.url && req.url.indexOf('action=filial_product_save') >= 0) {
     return await handleFilialProductSave(req, res);
+  }
+  // action=filial_product_art — POST: lojista gera a arte (IA) de um produto dele
+  if (req.url && req.url.indexOf('action=filial_product_art') >= 0) {
+    return await handleFilialProductArt(req, res);
   }
 
   // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin

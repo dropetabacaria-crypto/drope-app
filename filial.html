@@ -74,6 +74,13 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .pf-btn { background: var(--lime); color: #000; border: 0; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .pf-btn.sec { background: var(--bg3); color: var(--fg-dim); }
 .mini-link { color: var(--lime); font-size: 12px; cursor: pointer; font-weight: 600; }
+.pf-lbl { display:block; font-size: 11px; color: var(--fg-dim); margin: 8px 0 4px 2px; }
+.pf-hint { font-size: 11px; color: var(--fg-dim); line-height: 1.5; margin: 10px 0 8px; background: rgba(212,255,46,0.06); border: 0.5px solid rgba(212,255,46,0.2); border-radius: 10px; padding: 10px 12px; }
+.prod-thumb { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 12px; overflow: hidden; background: var(--bg3); display: flex; align-items: center; justify-content: center; }
+.prod-thumb-img { width: 100%; height: 100%; object-fit: cover; }
+.prod-thumb-ph { font-size: 22px; opacity: 0.6; }
+.pf-btn:disabled { opacity: 0.6; cursor: default; }
+.pf-btn.full { width: 100%; }
 </style>
 </head>
 <body>
@@ -121,19 +128,24 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 
   <div class="section">
     <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ novo</span></h2>
-    <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:12px; padding:14px; margin-bottom:10px">
-      <input class="pf-input" id="ap-name" placeholder="nome do pod (ex: ELFBAR Mango)" maxlength="60">
-      <input class="pf-input" id="ap-sabor" placeholder="sabor (opcional)" maxlength="40">
-      <div style="display:flex; gap:8px">
-        <input class="pf-input" id="ap-price" inputmode="decimal" placeholder="preço (ex: 109,90)" style="flex:1">
-        <input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="estoque" style="flex:1">
+    <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
+      <label class="pf-lbl">Nome do pod</label>
+      <input class="pf-input" id="ap-name" placeholder="ex: ELFBAR Ice King" maxlength="60">
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: ELFBAR" maxlength="30"></div>
+        <div style="flex:1"><label class="pf-lbl">Sabor</label><input class="pf-input" id="ap-sabor" placeholder="ex: uva gelada" maxlength="40"></div>
       </div>
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="109,90"></div>
+        <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="pf-hint">📸 A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
       <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
-      <div style="display:flex; gap:8px">
-        <button class="pf-btn" onclick="saveNewProduct()">adicionar ✦</button>
-        <button class="pf-btn sec" onclick="toggleAddProduct()">cancelar</button>
+      <div style="display:flex; gap:10px; margin-top:4px">
+        <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
+        <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
       </div>
-      <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:6px;min-height:14px"></div>
+      <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
     <div id="produtos-list"></div>
   </div>
@@ -258,20 +270,35 @@ function render(d) {
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+let _lastProdutos = [];
+const _artBusy = {};
 function renderProdutos(list) {
+  _lastProdutos = list || _lastProdutos;
   const el = document.getElementById('produtos-list');
   if (!el) return;
-  if (!list.length) { el.innerHTML = '<div class="empty">nenhum produto ainda ✦ adiciona o primeiro no "＋ novo"</div>'; return; }
-  el.innerHTML = list.map(p => {
+  const items = _lastProdutos;
+  if (!items.length) { el.innerHTML = '<div class="empty">nenhum produto ainda ✦ adiciona o primeiro no "＋ novo"</div>'; return; }
+  el.innerHTML = items.map(p => {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+    const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
+    const thumb = p.image_url
+      ? `<img src="${esc(p.image_url)}" alt="" class="prod-thumb-img" draggable="false">`
+      : `<div class="prod-thumb-ph">${gerando ? '⏳' : '📦'}</div>`;
+    const meta = [p.marca, p.sabor].filter(Boolean).join(' ✦ ');
+    const artBtn = gerando
+      ? `<button class="pf-btn sec full" disabled>⏳ gerando arte… (uns 30s)</button>`
+      : `<button class="pf-btn full ${p.image_url ? 'sec' : ''}" onclick="generateProductArt(${p.id})">✨ ${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}</button>`;
     return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <div style="min-width:0">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="prod-thumb">${thumb}</div>
+        <div style="min-width:0;flex:1">
           <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(escondido)</span>' : ''}</div>
+          ${meta ? `<div class="prod-meta">${esc(meta)}</div>` : ''}
           <div class="prod-meta">R$ ${price} ✦ ${p.stock || 0} em estoque</div>
         </div>
         <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">editar</span>
       </div>
+      <div style="margin-top:12px">${artBtn}</div>
       <div class="prod-edit" id="edit-${p.id}">
         <div style="display:flex;gap:8px;margin-top:12px">
           <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="flex:1;margin-bottom:0" placeholder="preço">
@@ -282,6 +309,36 @@ function renderProdutos(list) {
       </div>
     </div>`;
   }).join('');
+}
+
+// Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
+async function generateProductArt(id) {
+  if (_artBusy[id]) return;
+  _artBusy[id] = true;
+  renderProdutos();
+  try {
+    const r = await fetch('/api/webhook?action=filial_product_art', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, product_id: id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    _artBusy[id] = false;
+    if (r.ok && d.ok && d.image_url) {
+      // atualiza a lista local com a nova imagem
+      const p = _lastProdutos.find(x => x.id === id);
+      if (p) { p.image_url = d.image_url; p.image_status = d.image_status; }
+      renderProdutos();
+    } else {
+      renderProdutos();
+      const err = (d && d.error) || (d && d.image_status === 'needs_manual_photo' ? 'a IA não achou uma boa referência — tenta de novo ou cola um link de foto' : 'não rolou gerar a arte agora');
+      alert('⚠️ ' + err);
+    }
+  } catch (e) {
+    _artBusy[id] = false; renderProdutos();
+    alert('⚠️ erro de rede ao gerar a imagem');
+  }
+  // sincroniza com o servidor
+  loadData(false);
 }
 
 function toggleAddProduct() {
@@ -303,6 +360,7 @@ async function _saveProduct(payload, onOk) {
 
 async function saveNewProduct() {
   const name = (document.getElementById('ap-name').value || '').trim();
+  const marca = (document.getElementById('ap-marca').value || '').trim();
   const sabor = (document.getElementById('ap-sabor').value || '').trim();
   const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
   const stock = parseInt(document.getElementById('ap-stock').value || '0', 10);
@@ -311,9 +369,10 @@ async function saveNewProduct() {
   if (name.length < 2) { msg.textContent = 'põe o nome do pod'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
   msg.textContent = 'salvando...';
-  const err = await _saveProduct({ name, sabor, price, stock, image_url: img }, () => {
-    ['ap-name', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
+  const err = await _saveProduct({ name, marca, sabor, price, stock, image_url: img }, () => {
+    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('add-product-form').style.display = 'none';
+    msg.textContent = 'produto adicionado ✦ agora clica em "gerar imagem com IA" no produto';
   });
   if (err !== true) msg.textContent = err;
 }
