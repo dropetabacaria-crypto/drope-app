@@ -6181,9 +6181,9 @@ const VIBE_THEMES = {
   sweet:   'a still-life of glossy candies and desserts — gummy bears, hard candies, caramel drizzle, sugar crystals, macarons — rich and indulgent',
   icy:     'a still-life of ice — crystal-clear ice cubes, frost, frozen shards, cold water droplets and chilled mist rolling off the surface',
   menthol: 'a still-life of fresh mint and eucalyptus — vivid green mint leaves with frost crystals, dewy cool herbs, a crisp refreshing look',
-  // "tudo" = capa do filtro do topo: alguns pods/vapes descartáveis distintos,
-  // em pé lado a lado (composição LIMPA e legível, permite device).
-  tudo:    'exactly three sleek disposable vape pod devices standing upright side by side in a neat row, evenly spaced, each a different vivid color (one pink, one green, one purple), clean sharp silhouettes, centered composition',
+  // "tudo" = capa do filtro do topo: close-up de pods/vapes distintos, GRANDES,
+  // preenchendo o quadro (legível mesmo pequeno na bolha).
+  tudo:    'three sleek disposable vape devices standing close together, slightly overlapping, each a different vivid neon color (pink, green, purple)',
 };
 
 async function generateVibeScene(vibe) {
@@ -6193,11 +6193,12 @@ async function generateVibeScene(vibe) {
 
   const prompt = (vibe === 'tudo')
     ? [
-        `Clean dark cinematic product photography. HERO: ${theme}, on a matte black reflective surface with subtle mirror reflections. Simple, uncluttered, easy to read at a glance.`,
-        `Deep dark background gradient (#0A0C1B to #12091F), lots of clean negative space.`,
-        `Subtle vapor/smoke behind them catching neon rim lights — pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill. Not too busy.`,
-        `Low-key cinematic lighting, glossy, high detail, premium, sharp focus on the devices.`,
-        `NO people, NO hands. NO text, NO watermarks, NO brand logos, NO labels. NO messy pile, NO overlapping clutter.`,
+        `Hyperrealistic cinematic product PHOTOGRAPH — looks exactly like a premium high-end disposable vape e-commerce product shot. Photographic, not illustrated, not cartoon, not flat.`,
+        `Tightly cropped close-up, subject FILLS most of the frame: ${theme}.`,
+        `Each is a realistic glossy disposable vape device with fine detail — visible mouthpiece, panel seams, a small glowing display, reflective plastic and metal, true photographic materials and reflections. Big, prominent, instantly recognizable as a vape.`,
+        `Standing on a matte black reflective surface, deep dark background (#0A0C1B to #12091F). Wispy neon vapor/smoke swirling around them catching pink (#FF2D6F), acid green (#D4FF2E) and violet (#7B2FBE) rim light — the same dark neon aesthetic as premium vape product photos.`,
+        `Devices large, centered, prominent, minimal empty space. Sharp focus, 8k, photorealistic, premium studio lighting.`,
+        `NO people, NO hands. NO text, NO watermarks, NO brand logos, NO labels.`,
         `Square format 1024x1024.`,
       ].join(' ')
     : [
