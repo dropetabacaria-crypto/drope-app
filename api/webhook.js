@@ -12569,9 +12569,9 @@ async function handleFiliaisList(req, res) {
         pending: ((f.metadata || {}).onboarding) === 'pending_payment',
       };
     })
-    // Cliente só vê lojas COM produtos (loja vazia não aparece no marketplace).
-    // Esconde lojas de teste (slug começando com "zz-").
-    .filter(f => f.produtos >= 1 && !/^zz-/.test(f.slug));
+    // Mostra todas as tabacarias cadastradas (a Drope também é uma loja aqui).
+    // Só esconde as de teste (slug "zz-" ou com "teste").
+    .filter(f => !/^zz-|teste/i.test(f.slug));
     return res.status(200).json({ ok: true, filiais: out });
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }

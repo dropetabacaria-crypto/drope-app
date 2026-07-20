@@ -3991,8 +3991,8 @@
 <div id="filial-picker-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0A0A14 0%,#1a0a20 100%);z-index:9999;align-items:center;justify-content:center;padding:24px">
   <div style="max-width:420px;width:100%;text-align:center">
     <div style="font-size:48px;margin-bottom:8px">🏪</div>
-    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Escolha a loja</h2>
-    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa tabacaria pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
+    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Tabacarias disponíveis</h2>
+    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa loja pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
     <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
     <div id="filial-picker-list">
       <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
@@ -7542,8 +7542,9 @@
       // rola se tiver muitas lojas
       list.style.maxHeight = '62vh'; list.style.overflowY = 'auto';
       list.innerHTML = d.filiais.map(f => {
-        const label = (f.name || f.city || '').replace(/^Drope\s+/i, '');
-        const sub = [f.city, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'em breve')].filter(Boolean).join(' · ');
+        const label = f.name || f.city || '';
+        const cityTc = (f.city || '').replace(/\b\w/g, c => c.toUpperCase());
+        const sub = [cityTc, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'nova ✦')].filter(Boolean).join(' · ');
         const cover = f.cover
           ? `<img src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:52px;height:52px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
           : `<div style="width:52px;height:52px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px">🏪</div>`;
