@@ -12196,6 +12196,72 @@ function inferPerfil(category, flavor, descricao) {
   return 'frutado';
 }
 
+// GET /api/webhook?action=filiais_list → lojas ativas pro seletor de região do cliente
+async function handleFiliaisList(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const rows = await sbGet('drope_filiais', 'select=slug,name,city,state,metadata&status=eq.active&order=name.asc');
+    // Esconde do cliente as lojas que ainda não terminaram o onboarding (sem recebimento conectado).
+    const visible = (Array.isArray(rows) ? rows : []).filter(f => ((f.metadata || {}).onboarding) !== 'pending_payment');
+    return res.status(200).json({ ok: true, filiais: visible.map(f => ({ slug: f.slug, name: f.name, city: f.city, state: f.state })) });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST /api/webhook?action=filial_register → auto-cadastro de tabacaria (lojista).
+// Cria a loja com status 'pending' (não aparece pro cliente até aprovar + conectar
+// recebimento). NOTA[segurança]: endpoint público — endurecer/limitar depois.
+async function handleFilialRegister(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const name = String(body.store_name || '').trim();
+    const city = String(body.city || '').trim();
+    const state = String(body.state || '').trim().toUpperCase();
+    const founderName = String(body.founder_name || '').trim();
+    let founderPhone = String(body.founder_phone || '').replace(/\D/g, '');
+    if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome da loja inválido' });
+    if (city.length < 2) return res.status(400).json({ ok: false, error: 'cidade inválida' });
+    if (state.length !== 2) return res.status(400).json({ ok: false, error: 'UF inválida' });
+    if (founderName.length < 2) return res.status(400).json({ ok: false, error: 'seu nome inválido' });
+    if (founderPhone.length < 10 || founderPhone.length > 13) return res.status(400).json({ ok: false, error: 'whatsapp inválido' });
+    if (!founderPhone.startsWith('55')) founderPhone = '55' + founderPhone;
+    // slug a partir do nome (único)
+    const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'loja';
+    let slug = base;
+    const existing = await sbGet('drope_filiais', `select=slug&slug=like.${encodeURIComponent(base)}*`);
+    if ((existing || []).some(f => f.slug === slug)) slug = base + '-' + Date.now().toString(36).slice(-4);
+    const row = await sbInsert('drope_filiais', {
+      slug, name, city, state,
+      founder_name: founderName,
+      founder_phone: founderPhone,
+      markup_cents: 0,
+      founder_share_cents: 0,
+      // status 'active' é o valor aceito pela constraint; escondemos do cliente via
+      // metadata.onboarding='pending_payment' até a loja conectar o recebimento.
+      status: 'active',
+      notes: 'Auto-cadastro via app (lojista) — aguardando conexão de recebimento.',
+      metadata: { self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment', payment: { provider: null, account_id: null, status: 'not_connected' } },
+    });
+    if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
+    return res.status(200).json({ ok: true, filial: { slug: row.slug, name: row.name, status: row.status } });
+  } catch (e) {
+    console.error('[filial_register] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // GET /api/webhook?action=customer_orders&phone=<phone>
 // Retorna os pedidos do cliente (casados por telefone) com o status real do backend,
 // pro app montar o acompanhamento (pendente → preparando → a caminho/pronto → entregue/retirado).
@@ -13140,7 +13206,7 @@ const CRON_TOKEN = process.env.CRON_TOKEN || "";
 // Detecção de keyword pra cliente — antes de chamar Claude (evita custo + resposta padronizada)
 function detectClienteIntent(message) {
   if (!message || typeof message !== 'string') return null;
-  const lower = message.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const lower = message.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   // Catálogo: lista produtos disponíveis
   const catalogPatterns = [
@@ -14887,6 +14953,16 @@ module.exports = async function handler(req, res) {
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.
   if (req.url && req.url.indexOf('action=customer_orders') >= 0) {
     return await handleCustomerOrders(req, res);
+  }
+
+  // ===== SaaS multi-tabacaria (filiais) =====
+  // GET  /api/webhook?action=filiais_list    → lojas ATIVAS (pro seletor de região)
+  // POST /api/webhook?action=filial_register → auto-cadastro de loja (status pending)
+  if (req.url && req.url.indexOf('action=filiais_list') >= 0) {
+    return await handleFiliaisList(req, res);
+  }
+  if (req.url && req.url.indexOf('action=filial_register') >= 0) {
+    return await handleFilialRegister(req, res);
   }
 
   // ===== ROTAS OSSO 21 — IA-FIRST CLIENTE (01/05/2026) =====

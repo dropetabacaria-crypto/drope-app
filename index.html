@@ -3980,6 +3980,10 @@
         <div>Santos</div>
       </span>
     </button>
+    <div onclick="document.getElementById('filial-picker-overlay').style.display='none'; go('lojista-signup');"
+         style="margin-top:22px; font-size:13px; color:rgba(255,255,255,0.6); cursor:pointer">
+      É dono de tabacaria? <span style="color:var(--lime,#D4FF2E); font-weight:700">Cadastre sua loja →</span>
+    </div>
   </div>
 </div>
 
@@ -4188,6 +4192,47 @@
     <div class="cat-count-row"><span id="catalog-count"></span></div>
     <div class="grid catalog-grid" id="catalog-grid"></div>
     <div class="catalog-pager" id="catalog-pager"></div>
+  </div>
+
+  <!-- ============ LOJISTA — cadastre sua tabacaria (SaaS) ============ -->
+  <div class="screen no-nav" id="lojista-signup">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('home')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Seja parceiro</div>
+      <div style="width:40px"></div>
+    </div>
+    <div id="lojista-form-wrap" style="padding: 0 20px">
+      <div class="onboard-title" style="margin-top:8px">Cadastre sua tabacaria 🦎</div>
+      <div class="onboard-sub" style="margin-bottom:18px">Venda seus pods no DROPE. Você recebe direto na sua conta ✦ a gente cuida do app, do catálogo e da entrega.</div>
+      <input id="lj-store" class="card-input" placeholder="nome da loja" maxlength="40" oninput="_ljBtn()">
+      <div style="display:flex; gap:8px">
+        <input id="lj-city" class="card-input" placeholder="cidade" style="flex:2" maxlength="40" oninput="_ljBtn()">
+        <select id="lj-uf" class="card-input" style="flex:1" onchange="_ljBtn()">
+          <option value="">UF</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option>
+          <option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+          <option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option>
+          <option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+          <option>SP</option><option>SE</option><option>TO</option>
+        </select>
+      </div>
+      <input id="lj-name" class="card-input" placeholder="seu nome" maxlength="40" oninput="_ljBtn()">
+      <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="seu whatsapp (com ddd)" oninput="formatLjPhone(this); _ljBtn()">
+      <button class="btn-primary" id="lj-submit" onclick="submitFilialRegister()" disabled style="opacity:0.4; width:100%; margin-top:14px">cadastrar loja ✦</button>
+      <div class="onboard-sub" style="margin-top:12px; font-size:12px">Depois do cadastro você conecta a conta de recebimento pra receber das vendas (com uma pequena comissão do DROPE por venda).</div>
+    </div>
+    <div id="lojista-done-wrap" style="display:none; padding: 30px 20px; text-align:center">
+      <div style="font-size:56px">🎉</div>
+      <div class="onboard-title" style="margin-top:8px">Loja cadastrada!</div>
+      <div class="onboard-sub" id="lj-done-msg" style="margin:10px 0 20px">Recebemos o cadastro da sua tabacaria.</div>
+      <div style="background:rgba(255,255,255,0.04); border-radius:16px; padding:16px; text-align:left; font-size:13px; color:var(--text-dim); line-height:1.6">
+        <b style="color:var(--text)">Próximo passo:</b><br>
+        🔗 Conectar a conta de recebimento (em breve). Assim que liberar, a gente te avisa no WhatsApp e sua loja entra no ar pros clientes.
+      </div>
+      <button class="btn-primary" onclick="go('home')" style="width:100%; margin-top:16px">voltar</button>
+    </div>
   </div>
 
   <!-- ============ DETAIL ============ -->
@@ -6152,12 +6197,70 @@
   }
 
   // QUICK WIN (04/06 Andrade): splash 1.8s → 1.2s + skip ao toque na logo
+  // ===== LOJISTA — cadastro de tabacaria (SaaS) =====
+  function _ljPhoneDigits() { return (document.getElementById('lj-phone')?.value || '').replace(/\D/g, ''); }
+  function _ljBtn() {
+    const d = _ljPhoneDigits();
+    const ok = (document.getElementById('lj-store')?.value || '').trim().length >= 2
+      && (document.getElementById('lj-city')?.value || '').trim().length >= 2
+      && (document.getElementById('lj-uf')?.value || '').length === 2
+      && (document.getElementById('lj-name')?.value || '').trim().length >= 2
+      && (d.length === 10 || d.length === 11);
+    const b = document.getElementById('lj-submit');
+    if (b) { b.disabled = !ok; b.style.opacity = ok ? 1 : 0.4; }
+  }
+  function formatLjPhone(el) {
+    let d = el.value.replace(/\D/g, '').slice(0, 11); let out = '';
+    if (d.length > 0) out = '(' + d.slice(0, 2);
+    if (d.length >= 2) out += ') ';
+    if (d.length > 2) { const mid = d.length === 11 ? 7 : 6; out += d.slice(2, mid); if (d.length > mid) out += '-' + d.slice(mid); }
+    el.value = out;
+  }
+  async function submitFilialRegister() {
+    const store = (document.getElementById('lj-store')?.value || '').trim();
+    const city = (document.getElementById('lj-city')?.value || '').trim();
+    const uf = (document.getElementById('lj-uf')?.value || '').trim();
+    const name = (document.getElementById('lj-name')?.value || '').trim();
+    const phone = _ljPhoneDigits();
+    const b = document.getElementById('lj-submit');
+    if (b) { b.disabled = true; b.textContent = 'cadastrando...'; }
+    try {
+      const r = await fetch('/api/webhook?action=filial_register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        const msg = document.getElementById('lj-done-msg');
+        if (msg) msg.textContent = `Recebemos o cadastro da ${(d.filial && d.filial.name) || 'sua loja'}.`;
+        document.getElementById('lojista-form-wrap').style.display = 'none';
+        document.getElementById('lojista-done-wrap').style.display = 'block';
+        window.scrollTo(0, 0);
+      } else {
+        toast('erro no cadastro ✦ ' + (d.error || r.status));
+        if (b) { b.disabled = false; b.textContent = 'cadastrar loja ✦'; }
+      }
+    } catch (e) { toast('erro de rede ✦'); if (b) { b.disabled = false; b.textContent = 'cadastrar loja ✦'; } }
+  }
+  function _resetLojistaForm() {
+    ['lj-store', 'lj-city', 'lj-name', 'lj-phone'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const uf = document.getElementById('lj-uf'); if (uf) uf.value = '';
+    const fw = document.getElementById('lojista-form-wrap'); if (fw) fw.style.display = 'block';
+    const dw = document.getElementById('lojista-done-wrap'); if (dw) dw.style.display = 'none';
+    const b = document.getElementById('lj-submit'); if (b) { b.disabled = true; b.style.opacity = 0.4; b.textContent = 'cadastrar loja ✦'; }
+  }
+
   function _splashSkip() {
     let confirmed = false;
     try { confirmed = localStorage.getItem('drope_age_confirmed') === '1'; } catch(e) {}
     if (window.location.hash === '#admin') {
       go(_isAdmin() ? 'admin-dash' : 'admin-login');
       if (_isAdmin() && typeof renderAdminDash === 'function') { try { renderAdminDash(); } catch(e) {} }
+      return;
+    }
+    // Cadastro de lojista/tabacaria (SaaS): drope-app.vercel.app/#lojista
+    if (window.location.hash === '#lojista' || window.location.hash === '#seja-parceiro') {
+      go('lojista-signup');
       return;
     }
     // Retorno do pagamento InfinitePay (?capture_method=pix / transaction_nsu / #success-pay):
@@ -8682,6 +8785,7 @@
     if (screen === 'favorites') renderFavorites();
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
+    if (screen === 'lojista-signup') _resetLojistaForm();
     if (screen === 'addresses') renderAddresses();
     if (screen === 'admin-orders') { renderAdminOrders(); loadAdminOrders(); }
     if (screen === 'admin-dash') { renderAdminDash(); loadAdminOrders(); }
