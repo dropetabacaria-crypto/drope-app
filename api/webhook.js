@@ -12873,9 +12873,14 @@ async function handleCatalog(req, res) {
   // Default 'sp' se não vier. Resolve slug → filial_id pra blindar.
   const filialSlug = (params.filial || 'sp').toLowerCase().trim();
   let filialId = 1;
+  let lojaInfo = null;
   try {
-    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id&limit=1`);
-    if (fr && fr[0]?.id) filialId = fr[0].id;
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,name,city,metadata&limit=1`);
+    if (fr && fr[0]) {
+      if (fr[0].id) filialId = fr[0].id;
+      const prof = (fr[0].metadata || {}).profile || {};
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null };
+    }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
 
   // hidden=false + image_status='ok' (sem isso a UI fica meio quebrada).
@@ -12947,6 +12952,7 @@ async function handleCatalog(req, res) {
     return res.status(200).json({
       products,
       count: products.length,
+      loja: lojaInfo,
       generated_at: new Date().toISOString(),
     });
   } catch (e) {

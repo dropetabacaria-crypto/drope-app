@@ -7496,12 +7496,23 @@
     if (typeof go === 'function') go('home');
     try { window.scrollTo(0, 0); } catch(e) {}
   }
-  // Barra "🏪 loja atual · trocar" na home
+  // Cabeçalho da loja (foto + nome + bio) na home — estilo iFood
+  let CLIENT_LOJA = null;
   function renderLojaBar() {
     const el = document.getElementById('home-loja-bar');
     if (!el) return;
-    const nm = CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
-    el.innerHTML = `<span style="opacity:.7">🏪</span> <b>${escapeHtml(nm)}</b> <span style="color:var(--lime);font-weight:700;margin-left:auto">trocar loja ›</span>`;
+    const loja = CLIENT_LOJA || {};
+    const nm = loja.name || CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
+    const bio = loja.bio;
+    const img = loja.photo_url
+      ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
+      : `<div style="width:46px;height:46px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px">🏪</div>`;
+    el.innerHTML = `${img}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(nm)}</div>
+        ${bio ? `<div style="font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(bio)}</div>` : ''}
+      </div>
+      <span style="color:var(--lime);font-weight:700;font-size:12px;flex:0 0 auto">trocar ›</span>`;
   }
   // Trocar filial via menu (botão no perfil)
   function trocarFilialCliente() {
@@ -7585,6 +7596,10 @@
       }
       products = apply99(data.products);
       allProducts = products;
+      // Dados da loja (nome/foto/bio) pro cabeçalho estilo iFood
+      CLIENT_LOJA = data.loja || null;
+      if (CLIENT_LOJA && CLIENT_LOJA.name) { CLIENT_FILIAL_NAME = CLIENT_LOJA.name; try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME); } catch(e) {} }
+      try { renderLojaBar(); } catch(e) {}
       // Cache local pra próxima abertura ser fast-paint (por filial)
       try {
         const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
