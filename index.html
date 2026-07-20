@@ -4839,6 +4839,7 @@
 
       <div class="adm-sec-label">⚙️ config & ferramentas</div>
       <div class="adm-menu">
+        <button class="adm-item" onclick="go('admin-brand-covers')"><span>🖼️ imagens das marcas</span><small>foto do filtro por marca</small></button>
         <button class="adm-item" onclick="go('admin-store')"><span>config da loja</span><small>dados, chaves, whats</small></button>
         <button class="adm-item" onclick="go('admin-ai')"><span>agente Drope (IA)</span><small>assistente</small></button>
         <button class="adm-item" id="btn-sync-cloud" onclick="syncToCloud()"><span>☁️ sincronizar nuvem</span><small>subir dados locais</small></button>
@@ -4963,6 +4964,19 @@
       <div style="width:40px"></div>
     </div>
     <div id="admin-filiais-list" style="padding: 16px 20px"></div>
+  </div>
+
+  <!-- ============ ADMIN — Imagens das marcas (filtro) ============ -->
+  <div class="screen no-nav" id="admin-brand-covers">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('admin-dash')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Imagens das marcas</div>
+      <div style="width:40px"></div>
+    </div>
+    <div style="padding: 4px 20px 0; color: var(--text-dim); font-size: 13px">Escolhe a foto que aparece no filtro de cada marca (só fotos de produtos da própria marca).</div>
+    <div id="brand-covers-list" style="padding: 14px 20px"></div>
   </div>
 
   <!-- ============ ADMIN IMPORT DROPS (bulk JSON) ============ -->
@@ -8593,7 +8607,7 @@
       const b = (p.marca || p.brand || '').trim().toUpperCase();
       if (!b || !p.img) return;
       const inStock = !(typeof p.stock === 'number' && p.stock <= 0);
-      if (p.metadata && p.metadata.brand_cover) brandCover[b] = p.img;
+      if (p.brand_cover) brandCover[b] = p.img;
       if (!brandImg[b]) brandImg[b] = { url: p.img, inStock };
       else if (!brandImg[b].inStock && inStock) brandImg[b] = { url: p.img, inStock };
     });
@@ -8857,6 +8871,7 @@
     if (screen === 'admin-products') renderAdminProducts();
     if (screen === 'admin-customers') { renderCustomers(); loadAdminOrders(); }
     if (screen === 'admin-filiais') renderAdminFiliais();
+    if (screen === 'admin-brand-covers') renderBrandCovers();
     if (screen === 'admin-coupons') renderCoupons();
     if (screen === 'admin-store') fillStoreForm();
     if (screen === 'admin-ai') {
@@ -9807,6 +9822,55 @@
         </div>`;
       }).join('');
     } catch (e) { list.innerHTML = '<div class="empty-mini">erro ao carregar ✦</div>'; }
+  }
+
+  // ===== ADMIN — imagens das marcas (capa do filtro por marca) =====
+  function renderBrandCovers() {
+    const el = document.getElementById('brand-covers-list');
+    if (!el) return;
+    const byBrand = {};
+    (products || []).forEach(p => {
+      const b = (p.marca || p.brand || '').trim().toUpperCase();
+      if (!b || !p.img) return;
+      (byBrand[b] = byBrand[b] || []).push(p);
+    });
+    const brands = Object.keys(byBrand).sort();
+    if (!brands.length) { el.innerHTML = '<div class="empty-mini">nenhuma marca com foto de produto ainda</div>'; return; }
+    el.innerHTML = brands.map(b => {
+      const prods = byBrand[b];
+      const ids = prods.map(p => p.id).filter(Boolean);
+      const thumbs = prods.map(p => {
+        const sel = !!p.brand_cover;
+        return `<div onclick="setBrandCover('${b.replace(/'/g, "\\'")}', ${p.id}, [${ids.join(',')}])" style="flex:0 0 auto;width:66px;text-align:center;cursor:pointer">
+          <div style="width:66px;height:66px;border-radius:12px;overflow:hidden;border:2px solid ${sel ? 'var(--lime)' : 'rgba(255,255,255,0.08)'};box-shadow:${sel ? '0 0 12px rgba(212,255,46,0.45)' : 'none'}">
+            <img src="${escapeHtml(p.img)}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">
+          </div>
+          ${sel ? '<div style="font-size:9px;color:var(--lime);margin-top:3px;font-weight:700">✓ capa</div>' : ''}
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:18px">
+        <div style="font-weight:700;color:var(--text);margin-bottom:8px">${escapeHtml(b)}</div>
+        <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">${thumbs}</div>
+      </div>`;
+    }).join('');
+  }
+  async function setBrandCover(brand, coverId, ids) {
+    let token = (() => { try { return localStorage.getItem('drope_admin_token'); } catch (e) { return null; } })();
+    if (!token && typeof _getAdminTokenPrompt === 'function') token = _getAdminTokenPrompt();
+    if (!token) { toast('precisa do ADMIN_TOKEN ✦'); return; }
+    try {
+      const r = await fetch('/api/webhook?action=brand_cover_set', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({ cover_id: coverId, brand_ids: ids }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        toast('capa da ' + brand + ' atualizada ✦');
+        (products || []).forEach(p => { const b = (p.marca || p.brand || '').trim().toUpperCase(); if (b === brand) p.brand_cover = (p.id === coverId); });
+        renderBrandCovers();
+        if (typeof renderBrandsCarousel === 'function') renderBrandsCarousel();
+      } else { toast('erro ✦ ' + (d.error || r.status)); }
+    } catch (e) { toast('erro de rede ✦'); }
   }
 
   // ===== Alerta instantâneo de pedido novo (som + notificação + toast) =====

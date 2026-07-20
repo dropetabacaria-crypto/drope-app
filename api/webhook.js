@@ -12280,6 +12280,35 @@ async function handleFiliaisList(req, res) {
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=brand_cover_set (x-admin-token) → marca 1 produto como "capa" do filtro da
+// marca e limpa a flag dos outros produtos daquela marca (recebidos em brand_ids).
+async function handleBrandCoverSet(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const coverId = body.cover_id;
+    const ids = Array.isArray(body.brand_ids) ? body.brand_ids.filter(x => Number.isInteger(x)) : [];
+    if (!coverId || !ids.length) return res.status(400).json({ ok: false, error: 'missing cover_id or brand_ids' });
+    // Lê o metadata atual de cada produto da marca e faz merge (não apaga outras chaves)
+    const rows = await sbGet('drope_products', `id=in.(${ids.join(',')})&select=id,metadata`);
+    for (const r of (rows || [])) {
+      const md = (r && r.metadata) || {};
+      md.brand_cover = (r.id === coverId);
+      await sbUpdate('drope_products', `id=eq.${r.id}`, { metadata: md });
+    }
+    return res.status(200).json({ ok: true, cover_id: coverId, updated: (rows || []).length });
+  } catch (e) {
+    console.error('[brand_cover_set] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // GET /api/webhook?action=filiais_admin&token=ADMIN_TOKEN → todas as lojas (painel plataforma)
 async function handleFiliaisAdmin(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -12487,6 +12516,7 @@ async function handleCatalog(req, res) {
         barcode: p.barcode || null,
         emoji: emojiForFlavor(flavorName || desc),
         created_via: p.created_via,
+        brand_cover: !!(p.metadata && p.metadata.brand_cover), // capa do filtro da marca (escolhida no admin)
       };
     });
 
@@ -15050,6 +15080,10 @@ module.exports = async function handler(req, res) {
   // GET action=filiais_admin&token=ADMIN_TOKEN → TODAS as lojas (incl. pendentes) pro painel
   if (req.url && req.url.indexOf('action=filiais_admin') >= 0) {
     return await handleFiliaisAdmin(req, res);
+  }
+  // POST action=brand_cover_set (x-admin-token) → define a foto de capa do filtro de uma marca
+  if (req.url && req.url.indexOf('action=brand_cover_set') >= 0) {
+    return await handleBrandCoverSet(req, res);
   }
 
   // ===== ROTAS OSSO 21 — IA-FIRST CLIENTE (01/05/2026) =====
