@@ -63,6 +63,9 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    /* mata o pull-to-refresh nativo e o encadeamento de scroll (a rolagem "puxava
+       pra recarregar" ao chegar no topo) */
+    overscroll-behavior-y: none;
   }
 
   body {
@@ -85,7 +88,10 @@
      MUDAM de tom conforme rola a página. */
   .app::before {
     content: '';
-    position: absolute;
+    /* FIXED na viewport (não absolute cobrindo a página inteira): antes esse layer
+       borrado tinha a ALTURA TOTAL do conteúdo (milhares de px) e era repintado a
+       cada frame de scroll — principal causa do travamento. Fixo, é pintado 1x. */
+    position: fixed;
     inset: -10%;
     z-index: 0;
     pointer-events: none;
@@ -105,7 +111,8 @@
      com leve domo e sulco escuro — fiel à pele real. Também MUDA de tom ao rolar. */
   .app::after {
     content: '';
-    position: absolute;
+    /* também FIXED: textura ambiente na viewport, não repinta ao rolar */
+    position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
