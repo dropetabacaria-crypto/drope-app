@@ -6396,8 +6396,8 @@
     let confirmed = false;
     try { confirmed = localStorage.getItem('drope_age_confirmed') === '1'; } catch(e) {}
     if (window.location.hash === '#admin') {
-      go(_isAdmin() ? 'admin-dash' : 'admin-login');
-      if (_isAdmin() && typeof renderAdminDash === 'function') { try { renderAdminDash(); } catch(e) {} }
+      go(_adminReady() ? 'admin-dash' : 'admin-login');
+      if (_adminReady() && typeof renderAdminDash === 'function') { try { renderAdminDash(); } catch(e) {} }
       return;
     }
     // Cadastro de lojista/tabacaria (SaaS): drope-app.vercel.app/#lojista
@@ -6533,10 +6533,22 @@
   let currentAdminOrder = null;
 
   function _isAdmin() { return _adminToken.v === _adminSig; }
+  function _hasAdminToken() { try { return !!localStorage.getItem('drope_admin_token'); } catch(e) { return false; } }
+  // Só entra no painel se estiver logado E com o ADMIN_TOKEN salvo. Sem token
+  // (ex: já autenticado de antes, mas token nunca buscado) → volta pro login,
+  // onde a senha busca o token sozinha. Evita o prompt de colar token.
+  function _adminReady() { return _isAdmin() && _hasAdminToken(); }
+  // Retorna o ADMIN_TOKEN salvo. Se faltar, manda logar de novo (a senha busca o
+  // token). NUNCA pede pra colar token na mão.
+  function _adminTok() {
+    let t = ''; try { t = localStorage.getItem('drope_admin_token') || ''; } catch(e) {}
+    if (!t) { try { toast('entra de novo no admin pra renovar o acesso ✦'); } catch(e) {} go('admin-login'); }
+    return t;
+  }
 
   function checkAdminRoute() {
     if (location.hash === '#admin') {
-      go(_isAdmin() ? 'admin-dash' : 'admin-login');
+      go(_adminReady() ? 'admin-dash' : 'admin-login');
     }
   }
   window.addEventListener('hashchange', checkAdminRoute);
@@ -11365,15 +11377,11 @@ REGRAS:
     }
   });
 
-  // Atalho pra tela /pending_pod_photos — pede ADMIN_TOKEN do Vercel se não tiver salvo
+  // Atalho pra tela /pending_pod_photos — usa o token já salvo (buscado no login)
   function openPendentesPodPhoto() {
-    let t = localStorage.getItem('drope_admin_token');
-    if (!t) {
-      t = prompt('cola o ADMIN_TOKEN do Vercel pra abrir os pendentes de foto:');
-      if (!t) return;
-      localStorage.setItem('drope_admin_token', t.trim());
-    }
-    window.location.href = '/api/webhook?action=pending_pod_photos&token=' + encodeURIComponent(t.trim());
+    const t = _adminTok();
+    if (!t) return;
+    window.location.href = '/api/webhook?action=pending_pod_photos&token=' + encodeURIComponent(t);
   }
 
   // Tela de revisão de referências do pipeline novo (busca automática via Serper)
@@ -11383,12 +11391,7 @@ REGRAS:
   let _adminRefUploadId = null;
 
   function openRevisarReferencias() {
-    let t = localStorage.getItem('drope_admin_token');
-    if (!t) {
-      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
-      if (!t) return;
-      localStorage.setItem('drope_admin_token', t.trim());
-    }
+    if (!_adminTok()) return;
     go('admin-references');
     loadAdminReferences();
   }
@@ -11518,26 +11521,16 @@ REGRAS:
   // Link mágico pro /receber: leva token embutido no URL pra Andrade não precisar colar de novo no celular.
   // O receber.html lê o ?t=, salva em localStorage e limpa do URL via history.replaceState.
   function openReceberWithToken() {
-    let t = localStorage.getItem('drope_admin_token');
-    if (!t) {
-      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
-      if (!t) return;
-      t = t.trim();
-      localStorage.setItem('drope_admin_token', t);
-    }
-    window.location.href = '/receber.html?v=5&t=' + encodeURIComponent(t.trim());
+    const t = _adminTok();
+    if (!t) return;
+    window.location.href = '/receber.html?v=5&t=' + encodeURIComponent(t);
   }
 
   // Atalho pro Balanço — adicionado 07/06 pra resolver iPhone (sem PWA shortcuts)
   function openBalancoWithToken() {
-    let t = localStorage.getItem('drope_admin_token');
-    if (!t) {
-      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
-      if (!t) return;
-      t = t.trim();
-      localStorage.setItem('drope_admin_token', t);
-    }
-    window.location.href = '/balanco.html?t=' + encodeURIComponent(t.trim());
+    const t = _adminTok();
+    if (!t) return;
+    window.location.href = '/balanco.html?t=' + encodeURIComponent(t);
   }
 </script>
 <script src="/feedback-bubble.js?v=3" defer></script>
