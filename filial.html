@@ -139,7 +139,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="status-bar">
     <div class="dot"></div>
     <span id="last-update">atualizando...</span>
-    <button class="refresh-btn" style="margin-left:auto" onclick="loadData(true)">↻ atualizar</button>
+    <button class="refresh-btn" style="margin-left:auto" onclick="verLojaCliente()">👁 ver como cliente</button>
+    <button class="refresh-btn" onclick="loadData(true)">↻ atualizar</button>
   </div>
 
   <div class="section">
@@ -343,8 +344,19 @@ async function loadData(showLoading) {
   }
 }
 
+let _filialName = '';
+// Abre o app do cliente no catálogo DESTA loja (preview "como cliente").
+function verLojaCliente() {
+  try {
+    localStorage.setItem('drope_client_filial_v1', (FILIAL_SLUG || '').toLowerCase());
+    localStorage.setItem('drope_client_filial_name_v1', _filialName || '');
+    localStorage.setItem('drope_age_confirmed', '1');
+  } catch (e) {}
+  location.href = '/';
+}
 function render(d) {
   const f = d.filial;
+  _filialName = f.name || '';
   document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
   document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
   try { renderLojaProfile(f.profile); } catch(e) {}
