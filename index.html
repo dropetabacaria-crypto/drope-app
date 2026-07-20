@@ -1651,26 +1651,33 @@
     padding: 6px 20px 8px;
   }
   .vibe-chip {
-    background: rgba(91,33,182,0.18);
+    position: relative;
+    overflow: hidden;
+    min-height: 100px;
+    background: rgba(91,33,182,0.18) center/cover no-repeat;
     border: none;
     border-radius: 18px;
-    padding: 14px 12px;
-    font-size: 14px; font-weight: 600;
+    padding: 12px;
     color: var(--text);
     cursor: pointer; user-select: none;
     box-shadow: 0 8px 22px rgba(0,0,0,0.40), 0 0 20px rgba(91,33,182,0.22), inset 0 1px 0 rgba(255,255,255,0.05);
-    transition: transform 0.12s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
-    display: flex; align-items: center; justify-content: center; gap: 9px;
+    transition: transform 0.12s, box-shadow 0.15s;
+    display: flex; align-items: flex-end; justify-content: center;
     text-align: center;
   }
-  .vibe-ic { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; font-size: 17px; background: rgba(255,255,255,0.06); }
-  .vibe-ic img { width: 100%; height: 100%; object-fit: cover; }
-  .vibe-chip:active { transform: scale(0.97); }
-  .vibe-chip.active {
-    background: rgba(212,255,46,0.18);
-    border-color: var(--lime);
-    color: var(--lime);
+  /* arte temática preenche o card; gradiente escuro deixa o rótulo legível */
+  .vibe-chip.has-img::after {
+    content: ''; position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(180deg, rgba(10,10,20,0.06) 0%, rgba(10,10,20,0.42) 52%, rgba(10,10,20,0.86) 100%);
   }
+  .vibe-label {
+    position: relative; z-index: 1;
+    font-size: 14px; font-weight: 800; letter-spacing: 0.2px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.85);
+  }
+  .vibe-chip:active { transform: scale(0.97); }
+  .vibe-chip.active { box-shadow: 0 0 0 2px var(--lime), 0 0 18px rgba(212,255,46,0.5); }
+  .vibe-chip.active .vibe-label { color: var(--lime); }
   .see-all-link {
     margin: 4px 20px 14px; padding: 10px;
     text-align: center; cursor: pointer;
@@ -10169,10 +10176,9 @@
         ];
         const vibeChipsHtml = VIBE_DEFS.map(function(v) {
           const im = (VIBE_IMAGES && VIBE_IMAGES[v.fl]) || '';
-          const ic = im
-            ? `<span class="vibe-ic"><img src="${escapeHtml(im)}" alt="" draggable="false" onerror="this.parentNode.textContent='${v.emoji}';this.parentNode.classList.add('emoji')"></span>`
-            : `<span class="vibe-ic emoji">${v.emoji}</span>`;
-          return `<div class="vibe-chip" data-flavor="${v.fl}" onclick="pickVibe('${v.fl}', this)">${ic} ${v.label}</div>`;
+          const cls = im ? 'vibe-chip has-img' : 'vibe-chip';
+          const bg = im ? ` style="background-image:url('${escapeHtml(im).replace(/'/g, '%27')}')"` : '';
+          return `<div class="${cls}" data-flavor="${v.fl}"${bg} onclick="pickVibe('${v.fl}', this)"><span class="vibe-label">${v.emoji} ${v.label}</span></div>`;
         }).join('');
         html += `
           <div class="vibe-row">${vibeChipsHtml}</div>
