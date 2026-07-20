@@ -81,6 +81,31 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .prod-thumb-ph { font-size: 22px; opacity: 0.6; }
 .pf-btn:disabled { opacity: 0.6; cursor: default; }
 .pf-btn.full { width: 100%; }
+/* Ações rápidas (tiles) */
+.qa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qa-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; border-radius: 16px; padding: 16px; cursor: pointer; text-align: left; color: #0a0a14; font-family: inherit; }
+.qa-tile.pink { background: var(--pink); } .qa-tile.yellow { background: var(--yellow); }
+.qa-emoji { font-size: 22px; } .qa-tt { font-size: 15px; font-weight: 800; } .qa-ts { font-size: 11px; opacity: 0.85; }
+/* Overlays (PDV / balanço) */
+.sheet-ov { position: fixed; inset: 0; background: var(--bg); z-index: 90; display: none; flex-direction: column; }
+.sheet-ov.open { display: flex; }
+.sheet-hd { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 0.5px solid var(--border); }
+.sheet-hd h3 { font-size: 17px; font-weight: 700; flex: 1; margin: 0; }
+.sheet-x { background: var(--bg3); border: 0; color: var(--fg); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
+.sheet-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
+.sheet-foot { padding: 14px 16px; border-top: 0.5px solid var(--border); background: var(--bg2); }
+.pdv-prod { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.pdv-prod .n { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+.pdv-prod .n small { display: block; color: var(--fg-dim); font-size: 11px; font-weight: 400; }
+.step { display: flex; align-items: center; gap: 8px; }
+.step button { width: 30px; height: 30px; border-radius: 8px; border: 0; background: var(--bg3); color: var(--fg); font-size: 17px; cursor: pointer; line-height: 1; }
+.step .q { min-width: 20px; text-align: center; font-weight: 700; }
+.pay-opts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+.pay-opt { flex: 1; min-width: 68px; background: var(--bg3); border: 1px solid var(--border); color: var(--fg); border-radius: 10px; padding: 10px; font-size: 12px; cursor: pointer; text-align: center; }
+.pay-opt.active { background: rgba(212,255,46,0.15); border-color: var(--lime); color: var(--lime); }
+.bal-row { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.bal-row .n { flex: 1; min-width: 0; font-size: 13px; }
+.bal-row input { width: 72px; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 8px; border-radius: 8px; font-size: 14px; text-align: center; }
 </style>
 </head>
 <body>
@@ -127,6 +152,14 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
   </div>
 
   <div class="section">
+    <h2>⚡ ações rápidas</h2>
+    <div class="qa-row">
+      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji">💰</span><span class="qa-tt">vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji">📊</span><span class="qa-tt">balanço</span><span class="qa-ts">contagem de estoque</span></button>
+    </div>
+  </div>
+
+  <div class="section">
     <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ manual</span></h2>
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">📸 escanear produto — a IA preenche pra você</button>
@@ -161,6 +194,42 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
   <div class="section">
     <h2>✅ últimas vendas</h2>
     <div id="historico-list"></div>
+  </div>
+</div>
+
+<!-- Overlay: PDV (vender no balcão) -->
+<div class="sheet-ov" id="pdv-ov">
+  <div class="sheet-hd">
+    <button class="sheet-x" onclick="closePDV()">←</button>
+    <h3>💰 vender no balcão</h3>
+    <span id="pdv-total" style="font-weight:800;color:var(--lime)">R$ 0,00</span>
+  </div>
+  <div class="sheet-scroll" id="pdv-list"></div>
+  <div class="sheet-foot">
+    <div class="pay-opts" id="pdv-pay">
+      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">💵 dinheiro</div>
+      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">⚡ pix</div>
+      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">💳 débito</div>
+      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">💳 crédito</div>
+    </div>
+    <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">finalizar venda ✦</button>
+    <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- Overlay: Balanço (contagem) -->
+<div class="sheet-ov" id="bal-ov">
+  <div class="sheet-hd">
+    <button class="sheet-x" onclick="closeBalanco()">←</button>
+    <h3>📊 balanço</h3>
+  </div>
+  <div class="sheet-scroll">
+    <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Conte o estoque real de cada produto e ajuste os números. Ao salvar, o estoque do catálogo é atualizado.</div>
+    <div id="bal-list"></div>
+  </div>
+  <div class="sheet-foot">
+    <button class="pf-btn full" onclick="saveBalanco()">salvar contagem ✦</button>
+    <div id="bal-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
 </div>
 
@@ -447,6 +516,87 @@ async function saveEditProduct(id) {
   const stock = parseInt(document.getElementById('ep-stock-' + id).value || '0', 10);
   const hidden = document.getElementById('ep-hidden-' + id).checked;
   await _saveProduct({ id, price, stock, hidden });
+}
+
+// ===================== PDV — vender no balcão =====================
+let _pdvCart = {}, _pdvPay = null;
+function _pdvProds() { return (_lastProdutos || []).filter(p => !p.hidden); }
+function openPDV() {
+  _pdvCart = {}; _pdvPay = null;
+  document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active'));
+  document.getElementById('pdv-msg').textContent = '';
+  renderPDV();
+  document.getElementById('pdv-ov').classList.add('open');
+}
+function closePDV() { document.getElementById('pdv-ov').classList.remove('open'); }
+function renderPDV() {
+  const list = document.getElementById('pdv-list');
+  const prods = _pdvProds();
+  list.innerHTML = prods.length
+    ? prods.map(p => {
+        const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+        const q = _pdvCart[p.id] || 0;
+        return `<div class="pdv-prod">
+          <div class="n">${esc(p.name)}<small>R$ ${price} · ${p.stock || 0} em estoque</small></div>
+          <div class="step"><button onclick="pdvDec(${p.id})">−</button><span class="q">${q}</span><button onclick="pdvInc(${p.id})">+</button></div>
+        </div>`;
+      }).join('')
+    : '<div class="empty">sem produtos ainda — cadastra em "meus produtos"</div>';
+  let cents = 0; prods.forEach(p => { cents += (p.price_cents || 0) * (_pdvCart[p.id] || 0); });
+  document.getElementById('pdv-total').textContent = 'R$ ' + (cents / 100).toFixed(2).replace('.', ',');
+  const n = Object.values(_pdvCart).reduce((s, q) => s + q, 0);
+  const ok = n > 0 && !!_pdvPay;
+  const btn = document.getElementById('pdv-finalize');
+  btn.disabled = !ok; btn.style.opacity = ok ? 1 : 0.5;
+}
+function pdvInc(id) { const p = _pdvProds().find(x => x.id === id); const max = (p && typeof p.stock === 'number') ? p.stock : 999; _pdvCart[id] = Math.min(max, (_pdvCart[id] || 0) + 1); renderPDV(); }
+function pdvDec(id) { _pdvCart[id] = Math.max(0, (_pdvCart[id] || 0) - 1); if (!_pdvCart[id]) delete _pdvCart[id]; renderPDV(); }
+function pdvPay(m, el) { _pdvPay = m; document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active')); if (el) el.classList.add('active'); renderPDV(); }
+async function pdvFinalize() {
+  const items = Object.keys(_pdvCart).map(id => ({ product_id: Number(id), qty: _pdvCart[id] }));
+  if (!items.length || !_pdvPay) return;
+  const msg = document.getElementById('pdv-msg'); msg.textContent = 'registrando...';
+  const btn = document.getElementById('pdv-finalize'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/webhook?action=filial_pos_sale', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, items, payment_method: _pdvPay }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { closePDV(); loadData(true); }
+    else { msg.textContent = d.error || ('erro ' + r.status); btn.disabled = false; }
+  } catch (e) { msg.textContent = 'erro de rede'; btn.disabled = false; }
+}
+
+// ===================== Balanço — contagem de estoque =====================
+function openBalanco() { renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
+function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
+function renderBalanco() {
+  const list = document.getElementById('bal-list');
+  const prods = _lastProdutos || [];
+  list.innerHTML = prods.length
+    ? prods.map(p => `<div class="bal-row"><div class="n">${esc(p.name)}</div><input type="number" inputmode="numeric" id="bal-${p.id}" value="${p.stock || 0}" min="0"></div>`).join('')
+    : '<div class="empty">sem produtos</div>';
+}
+async function saveBalanco() {
+  const prods = _lastProdutos || [];
+  const msg = document.getElementById('bal-msg'); msg.textContent = 'salvando...';
+  let changed = 0, errs = 0;
+  for (const p of prods) {
+    const el = document.getElementById('bal-' + p.id); if (!el) continue;
+    const v = parseInt(el.value, 10);
+    if (!Number.isInteger(v) || v < 0 || v === (p.stock || 0)) continue;
+    try {
+      const r = await fetch('/api/webhook?action=filial_product_save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: p.id, price: (p.price_cents || 0) / 100, stock: v, hidden: !!p.hidden }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) changed++; else errs++;
+    } catch (e) { errs++; }
+  }
+  msg.textContent = errs ? `salvou ${changed}, ${errs} com erro` : `estoque atualizado ✦ ${changed} ${changed === 1 ? 'item' : 'itens'}`;
+  if (!errs) setTimeout(() => { closeBalanco(); loadData(true); }, 800);
 }
 
 function renderPedidoCard(p, isEntregue) {

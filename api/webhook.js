@@ -4771,6 +4771,62 @@ async function handleFilialAnalyzePhoto(req, res) {
   }
 }
 
+// POST action=filial_pos_sale — venda no balcão (PDV) do lojista: grava o pedido
+// (mode pos, status completed) e baixa o estoque. Escopo/auth por sessão da loja.
+async function handleFilialPosSale(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const items = Array.isArray(body.items) ? body.items : [];
+    const payMethod = String(body.payment_method || 'dinheiro');
+    if (!items.length) return res.status(400).json({ ok: false, error: 'carrinho vazio' });
+
+    // Baixa estoque por produto (só produtos DA loja) e monta os itens do pedido
+    let totalCents = 0;
+    const orderItems = [];
+    for (const it of items) {
+      const pid = it.product_id;
+      const qty = Math.max(1, parseInt(it.qty, 10) || 1);
+      if (!pid) continue;
+      const rows = await sbGet('drope_products', `id=eq.${encodeURIComponent(pid)}&filial_id=eq.${filial.id}&select=id,name,price_cents,qty_available&limit=1`);
+      const p = rows && rows[0];
+      if (!p) continue;
+      const newQty = Math.max(0, (p.qty_available || 0) - qty);
+      await sbUpdate('drope_products', `id=eq.${p.id}&filial_id=eq.${filial.id}`, { qty_available: newQty });
+      const priceReais = (p.price_cents || 0) / 100;
+      totalCents += (p.price_cents || 0) * qty;
+      orderItems.push({ name: p.name, qty, price: priceReais, product_id: p.id });
+    }
+    if (!orderItems.length) return res.status(400).json({ ok: false, error: 'nenhum produto válido' });
+
+    const orderNsu = 'pos-' + filial.id + '-' + Date.now().toString(36);
+    const row = await sbInsert('drope_orders', {
+      order_nsu: orderNsu,
+      filial_id: filial.id,
+      status: 'completed',
+      payment_method: payMethod,
+      subtotal_cents: totalCents,
+      delivery_fee_cents: 0,
+      total_cents: totalCents,
+      items: orderItems,
+      delivery_mode: 'pos',
+      customer_snapshot: { name: 'balcão', phone: '', email: '' },
+      created_at: new Date().toISOString(),
+    });
+    if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'falha ao gravar venda' });
+    return res.status(200).json({ ok: true, order_nsu: orderNsu, total_cents: totalCents });
+  } catch (e) {
+    console.error('[filial_pos_sale] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // POST action=admin_token — devolve o ADMIN_TOKEN pro painel admin MEDIANTE a
 // senha do painel (verificada no servidor). Assim o admin só digita a senha (no
 // login) e o token é buscado/salvo sozinho — sem mais colar token na mão.
@@ -18084,6 +18140,10 @@ async function generateAll(){
   // action=filial_analyze_photo — POST: IA identifica o produto pela foto (lojista)
   if (req.url && req.url.indexOf('action=filial_analyze_photo') >= 0) {
     return await handleFilialAnalyzePhoto(req, res);
+  }
+  // action=filial_pos_sale — POST: venda no balcão (PDV) do lojista
+  if (req.url && req.url.indexOf('action=filial_pos_sale') >= 0) {
+    return await handleFilialPosSale(req, res);
   }
   // action=admin_token — POST: devolve o ADMIN_TOKEN mediante a senha do painel
   if (req.url && req.url.indexOf('action=admin_token') >= 0) {
