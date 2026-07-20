@@ -7480,8 +7480,9 @@
       if (d && d.ok && d.images && typeof d.images === 'object') {
         VIBE_IMAGES = d.images;
         try { localStorage.setItem('drope_vibe_images', JSON.stringify(d.images)); } catch(e) {}
-        // Re-renderiza a home se estiver visível (chips passam a mostrar as imagens)
+        // Re-renderiza a home se estiver visível (chips + bolha TUDO passam a mostrar as imagens)
         if (typeof renderPersonalizedHome === 'function') { try { renderPersonalizedHome(); } catch(e) {} }
+        if (typeof renderBrandsCarousel === 'function') { try { renderBrandsCarousel(); } catch(e) {} }
       }
     } catch(e) {}
   }
@@ -8667,8 +8668,13 @@
     if (brands.length === 0) { wrap.style.display = 'none'; return; }
     wrap.style.display = '';
     // Render: cada marca vira bolinha. Primeiro item = "tudo" pra resetar.
+    // Capa do TUDO = imagem de IA (mistura de pods), se gerada no admin; senão 🌎.
+    const tudoImg = (typeof VIBE_IMAGES !== 'undefined' && VIBE_IMAGES && VIBE_IMAGES.tudo) || '';
+    const tudoInner = tudoImg
+      ? `<img src="${escapeHtml(tudoImg)}" alt="tudo" draggable="false" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='🌎'">`
+      : '🌎';
     let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
-      <div class="brand-bubble-circle" style="background:linear-gradient(135deg,#b026ff,#ff2d95);">🌎</div>
+      <div class="brand-bubble-circle"${tudoImg ? ' style="padding:0"' : ' style="background:linear-gradient(135deg,#b026ff,#ff2d95);"'}>${tudoInner}</div>
       <div class="brand-bubble-name">TUDO</div>
     </div>`;
     brands.forEach(([brand, count]) => {
@@ -9927,6 +9933,7 @@
 
   // ===== ADMIN — imagens das vibes (gera por IA a arte de cada tema) =====
   const _VIBE_DEFS_ADM = [
+    { fl: 'tudo',    emoji: '🌎', label: 'Tudo (filtro do topo)', desc: 'mistura de pods das marcas' },
     { fl: 'fruity',  emoji: '🍇', label: 'Frutado', desc: 'frutas frescas' },
     { fl: 'sweet',   emoji: '🍬', label: 'Doce',    desc: 'doces e sobremesas' },
     { fl: 'icy',     emoji: '🧊', label: 'Gelado',  desc: 'gelo e frost' },
@@ -9968,8 +9975,9 @@
       if (r.ok && d.ok && d.url) {
         VIBE_IMAGES[vibe] = d.url;
         try { localStorage.setItem('drope_vibe_images', JSON.stringify(VIBE_IMAGES)); } catch (e) {}
-        toast('imagem da vibe pronta ✦');
+        toast('imagem pronta ✦');
         if (typeof renderPersonalizedHome === 'function') { try { renderPersonalizedHome(); } catch (e) {} }
+        if (typeof renderBrandsCarousel === 'function') { try { renderBrandsCarousel(); } catch (e) {} }
       } else { toast('erro ✦ ' + (d.error || r.status)); }
     } catch (e) { toast('erro de rede ✦'); }
     finally { _vibeGenBusy[vibe] = false; renderVibeImages(); }
@@ -10173,7 +10181,7 @@
         // pra você" → CATÁLOGO (mais limpo, sem card de teste nem link morto).
       } else {
         // Cliente novo (ou sem perfil ainda)
-        const greeting = greetName ? `E aí, ${escapeHtml(greetName)}! Qual vibe você curte?` : `E aí! Qual vibe você curte? 🦎`;
+        const greeting = greetName ? `E aí, ${escapeHtml(greetName)}! Qual vibe você curte?` : `E aí! Qual vibe você curte?`;
         const sub = `Escolhe uma — ou explora tudo`;
         html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
         const VIBE_DEFS = [

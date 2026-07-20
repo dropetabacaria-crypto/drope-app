@@ -6181,6 +6181,9 @@ const VIBE_THEMES = {
   sweet:   'a still-life of glossy candies and desserts — gummy bears, hard candies, caramel drizzle, sugar crystals, macarons — rich and indulgent',
   icy:     'a still-life of ice — crystal-clear ice cubes, frost, frozen shards, cold water droplets and chilled mist rolling off the surface',
   menthol: 'a still-life of fresh mint and eucalyptus — vivid green mint leaves with frost crystals, dewy cool herbs, a crisp refreshing look',
+  // "tudo" = capa do filtro do topo: uma MISTURA de pods/vapes descartáveis de
+  // várias marcas/cores (permite device, ao contrário das vibes).
+  tudo:    'an assorted collection of colorful disposable vape pod devices of different shapes and neon colors, grouped together',
 };
 
 async function generateVibeScene(vibe) {
@@ -6188,14 +6191,23 @@ async function generateVibeScene(vibe) {
   if (!theme) return null;
   if (!XAI_API_KEY) { console.error('[generateVibeScene] XAI_API_KEY not configured'); return null; }
 
-  const prompt = [
-    `Dark cinematic product photography. HERO SUBJECT centered in frame: ${theme}, arranged as a beautiful still-life on a matte black reflective surface with subtle mirror reflections.`,
-    `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space.`,
-    `Atmospheric vapor/smoke drifting across the scene — wispy, translucent, catching neon rim lights with subtle pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill. Ethereal, like hookah smoke in slow motion.`,
-    `Low-key cinematic lighting: soft cool white key from upper-left, neon pink and lime as thin rim highlights. 70% dark shadows, 20% midtones, 10% neon highlights. Glossy, high detail, premium.`,
-    `CRITICAL: NO device, NO pod, NO vape, NO electronics anywhere. NO people, NO hands. NO text, NO watermarks, NO labels.`,
-    `Square format 1024x1024.`,
-  ].join(' ');
+  const prompt = (vibe === 'tudo')
+    ? [
+        `Dark cinematic product photography. HERO: ${theme}, arranged together as a premium group shot on a matte black reflective surface with subtle mirror reflections.`,
+        `Deep dark background gradient (#0A0C1B to #12091F).`,
+        `Atmospheric vapor/smoke drifting, catching neon rim lights with pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill.`,
+        `Low-key cinematic lighting, glossy, high detail, premium. 70% dark shadows, 20% midtones, 10% neon highlights.`,
+        `NO people, NO hands. NO text, NO watermarks, NO brand logos, NO labels.`,
+        `Square format 1024x1024.`,
+      ].join(' ')
+    : [
+        `Dark cinematic product photography. HERO SUBJECT centered in frame: ${theme}, arranged as a beautiful still-life on a matte black reflective surface with subtle mirror reflections.`,
+        `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space.`,
+        `Atmospheric vapor/smoke drifting across the scene — wispy, translucent, catching neon rim lights with subtle pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill. Ethereal, like hookah smoke in slow motion.`,
+        `Low-key cinematic lighting: soft cool white key from upper-left, neon pink and lime as thin rim highlights. 70% dark shadows, 20% midtones, 10% neon highlights. Glossy, high detail, premium.`,
+        `CRITICAL: NO device, NO pod, NO vape, NO electronics anywhere. NO people, NO hands. NO text, NO watermarks, NO labels.`,
+        `Square format 1024x1024.`,
+      ].join(' ');
 
   console.log('[generateVibeScene] gerando vibe:', vibe);
   const t0 = Date.now();
