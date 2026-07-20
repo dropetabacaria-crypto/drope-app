@@ -12517,10 +12517,28 @@ async function handleFiliaisList(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
   try {
-    const rows = await sbGet('drope_filiais', 'select=slug,name,city,state,metadata&status=eq.active&order=name.asc');
-    // Esconde do cliente as lojas que ainda não terminaram o onboarding (sem recebimento conectado).
-    const visible = (Array.isArray(rows) ? rows : []).filter(f => ((f.metadata || {}).onboarding) !== 'pending_payment');
-    return res.status(200).json({ ok: true, filiais: visible.map(f => ({ slug: f.slug, name: f.name, city: f.city, state: f.state })) });
+    const rows = await sbGet('drope_filiais', 'select=id,slug,name,city,state,metadata&status=eq.active&order=name.asc');
+    const filiais = Array.isArray(rows) ? rows : [];
+    // Capa de cada loja = 1 foto de produto dela; + contagem de produtos visíveis.
+    const ids = filiais.map(f => f.id).filter(Boolean);
+    const coverBy = {}, countBy = {};
+    if (ids.length) {
+      const prods = await sbGet('drope_products', `filial_id=in.(${ids.join(',')})&hidden=eq.false&select=filial_id,image_url,image_status&order=id.desc&limit=800`);
+      (prods || []).forEach(p => {
+        countBy[p.filial_id] = (countBy[p.filial_id] || 0) + 1;
+        if (!coverBy[p.filial_id] && p.image_url && p.image_status === 'ok') coverBy[p.filial_id] = p.image_url;
+      });
+    }
+    const out = filiais.map(f => ({
+      slug: f.slug, name: f.name, city: f.city, state: f.state,
+      cover: coverBy[f.id] || null,
+      produtos: countBy[f.id] || 0,
+      pending: ((f.metadata || {}).onboarding) === 'pending_payment',
+    }))
+    // Cliente só vê lojas COM produtos (loja vazia não aparece no marketplace).
+    // Esconde lojas de teste (slug começando com "zz-").
+    .filter(f => f.produtos >= 1 && !/^zz-/.test(f.slug));
+    return res.status(200).json({ ok: true, filiais: out });
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 

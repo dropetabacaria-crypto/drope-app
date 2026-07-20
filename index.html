@@ -3990,9 +3990,9 @@
      Salva escolha em localStorage. Cliente vê o catálogo da filial dele e só. -->
 <div id="filial-picker-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0A0A14 0%,#1a0a20 100%);z-index:9999;align-items:center;justify-content:center;padding:24px">
   <div style="max-width:420px;width:100%;text-align:center">
-    <div style="font-size:48px;margin-bottom:8px">📍</div>
-    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">De onde você é?</h2>
-    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:28px;line-height:1.5">A gente mostra os pods da sua região ✦ pode trocar depois no menu</p>
+    <div style="font-size:48px;margin-bottom:8px">🏪</div>
+    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Escolha a loja</h2>
+    <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa tabacaria pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
     <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
     <div id="filial-picker-list">
       <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
@@ -4146,6 +4146,9 @@
         <div class="cart-badge" id="cart-badge">0</div>
       </div>
     </div>
+
+    <!-- Barra da loja atual — toque pra trocar de tabacaria -->
+    <div id="home-loja-bar" onclick="trocarFilialCliente()" style="display:flex;align-items:center;gap:8px;margin:0 20px 4px;padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;font-size:13px;color:var(--text);cursor:pointer"></div>
 
     <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
     <div class="search-bar-wrap">
@@ -7467,21 +7470,38 @@
   // FILIAL DO CLIENTE — Andrade 09/06: cliente escolhe sua cidade na 1ª abertura
   // ('sp' default, 'santos', etc.). Salva em localStorage e filtra o catálogo.
   const FILIAL_STORAGE_KEY = 'drope_client_filial_v1';
+  const FILIAL_NAME_KEY = 'drope_client_filial_name_v1';
   let CLIENT_FILIAL = 'sp';
+  let CLIENT_FILIAL_NAME = '';
   try { CLIENT_FILIAL = (localStorage.getItem(FILIAL_STORAGE_KEY) || 'sp').toLowerCase(); } catch(_){}
-  function setClientFilial(slug) {
+  try { CLIENT_FILIAL_NAME = localStorage.getItem(FILIAL_NAME_KEY) || ''; } catch(_){}
+  function setClientFilial(slug, name) {
     CLIENT_FILIAL = (slug || 'sp').toLowerCase();
+    if (name != null) CLIENT_FILIAL_NAME = name;
     try { localStorage.setItem(FILIAL_STORAGE_KEY, CLIENT_FILIAL); } catch(_){}
+    try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME || ''); } catch(_){}
     // Limpa cache de produtos pra forçar refetch do catálogo da nova filial
     try { localStorage.removeItem(PRODUCTS_KEY); } catch(_){}
   }
-  // Chamada pelo modal de seleção da 1ª abertura
+  // Chamada pelo card de loja (picker)
   function pickClientFilial(slug) {
-    setClientFilial(slug);
+    const loja = (_lojasCache || []).find(l => l.slug === slug);
+    const nm = loja ? (loja.name || loja.city || '') : '';
+    setClientFilial(slug, nm);
     const overlay = document.getElementById('filial-picker-overlay');
     if (overlay) overlay.style.display = 'none';
-    // Recarrega o catálogo da filial escolhida
+    if (typeof renderLojaBar === 'function') renderLojaBar();
+    // Recarrega o catálogo da loja escolhida
     if (typeof fetchCatalog === 'function') fetchCatalog();
+    if (typeof go === 'function') go('home');
+    try { window.scrollTo(0, 0); } catch(e) {}
+  }
+  // Barra "🏪 loja atual · trocar" na home
+  function renderLojaBar() {
+    const el = document.getElementById('home-loja-bar');
+    if (!el) return;
+    const nm = CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
+    el.innerHTML = `<span style="opacity:.7">🏪</span> <b>${escapeHtml(nm)}</b> <span style="color:var(--lime);font-weight:700;margin-left:auto">trocar loja ›</span>`;
   }
   // Trocar filial via menu (botão no perfil)
   function trocarFilialCliente() {
@@ -7498,6 +7518,7 @@
     ['#2DD4FF', '#3B82F6', '#012'],
     ['#FFB000', '#FF6B00', '#000'],
   ];
+  let _lojasCache = [];
   async function renderFilialPicker() {
     const list = document.getElementById('filial-picker-list');
     if (!list) return;
@@ -7506,12 +7527,19 @@
       if (!r.ok) return;
       const d = await r.json();
       if (!d || !Array.isArray(d.filiais) || !d.filiais.length) return; // mantém fallback
-      list.innerHTML = d.filiais.map((f, i) => {
-        const g = _FILIAL_STYLES[i % _FILIAL_STYLES.length];
-        const label = (f.city || f.name || '').replace(/^Drope\s+/i, '');
-        return `<button onclick="pickClientFilial('${f.slug}')" style="display:flex;align-items:center;gap:12px;width:100%;background:linear-gradient(90deg,${g[0]},${g[1]});color:${g[2]};border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left">
-          <span style="font-size:24px">📍</span>
-          <span style="flex:1"><div>${label}</div></span>
+      _lojasCache = d.filiais;
+      // rola se tiver muitas lojas
+      list.style.maxHeight = '62vh'; list.style.overflowY = 'auto';
+      list.innerHTML = d.filiais.map(f => {
+        const label = (f.name || f.city || '').replace(/^Drope\s+/i, '');
+        const sub = [f.city, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'em breve')].filter(Boolean).join(' · ');
+        const cover = f.cover
+          ? `<img src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:52px;height:52px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
+          : `<div style="width:52px;height:52px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px">🏪</div>`;
+        return `<button onclick="pickClientFilial('${escapeHtml(f.slug)}')" style="display:flex;align-items:center;gap:12px;width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:12px;border-radius:16px;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left">
+          ${cover}
+          <span style="flex:1;min-width:0"><div style="font-weight:800;font-size:15px">${escapeHtml(label)}</div><div style="font-size:12px;color:rgba(255,255,255,0.6)">${escapeHtml(sub)}</div></span>
+          <span style="color:rgba(255,255,255,0.4);font-size:20px;flex:0 0 auto">›</span>
         </button>`;
       }).join('');
     } catch (e) { /* mantém fallback */ }
@@ -7525,6 +7553,7 @@
       if (overlay) overlay.style.display = 'flex';
     }
     renderFilialPicker();
+    try { renderLojaBar(); } catch(e) {}
   })();
 
   function loadProducts() {
@@ -9025,7 +9054,7 @@
     });
     window.scrollTo(0, 0);
     if (screen === 'cart') renderCart();
-    if (screen === 'home') { renderHomeLastOrder(); renderPersonalizedHome(); loadMyOrders(); }
+    if (screen === 'home') { renderLojaBar(); renderHomeLastOrder(); renderPersonalizedHome(); loadMyOrders(); }
     if (screen === 'flavor-profile') renderFlavorProfile();
     if (screen === 'card') renderCardScreen();
     if (screen === 'search') renderSearch();
