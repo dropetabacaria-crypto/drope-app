@@ -4573,6 +4573,14 @@ async function handleFilialPainel(req, res) {
     const faturamentoMesCents = pedidos.reduce((s, p) => s + p.total_cents, 0);
     const saldoPendenteCents = pedidos.reduce((s, p) => s + (p.ganho_cents || 0), 0);
 
+    // Produtos da loja (pro lojista gerenciar estoque/preço)
+    const prods = await sbGet('drope_products',
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,category&order=name.asc&limit=300`);
+    const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
+      id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
+      stock: p.qty_available, hidden: !!p.hidden, image_url: p.image_url || null, category: p.category || 'pod',
+    }));
+
     return res.status(200).json({
       ok: true,
       filial: {
@@ -4587,10 +4595,70 @@ async function handleFilialPainel(req, res) {
       faturamento_mes_cents: faturamentoMesCents,
       pedidos_pendentes: pendentes,
       historico,
+      produtos,
     });
   } catch (err) {
     console.error('[filial_painel] ERROR:', err.message);
     return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// POST action=filial_product_save — lojista adiciona/edita produto da loja dele.
+// Auth: filial slug + token (4 últimos dígitos do whats da fundadora). Escopo por filial_id.
+async function handleFilialProductSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filialSlug = String(body.filial || '').toLowerCase().trim();
+    const token = String(body.token || '').trim();
+    if (!filialSlug) return res.status(400).json({ ok: false, error: 'missing filial' });
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,founder_phone&limit=1`);
+    const filial = Array.isArray(fr) && fr[0];
+    if (!filial) return res.status(404).json({ ok: false, error: 'filial not found' });
+    if (token !== (filial.founder_phone || '').slice(-4)) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+    const id = body.id;
+    const priceCents = Math.round(Number(body.price) * 100);
+    const stock = parseInt(body.stock, 10);
+    const hidden = !!body.hidden;
+    const imageUrl = body.image_url != null ? String(body.image_url).trim() : undefined;
+
+    if (id) {
+      // editar — só se o produto pertence à loja
+      const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id&limit=1`);
+      if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'produto não é da sua loja' });
+      const upd = { hidden };
+      if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
+      if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
+      if (imageUrl !== undefined) upd.image_url = imageUrl || null;
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
+      return res.status(200).json({ ok: true, id });
+    }
+    // novo produto
+    const name = String(body.name || '').trim();
+    const sabor = String(body.sabor || '').trim();
+    if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome inválido' });
+    if (!isFinite(priceCents) || priceCents < 0) return res.status(400).json({ ok: false, error: 'preço inválido' });
+    const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pod';
+    const slug = base + '-' + filial.id + '-' + Date.now().toString(36).slice(-4);
+    const row = await sbInsert('drope_products', {
+      filial_id: filial.id, slug, name,
+      price_cents: priceCents,
+      qty_available: Number.isInteger(stock) && stock >= 0 ? stock : 0,
+      hidden: false, image_status: 'ok',
+      image_url: imageUrl || null,
+      category: 'pod',
+      metadata: { sabor: sabor || null, created_via: 'lojista_panel' },
+    });
+    if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
+    return res.status(200).json({ ok: true, id: row.id, slug: row.slug });
+  } catch (e) {
+    console.error('[filial_product_save] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
@@ -17644,6 +17712,10 @@ async function generateAll(){
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
+  }
+  // action=filial_product_save — POST: lojista adiciona/edita produto da loja dele
+  if (req.url && req.url.indexOf('action=filial_product_save') >= 0) {
+    return await handleFilialProductSave(req, res);
   }
 
   // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin

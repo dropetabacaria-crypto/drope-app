@@ -63,6 +63,17 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg2); border-bottom: 0.5px solid var(--border); font-size: 11px; color: var(--fg-dim); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+/* Produtos / estoque */
+.prod-row { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+.prod-row.hidden-prod { opacity: 0.55; }
+.prod-name { font-size: 14px; font-weight: 600; }
+.prod-meta { font-size: 12px; color: var(--fg-dim); margin-top: 2px; }
+.prod-edit { display: none; }
+.prod-edit.open { display: block; }
+.pf-input { width: 100%; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
+.pf-btn { background: var(--lime); color: #000; border: 0; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pf-btn.sec { background: var(--bg3); color: var(--fg-dim); }
+.mini-link { color: var(--lime); font-size: 12px; cursor: pointer; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -105,6 +116,25 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
         <div class="kpi-sub" id="faturamento-mes">R$ 0 faturado</div>
       </div>
     </div>
+  </div>
+
+  <div class="section">
+    <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ novo</span></h2>
+    <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:12px; padding:14px; margin-bottom:10px">
+      <input class="pf-input" id="ap-name" placeholder="nome do pod (ex: ELFBAR Mango)" maxlength="60">
+      <input class="pf-input" id="ap-sabor" placeholder="sabor (opcional)" maxlength="40">
+      <div style="display:flex; gap:8px">
+        <input class="pf-input" id="ap-price" inputmode="decimal" placeholder="preço (ex: 109,90)" style="flex:1">
+        <input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="estoque" style="flex:1">
+      </div>
+      <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
+      <div style="display:flex; gap:8px">
+        <button class="pf-btn" onclick="saveNewProduct()">adicionar ✦</button>
+        <button class="pf-btn sec" onclick="toggleAddProduct()">cancelar</button>
+      </div>
+      <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:6px;min-height:14px"></div>
+    </div>
+    <div id="produtos-list"></div>
   </div>
 
   <div class="section">
@@ -204,6 +234,77 @@ function render(d) {
   histList.innerHTML = historico.length
     ? historico.map(p => renderPedidoCard(p, true)).join('')
     : '<div class="empty">sem vendas ainda</div>';
+
+  renderProdutos(d.produtos || []);
+}
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function renderProdutos(list) {
+  const el = document.getElementById('produtos-list');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<div class="empty">nenhum produto ainda ✦ adiciona o primeiro no "＋ novo"</div>'; return; }
+  el.innerHTML = list.map(p => {
+    const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+    return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="min-width:0">
+          <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(escondido)</span>' : ''}</div>
+          <div class="prod-meta">R$ ${price} ✦ ${p.stock || 0} em estoque</div>
+        </div>
+        <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">editar</span>
+      </div>
+      <div class="prod-edit" id="edit-${p.id}">
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="flex:1;margin-bottom:0" placeholder="preço">
+          <input class="pf-input" id="ep-stock-${p.id}" inputmode="numeric" value="${p.stock || 0}" style="flex:1;margin-bottom:0" placeholder="estoque">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
+        <button class="pf-btn" onclick="saveEditProduct(${p.id})">salvar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAddProduct() {
+  const f = document.getElementById('add-product-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function _saveProduct(payload, onOk) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_product_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { onOk && onOk(); loadData(true); return true; }
+    return d.error || ('erro ' + r.status);
+  } catch (e) { return 'erro de rede'; }
+}
+
+async function saveNewProduct() {
+  const name = (document.getElementById('ap-name').value || '').trim();
+  const sabor = (document.getElementById('ap-sabor').value || '').trim();
+  const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
+  const stock = parseInt(document.getElementById('ap-stock').value || '0', 10);
+  const img = (document.getElementById('ap-img').value || '').trim();
+  const msg = document.getElementById('ap-msg');
+  if (name.length < 2) { msg.textContent = 'põe o nome do pod'; return; }
+  if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
+  msg.textContent = 'salvando...';
+  const err = await _saveProduct({ name, sabor, price, stock, image_url: img }, () => {
+    ['ap-name', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('add-product-form').style.display = 'none';
+  });
+  if (err !== true) msg.textContent = err;
+}
+
+async function saveEditProduct(id) {
+  const price = parseFloat((document.getElementById('ep-price-' + id).value || '').replace(',', '.'));
+  const stock = parseInt(document.getElementById('ep-stock-' + id).value || '0', 10);
+  const hidden = document.getElementById('ep-hidden-' + id).checked;
+  await _saveProduct({ id, price, stock, hidden });
 }
 
 function renderPedidoCard(p, isEntregue) {
