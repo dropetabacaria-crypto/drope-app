@@ -81,9 +81,10 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 <!-- Auth modal -->
 <div class="auth-overlay" id="auth-overlay">
   <div class="auth-box">
-    <h1 id="auth-title">🏖️ Drope Filial</h1>
-    <p>Cola o teu código de acesso pra entrar</p>
-    <input type="password" id="access-code" placeholder="código de acesso" autofocus>
+    <h1 id="auth-title">🦎 Painel da loja</h1>
+    <p>Entre com seu email e senha</p>
+    <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="email" autofocus>
+    <input type="password" id="login-pass" autocomplete="current-password" placeholder="senha" onkeydown="if(event.key==='Enter')login()">
     <button onclick="login()">entrar</button>
     <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
@@ -149,7 +150,8 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 </div>
 
 <script>
-const STORAGE_KEY = 'drope_filial_code_v1';
+const STORAGE_KEY = 'drope_filial_code_v1';       // legado (código antigo)
+const SESSION_KEY = 'drope_filial_session_v1';    // sessão do login email+senha: {slug, token}
 let ACCESS_CODE = '';
 let FILIAL_SLUG = '';
 try {
@@ -160,29 +162,45 @@ try {
     const m = u.pathname.match(/^\/([a-z0-9-]+)\/painel/i);
     if (m) FILIAL_SLUG = m[1].toLowerCase();
   }
-  // Último fallback: assume "santos" se ainda vazio (tem só uma filial além de SP)
-  if (!FILIAL_SLUG) FILIAL_SLUG = 'santos';
 } catch (e) {}
-try { ACCESS_CODE = localStorage.getItem(STORAGE_KEY) || ''; } catch(_){}
+// Restaura sessão salva (login por email+senha). Tem prioridade e define o slug.
+try {
+  const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+  if (s && s.token && s.slug) { ACCESS_CODE = s.token; if (!FILIAL_SLUG) FILIAL_SLUG = s.slug; }
+} catch(_){}
+// Retrocompat: código legado (4 últimos do whats) se não houver sessão
+try { if (!ACCESS_CODE) ACCESS_CODE = localStorage.getItem(STORAGE_KEY) || ''; } catch(_){}
 
 function fmtBRL(cents) { return 'R$ ' + ((cents||0)/100).toFixed(2).replace('.', ','); }
 function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch(e){ return '—'; } }
 function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch(e){ return '—'; } }
 
-function login() {
-  const v = document.getElementById('access-code').value.trim();
-  if (!v) {
-    document.getElementById('auth-err').textContent = 'cola o código';
-    return;
-  }
-  if (!FILIAL_SLUG) {
-    document.getElementById('auth-err').textContent = 'URL errada — usa drope-app.vercel.app/santos/painel';
-    return;
-  }
-  ACCESS_CODE = v;
-  try { localStorage.setItem(STORAGE_KEY, v); } catch(_){}
-  document.getElementById('auth-err').textContent = 'entrando...';
-  loadData(true);
+async function login() {
+  const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
+  const pass = (document.getElementById('login-pass').value || '');
+  const err = document.getElementById('auth-err');
+  if (!email || !pass) { err.textContent = 'informe email e senha'; return; }
+  err.textContent = 'entrando...';
+  try {
+    const r = await fetch('/api/webhook?action=filial_login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.token) {
+      FILIAL_SLUG = d.slug;
+      ACCESS_CODE = d.token;
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify({ slug: d.slug, token: d.token })); } catch(_){}
+      err.textContent = '';
+      await loadData(true);
+    } else {
+      err.textContent = d.error || 'email ou senha incorretos';
+    }
+  } catch (e) { err.textContent = 'erro de rede'; }
+}
+function logout() {
+  try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
+  location.reload();
 }
 
 async function loadData(showLoading) {
@@ -191,7 +209,7 @@ async function loadData(showLoading) {
   try {
     const r = await fetch(`/api/webhook?action=filial_painel&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
     if (r.status === 401) {
-      document.getElementById('auth-err').textContent = 'código inválido';
+      document.getElementById('auth-err').textContent = 'sessão expirada — entre de novo';
       document.getElementById('auth-overlay').style.display = 'flex';
       document.getElementById('painel').style.display = 'none';
       return;
@@ -330,13 +348,12 @@ function renderPedidoCard(p, isEntregue) {
   `;
 }
 
-// Boot
-if (!FILIAL_SLUG) {
-  document.getElementById('auth-box').innerHTML = '<h1>⚠️ Filial não definida</h1><p>Use o link: /filial.html?filial=santos</p>';
-} else if (ACCESS_CODE) {
+// Boot: se há sessão salva (slug + token), entra direto; senão mostra o login
+// (o overlay já está visível por padrão). O slug agora vem do próprio login.
+if (ACCESS_CODE && FILIAL_SLUG) {
   loadData(true);
 }
-// Polling 30s
+// Polling 30s (loadData sai cedo se não estiver logado)
 setInterval(() => loadData(false), 30000);
 </script>
 

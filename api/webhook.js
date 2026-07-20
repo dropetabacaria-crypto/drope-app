@@ -4502,16 +4502,20 @@ async function handleFilialPainel(req, res) {
   if (!filialSlug) return res.status(400).json({ ok: false, error: 'missing filial' });
 
   try {
-    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,slug,name,founder_name,founder_phone,markup_cents,founder_share_cents&limit=1`);
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,slug,name,founder_name,founder_phone,markup_cents,founder_share_cents,metadata&limit=1`);
     const filial = Array.isArray(fr) && fr[0];
     if (!filial) return res.status(404).json({ ok: false, error: 'filial not found' });
 
-    // Auth: código de acesso é os 4 últimos dígitos do telefone da fundadora
-    // (prática pra começo — depois evoluir pra OTP via whats)
+    // Auth: aceita (a) token de sessão do login por email+senha (hash guardado no
+    // metadata.login.session_hash) OU (b) o código legado = 4 últimos dígitos do
+    // whats da fundadora (retrocompat).
+    const sessionHash = (((filial.metadata || {}).login) || {}).session_hash || '';
+    const bySession = !!sessionHash && _sha256hex(token) === sessionHash;
     const expectedCode = (filial.founder_phone || '').slice(-4);
-    if (!expectedCode || token !== expectedCode) {
+    const byLegacy = !!expectedCode && token === expectedCode;
+    if (!token || (!bySession && !byLegacy)) {
       await new Promise(r => setTimeout(r, 800));
-      return res.status(401).json({ ok: false, error: 'unauthorized', hint: 'use os 4 últimos dígitos do whats da fundadora' });
+      return res.status(401).json({ ok: false, error: 'unauthorized', hint: 'entre com seu email e senha' });
     }
 
     const now = new Date();
@@ -12437,6 +12441,25 @@ async function handleFiliaisAdmin(req, res) {
 // POST /api/webhook?action=filial_register → auto-cadastro de tabacaria (lojista).
 // Cria a loja com status 'pending' (não aparece pro cliente até aprovar + conectar
 // recebimento). NOTA[segurança]: endpoint público — endurecer/limitar depois.
+// ===== Auth de lojista (email + senha) =====
+// Senha NUNCA é guardada em texto: scrypt(senha, salt) → hash. Token de sessão é
+// aleatório e guardado só como hash (sha256) no metadata.login da filial.
+function _ljHashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(pw), salt, 32).toString('hex');
+  return { salt, hash };
+}
+function _ljVerifyPassword(pw, salt, hash) {
+  if (!salt || !hash) return false;
+  try {
+    const h = crypto.scryptSync(String(pw), salt, 32).toString('hex');
+    const a = Buffer.from(h), b = Buffer.from(hash);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch (e) { return false; }
+}
+function _sha256hex(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
+function _isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim()); }
+
 async function handleFilialRegister(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -12452,12 +12475,22 @@ async function handleFilialRegister(req, res) {
     const state = String(body.state || '').trim().toUpperCase();
     const founderName = String(body.founder_name || '').trim();
     let founderPhone = String(body.founder_phone || '').replace(/\D/g, '');
+    const email = String(body.email || '').trim().toLowerCase();
+    const password = String(body.password || '');
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome da loja inválido' });
     if (city.length < 2) return res.status(400).json({ ok: false, error: 'cidade inválida' });
     if (state.length !== 2) return res.status(400).json({ ok: false, error: 'UF inválida' });
     if (founderName.length < 2) return res.status(400).json({ ok: false, error: 'seu nome inválido' });
     if (founderPhone.length < 10 || founderPhone.length > 13) return res.status(400).json({ ok: false, error: 'whatsapp inválido' });
+    if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+    if (password.length < 6) return res.status(400).json({ ok: false, error: 'senha precisa de pelo menos 6 caracteres' });
     if (!founderPhone.startsWith('55')) founderPhone = '55' + founderPhone;
+    // Email precisa ser único entre as lojas (é o login)
+    const emailOwners = await sbGet('drope_filiais', 'select=id,metadata');
+    if ((emailOwners || []).some(f => ((f.metadata || {}).login || {}).email === email)) {
+      return res.status(409).json({ ok: false, error: 'já existe uma loja com esse email' });
+    }
+    const pass = _ljHashPassword(password);
     // slug a partir do nome (único)
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'loja';
@@ -12474,12 +12507,54 @@ async function handleFilialRegister(req, res) {
       // metadata.onboarding='pending_payment' até a loja conectar o recebimento.
       status: 'active',
       notes: 'Auto-cadastro via app (lojista) — aguardando conexão de recebimento.',
-      metadata: { self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment', payment: { provider: null, account_id: null, status: 'not_connected' } },
+      metadata: {
+        self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment',
+        payment: { provider: null, account_id: null, status: 'not_connected' },
+        login: { email, pass_salt: pass.salt, pass_hash: pass.hash },
+      },
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
     return res.status(200).json({ ok: true, filial: { slug: row.slug, name: row.name, status: row.status } });
   } catch (e) {
     console.error('[filial_register] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// POST /api/webhook?action=filial_login → login do lojista por email+senha.
+// Sucesso: gera um token de sessão (guarda só o hash no metadata) e devolve
+// { slug, name, token } pro painel usar. NOTA[segurança]: endurecer depois
+// (rate-limit por IP/email, expiração de sessão).
+async function handleFilialLogin(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const email = String(body.email || '').trim().toLowerCase();
+    const password = String(body.password || '');
+    if (!email || !password) return res.status(400).json({ ok: false, error: 'informe email e senha' });
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,slug,name,metadata');
+    const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
+    const login = filial && (filial.metadata || {}).login;
+    const okPass = login && _ljVerifyPassword(password, login.pass_salt, login.pass_hash);
+    if (!okPass) {
+      await new Promise(r => setTimeout(r, 800)); // atrasa brute-force
+      return res.status(401).json({ ok: false, error: 'email ou senha incorretos' });
+    }
+    // gera token de sessão (guarda só o hash)
+    const token = crypto.randomBytes(24).toString('hex');
+    const md = filial.metadata || {};
+    md.login = { ...login, session_hash: _sha256hex(token), session_at: new Date().toISOString() };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, slug: filial.slug, name: filial.name, token });
+  } catch (e) {
+    console.error('[filial_login] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -15186,6 +15261,10 @@ module.exports = async function handler(req, res) {
   }
   if (req.url && req.url.indexOf('action=filial_register') >= 0) {
     return await handleFilialRegister(req, res);
+  }
+  // POST /api/webhook?action=filial_login → login do lojista (email+senha) → token de sessão
+  if (req.url && req.url.indexOf('action=filial_login') >= 0) {
+    return await handleFilialLogin(req, res);
   }
   // GET action=filiais_admin&token=ADMIN_TOKEN → TODAS as lojas (incl. pendentes) pro painel
   if (req.url && req.url.indexOf('action=filiais_admin') >= 0) {
