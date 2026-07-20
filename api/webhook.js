@@ -6172,6 +6172,48 @@ async function generateBackgroundScene(flavor, flavorElements, qcFeedback) {
   return data.data?.[0]?.url || null;
 }
 
+// ============ IMAGENS DAS VIBES (chips Frutado/Doce/Gelado/Mentol) ============
+// Gera uma still-life dark-neon do TEMA da vibe (frutas, doces, gelo, menta) no
+// MESMO estilo das artes dos pods — o ingrediente é o HERÓI, sem device/pod.
+// Retorna URL temporária do Grok (caller baixa + sobe pro storage).
+const VIBE_THEMES = {
+  fruity:  'a vibrant still-life of fresh fruits — plump berries, grapes, sliced tropical fruits, citrus and cherries — glossy and dripping with juice, ultra-appetizing',
+  sweet:   'a still-life of glossy candies and desserts — gummy bears, hard candies, caramel drizzle, sugar crystals, macarons — rich and indulgent',
+  icy:     'a still-life of ice — crystal-clear ice cubes, frost, frozen shards, cold water droplets and chilled mist rolling off the surface',
+  menthol: 'a still-life of fresh mint and eucalyptus — vivid green mint leaves with frost crystals, dewy cool herbs, a crisp refreshing look',
+};
+
+async function generateVibeScene(vibe) {
+  const theme = VIBE_THEMES[vibe];
+  if (!theme) return null;
+  if (!XAI_API_KEY) { console.error('[generateVibeScene] XAI_API_KEY not configured'); return null; }
+
+  const prompt = [
+    `Dark cinematic product photography. HERO SUBJECT centered in frame: ${theme}, arranged as a beautiful still-life on a matte black reflective surface with subtle mirror reflections.`,
+    `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space.`,
+    `Atmospheric vapor/smoke drifting across the scene — wispy, translucent, catching neon rim lights with subtle pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill. Ethereal, like hookah smoke in slow motion.`,
+    `Low-key cinematic lighting: soft cool white key from upper-left, neon pink and lime as thin rim highlights. 70% dark shadows, 20% midtones, 10% neon highlights. Glossy, high detail, premium.`,
+    `CRITICAL: NO device, NO pod, NO vape, NO electronics anywhere. NO people, NO hands. NO text, NO watermarks, NO labels.`,
+    `Square format 1024x1024.`,
+  ].join(' ');
+
+  console.log('[generateVibeScene] gerando vibe:', vibe);
+  const t0 = Date.now();
+  const r = await fetch('https://api.x.ai/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
+    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
+  });
+  const data = await r.json();
+  console.log(`[generateVibeScene] status: ${r.status}, ${Date.now() - t0}ms`);
+  logApiCost('grok_background', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
+  if (r.status >= 400) {
+    console.error('[generateVibeScene] error:', JSON.stringify(data).slice(0, 400));
+    return null;
+  }
+  return data.data?.[0]?.url || null;
+}
+
 // Composite: cola o pod recortado (com alpha) no cenário gerado.
 // Pod fica centralizado, ocupando ~45% da altura do frame.
 async function compositeProductArt(backgroundBuffer, deviceCutoutBuffer) {
@@ -12309,6 +12351,61 @@ async function handleBrandCoverSet(req, res) {
   }
 }
 
+// GET /api/webhook?action=vibe_images → URLs das imagens das vibes (chips da home).
+// Público (só leitura). Guardadas no metadata.vibe_images da filial matriz (id=2).
+async function handleVibeImages(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const rows = await sbGet('drope_filiais', 'select=metadata&id=eq.2');
+    const vi = (rows && rows[0] && rows[0].metadata && rows[0].metadata.vibe_images) || {};
+    const images = {};
+    for (const k of Object.keys(vi)) {
+      if (vi[k] && vi[k].url) images[k] = vi[k].url + (vi[k].ts ? ('?v=' + vi[k].ts) : '');
+    }
+    return res.status(200).json({ ok: true, images });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=vibe_image_generate (x-admin-token) → gera via IA (Grok) a imagem
+// temática de UMA vibe, sobe pro storage e salva a URL no metadata da filial matriz.
+async function handleVibeImageGenerate(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  const provided = (req.headers && req.headers['x-admin-token']) || '';
+  if (!ADMIN_TOKEN || provided !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const vibe = String(body.vibe || '').trim();
+    if (!VIBE_THEMES[vibe]) return res.status(400).json({ ok: false, error: 'vibe inválida (fruity|sweet|icy|menthol)' });
+    // 1. gera a cena via Grok
+    const tempUrl = await generateVibeScene(vibe);
+    if (!tempUrl) return res.status(502).json({ ok: false, error: 'falha ao gerar imagem (Grok)' });
+    // 2. baixa + sobe pro storage (path determinístico, upsert)
+    const buf = await downloadImage(tempUrl);
+    if (!buf) return res.status(502).json({ ok: false, error: 'falha ao baixar imagem gerada' });
+    const publicUrl = await uploadToStorage(`vibe-${vibe}`, buf, 'image/png');
+    if (!publicUrl) return res.status(502).json({ ok: false, error: 'falha ao salvar no storage' });
+    // 3. merge no metadata.vibe_images da matriz (id=2), com timestamp p/ cache-bust
+    const rows = await sbGet('drope_filiais', 'select=metadata&id=eq.2');
+    const md = (rows && rows[0] && rows[0].metadata) || {};
+    md.vibe_images = md.vibe_images || {};
+    const ts = Date.now();
+    md.vibe_images[vibe] = { url: publicUrl, ts };
+    await sbUpdate('drope_filiais', 'id=eq.2', { metadata: md });
+    return res.status(200).json({ ok: true, vibe, url: publicUrl + '?v=' + ts });
+  } catch (e) {
+    console.error('[vibe_image_generate] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // GET /api/webhook?action=filiais_admin&token=ADMIN_TOKEN → todas as lojas (painel plataforma)
 async function handleFiliaisAdmin(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -15084,6 +15181,14 @@ module.exports = async function handler(req, res) {
   // POST action=brand_cover_set (x-admin-token) → define a foto de capa do filtro de uma marca
   if (req.url && req.url.indexOf('action=brand_cover_set') >= 0) {
     return await handleBrandCoverSet(req, res);
+  }
+  // GET action=vibe_images (público) → URLs das imagens das vibes (chips da home)
+  // POST action=vibe_image_generate (x-admin-token) → gera via IA a imagem de 1 vibe
+  if (req.url && req.url.indexOf('action=vibe_image_generate') >= 0) {
+    return await handleVibeImageGenerate(req, res);
+  }
+  if (req.url && req.url.indexOf('action=vibe_images') >= 0) {
+    return await handleVibeImages(req, res);
   }
 
   // ===== ROTAS OSSO 21 — IA-FIRST CLIENTE (01/05/2026) =====
