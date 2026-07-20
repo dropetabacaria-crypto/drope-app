@@ -6994,10 +6994,12 @@
     // Rótulo do botão pelo STATUS REAL do backend (funciona com pedido já pago via Pix)
     const bs = o.backendStatus;
     const finished = (bs === 'delivered' || bs === 'picked_up' || bs === 'cancelled');
+    const unpaid = (bs === 'created' || bs === 'waiting_proof' || bs === 'reserved' || bs === 'pending_pickup');
     if (finished) { btn.textContent = 'pedido finalizado'; btn.disabled = true; btn.style.opacity = 0.4; }
     else {
       btn.disabled = false; btn.style.opacity = 1;
-      if (isPickup) {
+      if (unpaid) btn.textContent = '✓ confirmar pagamento';
+      else if (isPickup) {
         if (bs === 'ready_for_pickup') btn.textContent = 'marcar como retirado';
         else if (bs === 'preparing') btn.textContent = 'marcar pronto pra retirar 🏪';
         else btn.textContent = 'separar pedido';
@@ -7091,16 +7093,19 @@
     const o = currentAdminOrder;
     const isPickup = o.mode === 'pickup';
     const bs = o.backendStatus;
-    // Calcula o próximo status no vocabulário do backend
+    // Calcula o próximo status no vocabulário do backend.
+    // Não pago (created/waiting_proof/reserved/pending_pickup) → 'paid' (confirma o pagamento).
+    const unpaid = (bs === 'created' || bs === 'waiting_proof' || bs === 'reserved' || bs === 'pending_pickup');
     let next = null;
-    if (isPickup) {
-      if (bs === 'preparing') next = 'ready_for_pickup';
+    if (unpaid) next = 'paid';
+    else if (isPickup) {
+      if (bs === 'paid') next = 'preparing';
+      else if (bs === 'preparing') next = 'ready_for_pickup';
       else if (bs === 'ready_for_pickup') next = 'picked_up';
-      else next = 'preparing'; // created/paid/waiting_proof/reserved/pending_pickup
     } else {
-      if (bs === 'preparing') next = 'out_for_delivery';
+      if (bs === 'paid') next = 'preparing';
+      else if (bs === 'preparing') next = 'out_for_delivery';
       else if (bs === 'out_for_delivery') next = 'delivered';
-      else next = 'preparing';
     }
     if (!next) { toast('pedido finalizado ✦'); return; }
     const btn = document.getElementById('adm-confirm-btn');
