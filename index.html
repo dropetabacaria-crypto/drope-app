@@ -8797,9 +8797,10 @@
     const pods = filtered.filter(({ p }) => p.cat === 'pod').sort(_sortStockThenNew);
     const tabac = filtered.filter(({ p }) => p.cat === 'tabac').sort(_sortStockThenNew);
 
-    // Sem filtro/vibe ativos: mostra só 4 drops + "ver todos". Com filtro: mostra tudo.
-    const noFilter = !hasAdvancedFilters() && (!filterState.perfil || filterState.perfil === 'tudo');
-    const limitPods = noFilter && !_podsExpanded;
+    // Regra do app: o home mostra só um PREVIEW de 4 drops. "Ver todos" abre o
+    // catálogo PAGINADO (9/página), que respeita os filtros ativos. Vale COM ou
+    // SEM filtro/marca/vibe/busca — o home NUNCA vira scroll infinito.
+    const limitPods = !_podsExpanded;
     const shownPods = limitPods ? pods.slice(0, 4) : pods;
 
     podsEl.innerHTML = shownPods.length
@@ -8810,7 +8811,7 @@
       if (limitPods && pods.length > 4) {
         moreEl.innerHTML = `<div class="see-all-link" onclick="openCatalog()">ver todos os ${pods.length} drops →</div>`;
         moreEl.style.display = '';
-      } else if (noFilter && _podsExpanded && pods.length > 4) {
+      } else if (_podsExpanded && pods.length > 4) {
         moreEl.innerHTML = `<div class="see-all-link" onclick="collapsePods()">ver menos ↑</div>`;
         moreEl.style.display = '';
       } else {
