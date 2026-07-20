@@ -127,7 +127,10 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
   </div>
 
   <div class="section">
-    <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ novo</span></h2>
+    <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ manual</span></h2>
+    <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
+    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">📸 escanear produto — a IA preenche pra você</button>
+    <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
       <label class="pf-lbl">Nome do pod</label>
       <input class="pf-input" id="ap-name" placeholder="ex: ELFBAR Ice King" maxlength="60">
@@ -346,6 +349,64 @@ function toggleAddProduct() {
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
 }
 
+// ===== Escanear produto por foto → IA identifica e preenche o form =====
+let _scanMeta = null;
+function _fileToDataUrl(file, maxPx) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      const scale = Math.min(1, maxPx / Math.max(w, h));
+      w = Math.round(w * scale); h = Math.round(h * scale);
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img load')); };
+    img.src = url;
+  });
+}
+async function onScanFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const st = document.getElementById('scan-status');
+  const btn = document.getElementById('scan-btn');
+  st.style.display = 'block';
+  st.style.background = 'rgba(212,255,46,0.08)'; st.style.color = 'var(--lime)';
+  st.textContent = '🔎 identificando o produto com IA…';
+  if (btn) btn.disabled = true;
+  try {
+    const b64 = await _fileToDataUrl(file, 1280);
+    const r = await fetch('/api/webhook?action=filial_analyze_photo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, caixaBase64: b64 }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.data) {
+      const v = d.data; _scanMeta = v;
+      document.getElementById('add-product-form').style.display = 'block';
+      const brand = (v.brand || '').trim(), model = (v.model || '').trim();
+      const flavor = (v.flavor_pt || v.flavor_en || '').trim();
+      document.getElementById('ap-name').value = [brand, model].filter(Boolean).join(' ') || flavor || '';
+      document.getElementById('ap-marca').value = brand;
+      document.getElementById('ap-sabor').value = flavor;
+      try { document.getElementById('ap-price').focus(); } catch (e) {}
+      const label = [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
+      st.textContent = '✅ ' + label + ' — confira, põe preço e estoque, e adiciona';
+    } else {
+      st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
+      st.textContent = '⚠️ ' + ((d && d.error) || 'não consegui identificar — tenta mais de perto ou usa "+ manual"');
+    }
+  } catch (e) {
+    st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
+    st.textContent = '⚠️ erro ao ler a foto';
+  }
+  if (btn) btn.disabled = false;
+}
+
 async function _saveProduct(payload, onOk) {
   try {
     const r = await fetch('/api/webhook?action=filial_product_save', {
@@ -369,9 +430,13 @@ async function saveNewProduct() {
   if (name.length < 2) { msg.textContent = 'põe o nome do pod'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
   msg.textContent = 'salvando...';
-  const err = await _saveProduct({ name, marca, sabor, price, stock, image_url: img }, () => {
+  const payload = { name, marca, sabor, price, stock, image_url: img };
+  if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
+  const err = await _saveProduct(payload, () => {
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('add-product-form').style.display = 'none';
+    const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
+    _scanMeta = null;
     msg.textContent = 'produto adicionado ✦ agora clica em "gerar imagem com IA" no produto';
   });
   if (err !== true) msg.textContent = err;

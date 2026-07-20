@@ -4664,6 +4664,8 @@ async function handleFilialProductSave(req, res) {
     const sabor = String(body.sabor || '').trim();
     const marca = String(body.marca || '').trim();
     const puffs = String(body.puffs || '').replace(/\D/g, '');
+    // meta opcional vindo da Vision (identificação por foto) — enriquece a arte
+    const vmeta = (body.meta && typeof body.meta === 'object') ? body.meta : {};
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome inválido' });
     if (!isFinite(priceCents) || priceCents < 0) return res.status(400).json({ ok: false, error: 'preço inválido' });
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pod';
@@ -4676,9 +4678,16 @@ async function handleFilialProductSave(req, res) {
       image_url: imageUrl || null,
       category: 'pod',
       metadata: {
-        sabor: sabor || null, marca: marca || null, puffs: puffs ? parseInt(puffs, 10) : null,
+        // dados da Vision primeiro (device_visual, cores, flavor_elements, flavor_category…)
+        ...vmeta,
+        sabor: sabor || vmeta.flavor_pt || null,
+        marca: marca || vmeta.brand || null,
+        puffs: puffs ? parseInt(puffs, 10) : (vmeta.puffs || null),
         // campos que a pipeline de arte usa (slug único do arquivo + contexto do prompt)
-        brand: marca || null, model: name, flavor_pt: sabor || null,
+        brand: marca || vmeta.brand || null,
+        model: vmeta.model || name,
+        flavor_pt: sabor || vmeta.flavor_pt || null,
+        flavor_en: vmeta.flavor_en || null,
         created_via: 'lojista_panel',
       },
     });
@@ -4731,6 +4740,33 @@ async function handleFilialProductArt(req, res) {
     return res.status(200).json({ ok: true, image_url: imageUrl, image_status: imageStatus });
   } catch (e) {
     console.error('[filial_product_art] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// POST action=filial_analyze_photo — lojista tira UMA foto do pod e a IA (Claude
+// Vision) identifica marca/modelo/sabor/puffs + OCR do código de barras. Mesma
+// função do admin (analyzeProductImage), autenticada pela sessão da loja.
+async function handleFilialAnalyzePhoto(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const caixaB64 = body.caixaBase64 || body.imageBase64;
+    if (!caixaB64) return res.status(400).json({ ok: false, error: 'foto obrigatória' });
+    const caixaUrl = caixaB64.startsWith('data:') ? caixaB64 : `data:image/jpeg;base64,${caixaB64}`;
+    const podB64 = body.podBase64 || null;
+    const podUrl = podB64 ? (podB64.startsWith('data:') ? podB64 : `data:image/jpeg;base64,${podB64}`) : null;
+    const data = await analyzeProductImage(caixaUrl, podUrl);
+    if (!data) return res.status(502).json({ ok: false, error: 'não consegui identificar — tira a foto mais de perto, com a frente da caixa nítida' });
+    return res.status(200).json({ ok: true, data });
+  } catch (e) {
+    console.error('[filial_analyze_photo] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -18020,6 +18056,10 @@ async function generateAll(){
   // action=filial_product_art — POST: lojista gera a arte (IA) de um produto dele
   if (req.url && req.url.indexOf('action=filial_product_art') >= 0) {
     return await handleFilialProductArt(req, res);
+  }
+  // action=filial_analyze_photo — POST: IA identifica o produto pela foto (lojista)
+  if (req.url && req.url.indexOf('action=filial_analyze_photo') >= 0) {
+    return await handleFilialAnalyzePhoto(req, res);
   }
 
   // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin
