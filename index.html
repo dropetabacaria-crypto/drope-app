@@ -88,11 +88,11 @@
      MUDAM de tom conforme rola a página. */
   .app::before {
     content: '';
-    /* FIXED na viewport (não absolute cobrindo a página inteira): antes esse layer
-       borrado tinha a ALTURA TOTAL do conteúdo (milhares de px) e era repintado a
-       cada frame de scroll — principal causa do travamento. Fixo, é pintado 1x. */
-    position: fixed;
-    inset: -10%;
+    /* absolute + ESTÁTICO (sem animation/will-change): um layer fixo+borrado+
+       animado com will-change virava alvo de scroll no compositor do Chrome do
+       desktop e travava a roda. Estático não repinta ao rolar e não bloqueia. */
+    position: absolute;
+    inset: 0;
     z-index: 0;
     pointer-events: none;
     background:
@@ -100,19 +100,15 @@
       radial-gradient(40% 32% at 86% 15%, rgba(255,45,111,0.07), transparent 64%),
       radial-gradient(48% 40% at 74% 84%, rgba(130,70,255,0.10), transparent 66%),
       radial-gradient(40% 32% at 22% 94%, rgba(110,55,210,0.07), transparent 64%);
-    /* blur/saturação ESTÁTICOS (calculados 1x) + deriva por transform (GPU, barata).
-       Removida a animação de hue-rotate por scroll: recalcular blur de tela cheia
-       a cada frame travava o scroll no celular. */
     filter: blur(44px) saturate(1.15);
-    animation: auroraDrift 22s ease-in-out infinite alternate;
-    will-change: transform;
   }
   /* Escamas de camaleão POR CIMA: mosaico hexagonal sutil (favo), cada escama
      com leve domo e sulco escuro — fiel à pele real. Também MUDA de tom ao rolar. */
   .app::after {
     content: '';
-    /* também FIXED: textura ambiente na viewport, não repinta ao rolar */
-    position: fixed;
+    /* absolute estático: textura ambiente, não repinta ao rolar (o hue por scroll
+       que travava foi removido antes) */
+    position: absolute;
     inset: 0;
     z-index: 0;
     pointer-events: none;
