@@ -4834,6 +4834,7 @@
       <div class="adm-menu">
         <button class="adm-item" onclick="go('admin-customers')"><span>clientes (CRM)</span><small>quem já comprou</small></button>
         <button class="adm-item" onclick="go('admin-coupons')"><span>cupons</span><small>criar e gerenciar</small></button>
+        <button class="adm-item" onclick="go('admin-filiais')"><span>🏪 lojas parceiras</span><small>tabacarias cadastradas</small></button>
       </div>
 
       <div class="adm-sec-label">⚙️ config & ferramentas</div>
@@ -4950,6 +4951,18 @@
       </div>
     </div>
     <div id="admin-customers-list" style="padding: 20px"></div>
+  </div>
+
+  <!-- ============ ADMIN — Lojas parceiras (SaaS) ============ -->
+  <div class="screen no-nav" id="admin-filiais">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="go('admin-dash')">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="brand-small">Lojas parceiras</div>
+      <div style="width:40px"></div>
+    </div>
+    <div id="admin-filiais-list" style="padding: 16px 20px"></div>
   </div>
 
   <!-- ============ ADMIN IMPORT DROPS (bulk JSON) ============ -->
@@ -8828,6 +8841,7 @@
     if (screen === 'profile-edit') fillProfileEdit();
     if (screen === 'admin-products') renderAdminProducts();
     if (screen === 'admin-customers') { renderCustomers(); loadAdminOrders(); }
+    if (screen === 'admin-filiais') renderAdminFiliais();
     if (screen === 'admin-coupons') renderCoupons();
     if (screen === 'admin-store') fillStoreForm();
     if (screen === 'admin-ai') {
@@ -9745,6 +9759,39 @@
       toast('erro ao atualizar ✦ ' + (d.error || r.status));
       return false;
     } catch (e) { toast('erro de rede ✦'); return false; }
+  }
+
+  // ===== ADMIN — lojas parceiras (SaaS): lista todas as tabacarias cadastradas =====
+  async function renderAdminFiliais() {
+    const list = document.getElementById('admin-filiais-list');
+    if (!list) return;
+    list.innerHTML = '<div class="empty-mini">carregando…</div>';
+    let token = (() => { try { return localStorage.getItem('drope_admin_token'); } catch (e) { return null; } })();
+    if (!token && typeof _getAdminTokenPrompt === 'function') token = _getAdminTokenPrompt();
+    if (!token) { list.innerHTML = '<div class="empty-mini">precisa do ADMIN_TOKEN ✦</div>'; return; }
+    try {
+      const r = await fetch('/api/webhook?action=filiais_admin&token=' + encodeURIComponent(token), { cache: 'no-store' });
+      if (r.status === 401) { list.innerHTML = '<div class="empty-mini">ADMIN_TOKEN inválido ✦</div>'; return; }
+      const d = await r.json();
+      const fs = (d && d.filiais) || [];
+      if (!fs.length) { list.innerHTML = '<div class="empty-mini">nenhuma loja cadastrada ainda</div>'; return; }
+      list.innerHTML = fs.map(f => {
+        const md = f.metadata || {};
+        const pending = md.onboarding === 'pending_payment';
+        const badge = pending
+          ? '<span style="background:rgba(255,170,45,0.18);color:#ffc46b;font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">⏳ aguardando recebimento</span>'
+          : '<span style="background:rgba(212,255,46,0.15);color:var(--lime);font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">✅ no ar</span>';
+        const whats = (f.founder_phone || '').replace(/\D/g, '');
+        return `<div style="background:rgba(255,255,255,0.04);border-radius:16px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="font-weight:700;color:var(--text)">${escapeHtml(f.name || '')}</div>
+            ${badge}
+          </div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">📍 ${escapeHtml(f.city || '')}/${escapeHtml(f.state || '')} ✦ 👤 ${escapeHtml(f.founder_name || '—')}</div>
+          ${whats ? `<a href="https://wa.me/${whats}" target="_blank" style="display:inline-block;margin-top:10px;background:rgba(37,211,102,0.15);color:#25D366;text-decoration:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700">💬 WhatsApp</a>` : ''}
+        </div>`;
+      }).join('');
+    } catch (e) { list.innerHTML = '<div class="empty-mini">erro ao carregar ✦</div>'; }
   }
 
   // ===== Alerta instantâneo de pedido novo (som + notificação + toast) =====

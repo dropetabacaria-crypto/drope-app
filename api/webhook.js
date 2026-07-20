@@ -12212,6 +12212,21 @@ async function handleFiliaisList(req, res) {
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// GET /api/webhook?action=filiais_admin&token=ADMIN_TOKEN → todas as lojas (painel plataforma)
+async function handleFiliaisAdmin(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  const qs = (req.url || '').split('?')[1] || '';
+  const params = {};
+  qs.split('&').forEach(p => { const [k, v] = p.split('='); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+  if (!ADMIN_TOKEN || params.token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
+    const rows = await sbGet('drope_filiais', 'select=id,slug,name,city,state,founder_name,founder_phone,status,markup_cents,founder_share_cents,metadata,created_at&order=created_at.desc');
+    return res.status(200).json({ ok: true, filiais: Array.isArray(rows) ? rows : [] });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST /api/webhook?action=filial_register → auto-cadastro de tabacaria (lojista).
 // Cria a loja com status 'pending' (não aparece pro cliente até aprovar + conectar
 // recebimento). NOTA[segurança]: endpoint público — endurecer/limitar depois.
@@ -14963,6 +14978,10 @@ module.exports = async function handler(req, res) {
   }
   if (req.url && req.url.indexOf('action=filial_register') >= 0) {
     return await handleFilialRegister(req, res);
+  }
+  // GET action=filiais_admin&token=ADMIN_TOKEN → TODAS as lojas (incl. pendentes) pro painel
+  if (req.url && req.url.indexOf('action=filiais_admin') >= 0) {
+    return await handleFiliaisAdmin(req, res);
   }
 
   // ===== ROTAS OSSO 21 — IA-FIRST CLIENTE (01/05/2026) =====
