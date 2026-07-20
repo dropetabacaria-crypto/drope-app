@@ -4597,6 +4597,7 @@ async function handleFilialPainel(req, res) {
         name: filial.name,
         founder_name: filial.founder_name,
         founder_share_cents: filial.founder_share_cents,
+        profile: (filial.metadata || {}).profile || {},
       },
       saldo_pendente_cents: saldoPendenteCents,
       vendas_mes: pedidos.length,
@@ -4767,6 +4768,35 @@ async function handleFilialAnalyzePhoto(req, res) {
     return res.status(200).json({ ok: true, data });
   } catch (e) {
     console.error('[filial_analyze_photo] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// POST action=filial_profile_save — lojista salva foto + descrição da loja (e
+// prefs de personalização). Guarda em metadata.profile. Auth por sessão.
+async function handleFilialProfileSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    md.profile = md.profile || {};
+    if (typeof body.bio === 'string') md.profile.bio = body.bio.slice(0, 280);
+    if (typeof body.theme === 'string' && ['dark', 'light'].includes(body.theme)) md.profile.theme = body.theme;
+    if (body.photo_base64) {
+      const url = await uploadToStorage(`filial-${filial.id}-logo`, String(body.photo_base64), 'image/jpeg');
+      if (url) md.profile.photo_url = url + '?v=' + Date.now();
+      else return res.status(502).json({ ok: false, error: 'falha ao salvar a foto' });
+    }
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, profile: md.profile });
+  } catch (e) {
+    console.error('[filial_profile_save] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -12529,12 +12559,16 @@ async function handleFiliaisList(req, res) {
         if (!coverBy[p.filial_id] && p.image_url && p.image_status === 'ok') coverBy[p.filial_id] = p.image_url;
       });
     }
-    const out = filiais.map(f => ({
-      slug: f.slug, name: f.name, city: f.city, state: f.state,
-      cover: coverBy[f.id] || null,
-      produtos: countBy[f.id] || 0,
-      pending: ((f.metadata || {}).onboarding) === 'pending_payment',
-    }))
+    const out = filiais.map(f => {
+      const prof = (f.metadata || {}).profile || {};
+      return {
+        slug: f.slug, name: f.name, city: f.city, state: f.state,
+        cover: prof.photo_url || coverBy[f.id] || null, // foto da loja tem prioridade
+        bio: prof.bio || null,
+        produtos: countBy[f.id] || 0,
+        pending: ((f.metadata || {}).onboarding) === 'pending_payment',
+      };
+    })
     // Cliente só vê lojas COM produtos (loja vazia não aparece no marketplace).
     // Esconde lojas de teste (slug começando com "zz-").
     .filter(f => f.produtos >= 1 && !/^zz-/.test(f.slug));
@@ -18162,6 +18196,10 @@ async function generateAll(){
   // action=filial_pos_sale — POST: venda no balcão (PDV) do lojista
   if (req.url && req.url.indexOf('action=filial_pos_sale') >= 0) {
     return await handleFilialPosSale(req, res);
+  }
+  // action=filial_profile_save — POST: foto + descrição + prefs da loja
+  if (req.url && req.url.indexOf('action=filial_profile_save') >= 0) {
+    return await handleFilialProfileSave(req, res);
   }
   // action=admin_token — POST: devolve o ADMIN_TOKEN mediante a senha do painel
   if (req.url && req.url.indexOf('action=admin_token') >= 0) {
