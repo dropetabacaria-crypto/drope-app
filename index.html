@@ -100,7 +100,10 @@
       radial-gradient(40% 32% at 86% 15%, rgba(255,45,111,0.07), transparent 64%),
       radial-gradient(48% 40% at 74% 84%, rgba(130,70,255,0.10), transparent 66%),
       radial-gradient(40% 32% at 22% 94%, rgba(110,55,210,0.07), transparent 64%);
-    filter: blur(44px) saturate(1.15);
+    /* SEM filter: blur() — um blur de 44px sobre um layer da altura da página
+       inteira, em tela Retina (2x), é pesadíssimo de compor e travava o scroll no
+       Mac. As gradientes radiais já têm bordas suaves (transparent), então o glow
+       continua macio sem o custo do blur. */
   }
   /* Escamas de camaleão POR CIMA: mosaico hexagonal sutil (favo), cada escama
      com leve domo e sulco escuro — fiel à pele real. Também MUDA de tom ao rolar. */
