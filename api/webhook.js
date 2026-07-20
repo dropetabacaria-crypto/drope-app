@@ -4771,6 +4771,30 @@ async function handleFilialAnalyzePhoto(req, res) {
   }
 }
 
+// POST action=admin_token — devolve o ADMIN_TOKEN pro painel admin MEDIANTE a
+// senha do painel (verificada no servidor). Assim o admin só digita a senha (no
+// login) e o token é buscado/salvo sozinho — sem mais colar token na mão.
+// NOTA[segurança]: gate = senha do painel; endurecer depois (senha forte/rate-limit).
+const ADMIN_PANEL_HASH = 'd9644f039dcb3d5cfb6e95e9cde7f9e28768b2f5ba0700f4740e1f9b0c05780a'; // sha256('drope2026')
+async function handleAdminTokenIssue(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const pw = String(body.password || '');
+    const hash = crypto.createHash('sha256').update(pw).digest('hex');
+    if (hash !== ADMIN_PANEL_HASH) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'senha incorreta' }); }
+    if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: 'ADMIN_TOKEN não configurado' });
+    return res.status(200).json({ ok: true, token: ADMIN_TOKEN });
+  } catch (e) {
+    console.error('[admin_token] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // ============ SANTOS PRODUTOS — REVISÃO ADMIN (11/06/2026) ============
 // Andrade quer ver os 28 produtos cadastrados em Santos com foto da caixa
 // (que ele tirou e jogou no Drive) + referência gerada pelo Grok lado a lado
@@ -18060,6 +18084,10 @@ async function generateAll(){
   // action=filial_analyze_photo — POST: IA identifica o produto pela foto (lojista)
   if (req.url && req.url.indexOf('action=filial_analyze_photo') >= 0) {
     return await handleFilialAnalyzePhoto(req, res);
+  }
+  // action=admin_token — POST: devolve o ADMIN_TOKEN mediante a senha do painel
+  if (req.url && req.url.indexOf('action=admin_token') >= 0) {
+    return await handleAdminTokenIssue(req, res);
   }
 
   // action=santos_produtos — GET: lista os 28 produtos de Santos pra revisão admin

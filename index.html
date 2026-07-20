@@ -6554,6 +6554,8 @@
     if (hash === ADMIN_HASH) {
       _adminToken.v = _adminSig;
       try { localStorage.setItem('drope_admin_authed', '1'); } catch(e) {}
+      // Busca o ADMIN_TOKEN do servidor com a senha → nunca mais pede token na mão
+      try { await _fetchAdminToken(pw); } catch(e) {}
       document.getElementById('admin-pw').value = '';
       go('admin-dash');
       renderAdminDash();
@@ -6561,6 +6563,19 @@
       toast('senha errada');
       document.getElementById('admin-pw').value = '';
     }
+  }
+  // Troca a senha do painel pelo ADMIN_TOKEN (guardado em localStorage).
+  async function _fetchAdminToken(pw) {
+    const r = await fetch('/api/webhook?action=admin_token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.token) {
+      try { localStorage.setItem('drope_admin_token', d.token); } catch(e) {}
+      return d.token;
+    }
+    return null;
   }
 
   function adminLogout() {
@@ -8145,10 +8160,13 @@
   }
 
   function _getAdminTokenPrompt() {
-    let t = localStorage.getItem('drope_admin_token');
+    // O token é buscado automaticamente no login (com a senha). Se sumiu,
+    // manda logar de novo — nada de colar token na mão.
+    let t = '';
+    try { t = localStorage.getItem('drope_admin_token') || ''; } catch (e) {}
     if (!t) {
-      t = prompt('cola o ADMIN_TOKEN do Vercel (1ª vez só — vai ficar salvo):');
-      if (t) { t = t.trim(); localStorage.setItem('drope_admin_token', t); }
+      try { toast('entra de novo no admin pra renovar o acesso ✦'); } catch (e) {}
+      go('admin-login');
     }
     return t || '';
   }
