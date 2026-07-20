@@ -1653,7 +1653,7 @@
   .vibe-chip {
     position: relative;
     overflow: hidden;
-    min-height: 100px;
+    aspect-ratio: 1 / 1;
     background: rgba(91,33,182,0.18) center/cover no-repeat;
     border: none;
     border-radius: 18px;
@@ -10169,20 +10169,18 @@
         const sub = `Escolhe uma — ou explora tudo`;
         html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
         const VIBE_DEFS = [
-          { fl: 'fruity',  emoji: '🍇', label: 'Frutado' },
-          { fl: 'sweet',   emoji: '🍬', label: 'Doce' },
-          { fl: 'icy',     emoji: '🧊', label: 'Gelado' },
-          { fl: 'menthol', emoji: '🌿', label: 'Mentol' },
+          { fl: 'fruity',  label: 'Frutado' },
+          { fl: 'sweet',   label: 'Doce' },
+          { fl: 'icy',     label: 'Gelado' },
+          { fl: 'menthol', label: 'Mentol' },
         ];
         const vibeChipsHtml = VIBE_DEFS.map(function(v) {
           const im = (VIBE_IMAGES && VIBE_IMAGES[v.fl]) || '';
           const cls = im ? 'vibe-chip has-img' : 'vibe-chip';
           const bg = im ? ` style="background-image:url('${escapeHtml(im).replace(/'/g, '%27')}')"` : '';
-          return `<div class="${cls}" data-flavor="${v.fl}"${bg} onclick="pickVibe('${v.fl}', this)"><span class="vibe-label">${v.emoji} ${v.label}</span></div>`;
+          return `<div class="${cls}" data-flavor="${v.fl}"${bg} onclick="pickVibe('${v.fl}', this)"><span class="vibe-label">${v.label}</span></div>`;
         }).join('');
-        html += `
-          <div class="vibe-row">${vibeChipsHtml}</div>
-          <div class="see-all-link" onclick="pickVibe('', null)">ver tudo →</div>`;
+        html += `<div class="vibe-row">${vibeChipsHtml}</div>`;
       }
 
       wrap.innerHTML = html;
