@@ -1093,13 +1093,8 @@
   /* Arte do DROPE na moto — SEM fundo (transparente), encaixa direto no degradê do card. */
   .inicio-banner .ib-moto-wrap { position: relative; margin-left: auto; flex: 0 0 auto; transform-origin: 62% 88%; animation: motoRide 0.55s ease-in-out infinite; }
   .inicio-banner .ib-moto { height: 100px; width: auto; display: block; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4)); }
-  /* Rodas girando de verdade (overlay circular sobre cada roda) */
-  .inicio-banner .ib-wheel { position: absolute; pointer-events: none; animation-name: motoWheel; animation-timing-function: linear; animation-iteration-count: infinite; }
-  .inicio-banner .ib-wheel.front { left: 9.23%; top: 64.93%; width: 21.54%; animation-duration: 0.45s; }
-  .inicio-banner .ib-wheel.rear { left: 63.46%; top: 66.52%; width: 25.38%; animation-duration: 0.55s; }
   @keyframes motoRide { 0%, 100% { transform: translateY(0) rotate(-0.7deg); } 50% { transform: translateY(-5px) rotate(0.7deg); } }
-  @keyframes motoWheel { to { transform: rotate(-360deg); } }
-  @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto-wrap, .inicio-banner .ib-wheel { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto-wrap { animation: none; } }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
   /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
   body.loja-light {
@@ -4235,8 +4230,6 @@
         </div>
         <div class="ib-moto-wrap">
           <img class="ib-moto" src="icons/drope-moto.png" alt="DROPE na moto" draggable="false">
-          <img class="ib-wheel front" src="icons/drope-wheel-front.png" alt="" aria-hidden="true" draggable="false">
-          <img class="ib-wheel rear" src="icons/drope-wheel-rear.png" alt="" aria-hidden="true" draggable="false">
         </div>
       </div>
       <div class="inicio-sec-lbl">Tabacarias disponíveis</div>
