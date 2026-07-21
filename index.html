@@ -1016,35 +1016,60 @@
   }
 
   /* Bottom nav */
+  /* Nav flutuante futurista (estilo Rappi, cores DROPE) */
   .nav {
     position: fixed;
-    bottom: 0;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 430px;
+    width: calc(100% - 24px);
+    max-width: 406px;
     display: flex;
     justify-content: space-around;
-    gap: 0;
-    background: #14121c; /* sólido — sem backdrop-filter (evita jank de scroll) */
-    border-top: 1px solid rgba(255,255,255,0.07);
-    padding: 8px 4px calc(10px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+    gap: 4px;
+    background: linear-gradient(180deg, rgba(32,26,48,0.97), rgba(17,14,26,0.98));
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 24px;
+    padding: 8px;
+    box-shadow: 0 14px 44px rgba(0,0,0,0.6), 0 0 0 1px rgba(91,33,182,0.22), 0 0 26px rgba(176,38,255,0.16);
     z-index: 100;
   }
   .nav-btn {
     flex: 1;
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     background: transparent;
-    border: none; border-radius: 12px;
+    border: none; border-radius: 16px;
     cursor: pointer;
-    padding: 6px 0;
-    transition: color 0.15s;
+    padding: 8px 0 6px;
+    transition: background 0.2s, box-shadow 0.2s;
   }
-  .nav-btn svg { width: 22px; height: 22px; stroke: var(--text-dim); fill: none; stroke-width: 2; }
-  .nav-btn .nav-lbl { font-size: 10.5px; font-weight: 700; color: var(--text-dim); }
-  .nav-btn.active svg { stroke: var(--pink); }
-  .nav-btn.active .nav-lbl { color: var(--pink); }
+  .nav-btn svg { width: 22px; height: 22px; stroke: var(--text-dim); fill: none; stroke-width: 2; transition: stroke 0.2s, filter 0.2s; }
+  .nav-btn .nav-lbl { font-size: 10px; font-weight: 700; color: var(--text-dim); transition: color 0.2s; }
+  .nav-btn.active {
+    background: linear-gradient(180deg, rgba(212,255,46,0.18), rgba(212,255,46,0.03));
+    box-shadow: inset 0 0 0 1px rgba(212,255,46,0.35);
+  }
+  .nav-btn.active svg { stroke: var(--lime); filter: drop-shadow(0 0 6px var(--lime-glow)); }
+  .nav-btn.active .nav-lbl { color: var(--lime); }
+
+  /* ===== Início (marketplace de tabacarias) — cards atrativos ===== */
+  .inicio-search { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 13px 15px; margin-top: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+  .inicio-search svg { width: 18px; height: 18px; stroke: var(--text-dim); fill: none; stroke-width: 2; flex: 0 0 auto; }
+  .inicio-search input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--text); font-size: 14px; font-family: inherit; }
+  .loja-card { position: relative; display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 14px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.32), 0 0 20px rgba(91,33,182,0.10); transition: transform .12s; overflow: hidden; }
+  .loja-card:active { transform: scale(0.985); }
+  .loja-card::after { content: ''; position: absolute; inset: 0; border-radius: 20px; background: linear-gradient(120deg, transparent 55%, rgba(176,38,255,0.08)); pointer-events: none; }
+  .loja-cover { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+  .loja-cover-ph { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 30px; background: linear-gradient(135deg,#8C50FF,#FF2D6F); }
+  .loja-body { flex: 1; min-width: 0; }
+  .loja-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .loja-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .lc-chip { font-size: 11px; font-weight: 600; color: var(--text-dim); background: rgba(255,255,255,0.05); border-radius: 100px; padding: 3px 9px; white-space: nowrap; }
+  .lc-chip.open { color: var(--lime); background: rgba(212,255,46,0.12); }
+  .lc-chip.new { color: var(--pink); background: rgba(255,45,111,0.12); }
+  .loja-fav { position: absolute; top: 12px; right: 12px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); cursor: pointer; }
+  .loja-fav svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; }
+  .loja-fav.on svg { fill: var(--pink); stroke: var(--pink); }
 
   /* Detail screen */
   .top-bar {
@@ -4139,12 +4164,16 @@
 
   <!-- ============ INÍCIO — descoberta de tabacarias ============ -->
   <div class="screen" id="inicio">
-    <div style="padding: 22px 20px 6px">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Tabacarias 🏪</div>
-      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Escolha uma loja pra ver o catálogo</div>
+    <div style="padding: 22px 20px 8px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text);line-height:1.1">Tabacarias<br>perto de você 🦎</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Escolha uma loja e receba em minutos ✦</div>
+      <div class="inicio-search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="inicio-search-input" placeholder="Buscar tabacaria..." autocomplete="off" oninput="filterInicio(this.value)">
+      </div>
     </div>
-    <div id="inicio-list" style="padding: 10px 20px 12px"></div>
-    <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 24px">
+    <div id="inicio-list" style="padding: 12px 20px 8px"></div>
+    <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 28px">
       É dono de tabacaria? <span style="color:var(--lime);font-weight:800">Cadastre sua loja →</span>
     </div>
   </div>
@@ -7582,6 +7611,40 @@
     } catch (e) { /* mantém fallback */ }
   }
   // Tela "Início" = descoberta de tabacarias (estilo Rappi). Renderiza a lista.
+  // Lojas favoritas (localStorage)
+  let _favStores = new Set();
+  try { _favStores = new Set(JSON.parse(localStorage.getItem('drope_fav_stores') || '[]')); } catch (e) {}
+  function _isFavStore(slug) { return _favStores.has(slug); }
+  function toggleFavStore(slug, el) {
+    if (_favStores.has(slug)) _favStores.delete(slug); else _favStores.add(slug);
+    try { localStorage.setItem('drope_fav_stores', JSON.stringify([..._favStores])); } catch (e) {}
+    if (el) el.classList.toggle('on', _favStores.has(slug));
+  }
+  // Card de loja (estilo Rappi) — usado no Início e nos Favoritos
+  function _lojaCardHtml(f) {
+    const label = f.name || f.city || '';
+    const cityTc = (f.city || '').replace(/\b\w/g, c => c.toUpperCase());
+    const cover = f.cover
+      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false">`
+      : `<div class="loja-cover-ph">🏪</div>`;
+    const chips = [
+      f.produtos ? `<span class="lc-chip">📦 ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
+      cityTc ? `<span class="lc-chip">📍 ${escapeHtml(cityTc)}</span>` : '',
+      `<span class="lc-chip open">🟢 aberto</span>`,
+    ].filter(Boolean).join('');
+    const fav = _isFavStore(f.slug);
+    return `<div class="loja-card" onclick="pickClientFilial('${escapeHtml(f.slug)}')">
+      <div class="loja-fav ${fav ? 'on' : ''}" onclick="event.stopPropagation();toggleFavStore('${escapeHtml(f.slug)}',this)">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      </div>
+      ${cover}
+      <div class="loja-body">
+        <div class="loja-name">${escapeHtml(label)}</div>
+        <div class="loja-chips">${chips}</div>
+      </div>
+    </div>`;
+  }
+  let _inicioLojas = [];
   async function renderInicio() {
     const list = document.getElementById('inicio-list');
     if (!list) return;
@@ -7589,22 +7652,16 @@
       const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
       const d = await r.json();
       if (!d || !Array.isArray(d.filiais)) return;
-      _lojasCache = d.filiais;
-      if (!d.filiais.length) { list.innerHTML = '<div class="empty-mini">nenhuma loja disponível ainda ✦</div>'; return; }
-      list.innerHTML = d.filiais.map(f => {
-        const label = f.name || f.city || '';
-        const cityTc = (f.city || '').replace(/\b\w/g, c => c.toUpperCase());
-        const sub = [cityTc, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'nova ✦')].filter(Boolean).join(' · ');
-        const cover = f.cover
-          ? `<img src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:56px;height:56px;border-radius:14px;object-fit:cover;flex:0 0 auto">`
-          : `<div style="width:56px;height:56px;border-radius:14px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:24px">🏪</div>`;
-        return `<div onclick="pickClientFilial('${escapeHtml(f.slug)}')" style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:12px;margin-bottom:12px;cursor:pointer">
-          ${cover}
-          <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:16px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(label)}</div><div style="font-size:12px;color:var(--text-dim)">${escapeHtml(sub)}</div></div>
-          <span style="color:var(--text-dim);font-size:20px;flex:0 0 auto">›</span>
-        </div>`;
-      }).join('');
+      _inicioLojas = d.filiais; _lojasCache = d.filiais;
+      filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
     } catch (e) {}
+  }
+  function filterInicio(q) {
+    const list = document.getElementById('inicio-list');
+    if (!list) return;
+    q = (q || '').toLowerCase().trim();
+    const arr = _inicioLojas.filter(f => !q || (f.name || '').toLowerCase().includes(q) || (f.city || '').toLowerCase().includes(q));
+    list.innerHTML = arr.length ? arr.map(_lojaCardHtml).join('') : '<div class="empty-mini">nenhuma tabacaria encontrada ✦</div>';
   }
   async function renderOfertas() {
     const list = document.getElementById('ofertas-list');
@@ -9954,23 +10011,31 @@
     }).join('');
   }
 
-  function renderFavorites() {
+  async function renderFavorites() {
     const wrap = document.getElementById('favs-wrap');
-    if (favorites.size === 0) {
-      wrap.innerHTML = `<div class="empty"><div class="big">💜</div><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar seus dropes</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
+    // lojas favoritas — garante a lista de lojas pra montar os cards
+    let lojas = _lojasCache;
+    if ((!lojas || !lojas.length) && _favStores.size) {
+      try { const d = await (await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' })).json(); lojas = d.filiais || []; _lojasCache = lojas; } catch (e) { lojas = []; }
+    }
+    const favLojas = (lojas || []).filter(f => _favStores.has(f.slug));
+    const favProducts = products.filter(p => favorites.has(p.name));
+    if (!favLojas.length && !favProducts.length) {
+      wrap.innerHTML = `<div class="empty"><div class="big">💜</div><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar lojas e dropes</div><button class="btn-primary" onclick="go('inicio')" style="max-width:220px;margin:0 auto">ver tabacarias</button></div>`;
       return;
     }
-    const favProducts = products.filter(p => favorites.has(p.name));
-    wrap.innerHTML = `<div class="grid">${favProducts.map(p => {
-      const idx = products.indexOf(p);
-      return `
-        <div class="tile" onclick="openProduct(${idx})">
-          <div class="emoji">${p.emoji}</div>
-          <div class="name">${p.name}</div>
-          <div class="price">${money(p.price)}</div>
-        </div>
-      `;
-    }).join('')}</div>`;
+    const secLbl = t => `<div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:0 0 10px 2px">${t}</div>`;
+    let html = '';
+    if (favLojas.length) {
+      html += `<div style="padding:12px 20px 0">${secLbl('Lojas favoritas')}${favLojas.map(_lojaCardHtml).join('')}</div>`;
+    }
+    if (favProducts.length) {
+      html += `<div style="padding:12px 20px 0">${secLbl('Produtos favoritos')}<div class="grid">${favProducts.map(p => {
+        const idx = products.indexOf(p);
+        return `<div class="tile" onclick="openProduct(${idx})"><div class="emoji">${p.emoji}</div><div class="name">${p.name}</div><div class="price">${money(p.price)}</div></div>`;
+      }).join('')}</div></div>`;
+    }
+    wrap.innerHTML = html;
   }
 
   const ORDER_STEPS_DELIVERY = [
