@@ -4,7 +4,7 @@
 //     Resolve o problema histórico de "versão velha no cache do Chrome do Xiaomi".
 //   - Assets estáticos (.js .css imagens): cache-first com revalidação em background.
 //   - /api/*: NUNCA cachear (são dados ao vivo).
-const CACHE = 'drope-v6';
+const CACHE = 'drope-v7';
 // Páginas que NUNCA são cacheadas — sempre busca da rede.
 // Inclui receber.html porque o fluxo de scanner muda muito; cache antigo causou travamento.
 const NEVER_CACHE = ['/receber.html', '/receber', '/index.html', '/'];
