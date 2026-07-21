@@ -4587,6 +4587,7 @@ async function handleFilialPainel(req, res) {
       category: p.category || 'pod',
       marca: ((p.metadata || {}).marca) || null,
       sabor: ((p.metadata || {}).sabor) || null,
+      offer_cents: ((p.metadata || {}).offer_cents) || null,
     }));
 
     return res.status(200).json({
@@ -4651,12 +4652,19 @@ async function handleFilialProductSave(req, res) {
 
     if (id) {
       // editar — só se o produto pertence à loja
-      const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id&limit=1`);
+      const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,metadata&limit=1`);
       if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'produto não é da sua loja' });
       const upd = { hidden };
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
       if (imageUrl !== undefined) upd.image_url = imageUrl || null;
+      // preço de oferta (promoção): guarda em metadata.offer_cents; vazio/0 limpa
+      if (Object.prototype.hasOwnProperty.call(body, 'offer_price')) {
+        const md = ex[0].metadata || {};
+        const oc = Math.round(Number(body.offer_price) * 100);
+        if (isFinite(oc) && oc > 0) md.offer_cents = oc; else delete md.offer_cents;
+        upd.metadata = md;
+      }
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
     }
@@ -12576,6 +12584,37 @@ async function handleFiliaisList(req, res) {
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// GET /api/webhook?action=offers_list → produtos em promoção de TODAS as lojas
+// (metadata.offer_cents < price_cents). Pra aba "Ofertas" do app.
+async function handleOffersList(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const filiais = await sbGet('drope_filiais', 'select=id,slug,name&status=eq.active&order=name.asc');
+    const list = (Array.isArray(filiais) ? filiais : []).filter(f => !/^zz-|teste/i.test(f.slug || ''));
+    const byId = {}; list.forEach(f => byId[f.id] = f);
+    const ids = list.map(f => f.id).filter(Boolean);
+    if (!ids.length) return res.status(200).json({ ok: true, offers: [] });
+    const prods = await sbGet('drope_products', `filial_id=in.(${ids.join(',')})&hidden=eq.false&image_status=eq.ok&select=id,slug,name,price_cents,image_url,metadata,filial_id&limit=600`);
+    const offers = (prods || []).map(p => {
+      const oc = (p.metadata || {}).offer_cents;
+      if (!oc || !(oc > 0) || oc >= (p.price_cents || 0)) return null;
+      const f = byId[p.filial_id];
+      if (!f) return null;
+      return {
+        id: p.id, slug: p.slug, name: p.name,
+        image_url: p.image_url || null,
+        price_cents: p.price_cents || 0,
+        offer_cents: oc,
+        filial_slug: f.slug, filial_name: f.name,
+      };
+    }).filter(Boolean);
+    return res.status(200).json({ ok: true, offers });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=brand_cover_set (x-admin-token) → marca 1 produto como "capa" do filtro da
 // marca e limpa a flag dos outros produtos daquela marca (recebidos em brand_ids).
 async function handleBrandCoverSet(req, res) {
@@ -15501,6 +15540,9 @@ module.exports = async function handler(req, res) {
   // POST /api/webhook?action=filial_register → auto-cadastro de loja (status pending)
   if (req.url && req.url.indexOf('action=filiais_list') >= 0) {
     return await handleFiliaisList(req, res);
+  }
+  if (req.url && req.url.indexOf('action=offers_list') >= 0) {
+    return await handleOffersList(req, res);
   }
   if (req.url && req.url.indexOf('action=filial_register') >= 0) {
     return await handleFilialRegister(req, res);

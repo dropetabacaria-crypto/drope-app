@@ -411,7 +411,7 @@ function renderProdutos(list) {
         <div style="min-width:0;flex:1">
           <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(escondido)</span>' : ''}</div>
           ${meta ? `<div class="prod-meta">${esc(meta)}</div>` : ''}
-          <div class="prod-meta">R$ ${price} ✦ ${p.stock || 0} em estoque</div>
+          <div class="prod-meta">${p.offer_cents ? `<span style="text-decoration:line-through;opacity:.6">R$ ${price}</span> <b style="color:var(--pink)">R$ ${((p.offer_cents)/100).toFixed(2).replace('.',',')}</b> <span style="background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:6px">🔥 OFERTA</span>` : `R$ ${price}`} ✦ ${p.stock || 0} em estoque</div>
         </div>
         <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">editar</span>
       </div>
@@ -421,6 +421,8 @@ function renderProdutos(list) {
           <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="flex:1;margin-bottom:0" placeholder="preço">
           <input class="pf-input" id="ep-stock-${p.id}" inputmode="numeric" value="${p.stock || 0}" style="flex:1;margin-bottom:0" placeholder="estoque">
         </div>
+        <label class="pf-lbl" style="margin-top:10px">preço de oferta 🔥 (deixa vazio pra tirar)</label>
+        <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
         <button class="pf-btn" onclick="saveEditProduct(${p.id})">salvar</button>
       </div>
@@ -560,7 +562,9 @@ async function saveEditProduct(id) {
   const price = parseFloat((document.getElementById('ep-price-' + id).value || '').replace(',', '.'));
   const stock = parseInt(document.getElementById('ep-stock-' + id).value || '0', 10);
   const hidden = document.getElementById('ep-hidden-' + id).checked;
-  await _saveProduct({ id, price, stock, hidden });
+  const offerRaw = (document.getElementById('ep-offer-' + id).value || '').replace(',', '.').trim();
+  const offer_price = offerRaw === '' ? 0 : parseFloat(offerRaw); // 0/vazio limpa a oferta
+  await _saveProduct({ id, price, stock, hidden, offer_price });
 }
 
 // ===================== PDV — vender no balcão =====================
