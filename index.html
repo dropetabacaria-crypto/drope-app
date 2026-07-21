@@ -1018,34 +1018,33 @@
   /* Bottom nav */
   .nav {
     position: fixed;
-    bottom: 18px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
     display: flex;
-    gap: 4px;
-    background: rgba(26, 22, 37, 0.85);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border);
-    border-radius: 100px;
-    padding: 8px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(91, 33, 182, 0.2);
+    justify-content: space-around;
+    gap: 0;
+    background: #14121c; /* sólido — sem backdrop-filter (evita jank de scroll) */
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 8px 4px calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
     z-index: 100;
   }
   .nav-btn {
-    width: 46px; height: 46px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
     background: transparent;
-    border: none;
+    border: none; border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s;
+    padding: 6px 0;
+    transition: color 0.15s;
   }
-  .nav-btn svg { width: 20px; height: 20px; stroke: var(--text-dim); fill: none; stroke-width: 2; }
-  .nav-btn.active {
-    background: var(--pink);
-    box-shadow: 0 0 20px var(--pink-glow);
-  }
-  .nav-btn.active svg { stroke: white; }
+  .nav-btn svg { width: 22px; height: 22px; stroke: var(--text-dim); fill: none; stroke-width: 2; }
+  .nav-btn .nav-lbl { font-size: 10.5px; font-weight: 700; color: var(--text-dim); }
+  .nav-btn.active svg { stroke: var(--pink); }
+  .nav-btn.active .nav-lbl { color: var(--pink); }
 
   /* Detail screen */
   .top-bar {
@@ -2506,8 +2505,10 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* Hide nav on certain screens */
-  .no-nav ~ .nav { display: none; }
+  /* Esconde a nav só quando a tela ATIVA é no-nav (antes escondia sempre, pois
+     havia telas no-nav antes da nav no DOM). */
+  .screen.no-nav.active ~ .nav { display: none; }
+  .nav { display: flex; }
 
   /* Splash */
   /* Cobre a viewport inteira e fica ACIMA do fundo do app (aurora/escamas
@@ -4136,10 +4137,31 @@
     <button class="btn-secondary" onclick="closeStockEdit()" style="margin-top:8px; width:100%">cancelar</button>
   </div>
 
+  <!-- ============ INÍCIO — descoberta de tabacarias ============ -->
+  <div class="screen" id="inicio">
+    <div style="padding: 22px 20px 6px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Tabacarias 🏪</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Escolha uma loja pra ver o catálogo</div>
+    </div>
+    <div id="inicio-list" style="padding: 10px 20px 12px"></div>
+    <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 24px">
+      É dono de tabacaria? <span style="color:var(--lime);font-weight:800">Cadastre sua loja →</span>
+    </div>
+  </div>
+
+  <!-- ============ OFERTAS ============ -->
+  <div class="screen" id="ofertas">
+    <div style="padding: 22px 20px 6px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Ofertas 🔥</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Produtos em promoção nas tabacarias</div>
+    </div>
+    <div id="ofertas-list" style="padding: 14px 20px 24px"></div>
+  </div>
+
   <!-- ============ HOME ============ -->
   <div class="screen" id="home">
     <div class="header">
-      <div class="avatar avatar-emoji" id="home-avatar" onclick="go('profile')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
+      <div class="avatar avatar-emoji" id="home-avatar" onclick="go('inicio')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
       <div class="greet" id="home-greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div class="cart-btn" onclick="goCartSafe()">
         <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
@@ -5398,17 +5420,21 @@
 
   <!-- ============ NAV ============ -->
   <div class="nav" id="nav">
-    <button class="nav-btn active" data-screen="home" onclick="go('home')">
+    <button class="nav-btn active" data-screen="inicio" onclick="go('inicio')">
       <svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9v9a2 2 0 01-2 2h-4v-7h-6v7H5a2 2 0 01-2-2z"/></svg>
+      <span class="nav-lbl">Início</span>
     </button>
-    <button class="nav-btn" data-screen="search" onclick="go('search')">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <button class="nav-btn" data-screen="ofertas" onclick="go('ofertas')">
+      <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none"/></svg>
+      <span class="nav-lbl">Ofertas</span>
     </button>
-    <button class="nav-btn" data-screen="cart" onclick="goCartSafe()">
-      <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/></svg>
+    <button class="nav-btn" data-screen="favorites" onclick="go('favorites')">
+      <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      <span class="nav-lbl">Favoritos</span>
     </button>
     <button class="nav-btn" data-screen="profile" onclick="go('profile')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/></svg>
+      <span class="nav-lbl">Conta</span>
     </button>
   </div>
 
@@ -6108,7 +6134,7 @@
 
   function enterApp() {
     try { localStorage.setItem('drope_age_confirmed', '1'); } catch(e) {}
-    go('home');
+    go('inicio');
   }
 
   function updateAgeBtn() {
@@ -6128,7 +6154,7 @@
     // de visitante" persistida.
     if (!(profile && profile.onboarded)) { profile.onboarded = false; }
     updateProfileAvatar();
-    go('home');
+    go('inicio');
   }
 
   function ageDeny() {
@@ -6424,7 +6450,8 @@
         return;
       }
     } catch(e) {}
-    go(confirmed ? 'home' : 'onboard');
+    // Landing = descoberta de tabacarias (Início), estilo Rappi.
+    go(confirmed ? 'inicio' : 'onboard');
   }
   // Efeito camaleão: dispara a camuflagem do logo pouco antes de trocar de tela
   function _startChameleon() {
@@ -7516,9 +7543,7 @@
   }
   // Trocar filial via menu (botão no perfil)
   function trocarFilialCliente() {
-    const overlay = document.getElementById('filial-picker-overlay');
-    if (overlay) overlay.style.display = 'flex';
-    renderFilialPicker();
+    if (typeof go === 'function') go('inicio');
   }
   // Monta os botões do seletor a partir das lojas ATIVAS do backend.
   // Fallback: se falhar/vier vazio, mantém o SP/Santos que já está no HTML.
@@ -7556,15 +7581,42 @@
       }).join('');
     } catch (e) { /* mantém fallback */ }
   }
-  // Boot: mostra overlay se ainda não escolheu (default 'sp' sem localStorage = nova abertura)
+  // Tela "Início" = descoberta de tabacarias (estilo Rappi). Renderiza a lista.
+  async function renderInicio() {
+    const list = document.getElementById('inicio-list');
+    if (!list) return;
+    try {
+      const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
+      const d = await r.json();
+      if (!d || !Array.isArray(d.filiais)) return;
+      _lojasCache = d.filiais;
+      if (!d.filiais.length) { list.innerHTML = '<div class="empty-mini">nenhuma loja disponível ainda ✦</div>'; return; }
+      list.innerHTML = d.filiais.map(f => {
+        const label = f.name || f.city || '';
+        const cityTc = (f.city || '').replace(/\b\w/g, c => c.toUpperCase());
+        const sub = [cityTc, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'nova ✦')].filter(Boolean).join(' · ');
+        const cover = f.cover
+          ? `<img src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:56px;height:56px;border-radius:14px;object-fit:cover;flex:0 0 auto">`
+          : `<div style="width:56px;height:56px;border-radius:14px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:24px">🏪</div>`;
+        return `<div onclick="pickClientFilial('${escapeHtml(f.slug)}')" style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:12px;margin-bottom:12px;cursor:pointer">
+          ${cover}
+          <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:16px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(label)}</div><div style="font-size:12px;color:var(--text-dim)">${escapeHtml(sub)}</div></div>
+          <span style="color:var(--text-dim);font-size:20px;flex:0 0 auto">›</span>
+        </div>`;
+      }).join('');
+    } catch (e) {}
+  }
+  function renderOfertas() {
+    const list = document.getElementById('ofertas-list');
+    if (!list) return;
+    list.innerHTML = `<div style="text-align:center;padding:44px 20px;color:var(--text-dim)">
+      <div style="font-size:46px;margin-bottom:10px">🔥</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text)">Nenhuma oferta rolando agora</div>
+      <div style="font-size:13px;margin-top:6px;line-height:1.5">Em breve as tabacarias vão poder marcar produtos em promoção — e eles aparecem aqui ✦</div>
+    </div>`;
+  }
+  // Boot: renderiza a barra da loja (a descoberta agora é a tela "Início").
   (function checkFilialOnBoot() {
-    let savedFilial = null;
-    try { savedFilial = localStorage.getItem(FILIAL_STORAGE_KEY); } catch(_){}
-    if (!savedFilial) {
-      const overlay = document.getElementById('filial-picker-overlay');
-      if (overlay) overlay.style.display = 'flex';
-    }
-    renderFilialPicker();
     try { renderLojaBar(); } catch(e) {}
   })();
 
@@ -9066,9 +9118,14 @@
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screen).classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.screen === screen);
+      const s = b.dataset.screen;
+      // dentro de uma loja (home/catalog/detail) mantém "Início" destacado
+      const homeish = (screen === 'home' || screen === 'catalog' || screen === 'detail');
+      b.classList.toggle('active', s === screen || (homeish && s === 'inicio'));
     });
     window.scrollTo(0, 0);
+    if (screen === 'inicio') renderInicio();
+    if (screen === 'ofertas') renderOfertas();
     if (screen === 'cart') renderCart();
     if (screen === 'home') { renderLojaBar(); renderHomeLastOrder(); renderPersonalizedHome(); loadMyOrders(); }
     if (screen === 'flavor-profile') renderFlavorProfile();
