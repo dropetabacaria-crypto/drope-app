@@ -1087,6 +1087,23 @@
   body.loja-light .app::after { opacity: 0.05; } /* escamas mais suaves no claro */
   body.loja-light .search-bar { background: #F0ECF8; }
   body.loja-light .nav { background: linear-gradient(180deg, #ffffff, #f2eefb); }
+  /* correções de contraste no tema claro (evita texto invisível) */
+  body.loja-light .reorder-title { color: #c81e5b; } /* "SEU ÚLTIMO DROP" legível no claro */
+  body.loja-light .reorder-card { background: linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.06)); border-color: rgba(255,45,111,0.22); }
+  body.loja-light .cat-section { color: var(--text-dim); }
+  body.loja-light .search-input { color: var(--text); }
+  body.loja-light .search-icon { color: var(--text-dim); }
+  body.loja-light .brand-bubble-name { color: var(--text-dim); }
+  body.loja-light .vibe-greet, body.loja-light .vibe-greet small { color: var(--text); }
+  body.loja-light .stock-badge.low { color: #b3005c; }
+  body.loja-light .hero-seeall-title, body.loja-light .hero-seeall-sub { color: var(--text); }
+  body.loja-light .search-filter-btn { background: rgba(140,80,255,0.14); }
+
+  /* Cor de destaque da loja (personalização do lojista) — vale só dentro da loja */
+  body.in-loja .see-all-link { color: var(--store-accent, var(--lime)); border-color: var(--store-accent, var(--lime)); }
+  body.in-loja .see-all-link:hover { color: var(--store-accent, var(--lime)); }
+  body.in-loja .hero-seeall-arrow { color: var(--store-accent, var(--neon)) !important; }
+  body.in-loja .cat-section::first-letter { color: var(--store-accent, var(--lime)); }
 
   /* Detail screen */
   .top-bar {
@@ -9317,6 +9334,7 @@
     window.scrollTo(0, 0);
     // tema da loja (claro/cor) vale só DENTRO da loja; fora volta pro DROPE dark
     const inStore = (screen === 'home' || screen === 'catalog' || screen === 'detail' || screen === 'cart' || screen === 'checkout');
+    document.body.classList.toggle('in-loja', inStore);
     if (inStore) { try { applyLojaTheme(CLIENT_LOJA); } catch (e) {} }
     else { document.body.classList.remove('loja-light'); document.documentElement.style.removeProperty('--store-accent'); }
     if (screen === 'inicio') renderInicio();

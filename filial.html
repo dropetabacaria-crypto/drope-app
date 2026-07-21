@@ -199,6 +199,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
       <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
 
+      <div class="pf-lbl" style="margin-top:16px">👀 prévia da sua página</div>
+      <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
+
       <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">salvar ✦</button>
       <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
@@ -666,12 +669,14 @@ let _lojaPhotoB64 = null;
 let _pageTheme = 'dark';
 let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
-function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; }
+let _currentLojaPhoto = null;
+function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; renderLojaPreview(); }
 function setPageTheme(t) {
   _pageTheme = t;
   const d = document.getElementById('th-dark'), l = document.getElementById('th-light');
   if (d) d.classList.toggle('active', t !== 'light');
   if (l) l.classList.toggle('active', t === 'light');
+  renderLojaPreview();
 }
 function renderAccents() {
   const wrap = document.getElementById('accent-swatches'); if (!wrap) return;
@@ -680,6 +685,39 @@ function renderAccents() {
 function setAccent(c, el) {
   _pageAccent = c;
   document.querySelectorAll('#accent-swatches div').forEach(d => d.style.border = '3px solid ' + (d.dataset.c === c ? '#fff' : 'transparent'));
+  renderLojaPreview();
+}
+function renderLojaPreview() {
+  const el = document.getElementById('loja-preview'); if (!el) return;
+  const light = _pageTheme === 'light';
+  const acc = _pageAccent || '#D4FF2E';
+  const bg = light ? '#F5F3FB' : '#0A0A14';
+  const card = light ? '#FFFFFF' : '#1A1625';
+  const text = light ? '#191426' : '#F5F3FF';
+  const dim = light ? '#6B6480' : '#9B96B5';
+  const photo = _lojaPhotoB64 || _currentLojaPhoto || null;
+  const name = (typeof _filialName !== 'undefined' && _filialName) ? _filialName : 'Sua loja';
+  const bio = ((document.getElementById('loja-bio') || {}).value || 'sua descrição aparece aqui').slice(0, 80);
+  const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const scales = light ? 0.05 : 0.10;
+  const tile = (emoji, price) => `<div style="flex:1;background:${card};border-radius:12px;padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,${light ? 0.05 : 0.3})"><div style="font-size:26px;line-height:1">${emoji}</div><div style="font-size:9px;color:${dim};margin-top:4px">pod 8000</div><div style="font-size:11px;font-weight:800;color:${acc};margin-top:2px">${price}</div></div>`;
+  el.innerHTML = `<div style="position:relative;background:${bg};padding:14px">
+    <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 20% 30%, ${acc}22 0 2px, transparent 2px),radial-gradient(circle at 70% 60%, ${acc}22 0 2px, transparent 2px);background-size:26px 26px;opacity:${scales};pointer-events:none"></div>
+    <div style="position:relative">
+      <div style="display:flex;gap:11px;align-items:center;background:${card};border-radius:14px;padding:10px;box-shadow:0 3px 12px rgba(0,0,0,${light ? 0.06 : 0.35})">
+        ${photo ? `<img src="${photo}" style="width:44px;height:44px;border-radius:11px;object-fit:cover">` : `<div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:13px;color:${text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)} <span style="color:${acc};font-size:10px;font-weight:700">trocar ›</span></div>
+          <div style="font-size:10.5px;color:${dim};line-height:1.35;margin-top:2px">${esc(bio)}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 2px 8px">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:${text}">🧊 GELADOS</div>
+        <div style="font-size:10px;color:${acc};font-weight:700">ver todos ›</div>
+      </div>
+      <div style="display:flex;gap:8px">${tile('🧊', 'R$ 89,90')}${tile('🍇', 'R$ 99,90')}${tile('🍓', 'R$ 94,90')}</div>
+    </div>
+  </div>`;
 }
 function _fmtLojaCep(el) { let d = el.value.replace(/\D/g, '').slice(0, 8); el.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d; }
 async function _lookupLojaCep() {
@@ -699,6 +737,7 @@ async function onLojaFoto(input) {
     document.getElementById('loja-foto').innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:cover" draggable="false">`;
     document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
     document.getElementById('loja-msg').textContent = 'foto pronta — clica em salvar';
+    renderLojaPreview();
   } catch (e) {}
 }
 async function saveLojaProfile() {
@@ -724,9 +763,12 @@ async function saveLojaProfile() {
 function renderLojaProfile(prof, endereco) {
   prof = prof || {}; endereco = endereco || {};
   const bio = document.getElementById('loja-bio'); if (bio && document.activeElement !== bio) { bio.value = prof.bio || ''; _bioCount(); }
-  if (prof.photo_url && !_lojaPhotoB64) {
-    const el = document.getElementById('loja-foto');
-    if (el) el.innerHTML = `<img src="${prof.photo_url}" style="width:100%;height:100%;object-fit:cover" draggable="false">`;
+  if (prof.photo_url) {
+    _currentLojaPhoto = prof.photo_url;
+    if (!_lojaPhotoB64) {
+      const el = document.getElementById('loja-foto');
+      if (el) el.innerHTML = `<img src="${prof.photo_url}" style="width:100%;height:100%;object-fit:cover" draggable="false">`;
+    }
   }
   setPageTheme(prof.theme || 'dark');
   _pageAccent = prof.accent || null;
@@ -734,6 +776,7 @@ function renderLojaProfile(prof, endereco) {
   const cepEl = document.getElementById('loja-cep'), addrEl = document.getElementById('loja-address');
   if (cepEl && document.activeElement !== cepEl && endereco.cep) cepEl.value = endereco.cep.length > 5 ? endereco.cep.slice(0, 5) + '-' + endereco.cep.slice(5) : endereco.cep;
   if (addrEl && document.activeElement !== addrEl && endereco.address) addrEl.value = endereco.address;
+  renderLojaPreview();
 }
 
 function renderPedidoCard(p, isEntregue) {
