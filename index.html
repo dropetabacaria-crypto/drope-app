@@ -4854,7 +4854,7 @@
       <div class="icon-btn" onclick="go('profile')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Meus dropes</div>
+      <div class="brand-small">Meus pedidos</div>
       <div style="width: 42px"></div>
     </div>
     <div id="orders-wrap"></div>
@@ -4904,7 +4904,7 @@
     </div>
     <div class="pe-wrap">
       <div class="pe-avatar-preview" id="pe-avatar-preview"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="pe-avatar-hint">escolhe seu vibe ✦</div>
+      <div class="pe-avatar-hint">escolhe sua vibe ✦</div>
       <div class="pe-avatar-picker" id="pe-avatar-wrap"></div>
 
       <div class="pe-card">
@@ -9739,7 +9739,7 @@
       warn.style.display = 'none';
     } else if (kind === 'pod') {
       warn.style.display = 'block';
-      warn.innerHTML = `<div class="pay-chip pix-only">Só Pix ✦ regra da casa pra drops</div>`;
+      warn.innerHTML = `<div class="pay-chip pix-only">Drops são só no Pix ✦ aprovação na hora</div>`;
     } else if (kind === 'mix') {
       warn.style.display = 'block';
       warn.innerHTML = `<div class="pay-chip mix">carrinho misto ✦ só Pix libera tudo</div>`;
@@ -10673,7 +10673,7 @@
         const thumb = lo.product_image
           ? `<img src="${escapeHtml(lo.product_image)}" alt="${escapeHtml(lo.product_name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(lo.emoji || '')}'}))">`
           : `<span>${escapeHtml(lo.emoji || '')}</span>`;
-        const greeting = greetName ? `Fala, ${escapeHtml(greetName)}! Separei pra você` : `Fala! Separei uns pra você`;
+        const greeting = `Separei uns drops pra você ✦`;
         html += `<div class="vibe-greet">${greeting}</div>`;
         // OSSO 25 — sabor hero + brand muted no card de "dropar de novo"
         const loLabels = productLabels({
@@ -10699,7 +10699,7 @@
         // pra você" → CATÁLOGO (mais limpo, sem card de teste nem link morto).
       } else {
         // Cliente novo (ou sem perfil ainda)
-        const greeting = greetName ? `E aí, ${escapeHtml(greetName)}! Qual vibe você curte?` : `E aí! Qual vibe você curte?`;
+        const greeting = `Qual vibe você curte hoje?`;
         const sub = `Escolhe uma — ou explora tudo`;
         html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
         const VIBE_DEFS = [
