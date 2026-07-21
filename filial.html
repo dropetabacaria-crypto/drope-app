@@ -97,6 +97,14 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .prod-edit.open { display: block; }
 .prod-search { width: 100%; background: var(--bg2); border: 0.5px solid var(--border); color: var(--fg); padding: 11px 13px; border-radius: 12px; font-size: 14px; margin-bottom: 10px; font-family: inherit; }
 .prod-count { font-size: 11px; color: var(--fg-dim); margin: 0 2px 10px; }
+.prod-filters { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.fchip { flex: 0 0 auto; padding: 7px 13px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg2); color: var(--fg-dim); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.fchip.active { border-color: var(--lime); background: rgba(212,255,46,0.14); color: var(--fg); }
+.stepper { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.stepper button { width: 30px; height: 30px; border-radius: 8px; border: 0; background: var(--bg3); color: var(--fg); font-size: 17px; cursor: pointer; line-height: 1; }
+.stepper .sv { min-width: 30px; text-align: center; font-weight: 800; font-size: 14px; }
+.stepper .sv.zero { color: var(--pink); }
+.stepper .sv small { display: block; font-size: 8px; color: var(--fg-dim); font-weight: 600; letter-spacing: .04em; }
 .pf-input { width: 100%; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
 .pf-btn { background: var(--lime); color: #000; border: 0; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .pf-btn.sec { background: var(--bg3); color: var(--fg-dim); }
@@ -416,6 +424,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
     <input class="prod-search" id="prod-search" placeholder="🔍 buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
+    <div class="prod-filters" id="prod-filters">
+      <button class="fchip active" data-f="todos" onclick="setProdFilter('todos',this)">todos</button>
+      <button class="fchip" data-f="sem-estoque" onclick="setProdFilter('sem-estoque',this)">sem estoque</button>
+      <button class="fchip" data-f="sem-imagem" onclick="setProdFilter('sem-imagem',this)">sem imagem</button>
+      <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">ofertas</button>
+      <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">ocultos</button>
+    </div>
     <div class="prod-count" id="prod-count"></div>
     <div id="produtos-list"></div>
   </div>
@@ -513,7 +528,8 @@ function render(d) {
   const f = d.filial;
   _filialName = f.name || '';
   document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
-  document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
+  const _share = f.founder_share_cents || 0;
+  document.getElementById('subtitle').textContent = _share > 0 ? (f.name + ' ✦ ganha R$ ' + (_share/100).toFixed(2).replace('.',',') + ' por venda') : f.name;
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
   try { renderHorario((f.profile || {}).hours); } catch(e) {}
   try { renderSegs(f.segmentos); } catch(e) {}
@@ -589,11 +605,20 @@ function renderProdutos(list) {
   if (!el) return;
   const all = _lastProdutos || [];
   const q = ((document.getElementById('prod-search') || {}).value || '').toLowerCase().trim();
-  const items = q ? all.filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q)) : all;
+  const f = _prodFilter || 'todos';
+  const items = all.filter(p => {
+    if (q && !(`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q)) return false;
+    if (f === 'sem-estoque') return (p.stock || 0) === 0;
+    if (f === 'sem-imagem') return !p.image_url;
+    if (f === 'ofertas') return !!p.offer_cents;
+    if (f === 'ocultos') return !!p.hidden;
+    return true;
+  });
   const cnt = document.getElementById('prod-count');
-  if (cnt) cnt.textContent = all.length ? `${items.length}${q ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
+  const filtered = q || f !== 'todos';
+  if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
   if (!all.length) { el.innerHTML = '<div class="empty">nenhum produto ainda ✦ adiciona o primeiro no "＋ manual"</div>'; return; }
-  if (!items.length) { el.innerHTML = '<div class="empty">nada encontrado ✦ tenta outro termo</div>'; return; }
+  if (!items.length) { el.innerHTML = '<div class="empty">nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
   el.innerHTML = items.map(p => {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
@@ -613,25 +638,49 @@ function renderProdutos(list) {
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
           <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
-          <div class="prod-sub">${priceHtml} · <span style="${stock === 0 ? 'color:var(--pink);font-weight:700' : ''}">${stock} em estoque</span>${meta ? ' · ' + esc(meta) : ''}</div>
+          <div class="prod-sub">${priceHtml}${meta ? ' · ' + esc(meta) : ''}</div>
         </div>
-        <div class="prod-actions">
-          ${artBtn}
-          <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">editar</span>
+        <div class="stepper">
+          <button onclick="bumpStock(${p.id},-1)" title="menos">−</button>
+          <span class="sv ${stock === 0 ? 'zero' : ''}" id="sv-${p.id}">${stock}<small>estoque</small></span>
+          <button onclick="bumpStock(${p.id},1)" title="mais">+</button>
         </div>
       </div>
+      <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:10px">
+        ${artBtn}
+        <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">preço & mais</span>
+      </div>
       <div class="prod-edit" id="edit-${p.id}">
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="flex:1;margin-bottom:0" placeholder="preço">
-          <input class="pf-input" id="ep-stock-${p.id}" inputmode="numeric" value="${p.stock || 0}" style="flex:1;margin-bottom:0" placeholder="estoque">
-        </div>
-        <label class="pf-lbl" style="margin-top:10px">preço de oferta 🔥 (deixa vazio pra tirar)</label>
+        <label class="pf-lbl" style="margin-top:12px">preço (R$)</label>
+        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="preço">
+        <label class="pf-lbl" style="margin-top:10px">preço de oferta 🔥 (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
-        <button class="pf-btn" onclick="saveEditProduct(${p.id})">salvar</button>
+        <button class="pf-btn full" onclick="saveEditProduct(${p.id})">salvar</button>
       </div>
     </div>`;
   }).join('');
+}
+let _prodFilter = 'todos';
+function setProdFilter(f, el) {
+  _prodFilter = f;
+  document.querySelectorAll('#prod-filters .fchip').forEach(b => b.classList.toggle('active', b === el));
+  renderProdutos();
+}
+// Estoque inline com +/− — atualiza na hora e salva sozinho (debounce), sem recarregar.
+const _stockTimers = {};
+function bumpStock(id, delta) {
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
+  p.stock = Math.max(0, (p.stock || 0) + delta);
+  const sv = document.getElementById('sv-' + id);
+  if (sv) { sv.innerHTML = p.stock + '<small>estoque</small>'; sv.classList.toggle('zero', p.stock === 0); }
+  clearTimeout(_stockTimers[id]);
+  _stockTimers[id] = setTimeout(() => {
+    fetch('/api/webhook?action=filial_product_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: p.stock, hidden: !!p.hidden }),
+    }).catch(() => {});
+  }, 700);
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
@@ -763,12 +812,12 @@ async function saveNewProduct() {
 }
 
 async function saveEditProduct(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
   const price = parseFloat((document.getElementById('ep-price-' + id).value || '').replace(',', '.'));
-  const stock = parseInt(document.getElementById('ep-stock-' + id).value || '0', 10);
   const hidden = document.getElementById('ep-hidden-' + id).checked;
   const offerRaw = (document.getElementById('ep-offer-' + id).value || '').replace(',', '.').trim();
   const offer_price = offerRaw === '' ? 0 : parseFloat(offerRaw); // 0/vazio limpa a oferta
-  await _saveProduct({ id, price, stock, hidden, offer_price });
+  await _saveProduct({ id, price, stock: (p.stock || 0), hidden, offer_price }); // estoque vem do +/− inline
 }
 
 // ===================== PDV — vender no balcão =====================
