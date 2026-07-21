@@ -189,32 +189,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section">
-    <h2>📦 meus produtos <span class="mini-link" style="float:right" onclick="toggleAddProduct()">＋ manual</span></h2>
-    <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
-    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">📸 escanear produto — a IA preenche pra você</button>
-    <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
-    <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
-      <label class="pf-lbl">Nome do pod</label>
-      <input class="pf-input" id="ap-name" placeholder="ex: ELFBAR Ice King" maxlength="60">
-      <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: ELFBAR" maxlength="30"></div>
-        <div style="flex:1"><label class="pf-lbl">Sabor</label><input class="pf-input" id="ap-sabor" placeholder="ex: uva gelada" maxlength="40"></div>
-      </div>
-      <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="109,90"></div>
-        <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
-      </div>
-      <div class="pf-hint">📸 A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
-      <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
-      <div style="display:flex; gap:10px; margin-top:4px">
-        <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
-        <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
-      </div>
-      <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
-    </div>
-    <input class="prod-search" id="prod-search" placeholder="🔍 buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
-    <div class="prod-count" id="prod-count"></div>
-    <div id="produtos-list"></div>
+    <h2>📦 meus produtos</h2>
+    <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
+      <span style="font-size:22px;flex:0 0 auto">📦</span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-size:15px;font-weight:800">gerenciar produtos</span>
+        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">cadastrar por foto, preço, estoque, imagens</span>
+      </span>
+      <span id="prod-count-badge" style="font-size:13px;font-weight:800;color:var(--fg-dim);flex:0 0 auto"></span>
+      <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
+    </button>
   </div>
 
   <!-- ============ CONFIGURAÇÃO DA LOJA (recolhível — uso ocasional) ============ -->
@@ -371,6 +355,42 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 </div>
 
+<!-- Overlay: Meus produtos -->
+<div class="sheet-ov" id="produtos-ov">
+  <div class="sheet-hd">
+    <button class="sheet-x" onclick="closeProdutos()">←</button>
+    <h3>📦 meus produtos</h3>
+    <span class="mini-link" onclick="toggleAddProduct()">＋ manual</span>
+  </div>
+  <div class="sheet-scroll">
+    <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
+    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">📸 escanear produto — a IA preenche pra você</button>
+    <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
+    <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
+      <label class="pf-lbl">Nome do pod</label>
+      <input class="pf-input" id="ap-name" placeholder="ex: ELFBAR Ice King" maxlength="60">
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: ELFBAR" maxlength="30"></div>
+        <div style="flex:1"><label class="pf-lbl">Sabor</label><input class="pf-input" id="ap-sabor" placeholder="ex: uva gelada" maxlength="40"></div>
+      </div>
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="109,90"></div>
+        <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="pf-hint">📸 A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
+      <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
+      <div style="display:flex; gap:10px; margin-top:4px">
+        <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
+        <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
+      </div>
+      <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+    </div>
+    <input class="prod-search" id="prod-search" placeholder="🔍 buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
+    <div class="prod-count" id="prod-count"></div>
+    <div id="produtos-list"></div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY = 'drope_filial_code_v1';       // legado (código antigo)
 const SESSION_KEY = 'drope_filial_session_v1';    // sessão do login email+senha: {slug, token}
@@ -492,6 +512,8 @@ function render(d) {
     : '<div class="empty">sem vendas ainda</div>';
 
   renderProdutos(d.produtos || []);
+  const pcb = document.getElementById('prod-count-badge');
+  if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
 }
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -739,6 +761,8 @@ async function pdvFinalize() {
 // ===================== Balanço — contagem de estoque =====================
 function openBalanco() { renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
 function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
+function openProdutos() { try { renderProdutos(); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); }
+function closeProdutos() { document.getElementById('produtos-ov').classList.remove('open'); }
 function renderBalanco() {
   const list = document.getElementById('bal-list');
   const prods = _lastProdutos || [];
