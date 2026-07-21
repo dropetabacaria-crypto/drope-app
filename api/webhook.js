@@ -12736,6 +12736,33 @@ function _ljVerifyPassword(pw, salt, hash) {
 function _sha256hex(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
 function _isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim()); }
 
+// CEP → { lat, lng, city, neigh, street } (cache → AwesomeAPI → BrasilAPI/Nominatim).
+// Mesma pipeline do delivery_quote, extraída pra reuso (cadastro da loja).
+async function _cepToGeo(cepRaw) {
+  const cep = String(cepRaw || '').replace(/\D/g, '');
+  if (cep.length !== 8) return null;
+  let lat = null, lng = null, city = '', neigh = '', street = '', source = '';
+  try { const c = await sbGet('drope_cep_cache', `cep=eq.${cep}&select=lat,lng,city,neigh,street&limit=1`); if (Array.isArray(c) && c[0]) { lat = c[0].lat; lng = c[0].lng; city = c[0].city || ''; neigh = c[0].neigh || ''; street = c[0].street || ''; source = 'cache'; } } catch (_) {}
+  if (!lat || !lng) { try { const r = await fetch(`https://cep.awesomeapi.com.br/json/${cep}`, { signal: AbortSignal.timeout(4000) }); if (r.ok) { const d = await r.json(); if (d.lat && d.lng) { lat = parseFloat(d.lat); lng = parseFloat(d.lng); city = d.city || ''; neigh = d.district || ''; street = d.address || ''; source = 'awesomeapi'; } } } catch (_) {} }
+  if (!lat || !lng) {
+    try {
+      const r1 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`, { signal: AbortSignal.timeout(4000) });
+      if (r1.ok) {
+        const d = await r1.json();
+        city = city || d.city || ''; neigh = neigh || d.neighborhood || ''; street = street || d.street || '';
+        const c = d.location && d.location.coordinates;
+        if (c && c.latitude && c.longitude) { lat = typeof c.latitude === 'number' ? c.latitude : parseFloat(c.latitude); lng = typeof c.longitude === 'number' ? c.longitude : parseFloat(c.longitude); source = 'brasilapi'; }
+        else if (d.street && d.neighborhood && d.city) {
+          const q = encodeURIComponent(`${d.street}, ${d.neighborhood}, ${d.city}, ${d.state || ''}, Brasil`);
+          try { const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, { headers: { 'User-Agent': 'drope-app/1.0' }, signal: AbortSignal.timeout(4000) }); if (r2.ok) { const arr = await r2.json(); if (arr && arr[0]) { lat = parseFloat(arr[0].lat); lng = parseFloat(arr[0].lon); source = 'nominatim'; } } } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+  if (source && source !== 'cache' && lat && lng) { try { sbInsert('drope_cep_cache', { cep, lat, lng, city, neigh, street, source }).catch(() => {}); } catch (_) {} }
+  return { cep, lat: lat || null, lng: lng || null, city, neigh, street };
+}
+
 async function handleFilialRegister(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -12753,14 +12780,21 @@ async function handleFilialRegister(req, res) {
     let founderPhone = String(body.founder_phone || '').replace(/\D/g, '');
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
+    const cep = String(body.cep || '').replace(/\D/g, '');
+    const address = String(body.address || '').trim();
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome da loja inválido' });
     if (city.length < 2) return res.status(400).json({ ok: false, error: 'cidade inválida' });
     if (state.length !== 2) return res.status(400).json({ ok: false, error: 'UF inválida' });
     if (founderName.length < 2) return res.status(400).json({ ok: false, error: 'seu nome inválido' });
     if (founderPhone.length < 10 || founderPhone.length > 13) return res.status(400).json({ ok: false, error: 'whatsapp inválido' });
+    if (cep.length !== 8) return res.status(400).json({ ok: false, error: 'CEP inválido (8 dígitos)' });
+    if (address.length < 3) return res.status(400).json({ ok: false, error: 'endereço inválido' });
     if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
     if (password.length < 6) return res.status(400).json({ ok: false, error: 'senha precisa de pelo menos 6 caracteres' });
     if (!founderPhone.startsWith('55')) founderPhone = '55' + founderPhone;
+    // Geocodifica o CEP da loja (lat/lng) pro cálculo de proximidade no app
+    let geo = null;
+    try { geo = await _cepToGeo(cep); } catch (e) { console.warn('[filial_register] geo:', e.message); }
     // Email precisa ser único entre as lojas (é o login)
     const emailOwners = await sbGet('drope_filiais', 'select=id,metadata');
     if ((emailOwners || []).some(f => ((f.metadata || {}).login || {}).email === email)) {
@@ -12787,6 +12821,8 @@ async function handleFilialRegister(req, res) {
         self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment',
         payment: { provider: null, account_id: null, status: 'not_connected' },
         login: { email, pass_salt: pass.salt, pass_hash: pass.hash },
+        endereco: { cep, address, city, state },
+        geo: geo && geo.lat ? { lat: geo.lat, lng: geo.lng, cep, neigh: geo.neigh || null, street: geo.street || null } : { lat: null, lng: null, cep },
       },
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });

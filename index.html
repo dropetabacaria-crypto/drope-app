@@ -4323,6 +4323,15 @@
           </select>
         </label>
       </div>
+      <label class="lj-field">
+        <span class="lj-lbl">CEP da loja</span>
+        <input id="lj-cep" class="card-input" inputmode="numeric" placeholder="00000-000" maxlength="9" oninput="formatLjCep(this); _ljBtn()" onblur="lookupLjCep()">
+      </label>
+      <label class="lj-field">
+        <span class="lj-lbl">Endereço (rua e número)</span>
+        <input id="lj-address" class="card-input" placeholder="ex: Rua Dianópolis, 4100" maxlength="90" oninput="_ljBtn()">
+      </label>
+      <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
 
       <div class="lj-sec lj-sec-label">Seu contato</div>
       <label class="lj-field">
@@ -6405,11 +6414,14 @@
     const email = (document.getElementById('lj-email')?.value || '').trim();
     const pass = (document.getElementById('lj-pass')?.value || '');
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const cepD = (document.getElementById('lj-cep')?.value || '').replace(/\D/g, '');
+    const addr = (document.getElementById('lj-address')?.value || '').trim();
     const ok = (document.getElementById('lj-store')?.value || '').trim().length >= 2
       && (document.getElementById('lj-city')?.value || '').trim().length >= 2
       && (document.getElementById('lj-uf')?.value || '').length === 2
       && (document.getElementById('lj-name')?.value || '').trim().length >= 2
       && (d.length === 10 || d.length === 11)
+      && cepD.length === 8 && addr.length >= 3
       && emailOk && pass.length >= 6;
     const b = document.getElementById('lj-submit');
     if (b) { b.disabled = !ok; b.style.opacity = ok ? 1 : 0.4; }
@@ -6421,6 +6433,29 @@
     if (d.length > 2) { const mid = d.length === 11 ? 7 : 6; out += d.slice(2, mid); if (d.length > mid) out += '-' + d.slice(mid); }
     el.value = out;
   }
+  function formatLjCep(el) {
+    let d = el.value.replace(/\D/g, '').slice(0, 8);
+    el.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d;
+  }
+  // Autofill do endereço/cidade/UF a partir do CEP (ViaCEP)
+  async function lookupLjCep() {
+    const cep = (document.getElementById('lj-cep')?.value || '').replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const d = await r.json();
+      if (d && !d.erro) {
+        const addrEl = document.getElementById('lj-address');
+        if (addrEl && !addrEl.value.trim() && d.logradouro) addrEl.value = d.logradouro + ', ';
+        const cityEl = document.getElementById('lj-city');
+        if (cityEl && !cityEl.value.trim() && d.localidade) cityEl.value = d.localidade;
+        const ufEl = document.getElementById('lj-uf');
+        if (ufEl && !ufEl.value && d.uf) ufEl.value = d.uf;
+        _ljBtn();
+        if (addrEl) { addrEl.focus(); }
+      }
+    } catch (e) {}
+  }
   let _ljNewSlug = '';
   async function submitFilialRegister() {
     const store = (document.getElementById('lj-store')?.value || '').trim();
@@ -6430,12 +6465,14 @@
     const phone = _ljPhoneDigits();
     const email = (document.getElementById('lj-email')?.value || '').trim().toLowerCase();
     const password = (document.getElementById('lj-pass')?.value || '');
+    const cep = (document.getElementById('lj-cep')?.value || '').replace(/\D/g, '');
+    const address = (document.getElementById('lj-address')?.value || '').trim();
     const b = document.getElementById('lj-submit');
     if (b) { b.disabled = true; b.textContent = 'cadastrando...'; }
     try {
       const r = await fetch('/api/webhook?action=filial_register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password }),
+        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password, cep, address }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
@@ -6459,7 +6496,7 @@
     location.href = slug ? ('/' + encodeURIComponent(slug) + '/painel') : '/filial.html';
   }
   function _resetLojistaForm() {
-    ['lj-store', 'lj-city', 'lj-name', 'lj-phone', 'lj-email', 'lj-pass'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['lj-store', 'lj-city', 'lj-name', 'lj-phone', 'lj-email', 'lj-pass', 'lj-cep', 'lj-address'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const uf = document.getElementById('lj-uf'); if (uf) uf.value = '';
     const fw = document.getElementById('lojista-form-wrap'); if (fw) fw.style.display = 'block';
     const dw = document.getElementById('lojista-done-wrap'); if (dw) dw.style.display = 'none';
