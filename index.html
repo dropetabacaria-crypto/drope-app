@@ -1070,6 +1070,13 @@
   .loja-fav { position: absolute; top: 12px; right: 12px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); cursor: pointer; }
   .loja-fav svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; }
   .loja-fav.on svg { fill: var(--pink); stroke: var(--pink); }
+  .lc-chip.time { color: #cdbcff; background: rgba(140,80,255,0.16); }
+  /* Banner hero do Início */
+  .inicio-banner { display: flex; align-items: center; gap: 12px; margin: 18px 0 6px; padding: 16px 18px; border-radius: 20px; background: linear-gradient(120deg, #5B21B6, #B026FF 52%, #FF2D6F); box-shadow: 0 12px 34px rgba(176,38,255,0.38); position: relative; overflow: hidden; }
+  .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 18px; color: #fff; }
+  .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 3px; line-height: 1.35; }
+  .inicio-banner .ib-emoji { font-size: 42px; margin-left: auto; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
+  .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
 
   /* Detail screen */
   .top-bar {
@@ -4171,8 +4178,16 @@
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="inicio-search-input" placeholder="Buscar tabacaria..." autocomplete="off" oninput="filterInicio(this.value)">
       </div>
+      <div class="inicio-banner">
+        <div>
+          <div class="ib-title">drops em minutos ✦</div>
+          <div class="ib-sub">peça da tabacaria mais perto<br>e receba voando 🦎</div>
+        </div>
+        <div class="ib-emoji">🛵</div>
+      </div>
+      <div class="inicio-sec-lbl">Tabacarias disponíveis</div>
     </div>
-    <div id="inicio-list" style="padding: 12px 20px 8px"></div>
+    <div id="inicio-list" style="padding: 4px 20px 8px"></div>
     <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 28px">
       É dono de tabacaria? <span style="color:var(--lime);font-weight:800">Cadastre sua loja →</span>
     </div>
@@ -7628,6 +7643,7 @@
       ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false">`
       : `<div class="loja-cover-ph">🏪</div>`;
     const chips = [
+      `<span class="lc-chip time">⏱ 20-40 min</span>`,
       f.produtos ? `<span class="lc-chip">📦 ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
       cityTc ? `<span class="lc-chip">📍 ${escapeHtml(cityTc)}</span>` : '',
       `<span class="lc-chip open">🟢 aberto</span>`,
@@ -10030,10 +10046,7 @@
       html += `<div style="padding:12px 20px 0">${secLbl('Lojas favoritas')}${favLojas.map(_lojaCardHtml).join('')}</div>`;
     }
     if (favProducts.length) {
-      html += `<div style="padding:12px 20px 0">${secLbl('Produtos favoritos')}<div class="grid">${favProducts.map(p => {
-        const idx = products.indexOf(p);
-        return `<div class="tile" onclick="openProduct(${idx})"><div class="emoji">${p.emoji}</div><div class="name">${p.name}</div><div class="price">${money(p.price)}</div></div>`;
-      }).join('')}</div></div>`;
+      html += `<div style="padding:12px 20px 0">${secLbl('Produtos favoritos')}<div class="grid">${favProducts.map(p => tileHTML(p, products.indexOf(p))).join('')}</div></div>`;
     }
     wrap.innerHTML = html;
   }
