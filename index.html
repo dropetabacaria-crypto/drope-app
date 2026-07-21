@@ -1072,6 +1072,7 @@
   .loja-fav svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; }
   .loja-fav.on svg { fill: var(--pink); stroke: var(--pink); }
   .lc-chip.time { color: #cdbcff; background: rgba(140,80,255,0.16); }
+  .lc-chip.dist { color: var(--lime); background: rgba(212,255,46,0.14); font-weight: 700; }
   /* Banner hero do Início */
   .inicio-banner { display: flex; align-items: center; gap: 12px; margin: 18px 0 6px; padding: 16px 18px; border-radius: 20px; background: linear-gradient(120deg, #5B21B6, #B026FF 52%, #FF2D6F); box-shadow: 0 12px 34px rgba(176,38,255,0.38); position: relative; overflow: hidden; }
   .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 18px; color: #fff; }
@@ -7680,10 +7681,12 @@
     const cover = f.cover
       ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'>🏪</div>'">`
       : `<div class="loja-cover-ph">🏪</div>`;
+    const kmTxt = (typeof f._km === 'number') ? (f._km < 1 ? Math.round(f._km * 1000) + ' m' : f._km.toFixed(1).replace('.', ',') + ' km') : '';
     const chips = [
+      kmTxt ? `<span class="lc-chip dist">📍 ${kmTxt}</span>` : '',
       `<span class="lc-chip time">⏱ 20-40 min</span>`,
       f.produtos ? `<span class="lc-chip">📦 ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
-      cityTc ? `<span class="lc-chip">📍 ${escapeHtml(cityTc)}</span>` : '',
+      cityTc ? `<span class="lc-chip">🏙️ ${escapeHtml(cityTc)}</span>` : '',
       `<span class="lc-chip open">🟢 aberto</span>`,
     ].filter(Boolean).join('');
     const fav = _isFavStore(f.slug);
@@ -7699,10 +7702,33 @@
       </div>
     </div>`;
   }
+  // Geolocalização do cliente (pra ordenar "perto de você")
+  let _clientGeo = null;
+  try { const g = JSON.parse(localStorage.getItem('drope_client_geo') || 'null'); if (g && typeof g.lat === 'number') _clientGeo = g; } catch (e) {}
+  function _haversineKm(la1, lo1, la2, lo2) {
+    const R = 6371, toRad = d => d * Math.PI / 180;
+    const dLa = toRad(la2 - la1), dLo = toRad(lo2 - lo1);
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+  let _geoAsked = false;
+  function _requestClientGeo() {
+    if (_geoAsked || _clientGeo || !navigator.geolocation) return;
+    _geoAsked = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _clientGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try { localStorage.setItem('drope_client_geo', JSON.stringify(_clientGeo)); } catch (e) {}
+        if (((document.querySelector('.screen.active') || {}).id) === 'inicio') filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
+      },
+      () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+    );
+  }
   let _inicioLojas = [];
   async function renderInicio() {
     const list = document.getElementById('inicio-list');
     if (!list) return;
+    _requestClientGeo();
     try {
       const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
       const d = await r.json();
@@ -7716,6 +7742,13 @@
     if (!list) return;
     q = (q || '').toLowerCase().trim();
     const arr = _inicioLojas.filter(f => !q || (f.name || '').toLowerCase().includes(q) || (f.city || '').toLowerCase().includes(q));
+    // distância + ordena (mais perto primeiro; sem geo vai pro fim)
+    if (_clientGeo) {
+      arr.forEach(f => { f._km = (typeof f.lat === 'number' && typeof f.lng === 'number') ? _haversineKm(_clientGeo.lat, _clientGeo.lng, f.lat, f.lng) : null; });
+      arr.sort((a, b) => (a._km == null ? Infinity : a._km) - (b._km == null ? Infinity : b._km));
+    } else {
+      arr.forEach(f => { f._km = null; });
+    }
     list.innerHTML = arr.length ? arr.map(_lojaCardHtml).join('') : '<div class="empty-mini">nenhuma tabacaria encontrada ✦</div>';
   }
   async function renderOfertas() {

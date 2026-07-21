@@ -12569,11 +12569,14 @@ async function handleFiliaisList(req, res) {
     }
     const out = filiais.map(f => {
       const prof = (f.metadata || {}).profile || {};
+      const geo = (f.metadata || {}).geo || {};
       return {
         slug: f.slug, name: f.name, city: f.city, state: f.state,
         cover: prof.photo_url || coverBy[f.id] || null, // foto da loja tem prioridade
         bio: prof.bio || null,
         produtos: countBy[f.id] || 0,
+        lat: (typeof geo.lat === 'number') ? geo.lat : null,
+        lng: (typeof geo.lng === 'number') ? geo.lng : null,
         pending: ((f.metadata || {}).onboarding) === 'pending_payment',
       };
     })
