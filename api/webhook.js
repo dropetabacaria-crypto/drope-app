@@ -4799,6 +4799,20 @@ async function handleFilialProfileSave(req, res) {
     // tema + cor da PÁGINA da loja (o que o cliente vê)
     if (typeof body.theme === 'string' && ['dark', 'light'].includes(body.theme)) md.profile.theme = body.theme;
     if (typeof body.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.accent)) md.profile.accent = body.accent;
+    // Horário de funcionamento + visibilidade online (o que aparece pro cliente)
+    if (body.hours && typeof body.hours === 'object') {
+      const h = body.hours;
+      const hhmm = (s) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || '')) ? String(s) : null;
+      const days = Array.isArray(h.days)
+        ? [...new Set(h.days.map(n => parseInt(n, 10)).filter(n => n >= 0 && n <= 6))].sort()
+        : [];
+      md.profile.hours = {
+        enabled: h.enabled !== false, // default: visível pro cliente
+        days,
+        open: hhmm(h.open) || '09:00',
+        close: hhmm(h.close) || '22:00',
+      };
+    }
     if (body.photo_base64) {
       const url = await uploadToStorage(`filial-${filial.id}-logo`, String(body.photo_base64), 'image/jpeg');
       if (url) md.profile.photo_url = url + '?v=' + Date.now();
@@ -12556,6 +12570,22 @@ function inferPerfil(category, flavor, descricao) {
   return 'frutado';
 }
 
+// Calcula se a loja está ABERTA agora (horário do Brasil, UTC-3, sem horário de verão).
+// hours = { enabled, days:[0..6, 0=Dom], open:'HH:MM', close:'HH:MM' }.
+// Retorna true/false, ou null quando a loja não configurou horário (status desconhecido).
+function _storeOpenNow(hours) {
+  if (!hours || !Array.isArray(hours.days) || !hours.days.length || !hours.open || !hours.close) return null;
+  const br = new Date(Date.now() - 3 * 3600 * 1000); // UTC-3
+  const day = br.getUTCDay();
+  if (!hours.days.includes(day)) return false;
+  const cur = br.getUTCHours() * 60 + br.getUTCMinutes();
+  const [oh, om] = String(hours.open).split(':').map(Number);
+  const [ch, cm] = String(hours.close).split(':').map(Number);
+  const openMin = oh * 60 + om, closeMin = ch * 60 + cm;
+  if (closeMin <= openMin) return cur >= openMin || cur < closeMin; // atravessa a meia-noite
+  return cur >= openMin && cur < closeMin;
+}
+
 // GET /api/webhook?action=filiais_list → lojas ativas pro seletor de região do cliente
 async function handleFiliaisList(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
@@ -12577,19 +12607,25 @@ async function handleFiliaisList(req, res) {
         if (!coverBy[p.filial_id] && p.image_url && p.image_status === 'ok') coverBy[p.filial_id] = p.image_url;
       });
     }
-    const out = filiais.map(f => {
-      const prof = (f.metadata || {}).profile || {};
-      const geo = (f.metadata || {}).geo || {};
-      return {
-        slug: f.slug, name: f.name, city: f.city, state: f.state,
-        cover: prof.photo_url || coverBy[f.id] || null, // foto da loja tem prioridade
-        bio: prof.bio || null,
-        produtos: countBy[f.id] || 0,
-        lat: (typeof geo.lat === 'number') ? geo.lat : null,
-        lng: (typeof geo.lng === 'number') ? geo.lng : null,
-        pending: ((f.metadata || {}).onboarding) === 'pending_payment',
-      };
-    })
+    const out = filiais
+      // Loja que desativou "aparecer para clientes" (hours.enabled=false) some do marketplace.
+      .filter(f => (((f.metadata || {}).profile || {}).hours || {}).enabled !== false)
+      .map(f => {
+        const prof = (f.metadata || {}).profile || {};
+        const geo = (f.metadata || {}).geo || {};
+        const hours = prof.hours || null;
+        return {
+          slug: f.slug, name: f.name, city: f.city, state: f.state,
+          cover: prof.photo_url || coverBy[f.id] || null, // foto da loja tem prioridade
+          bio: prof.bio || null,
+          produtos: countBy[f.id] || 0,
+          lat: (typeof geo.lat === 'number') ? geo.lat : null,
+          lng: (typeof geo.lng === 'number') ? geo.lng : null,
+          hours: hours ? { days: hours.days || [], open: hours.open || null, close: hours.close || null } : null,
+          open_now: _storeOpenNow(hours),
+          pending: ((f.metadata || {}).onboarding) === 'pending_payment',
+        };
+      })
     // Mostra todas as tabacarias cadastradas (a Drope também é uma loja aqui).
     // Só esconde as de teste (slug "zz-" ou com "teste").
     .filter(f => !/^zz-|teste/i.test(f.slug));
@@ -12967,7 +13003,7 @@ async function handleCatalog(req, res) {
     if (fr && fr[0]) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
-      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null };
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
 

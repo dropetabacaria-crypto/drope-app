@@ -168,6 +168,30 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section">
+    <h2>⏰ funcionamento</h2>
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">aparecer para clientes</div>
+          <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">sua loja aparece no app e recebe pedidos</div>
+        </div>
+        <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">🟢 online</button>
+      </div>
+      <div id="horario-box">
+        <div class="pf-lbl" style="margin-top:16px">dias que abre</div>
+        <div id="dias-row" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="display:flex;gap:12px;margin-top:14px">
+          <div style="flex:1"><label class="pf-lbl">abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
+          <div style="flex:1"><label class="pf-lbl">fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
+        </div>
+        <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">🕒 o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
+      </div>
+      <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">salvar horário ✦</button>
+      <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+    </div>
+  </div>
+
+  <div class="section">
     <h2>🎨 minha loja</h2>
     <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
@@ -375,6 +399,7 @@ function render(d) {
   document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
   document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
+  try { renderHorario((f.profile || {}).hours); } catch(e) {}
   document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
   document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents) + ' faturado';
@@ -777,6 +802,51 @@ function renderLojaProfile(prof, endereco) {
   if (cepEl && document.activeElement !== cepEl && endereco.cep) cepEl.value = endereco.cep.length > 5 ? endereco.cep.slice(0, 5) + '-' + endereco.cep.slice(5) : endereco.cep;
   if (addrEl && document.activeElement !== addrEl && endereco.address) addrEl.value = endereco.address;
   renderLojaPreview();
+}
+
+// ===== Funcionamento (horário + dias + visibilidade online) =====
+const DIAS = [[0, 'D'], [1, 'S'], [2, 'T'], [3, 'Q'], [4, 'Q'], [5, 'S'], [6, 'S']];
+let _online = true;
+let _diasSel = new Set([0, 1, 2, 3, 4, 5, 6]);
+function renderDias() {
+  const row = document.getElementById('dias-row'); if (!row) return;
+  row.innerHTML = DIAS.map(([n, l]) => {
+    const on = _diasSel.has(n);
+    return `<button type="button" onclick="toggleDia(${n})" data-d="${n}" style="width:40px;height:40px;border-radius:11px;border:1px solid ${on ? 'var(--green)' : 'var(--border)'};background:${on ? 'rgba(74,222,128,0.16)' : 'transparent'};color:${on ? 'var(--green)' : 'var(--fg-dim)'};font-weight:800;cursor:pointer;font-family:inherit;font-size:14px">${l}</button>`;
+  }).join('');
+}
+function toggleDia(n) { n = +n; if (_diasSel.has(n)) _diasSel.delete(n); else _diasSel.add(n); renderDias(); }
+function toggleOnline() { _online = !_online; renderOnline(); }
+function renderOnline() {
+  const b = document.getElementById('online-toggle'), h = document.getElementById('online-hint'), box = document.getElementById('horario-box');
+  if (b) { b.textContent = _online ? '🟢 online' : '⚪ offline'; }
+  if (h) { h.textContent = _online ? 'sua loja aparece no app e recebe pedidos' : 'sua loja fica ESCONDIDA do app'; h.style.color = _online ? 'var(--fg-dim)' : 'var(--pink)'; }
+  if (box) { box.style.opacity = _online ? '1' : '0.45'; box.style.pointerEvents = _online ? 'auto' : 'none'; }
+}
+async function saveHorario() {
+  const abre = (document.getElementById('hora-abre').value || '09:00');
+  const fecha = (document.getElementById('hora-fecha').value || '22:00');
+  const msg = document.getElementById('horario-msg');
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  const hours = { enabled: _online, days: [..._diasSel].sort((a, b) => a - b), open: abre, close: fecha };
+  try {
+    const r = await fetch('/api/webhook?action=filial_profile_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, hours }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'horário salvo ✦'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+}
+function renderHorario(hours) {
+  hours = hours || {};
+  _online = hours.enabled !== false;
+  if (Array.isArray(hours.days) && hours.days.length) _diasSel = new Set(hours.days.map(Number));
+  const a = document.getElementById('hora-abre'), f = document.getElementById('hora-fecha');
+  if (a && hours.open) a.value = hours.open;
+  if (f && hours.close) f.value = hours.close;
+  renderDias(); renderOnline();
 }
 
 function renderPedidoCard(p, isEntregue) {

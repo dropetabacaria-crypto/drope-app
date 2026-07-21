@@ -1067,6 +1067,7 @@
   .loja-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
   .lc-chip { font-size: 11px; font-weight: 600; color: var(--text-dim); background: rgba(255,255,255,0.05); border-radius: 100px; padding: 3px 9px; white-space: nowrap; }
   .lc-chip.open { color: var(--lime); background: rgba(212,255,46,0.12); }
+  .lc-chip.closed { color: #FF6B6B; background: rgba(255,107,107,0.14); }
   .lc-chip.new { color: var(--pink); background: rgba(255,45,111,0.12); }
   .loja-fav { position: absolute; top: 12px; right: 12px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); cursor: pointer; }
   .loja-fav svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; }
@@ -7650,6 +7651,13 @@
     applyLojaTheme(loja);
     const nm = loja.name || CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
     const bio = loja.bio;
+    const on = loja.open_now;
+    const lh = loja.hours || {};
+    const statusLine = (on === true)
+      ? `<span style="color:#4ADE80;font-weight:700">🟢 aberta agora</span>${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}`
+      : (on === false)
+        ? `<span style="color:#FF6B6B;font-weight:700">🔴 fechada agora</span>${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}`
+        : '🟢 aberto ✦ entrega em minutos';
     const img = loja.photo_url
       ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:60px;height:60px;border-radius:16px;object-fit:cover;flex:0 0 auto;box-shadow:0 4px 14px rgba(0,0,0,0.3)">`
       : `<div style="width:60px;height:60px;border-radius:16px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:28px">🏪</div>`;
@@ -7659,7 +7667,8 @@
           <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(nm)}</div>
           <span onclick="event.stopPropagation();trocarFilialCliente()" style="color:var(--store-accent,var(--lime));font-weight:700;font-size:12px;flex:0 0 auto;cursor:pointer">trocar ›</span>
         </div>
-        ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : '<div style="font-size:12.5px;color:var(--text-dim);margin-top:3px">🟢 aberto ✦ entrega em minutos</div>'}
+        ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : ''}
+        <div style="font-size:12px;color:var(--text-dim);margin-top:3px">${statusLine}</div>
       </div>`;
   }
   // Trocar filial via menu (botão no perfil)
@@ -7725,7 +7734,9 @@
       `<span class="lc-chip time">⏱ 20-40 min</span>`,
       f.produtos ? `<span class="lc-chip">📦 ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
       cityTc ? `<span class="lc-chip">🏙️ ${escapeHtml(cityTc)}</span>` : '',
-      `<span class="lc-chip open">🟢 aberto</span>`,
+      (f.open_now === false)
+        ? `<span class="lc-chip closed">🔴 fechada</span>`
+        : `<span class="lc-chip open">🟢 aberto${f.open_now === true ? 'a' : ''}</span>`,
     ].filter(Boolean).join('');
     const fav = _isFavStore(f.slug);
     return `<div class="loja-card" onclick="pickClientFilial('${escapeHtml(f.slug)}')">
