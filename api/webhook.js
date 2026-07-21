@@ -13303,6 +13303,64 @@ async function handleHomePersonalized(req, res) {
       });
     }
 
+    // ESCOPO POR LOJA — o card "dropar de novo" só aparece na loja onde o cliente
+    // REALMENTE comprou (não em todas). Se veio ?filial=slug, busca o último pedido
+    // DAQUELA loja; se o cliente nunca comprou ali, last_order = null (vira vibe chips).
+    if (params.filial) {
+      const fslug = String(params.filial).toLowerCase().trim();
+      const norm = (s) => { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; };
+      const wantPhone = norm(customer.phone);
+      let storeLastOrder = null;
+      try {
+        const frows = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(fslug)}&select=id&limit=1`);
+        const fid = frows[0] && frows[0].id;
+        if (fid && wantPhone.length >= 10) {
+          const ords = await sbGet('drope_orders',
+            `filial_id=eq.${fid}&status=not.eq.expired&select=items,customer_snapshot,created_at&order=created_at.desc&limit=200`);
+          const recent = (Array.isArray(ords) ? ords : [])
+            .find(o => norm(o.customer_snapshot && o.customer_snapshot.phone) === wantPhone);
+          if (recent) {
+            const its = Array.isArray(recent.items) ? recent.items : [];
+            const pid = (its.find(i => i && i.product_id) || {}).product_id;
+            if (pid) {
+              const lp = await sbGet('drope_products',
+                `id=eq.${encodeURIComponent(pid)}&filial_id=eq.${fid}&select=id,slug,name,image_url,price_cents,qty_available,metadata,flavor_category&limit=1`);
+              if (lp[0]) {
+                const p = lp[0];
+                const lastDate = recent.created_at ? new Date(recent.created_at) : null;
+                const daysAgo = lastDate ? Math.max(0, Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24))) : null;
+                const meta = p.metadata || {};
+                const flavorName = (meta.flavor_pt || meta.flavor_en || '').toString();
+                storeLastOrder = {
+                  product_id: p.id, slug: p.slug, product_name: p.name,
+                  product_image: p.image_url || null,
+                  product_price: (p.price_cents || 0) / 100,
+                  flavor_category: p.flavor_category || 'other',
+                  flavor: flavorName, brand: meta.brand || null, model: meta.model || null,
+                  days_ago: daysAgo,
+                  in_stock: typeof p.qty_available === 'number' ? p.qty_available > 0 : true,
+                  emoji: emojiForFlavor(flavorName.toLowerCase()),
+                };
+              }
+            }
+          }
+        }
+      } catch (e) { console.warn('[home_personalized] store-scope err:', e.message); }
+      return res.status(200).json({
+        type: 'returning',
+        customer_id: customer.id,
+        customer_name: customer.name || null,
+        flavor_profile: customer.flavor_profile || {},
+        favorite_flavor: customer.favorite_flavor || null,
+        favorite_brand: customer.favorite_brand || null,
+        total_orders: totalOrders,
+        last_order: storeLastOrder,
+        recommendations: [],
+        vibe_options: VIBE_OPTIONS,
+        generated_at: new Date().toISOString(),
+      });
+    }
+
     // Cliente recorrente → busca último produto e monta card "dropar de novo"
     let lastOrder = null;
     if (customer.last_product_id) {

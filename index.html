@@ -10549,15 +10549,20 @@
     return raw.replace(/\D/g, '');
   }
 
+  let __personalizedHomeKey = '';
   async function fetchPersonalizedHome(force = false) {
     const phone = getCustomerPhoneClean();
     const now = Date.now();
-    if (!force && __personalizedHomeCache && (now - __personalizedHomeAt) < PERSONALIZED_HOME_TTL) {
+    // chave inclui a LOJA — trocar de loja invalida o cache (o "último drop" é por loja)
+    const key = phone + '|' + (CLIENT_FILIAL || '');
+    if (!force && __personalizedHomeCache && key === __personalizedHomeKey && (now - __personalizedHomeAt) < PERSONALIZED_HOME_TTL) {
       return __personalizedHomeCache;
     }
+    __personalizedHomeKey = key;
+    const filialQS = CLIENT_FILIAL ? `&filial=${encodeURIComponent(CLIENT_FILIAL)}` : '';
     const url = phone
-      ? `/api/webhook?action=home_personalized&customer_phone=${encodeURIComponent(phone)}`
-      : `/api/webhook?action=home_personalized`;
+      ? `/api/webhook?action=home_personalized&customer_phone=${encodeURIComponent(phone)}${filialQS}`
+      : `/api/webhook?action=home_personalized${filialQS}`;
     try {
       const r = await fetch(url, { cache: 'no-store' });
       if (!r.ok) { console.warn('[home_personalized] http', r.status); return null; }
