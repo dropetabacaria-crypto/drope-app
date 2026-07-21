@@ -6258,7 +6258,7 @@
 
   function enterApp() {
     try { localStorage.setItem('drope_age_confirmed', '1'); } catch(e) {}
-    go('inicio');
+    _entryGo();
   }
 
   function updateAgeBtn() {
@@ -6278,7 +6278,7 @@
     // de visitante" persistida.
     if (!(profile && profile.onboarded)) { profile.onboarded = false; }
     updateProfileAvatar();
-    go('inicio');
+    _entryGo();
   }
 
   function ageDeny() {
@@ -6579,6 +6579,12 @@
     const b = document.getElementById('lj-submit'); if (b) { b.disabled = true; b.style.opacity = 0.4; b.textContent = 'cadastrar loja ✦'; }
   }
 
+  // Deep link de loja (QR do lojista): guarda o slug até o onboard terminar.
+  let _pendingLojaSlug = null;
+  function _entryGo() {
+    if (_pendingLojaSlug) { const s = _pendingLojaSlug; _pendingLojaSlug = null; if (typeof pickClientFilial === 'function') { pickClientFilial(s); return; } }
+    go('inicio');
+  }
   function _splashSkip() {
     let confirmed = false;
     try { confirmed = localStorage.getItem('drope_age_confirmed') === '1'; } catch(e) {}
@@ -6606,6 +6612,16 @@
         setTimeout(loadMyOrders, 12000);
         toast('pagamento recebido ✦ acompanhe teu pedido');
         return;
+      }
+    } catch(e) {}
+    // Deep link: drope-app.vercel.app/?loja=SLUG → abre a loja direto (QR do lojista).
+    try {
+      const u3 = new URL(window.location.href);
+      const lojaSlug = (u3.searchParams.get('loja') || '').toLowerCase().trim();
+      if (lojaSlug) {
+        history.replaceState(null, '', u3.origin + u3.pathname);
+        if (confirmed) { pickClientFilial(lojaSlug); return; }
+        _pendingLojaSlug = lojaSlug; go('onboard'); return;
       }
     } catch(e) {}
     // Landing = descoberta de tabacarias (Início), estilo Rappi.
