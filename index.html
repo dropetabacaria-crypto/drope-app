@@ -1079,6 +1079,14 @@
   .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 3px; line-height: 1.35; }
   .inicio-banner .ib-emoji { font-size: 42px; margin-left: auto; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
+  /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
+  body.loja-light {
+    --bg: #F5F3FB; --card: #FFFFFF; --card-hi: #F0ECF8;
+    --text: #191426; --text-dim: #6B6480; --border: #E7E2F1;
+  }
+  body.loja-light .app::after { opacity: 0.05; } /* escamas mais suaves no claro */
+  body.loja-light .search-bar { background: #F0ECF8; }
+  body.loja-light .nav { background: linear-gradient(180deg, #ffffff, #f2eefb); }
 
   /* Detail screen */
   .top-bar {
@@ -4216,7 +4224,7 @@
     </div>
 
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
-    <div id="home-loja-bar" onclick="trocarFilialCliente()" style="display:flex;align-items:center;gap:8px;margin:0 20px 4px;padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;font-size:13px;color:var(--text);cursor:pointer"></div>
+    <div id="home-loja-bar" style="display:flex;align-items:center;gap:14px;margin:0 20px 6px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,0.25)"></div>
 
     <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
     <div class="search-bar-wrap">
@@ -7608,21 +7616,33 @@
   }
   // Cabeçalho da loja (foto + nome + bio) na home — estilo iFood
   let CLIENT_LOJA = null;
+  // Aplica o tema (fundo claro/escuro) + cor de destaque da loja na PÁGINA do cliente.
+  // Mantém a essência DROPE (escamas/aurora continuam).
+  function applyLojaTheme(loja) {
+    loja = loja || {};
+    const light = loja.theme === 'light';
+    document.body.classList.toggle('loja-light', light);
+    const acc = /^#[0-9a-fA-F]{6}$/.test(loja.accent || '') ? loja.accent : '';
+    document.documentElement.style.setProperty('--store-accent', acc || 'var(--lime)');
+  }
   function renderLojaBar() {
     const el = document.getElementById('home-loja-bar');
     if (!el) return;
     const loja = CLIENT_LOJA || {};
+    applyLojaTheme(loja);
     const nm = loja.name || CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
     const bio = loja.bio;
     const img = loja.photo_url
-      ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
-      : `<div style="width:46px;height:46px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px">🏪</div>`;
+      ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:60px;height:60px;border-radius:16px;object-fit:cover;flex:0 0 auto;box-shadow:0 4px 14px rgba(0,0,0,0.3)">`
+      : `<div style="width:60px;height:60px;border-radius:16px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:28px">🏪</div>`;
     el.innerHTML = `${img}
       <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(nm)}</div>
-        ${bio ? `<div style="font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(bio)}</div>` : ''}
-      </div>
-      <span style="color:var(--lime);font-weight:700;font-size:12px;flex:0 0 auto">trocar ›</span>`;
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(nm)}</div>
+          <span onclick="event.stopPropagation();trocarFilialCliente()" style="color:var(--store-accent,var(--lime));font-weight:700;font-size:12px;flex:0 0 auto;cursor:pointer">trocar ›</span>
+        </div>
+        ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : '<div style="font-size:12.5px;color:var(--text-dim);margin-top:3px">🟢 aberto ✦ entrega em minutos</div>'}
+      </div>`;
   }
   // Trocar filial via menu (botão no perfil)
   function trocarFilialCliente() {
@@ -9295,6 +9315,10 @@
       b.classList.toggle('active', s === screen || (homeish && s === 'inicio'));
     });
     window.scrollTo(0, 0);
+    // tema da loja (claro/cor) vale só DENTRO da loja; fora volta pro DROPE dark
+    const inStore = (screen === 'home' || screen === 'catalog' || screen === 'detail' || screen === 'cart' || screen === 'checkout');
+    if (inStore) { try { applyLojaTheme(CLIENT_LOJA); } catch (e) {} }
+    else { document.body.classList.remove('loja-light'); document.documentElement.style.removeProperty('--store-accent'); }
     if (screen === 'inicio') renderInicio();
     if (screen === 'ofertas') renderOfertas();
     if (screen === 'cart') renderCart();
