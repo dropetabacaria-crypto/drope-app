@@ -194,6 +194,24 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section">
+    <h2>🧩 meus filtros</h2>
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">crie filtros pra organizar seu catálogo (ex: Cervejas, Drinks, Garrafas). o cliente vê como categorias no app. dê uma imagem (envie a sua ou gere com IA no estilo DROPE).</div>
+      <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+      <label class="pf-lbl">novo filtro</label>
+      <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas">
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">📷 enviar imagem</button>
+        <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">✨ gerar com IA</button>
+      </div>
+      <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
+      <label class="pf-lbl" style="margin-top:12px;font-size:11px">imagem de referência p/ a IA (opcional)</label>
+      <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
+      <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
+    </div>
+    </div>
+
+    <div class="section">
     <h2>🎨 minha loja</h2>
     <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
@@ -410,6 +428,7 @@ function render(d) {
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
   try { renderHorario((f.profile || {}).hours); } catch(e) {}
   try { renderSegs(f.segmentos); } catch(e) {}
+  try { renderFiltros(f.filtros); } catch(e) {}
   document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
   document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents) + ' faturado';
@@ -709,6 +728,69 @@ function _bioCount() { const b = document.getElementById('loja-bio'), c = docume
 function _segs() { return [...document.querySelectorAll('#seg-row .seg-btn.active')].map(b => b.dataset.seg); }
 function toggleSeg(el) { el.classList.toggle('active'); if (_segs().length === 0) el.classList.add('active'); }
 function renderSegs(segs) { segs = (Array.isArray(segs) && segs.length) ? segs : ['tabacaria']; document.querySelectorAll('#seg-row .seg-btn').forEach(b => b.classList.toggle('active', segs.includes(b.dataset.seg))); }
+
+// ===== Filtros custom da loja =====
+let _filtros = [];
+function renderFiltros(list) {
+  _filtros = Array.isArray(list) ? list : [];
+  const el = document.getElementById('filtros-list'); if (!el) return;
+  if (!_filtros.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-dim)">nenhum filtro ainda ✦ crie o primeiro abaixo</div>'; return; }
+  el.innerHTML = _filtros.map(f => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px">
+    ${f.image_url ? `<img src="${f.image_url}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto">` : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex:0 0 auto">🧩</div>'}
+    <div style="flex:1;min-width:0;font-size:14px;font-weight:600">${(f.nome || '').replace(/[<>&]/g, '')}</div>
+    <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 12px">apagar</button>
+  </div>`).join('');
+}
+async function _saveFiltro(extra, silent) {
+  const msg = document.getElementById('filtro-msg');
+  try {
+    const r = await fetch('/api/webhook?action=filial_filtro_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'save' }, extra)),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { renderFiltros(d.filtros); if (!silent) { msg.style.color = 'var(--green)'; msg.textContent = 'filtro salvo ✦'; document.getElementById('filtro-nome').value = ''; } return true; }
+    msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); return false;
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; return false; }
+}
+async function onFiltroFile(input) {
+  const nome = (document.getElementById('filtro-nome').value || '').trim();
+  const msg = document.getElementById('filtro-msg');
+  if (!nome) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome do filtro primeiro'; input.value = ''; return; }
+  const b64 = await _fileToDataUrl(input.files[0], 800); input.value = ''; if (!b64) return;
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando imagem...';
+  await _saveFiltro({ nome, photo_base64: b64 });
+}
+async function gerarFiltroIA() {
+  const nome = (document.getElementById('filtro-nome').value || '').trim();
+  const msg = document.getElementById('filtro-msg');
+  if (!nome) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome do filtro primeiro'; return; }
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando filtro...';
+  const ok = await _saveFiltro({ nome }, true); if (!ok) return;
+  const novo = _filtros.find(f => f.nome === nome) || _filtros[_filtros.length - 1];
+  const refInput = document.getElementById('filtro-ref');
+  let ref = null; if (refInput && refInput.files && refInput.files[0]) ref = await _fileToDataUrl(refInput.files[0], 1024);
+  msg.textContent = 'gerando imagem com IA... (pode levar ~15s)';
+  try {
+    const r = await fetch('/api/webhook?action=filial_filtro_art', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: novo && novo.id, nome, ref_base64: ref }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'imagem gerada ✦'; document.getElementById('filtro-nome').value = ''; if (refInput) refInput.value = ''; loadData(true); }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+}
+async function delFiltro(id) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_filtro_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'delete', id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d && d.ok) renderFiltros(d.filtros);
+  } catch (e) {}
+}
 function setPageTheme(t) {
   _pageTheme = t;
   const d = document.getElementById('th-dark'), l = document.getElementById('th-light');

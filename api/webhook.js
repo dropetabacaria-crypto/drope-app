@@ -4603,6 +4603,7 @@ async function handleFilialPainel(req, res) {
         profile: (filial.metadata || {}).profile || {},
         endereco: (filial.metadata || {}).endereco || {},
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
+        filtros: (filial.metadata || {}).filtros || [],
       },
       saldo_pendente_cents: saldoPendenteCents,
       vendas_mes: pedidos.length,
@@ -6481,6 +6482,151 @@ async function generateVibeScene(vibe) {
     return null;
   }
   return data.data?.[0]?.url || null;
+}
+
+// ============ FILTROS CUSTOM DA LOJA (self-service) ============
+// Cada loja cria seus próprios filtros (ex: cervejas, drinks, garrafas) e dá
+// uma imagem (upload OU gerada por IA no estilo DROPE). Guardado em
+// drope_filiais.metadata.filtros = [{ id, nome, image_url, ordem }].
+
+// Mapa de temas pt -> descrição em inglês pro prompt de imagem.
+const _FILTRO_SUBJECTS = {
+  cerveja: 'cold craft beer bottles and cans with frost and condensation droplets',
+  vinho: 'elegant wine bottles and a glass of red wine',
+  espumante: 'a champagne bottle and glasses with rising bubbles',
+  drink: 'colorful ready-to-drink canned cocktails with citrus and ice',
+  coquetel: 'colorful ready-to-drink canned cocktails with citrus and ice',
+  garrafa: 'premium liquor bottles lined up',
+  whisky: 'a whisky bottle and a glass with large ice cubes',
+  vodka: 'a frosted vodka bottle with ice',
+  gin: 'a gin bottle with botanicals, citrus and ice',
+  energetico: 'energy drink cans, cold with condensation',
+  refrigerante: 'cold soda cans and bottles with condensation',
+  gelo: 'crystal-clear ice cubes and frozen shards with cold mist',
+  narguile: 'a hookah with fruit and glowing coals, atmospheric smoke',
+  essencia: 'colorful hookah flavor tins with fresh fruit',
+  carvao: 'natural hookah charcoal cubes glowing subtly',
+  cigarro: 'cigarette packs arranged neatly',
+  seda: 'rolling papers packs and filter tips',
+  isqueiro: 'colorful lighters arranged in a row',
+  pod: 'sleek disposable vape devices in vivid neon colors',
+};
+function _filtroSubject(nome) {
+  const k = String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  for (const key in _FILTRO_SUBJECTS) { if (k.includes(key)) return _FILTRO_SUBJECTS[key]; }
+  return `${nome}, premium products still-life`;
+}
+
+// Cena estilo DROPE (dark neon still-life) pra imagem de um filtro.
+async function generateFilterScene(subjectEn) {
+  if (!XAI_API_KEY) { console.error('[generateFilterScene] XAI_API_KEY missing'); return null; }
+  const prompt = [
+    `Dark cinematic product photography. HERO SUBJECT centered in frame: ${subjectEn}, arranged as a beautiful still-life on a matte black reflective surface with subtle mirror reflections.`,
+    `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space.`,
+    `Atmospheric vapor/smoke drifting across the scene — wispy, translucent, catching neon rim lights with subtle pink (#FF2D6F) and acid green (#D4FF2E) tints, faint ultraviolet (#7B2FBE) fill.`,
+    `Low-key cinematic lighting: soft cool white key from upper-left, neon pink and lime as thin rim highlights. Glossy, high detail, premium.`,
+    `NO people, NO hands. NO text, NO watermarks, NO labels.`,
+    `Square format 1024x1024.`,
+  ].join(' ');
+  const t0 = Date.now();
+  const r = await fetch('https://api.x.ai/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
+    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
+  });
+  const data = await r.json();
+  logApiCost('grok_filtro', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
+  if (r.status >= 400) { console.error('[generateFilterScene] error:', JSON.stringify(data).slice(0, 300)); return null; }
+  return data.data?.[0]?.url || null;
+}
+
+// Descreve uma imagem de referência (1 frase em inglês) pra alimentar o gerador.
+async function _describeRefImage(base64) {
+  if (!CLAUDE_KEY || !base64) return null;
+  try {
+    const clean = base64.replace(/^data:image\/\w+;base64,/, '');
+    const mt = (base64.match(/^data:(image\/\w+);/) || [])[1] || 'image/jpeg';
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 120,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mt, data: clean } },
+          { type: 'text', text: 'Descreva em UMA frase curta em inglês o SUJEITO principal e as cores desta imagem, pra usar como prompt de geração de imagem (ex: "cold craft beer bottles with condensation"). Responda só a frase, sem aspas.' },
+        ] }],
+      }),
+    });
+    const d = await r.json();
+    const txt = (d && d.content && d.content[0] && d.content[0].text) || '';
+    return txt.trim().slice(0, 200) || null;
+  } catch (e) { console.warn('[_describeRefImage]', e.message); return null; }
+}
+
+// POST action=filial_filtro_save — cria/edita/apaga um filtro da loja.
+async function handleFilialFiltroSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    let filtros = Array.isArray(md.filtros) ? md.filtros : [];
+    if ((body.op || 'save') === 'delete') {
+      filtros = filtros.filter(f => f.id !== body.id);
+    } else {
+      const nome = String(body.nome || '').trim().slice(0, 30);
+      if (!nome) return res.status(400).json({ ok: false, error: 'nome do filtro vazio' });
+      let f = filtros.find(x => x.id === body.id);
+      if (!f) { const id = 'f' + Date.now().toString(36); f = { id, nome, image_url: null, ordem: filtros.length }; filtros.push(f); }
+      f.nome = nome;
+      if (body.photo_base64) {
+        const url = await uploadToStorage(`filtro-${filial.id}-${f.id}`, String(body.photo_base64), 'image/jpeg');
+        if (url) f.image_url = url + '?v=' + Date.now();
+        else return res.status(502).json({ ok: false, error: 'falha ao salvar a imagem' });
+      }
+    }
+    md.filtros = filtros;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, filtros });
+  } catch (e) { console.error('[filial_filtro_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_filtro_art — gera a imagem do filtro por IA (estilo DROPE).
+async function handleFilialFiltroArt(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const nome = String(body.nome || '').trim();
+    if (!nome) return res.status(400).json({ ok: false, error: 'nome do filtro vazio' });
+    let subject = _filtroSubject(nome);
+    if (body.ref_base64) { const desc = await _describeRefImage(body.ref_base64); if (desc) subject = desc; }
+    const tempUrl = await generateFilterScene(subject);
+    if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
+    const imgResp = await fetch(tempUrl);
+    const buf = Buffer.from(await imgResp.arrayBuffer());
+    const id = body.id || ('f' + Date.now().toString(36));
+    const url = await uploadToStorage(`filtro-${filial.id}-${id}`, buf, 'image/png');
+    if (!url) return res.status(502).json({ ok: false, error: 'falha ao salvar a imagem' });
+    const image_url = url + '?v=' + Date.now();
+    if (body.id) {
+      const md = filial.metadata || {};
+      const filtros = Array.isArray(md.filtros) ? md.filtros : [];
+      const f = filtros.find(x => x.id === body.id);
+      if (f) { f.image_url = image_url; md.filtros = filtros; await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md }); }
+    }
+    return res.status(200).json({ ok: true, image_url });
+  } catch (e) { console.error('[filial_filtro_art] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // Composite: cola o pod recortado (com alpha) no cenário gerado.
@@ -18409,6 +18555,14 @@ async function generateAll(){
   // action=filial_profile_save — POST: foto + descrição + prefs da loja
   if (req.url && req.url.indexOf('action=filial_profile_save') >= 0) {
     return await handleFilialProfileSave(req, res);
+  }
+  // action=filial_filtro_save — POST: lojista cria/edita/apaga filtro da loja
+  if (req.url && req.url.indexOf('action=filial_filtro_save') >= 0) {
+    return await handleFilialFiltroSave(req, res);
+  }
+  // action=filial_filtro_art — POST: lojista gera a imagem do filtro por IA
+  if (req.url && req.url.indexOf('action=filial_filtro_art') >= 0) {
+    return await handleFilialFiltroArt(req, res);
   }
   // action=admin_token — POST: devolve o ADMIN_TOKEN mediante a senha do painel
   if (req.url && req.url.indexOf('action=admin_token') >= 0) {
