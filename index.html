@@ -1086,11 +1086,18 @@
   .lc-chip.time { color: #cdbcff; background: rgba(140,80,255,0.16); }
   .lc-chip.dist { color: var(--lime); background: rgba(212,255,46,0.14); font-weight: 700; }
   /* Banner hero do Início */
-  .inicio-banner { display: flex; align-items: center; gap: 12px; margin: 18px 0 6px; padding: 16px 18px; border-radius: 20px; background: linear-gradient(120deg, #5B21B6, #B026FF 52%, #FF2D6F); box-shadow: 0 12px 34px rgba(176,38,255,0.38); position: relative; overflow: hidden; }
+  /* Degradê do card = degradê da foto (rosa à esquerda → roxo à direita). */
+  .inicio-banner { display: flex; align-items: center; gap: 12px; margin: 18px 0 6px; padding: 14px 18px; border-radius: 20px; background: linear-gradient(105deg, #ED1D69 0%, #B01C8F 48%, #6318BD 100%); box-shadow: 0 12px 34px rgba(176,38,255,0.38); position: relative; overflow: hidden; }
   .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 18px; color: #fff; }
   .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 3px; line-height: 1.35; }
-  /* Arte do DROPE na moto — pequena, à direita, no lugar do antigo emoji. Inteira (contain), nunca cortada. */
-  .inicio-banner .ib-moto { width: 118px; height: 74px; object-fit: contain; margin-left: auto; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); border-radius: 12px; }
+  /* Arte do DROPE na moto — SEM fundo (transparente), encaixa direto no degradê do card. */
+  .inicio-banner .ib-moto-wrap { position: relative; margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; }
+  .inicio-banner .ib-moto { height: 100px; width: auto; display: block; position: relative; z-index: 1; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4)); transform-origin: 62% 88%; animation: motoRide 0.55s ease-in-out infinite; }
+  /* Linhas de velocidade (efeito "dirigindo"), atrás da moto */
+  .inicio-banner .ib-moto-wrap::before { content: ''; position: absolute; z-index: 0; left: -76px; top: 28%; width: 84px; height: 46%; background: repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 7px, rgba(255,255,255,0.45) 7px 9px, rgba(255,255,255,0) 9px 15px); -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%, transparent); mask-image: linear-gradient(90deg, transparent, #000 50%, transparent); animation: motoSpeed 0.35s linear infinite; pointer-events: none; }
+  @keyframes motoRide { 0%, 100% { transform: translateY(0) rotate(-0.7deg); } 50% { transform: translateY(-5px) rotate(0.7deg); } }
+  @keyframes motoSpeed { from { background-position-x: 0; } to { background-position-x: -15px; } }
+  @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto { animation: none; } .inicio-banner .ib-moto-wrap::before { display: none; } }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
   /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
   body.loja-light {
@@ -4224,7 +4231,9 @@
           <div class="ib-title">drops em minutos ✦</div>
           <div class="ib-sub">peça da tabacaria mais perto<br>e receba voando 🦎</div>
         </div>
-        <img class="ib-moto" src="icons/drope-moto.jpg" alt="DROPE na moto" draggable="false">
+        <div class="ib-moto-wrap">
+          <img class="ib-moto" src="icons/drope-moto.png" alt="DROPE na moto" draggable="false">
+        </div>
       </div>
       <div class="inicio-sec-lbl">Tabacarias disponíveis</div>
     </div>
