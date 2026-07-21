@@ -175,19 +175,31 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="flex:1">
           <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">📷 foto da loja</button>
           <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no marketplace</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
         </div>
       </div>
-      <label class="pf-lbl">descrição da loja</label>
-      <textarea class="pf-input" id="loja-bio" maxlength="280" placeholder="ex: a tabacaria mais raiz de Santos ✦ entrega rápida"></textarea>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:14px 0 4px">
-        <span style="font-size:13px;color:var(--fg-dim)">tema do painel</span>
+      <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
+      <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
+
+      <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
+      <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
+      <label class="pf-lbl">endereço (rua e número)</label>
+      <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
+      <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
+
+      <div class="pf-lbl" style="margin-top:16px">🎨 aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+        <span style="font-size:13px;color:var(--fg-dim)">fundo</span>
         <div class="theme-toggle">
-          <button id="th-dark" class="th-opt" onclick="setTheme('dark')">🌙 escuro</button>
-          <button id="th-light" class="th-opt" onclick="setTheme('light')">☀️ claro</button>
+          <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">🌙 escuro</button>
+          <button id="th-light" class="th-opt" onclick="setPageTheme('light')">☀️ claro</button>
         </div>
       </div>
-      <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:8px">salvar ✦</button>
+      <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">cor de destaque</div>
+      <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
+
+      <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">salvar ✦</button>
       <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
   </div>
@@ -359,7 +371,7 @@ function render(d) {
   _filialName = f.name || '';
   document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
   document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
-  try { renderLojaProfile(f.profile); } catch(e) {}
+  try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
   document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
   document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents) + ' faturado';
@@ -648,16 +660,36 @@ async function saveBalanco() {
   if (!errs) setTimeout(() => { closeBalanco(); loadData(true); }, 800);
 }
 
-// ===================== Minha loja (foto + descrição + tema) =====================
+// ===== Minha loja: foto + bio + endereço + APARÊNCIA DA PÁGINA (tema/cor) =====
+// A aparência (tema/cor) é da PÁGINA que o cliente vê, NÃO deste painel.
 let _lojaPhotoB64 = null;
-function applyTheme(t) {
-  document.body.classList.toggle('light', t === 'light');
+let _pageTheme = 'dark';
+let _pageAccent = null;
+const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
+function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; }
+function setPageTheme(t) {
+  _pageTheme = t;
   const d = document.getElementById('th-dark'), l = document.getElementById('th-light');
   if (d) d.classList.toggle('active', t !== 'light');
   if (l) l.classList.toggle('active', t === 'light');
 }
-function setTheme(t) { try { localStorage.setItem('drope_filial_theme', t); } catch (e) {} applyTheme(t); }
-(function bootTheme() { let t = 'dark'; try { t = localStorage.getItem('drope_filial_theme') || 'dark'; } catch (e) {} applyTheme(t); })();
+function renderAccents() {
+  const wrap = document.getElementById('accent-swatches'); if (!wrap) return;
+  wrap.innerHTML = ACCENTS.map(c => `<div onclick="setAccent('${c}',this)" data-c="${c}" style="width:34px;height:34px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${_pageAccent === c ? '#fff' : 'transparent'};box-shadow:0 0 0 1px var(--border)"></div>`).join('');
+}
+function setAccent(c, el) {
+  _pageAccent = c;
+  document.querySelectorAll('#accent-swatches div').forEach(d => d.style.border = '3px solid ' + (d.dataset.c === c ? '#fff' : 'transparent'));
+}
+function _fmtLojaCep(el) { let d = el.value.replace(/\D/g, '').slice(0, 8); el.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d; }
+async function _lookupLojaCep() {
+  const cep = (document.getElementById('loja-cep').value || '').replace(/\D/g, '');
+  if (cep.length !== 8) return;
+  try {
+    const d = await (await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();
+    if (d && !d.erro) { const a = document.getElementById('loja-address'); if (a && !a.value.trim() && d.logradouro) a.value = d.logradouro + ', '; }
+  } catch (e) {}
+}
 async function onLojaFoto(input) {
   const file = input.files && input.files[0]; input.value = '';
   if (!file) return;
@@ -670,12 +702,15 @@ async function onLojaFoto(input) {
   } catch (e) {}
 }
 async function saveLojaProfile() {
-  const bio = (document.getElementById('loja-bio').value || '').trim();
-  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  const bio = (document.getElementById('loja-bio').value || '').trim().slice(0, 80);
+  const cep = (document.getElementById('loja-cep').value || '').replace(/\D/g, '');
+  const address = (document.getElementById('loja-address').value || '').trim();
   const msg = document.getElementById('loja-msg');
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
-  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, theme };
+  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, theme: _pageTheme };
+  if (_pageAccent) payload.accent = _pageAccent;
   if (_lojaPhotoB64) payload.photo_base64 = _lojaPhotoB64;
+  if (cep.length === 8) { payload.cep = cep; payload.address = address; }
   try {
     const r = await fetch('/api/webhook?action=filial_profile_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -686,14 +721,19 @@ async function saveLojaProfile() {
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
 }
-function renderLojaProfile(prof) {
-  prof = prof || {};
-  const bio = document.getElementById('loja-bio'); if (bio && document.activeElement !== bio) bio.value = prof.bio || '';
+function renderLojaProfile(prof, endereco) {
+  prof = prof || {}; endereco = endereco || {};
+  const bio = document.getElementById('loja-bio'); if (bio && document.activeElement !== bio) { bio.value = prof.bio || ''; _bioCount(); }
   if (prof.photo_url && !_lojaPhotoB64) {
     const el = document.getElementById('loja-foto');
     if (el) el.innerHTML = `<img src="${prof.photo_url}" style="width:100%;height:100%;object-fit:cover" draggable="false">`;
   }
-  if (prof.theme && !localStorage.getItem('drope_filial_theme')) applyTheme(prof.theme);
+  setPageTheme(prof.theme || 'dark');
+  _pageAccent = prof.accent || null;
+  renderAccents();
+  const cepEl = document.getElementById('loja-cep'), addrEl = document.getElementById('loja-address');
+  if (cepEl && document.activeElement !== cepEl && endereco.cep) cepEl.value = endereco.cep.length > 5 ? endereco.cep.slice(0, 5) + '-' + endereco.cep.slice(5) : endereco.cep;
+  if (addrEl && document.activeElement !== addrEl && endereco.address) addrEl.value = endereco.address;
 }
 
 function renderPedidoCard(p, isEntregue) {

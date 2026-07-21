@@ -4599,6 +4599,7 @@ async function handleFilialPainel(req, res) {
         founder_name: filial.founder_name,
         founder_share_cents: filial.founder_share_cents,
         profile: (filial.metadata || {}).profile || {},
+        endereco: (filial.metadata || {}).endereco || {},
       },
       saldo_pendente_cents: saldoPendenteCents,
       vendas_mes: pedidos.length,
@@ -4794,15 +4795,24 @@ async function handleFilialProfileSave(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     const md = filial.metadata || {};
     md.profile = md.profile || {};
-    if (typeof body.bio === 'string') md.profile.bio = body.bio.slice(0, 280);
+    if (typeof body.bio === 'string') md.profile.bio = body.bio.slice(0, 80); // bio máx 80
+    // tema + cor da PÁGINA da loja (o que o cliente vê)
     if (typeof body.theme === 'string' && ['dark', 'light'].includes(body.theme)) md.profile.theme = body.theme;
+    if (typeof body.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.accent)) md.profile.accent = body.accent;
     if (body.photo_base64) {
       const url = await uploadToStorage(`filial-${filial.id}-logo`, String(body.photo_base64), 'image/jpeg');
       if (url) md.profile.photo_url = url + '?v=' + Date.now();
       else return res.status(502).json({ ok: false, error: 'falha ao salvar a foto' });
     }
+    // endereço/CEP (edição pós-cadastro) → re-geocoda
+    const cep = String(body.cep || '').replace(/\D/g, '');
+    if (cep.length === 8) {
+      const address = String(body.address || '').trim();
+      md.endereco = { cep, address, city: filial.city || (md.endereco || {}).city || null };
+      try { const geo = await _cepToGeo(cep); if (geo && geo.lat) md.geo = { lat: geo.lat, lng: geo.lng, cep, neigh: geo.neigh || null, street: geo.street || null }; } catch (e) {}
+    }
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
-    return res.status(200).json({ ok: true, profile: md.profile });
+    return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
     console.error('[filial_profile_save] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
@@ -12957,7 +12967,7 @@ async function handleCatalog(req, res) {
     if (fr && fr[0]) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
-      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null };
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
 
