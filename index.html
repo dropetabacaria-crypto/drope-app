@@ -1086,15 +1086,11 @@
   .lc-chip.time { color: #cdbcff; background: rgba(140,80,255,0.16); }
   .lc-chip.dist { color: var(--lime); background: rgba(212,255,46,0.14); font-weight: 700; }
   /* Banner hero do Início */
-  .inicio-banner { position: relative; overflow: hidden; display: flex; align-items: flex-end; min-height: 128px; margin: 18px 0 6px; padding: 16px 18px; border-radius: 20px; background: linear-gradient(120deg, #5B21B6, #B026FF 52%, #FF2D6F); box-shadow: 0 12px 34px rgba(176,38,255,0.38); }
-  /* Arte do DROPE na moto (fundo). O gradiente do banner preenche a esquerda de
-     forma contínua com o da imagem; se a imagem faltar, o banner segue bonito. */
-  .inicio-banner .ib-art { position: absolute; inset: 0; z-index: 0; background-image: url('icons/drope-moto.jpg'); background-repeat: no-repeat; background-position: center; background-size: cover; }
-  /* Escurece a base pro texto branco ficar 100% legível (contraste). */
-  .inicio-banner .ib-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(0deg, rgba(20,2,40,0.92) 0%, rgba(20,2,40,0.55) 26%, rgba(20,2,40,0.08) 58%, rgba(20,2,40,0) 100%); }
-  .inicio-banner .ib-content { position: relative; z-index: 2; }
-  .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 19px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.45); }
-  .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.95); margin-top: 4px; line-height: 1.35; text-shadow: 0 1px 6px rgba(0,0,0,0.4); }
+  .inicio-banner { display: flex; align-items: center; gap: 12px; margin: 18px 0 6px; padding: 16px 18px; border-radius: 20px; background: linear-gradient(120deg, #5B21B6, #B026FF 52%, #FF2D6F); box-shadow: 0 12px 34px rgba(176,38,255,0.38); position: relative; overflow: hidden; }
+  .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 18px; color: #fff; }
+  .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 3px; line-height: 1.35; }
+  /* Arte do DROPE na moto — pequena, à direita, no lugar do antigo emoji. Inteira (contain), nunca cortada. */
+  .inicio-banner .ib-moto { width: 118px; height: 74px; object-fit: contain; margin-left: auto; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); border-radius: 12px; }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
   /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
   body.loja-light {
@@ -4224,12 +4220,11 @@
         <input id="inicio-search-input" placeholder="Buscar tabacaria..." autocomplete="off" oninput="filterInicio(this.value)">
       </div>
       <div class="inicio-banner">
-        <div class="ib-art"></div>
-        <div class="ib-scrim"></div>
-        <div class="ib-content">
+        <div>
           <div class="ib-title">drops em minutos ✦</div>
           <div class="ib-sub">peça da tabacaria mais perto<br>e receba voando 🦎</div>
         </div>
+        <img class="ib-moto" src="icons/drope-moto.jpg" alt="DROPE na moto" draggable="false">
       </div>
       <div class="inicio-sec-lbl">Tabacarias disponíveis</div>
     </div>
