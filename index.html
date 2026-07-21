@@ -1096,6 +1096,9 @@
   @keyframes motoRide { 0%, 100% { transform: translateY(0) rotate(-0.7deg); } 50% { transform: translateY(-5px) rotate(0.7deg); } }
   @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto-wrap { animation: none; } }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
+  .seg-tabs { display: flex; gap: 8px; margin-top: 16px; }
+  .seg-tab { flex: 0 0 auto; padding: 8px 16px; border-radius: 100px; border: 1px solid var(--border); background: var(--card); color: var(--text-dim); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .seg-tab.active { border-color: var(--lime); background: rgba(212,255,46,0.14); color: var(--text); }
   /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
   body.loja-light {
     --bg: #F5F3FB; --card: #FFFFFF; --card-hi: #F0ECF8;
@@ -2190,6 +2193,9 @@
   .lj-field { display: block; margin-bottom: 12px; }
   .lj-lbl { display: block; font-size: 12px; color: var(--text-dim); margin: 0 0 6px 2px; }
   .lj-row { display: flex; gap: 12px; align-items: flex-end; }
+  .lj-seg-row { display: flex; gap: 10px; }
+  .lj-seg { flex: 1; padding: 14px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--card); color: var(--text-dim); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .lj-seg.active { border-color: var(--lime); background: rgba(212,255,46,0.12); color: var(--text); }
   .lj-select {
     appearance: none; -webkit-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239a8fbf' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -4232,6 +4238,11 @@
           <img class="ib-moto" src="icons/drope-moto.png" alt="DROPE na moto" draggable="false">
         </div>
       </div>
+      <div class="seg-tabs" id="seg-tabs">
+        <button class="seg-tab active" data-seg="" onclick="setInicioSeg('', this)">Todas</button>
+        <button class="seg-tab" data-seg="tabacaria" onclick="setInicioSeg('tabacaria', this)">Tabacarias</button>
+        <button class="seg-tab" data-seg="adega" onclick="setInicioSeg('adega', this)">Adegas</button>
+      </div>
       <div class="inicio-sec-lbl">Escolha a sua</div>
     </div>
     <div id="inicio-list" style="padding: 4px 20px 8px"></div>
@@ -4344,10 +4355,18 @@
       <div style="width:40px"></div>
     </div>
     <div id="lojista-form-wrap" style="padding: 0 20px 40px">
-      <div class="onboard-title" style="margin-top:8px">Cadastre sua tabacaria</div>
-      <div class="onboard-sub" style="margin-bottom:8px">Venda seus pods no DROPE. Você recebe direto na sua conta ✦ a gente cuida do app, do catálogo e da entrega.</div>
+      <div class="onboard-title" style="margin-top:8px">Cadastre sua loja</div>
+      <div class="onboard-sub" style="margin-bottom:8px">Venda no DROPE. Você recebe direto na sua conta ✦ a gente cuida do app, do catálogo e da entrega.</div>
 
       <div class="lj-sec lj-sec-label">Sua loja</div>
+      <div class="lj-field">
+        <span class="lj-lbl">O que sua loja vende?</span>
+        <div class="lj-seg-row">
+          <button type="button" class="lj-seg active" data-seg="tabacaria" onclick="toggleLjSeg(this)">Tabacaria</button>
+          <button type="button" class="lj-seg" data-seg="adega" onclick="toggleLjSeg(this)">Adega</button>
+        </div>
+        <span style="font-size:11px;color:var(--text-dim);margin-top:6px;display:block">pode marcar os dois ✦</span>
+      </div>
       <label class="lj-field">
         <span class="lj-lbl">Nome da loja</span>
         <input id="lj-store" class="card-input" placeholder="ex: Tabacaria do Zé" maxlength="40" oninput="_ljBtn()">
@@ -4405,7 +4424,7 @@
     <div id="lojista-done-wrap" style="display:none; padding: 30px 20px; text-align:center">
       <div style="font-size:56px"></div>
       <div class="onboard-title" style="margin-top:8px">Loja cadastrada!</div>
-      <div class="onboard-sub" id="lj-done-msg" style="margin:10px 0 20px">Recebemos o cadastro da sua tabacaria.</div>
+      <div class="onboard-sub" id="lj-done-msg" style="margin:10px 0 20px">Recebemos o cadastro da sua loja.</div>
       <div style="background:rgba(255,255,255,0.04); border-radius:16px; padding:16px; text-align:left; font-size:13px; color:var(--text-dim); line-height:1.6">
         <b style="color:var(--text)">Seu painel já está pronto:</b><br>
         Entre com o <b style="color:var(--text)">email e senha</b> que você criou pra gerenciar seus produtos, estoque e pedidos.<br><br>
@@ -6460,6 +6479,12 @@
   // QUICK WIN (04/06 Andrade): splash 1.8s → 1.2s + skip ao toque na logo
   // ===== LOJISTA — cadastro de tabacaria (SaaS) =====
   function _ljPhoneDigits() { return (document.getElementById('lj-phone')?.value || '').replace(/\D/g, ''); }
+  function _ljSegs() { return [...document.querySelectorAll('.lj-seg.active')].map(b => b.dataset.seg); }
+  function toggleLjSeg(el) {
+    el.classList.toggle('active');
+    if (_ljSegs().length === 0) el.classList.add('active'); // sempre pelo menos 1
+    _ljBtn();
+  }
   function _ljBtn() {
     const d = _ljPhoneDigits();
     const email = (document.getElementById('lj-email')?.value || '').trim();
@@ -6523,7 +6548,7 @@
     try {
       const r = await fetch('/api/webhook?action=filial_register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password, cep, address }),
+        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password, cep, address, segmentos: _ljSegs() }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
@@ -7842,11 +7867,21 @@
       filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
     } catch (e) {}
   }
+  let _inicioSeg = ''; // '' = todas | 'tabacaria' | 'adega'
+  function setInicioSeg(seg, el) {
+    _inicioSeg = seg;
+    document.querySelectorAll('#seg-tabs .seg-tab').forEach(b => b.classList.toggle('active', b === el));
+    filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
+  }
   function filterInicio(q) {
     const list = document.getElementById('inicio-list');
     if (!list) return;
     q = (q || '').toLowerCase().trim();
-    const arr = _inicioLojas.filter(f => !q || (f.name || '').toLowerCase().includes(q) || (f.city || '').toLowerCase().includes(q));
+    const arr = _inicioLojas.filter(f => {
+      const segs = Array.isArray(f.segmentos) && f.segmentos.length ? f.segmentos : ['tabacaria'];
+      if (_inicioSeg && !segs.includes(_inicioSeg)) return false;
+      return !q || (f.name || '').toLowerCase().includes(q) || (f.city || '').toLowerCase().includes(q);
+    });
     // distância + ordena (mais perto primeiro; sem geo vai pro fim)
     if (_clientGeo) {
       arr.forEach(f => { f._km = (typeof f.lat === 'number' && typeof f.lng === 'number') ? _haversineKm(_clientGeo.lat, _clientGeo.lng, f.lat, f.lng) : null; });
@@ -7854,7 +7889,8 @@
     } else {
       arr.forEach(f => { f._km = null; });
     }
-    list.innerHTML = arr.length ? arr.map(_lojaCardHtml).join('') : '<div class="empty-mini">nenhuma tabacaria encontrada ✦</div>';
+    const vazio = _inicioSeg === 'adega' ? 'nenhuma adega encontrada ✦' : _inicioSeg === 'tabacaria' ? 'nenhuma tabacaria encontrada ✦' : 'nenhuma loja encontrada ✦';
+    list.innerHTML = arr.length ? arr.map(_lojaCardHtml).join('') : `<div class="empty-mini">${vazio}</div>`;
   }
   async function renderOfertas() {
     const list = document.getElementById('ofertas-list');

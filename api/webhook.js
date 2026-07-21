@@ -4602,6 +4602,7 @@ async function handleFilialPainel(req, res) {
         founder_share_cents: filial.founder_share_cents,
         profile: (filial.metadata || {}).profile || {},
         endereco: (filial.metadata || {}).endereco || {},
+        segmentos: _normSegmentos((filial.metadata || {}).segmentos),
       },
       saldo_pendente_cents: saldoPendenteCents,
       vendas_mes: pedidos.length,
@@ -4801,6 +4802,8 @@ async function handleFilialProfileSave(req, res) {
     // tema + cor da PÁGINA da loja (o que o cliente vê)
     if (typeof body.theme === 'string' && ['dark', 'light'].includes(body.theme)) md.profile.theme = body.theme;
     if (typeof body.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.accent)) md.profile.accent = body.accent;
+    // O que a loja vende (tabacaria / adega)
+    if (body.segmentos) md.segmentos = _normSegmentos(body.segmentos);
     // Horário de funcionamento + visibilidade online (o que aparece pro cliente)
     if (body.hours && typeof body.hours === 'object') {
       const h = body.hours;
@@ -12618,6 +12621,7 @@ async function handleFiliaisList(req, res) {
         const hours = prof.hours || null;
         return {
           slug: f.slug, name: f.name, city: f.city, state: f.state,
+          segmentos: _normSegmentos((f.metadata || {}).segmentos),
           cover: prof.photo_url || coverBy[f.id] || null, // foto da loja tem prioridade
           bio: prof.bio || null,
           produtos: countBy[f.id] || 0,
@@ -12814,6 +12818,17 @@ async function _cepToGeo(cepRaw) {
   return { cep, lat: lat || null, lng: lng || null, city, neigh, street };
 }
 
+// Segmentos que a loja vende (tabacaria / adega). Guardado em metadata.segmentos
+// (jsonb já existente — não precisa de migration). Retrocompat: loja sem
+// segmento definido conta como ['tabacaria'].
+function _normSegmentos(v) {
+  const valid = ['tabacaria', 'adega'];
+  let arr = Array.isArray(v) ? v : (v ? [v] : []);
+  arr = arr.map(s => String(s).toLowerCase().trim()).filter(s => valid.includes(s));
+  arr = [...new Set(arr)];
+  return arr.length ? arr : ['tabacaria'];
+}
+
 async function handleFilialRegister(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -12872,6 +12887,7 @@ async function handleFilialRegister(req, res) {
         self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment',
         payment: { provider: null, account_id: null, status: 'not_connected' },
         login: { email, pass_salt: pass.salt, pass_hash: pass.hash },
+        segmentos: _normSegmentos(body.segmentos),
         endereco: { cep, address, city, state },
         geo: geo && geo.lat ? { lat: geo.lat, lng: geo.lng, cep, neigh: geo.neigh || null, street: geo.street || null } : { lat: null, lng: null, cep },
       },

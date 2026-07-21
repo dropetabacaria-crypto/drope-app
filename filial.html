@@ -73,6 +73,8 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .pf-input { width: 100%; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
 .pf-btn { background: var(--lime); color: #000; border: 0; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .pf-btn.sec { background: var(--bg3); color: var(--fg-dim); }
+.seg-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg3); color: var(--fg-dim); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.seg-btn.active { border-color: var(--lime); background: rgba(212,255,46,0.14); color: var(--fg); }
 .mini-link { color: var(--lime); font-size: 12px; cursor: pointer; font-weight: 600; }
 .pf-lbl { display:block; font-size: 11px; color: var(--fg-dim); margin: 8px 0 4px 2px; }
 .pf-hint { font-size: 11px; color: var(--fg-dim); line-height: 1.5; margin: 10px 0 8px; background: rgba(212,255,46,0.06); border: 0.5px solid rgba(212,255,46,0.2); border-radius: 10px; padding: 10px 12px; }
@@ -202,6 +204,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
         </div>
       </div>
+      <label class="pf-lbl">o que sua loja vende?</label>
+      <div id="seg-row" style="display:flex;gap:10px;margin-bottom:4px">
+        <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
+        <button type="button" class="seg-btn" data-seg="adega" onclick="toggleSeg(this)">Adega</button>
+      </div>
+      <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">pode marcar os dois ✦ define onde sua loja aparece no app</div>
+
       <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
       <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
 
@@ -400,6 +409,7 @@ function render(d) {
   document.getElementById('subtitle').textContent = f.name + ' ✦ ganha R$ ' + ((f.founder_share_cents||0)/100).toFixed(2).replace('.',',') + ' por venda';
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
   try { renderHorario((f.profile || {}).hours); } catch(e) {}
+  try { renderSegs(f.segmentos); } catch(e) {}
   document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
   document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents) + ' faturado';
@@ -696,6 +706,9 @@ let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
 let _currentLojaPhoto = null;
 function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; renderLojaPreview(); }
+function _segs() { return [...document.querySelectorAll('#seg-row .seg-btn.active')].map(b => b.dataset.seg); }
+function toggleSeg(el) { el.classList.toggle('active'); if (_segs().length === 0) el.classList.add('active'); }
+function renderSegs(segs) { segs = (Array.isArray(segs) && segs.length) ? segs : ['tabacaria']; document.querySelectorAll('#seg-row .seg-btn').forEach(b => b.classList.toggle('active', segs.includes(b.dataset.seg))); }
 function setPageTheme(t) {
   _pageTheme = t;
   const d = document.getElementById('th-dark'), l = document.getElementById('th-light');
@@ -771,7 +784,7 @@ async function saveLojaProfile() {
   const address = (document.getElementById('loja-address').value || '').trim();
   const msg = document.getElementById('loja-msg');
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
-  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, theme: _pageTheme };
+  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, theme: _pageTheme, segmentos: _segs() };
   if (_pageAccent) payload.accent = _pageAccent;
   if (_lojaPhotoB64) payload.photo_base64 = _lojaPhotoB64;
   if (cep.length === 8) { payload.cep = cep; payload.address = address; }
