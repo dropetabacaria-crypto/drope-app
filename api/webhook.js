@@ -4523,7 +4523,7 @@ async function handleFilialPainel(req, res) {
 
     // Pedidos da filial, pagos, do mês corrente
     const orders = await sbGet('drope_orders',
-      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,created_at,delivered_at,picked_up_at&order=created_at.desc&limit=80`);
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
 
     // Calcular ganho da fundadora como (price - cost) / 2 por item
     // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
@@ -4567,6 +4567,8 @@ async function handleFilialPainel(req, res) {
         address: o.address || null,
         created_at: o.created_at,
         delivered_at: o.delivered_at || o.picked_up_at,
+        scheduled: !!(o.metadata && o.metadata.scheduled),
+        scheduled_opens_text: (o.metadata && o.metadata.scheduled_opens_text) || null,
       };
     });
 

@@ -539,6 +539,17 @@
     box-shadow: 0 4px 14px rgba(186,117,23,0.3);
   }
   .test-mode-banner strong { font-weight: 700; }
+  .sched-banner {
+    background: linear-gradient(135deg, rgba(140,80,255,0.22), rgba(45,212,255,0.14));
+    color: var(--text);
+    padding: 12px 14px;
+    margin: 12px 16px 0;
+    border-radius: 12px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    border: 1px solid rgba(140,80,255,0.4);
+  }
+  .sched-banner strong { font-weight: 800; }
   /* DROPE HOME v2 (04/06/2026) — Busca sticky + carrossel de marcas */
   .search-bar-wrap {
     position: sticky;
@@ -4455,6 +4466,7 @@
     <div id="cart-test-banner" class="test-mode-banner" style="display:none">
       🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
     </div>
+    <div id="cart-scheduled-banner" class="sched-banner" style="display:none"></div>
     <div class="cart-list" id="cart-list"></div>
 
     <div class="cart-empty" id="cart-empty" style="display:none">
@@ -4504,6 +4516,9 @@
     <div id="test-mode-banner" class="test-mode-banner" style="display:none">
       🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
     </div>
+
+    <!-- Loja fechada: pedido é aceito e agendado pra próxima abertura -->
+    <div id="co-scheduled-banner" class="sched-banner" style="display:none"></div>
 
     <!-- Step indicator -->
     <div class="step-indicator">
@@ -6131,6 +6146,7 @@
             delivery_mode: deliveryMode,
             address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+            scheduled: _scheduledInfo(),
           }),
         });
         const saveData = await saveResp.json().catch(() => ({}));
@@ -7670,6 +7686,39 @@
         ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : ''}
         <div style="font-size:12px;color:var(--text-dim);margin-top:3px">${statusLine}</div>
       </div>`;
+  }
+  // ===== Pedido agendado (loja fechada) =====
+  // A compra é sempre permitida; quando a loja está fechada, o pedido entra na fila
+  // e é preparado na próxima abertura. Aqui só calculamos o texto e o marcador.
+  function storeIsClosed() { return !!(CLIENT_LOJA && CLIENT_LOJA.open_now === false); }
+  function _nextOpeningText() {
+    const hours = (CLIENT_LOJA && CLIENT_LOJA.hours) || null;
+    if (!hours || !Array.isArray(hours.days) || !hours.days.length || !hours.open) return '';
+    const names = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    const parts = String(hours.open).split(':').map(Number);
+    const openMin = parts[0] * 60 + (parts[1] || 0);
+    const now = new Date();
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(now); d.setDate(now.getDate() + i);
+      const dow = d.getDay();
+      if (!hours.days.includes(dow)) continue;
+      if (i === 0) { if (now.getHours() * 60 + now.getMinutes() >= openMin) continue; return `hoje às ${hours.open}`; }
+      if (i === 1) return `amanhã às ${hours.open}`;
+      return `${names[dow]} às ${hours.open}`;
+    }
+    return '';
+  }
+  // Marcador enviado ao save-order quando a loja está fechada (senão undefined).
+  function _scheduledInfo() {
+    if (!storeIsClosed()) return undefined;
+    return { scheduled: true, opens_text: _nextOpeningText() || null, store_slug: CLIENT_FILIAL || null };
+  }
+  function _renderScheduledBanner(elId) {
+    const el = document.getElementById(elId); if (!el) return;
+    if (!storeIsClosed()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const nx = _nextOpeningText();
+    el.innerHTML = `🕒 <strong>Loja fechada agora</strong> — seu pedido é aceito e entra na fila. ${nx ? `Preparamos assim que abrir (${escapeHtml(nx)}).` : 'Preparamos assim que a loja abrir.'}`;
+    el.style.display = 'block';
   }
   // Trocar filial via menu (botão no perfil)
   function trocarFilialCliente() {
@@ -9615,6 +9664,7 @@
     // FRICÇÃO #009: mostra/esconde banner MODO TESTE
     const banner = document.getElementById('test-mode-banner');
     if (banner) banner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+    _renderScheduledBanner('co-scheduled-banner');
     if (appliedCoupon) {
       const w = document.getElementById('co-coupon-wrap'); if (w) w.style.display = 'block';
       const t = document.getElementById('co-coupon-toggle'); if (t) t.classList.add('open');
@@ -11102,6 +11152,7 @@
     // FRICÇÃO #009: mostra/esconde banner MODO TESTE no carrinho
     const tBanner = document.getElementById('cart-test-banner');
     if (tBanner) tBanner.style.display = (appliedCoupon && appliedCoupon.isTest) ? 'block' : 'none';
+    _renderScheduledBanner('cart-scheduled-banner');
 
     const list = document.getElementById('cart-list');
     const empty = document.getElementById('cart-empty');
@@ -11287,6 +11338,7 @@
             delivery_mode: deliveryMode,
             address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+            scheduled: _scheduledInfo(),
           }),
         });
         const data = await resp.json().catch(() => ({}));

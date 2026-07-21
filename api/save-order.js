@@ -193,6 +193,16 @@ module.exports = async function handler(req, res) {
       created_at: new Date().toISOString(),
     };
 
+    // Pedido feito com a loja FECHADA → agendado pra próxima abertura.
+    // O lojista vê o marcador e prepara quando abrir (não bloqueia a compra).
+    if (body.scheduled && body.scheduled.scheduled) {
+      orderRow.metadata = {
+        scheduled: true,
+        scheduled_opens_text: String(body.scheduled.opens_text || '').slice(0, 60) || null,
+        scheduled_at: new Date().toISOString(),
+      };
+    }
+
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
       method: 'POST',
       headers: {
