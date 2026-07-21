@@ -1091,13 +1091,15 @@
   .inicio-banner .ib-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 18px; color: #fff; }
   .inicio-banner .ib-sub { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 3px; line-height: 1.35; }
   /* Arte do DROPE na moto — SEM fundo (transparente), encaixa direto no degradê do card. */
-  .inicio-banner .ib-moto-wrap { position: relative; margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; }
-  .inicio-banner .ib-moto { height: 100px; width: auto; display: block; position: relative; z-index: 1; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4)); transform-origin: 62% 88%; animation: motoRide 0.55s ease-in-out infinite; }
-  /* Linhas de velocidade (efeito "dirigindo"), atrás da moto */
-  .inicio-banner .ib-moto-wrap::before { content: ''; position: absolute; z-index: 0; left: -76px; top: 28%; width: 84px; height: 46%; background: repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 7px, rgba(255,255,255,0.45) 7px 9px, rgba(255,255,255,0) 9px 15px); -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%, transparent); mask-image: linear-gradient(90deg, transparent, #000 50%, transparent); animation: motoSpeed 0.35s linear infinite; pointer-events: none; }
+  .inicio-banner .ib-moto-wrap { position: relative; margin-left: auto; flex: 0 0 auto; transform-origin: 62% 88%; animation: motoRide 0.55s ease-in-out infinite; }
+  .inicio-banner .ib-moto { height: 100px; width: auto; display: block; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.4)); }
+  /* Rodas girando de verdade (overlay circular sobre cada roda) */
+  .inicio-banner .ib-wheel { position: absolute; pointer-events: none; animation-name: motoWheel; animation-timing-function: linear; animation-iteration-count: infinite; }
+  .inicio-banner .ib-wheel.front { left: 9.23%; top: 64.93%; width: 21.54%; animation-duration: 0.45s; }
+  .inicio-banner .ib-wheel.rear { left: 63.46%; top: 66.52%; width: 25.38%; animation-duration: 0.55s; }
   @keyframes motoRide { 0%, 100% { transform: translateY(0) rotate(-0.7deg); } 50% { transform: translateY(-5px) rotate(0.7deg); } }
-  @keyframes motoSpeed { from { background-position-x: 0; } to { background-position-x: -15px; } }
-  @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto { animation: none; } .inicio-banner .ib-moto-wrap::before { display: none; } }
+  @keyframes motoWheel { to { transform: rotate(-360deg); } }
+  @media (prefers-reduced-motion: reduce) { .inicio-banner .ib-moto-wrap, .inicio-banner .ib-wheel { animation: none; } }
   .inicio-sec-lbl { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 18px 0 12px 2px; }
   /* Tema CLARO da página da loja (escolhido pelo lojista) — mantém escamas/essência */
   body.loja-light {
@@ -2264,7 +2266,7 @@
   }
   .pix-copy:active { transform: scale(0.97); }
   .pix-copy::before {
-    content: '📋';
+    content: '';
     font-size: 20px;
   }
   .pix-note {
@@ -4071,17 +4073,17 @@
      Salva escolha em localStorage. Cliente vê o catálogo da filial dele e só. -->
 <div id="filial-picker-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0A0A14 0%,#1a0a20 100%);z-index:9999;align-items:center;justify-content:center;padding:24px">
   <div style="max-width:420px;width:100%;text-align:center">
-    <div style="font-size:48px;margin-bottom:8px">🏪</div>
+    
     <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Tabacarias disponíveis</h2>
     <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa loja pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
     <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
     <div id="filial-picker-list">
       <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">🏙️</span>
+        <span style="font-size:24px"></span>
         <span style="flex:1"><div>São Paulo</div></span>
       </button>
       <button onclick="pickClientFilial('santos')" style="display:block;width:100%;background:linear-gradient(90deg,#FF4D8F,#FF8533);color:#fff;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">🏖️</span>
+        <span style="font-size:24px"></span>
         <span style="flex:1"><div>Santos</div></span>
       </button>
     </div>
@@ -4094,7 +4096,7 @@
 
 <!-- PWA install banner (Android/Chrome/Edge) -->
 <div id="install-banner" class="install-banner">
-  <div class="ib-icon">⬇️</div>
+  <div class="ib-icon">⬇</div>
   <div class="ib-body">
     <div class="ib-title">instalar drope</div>
     <div class="ib-sub">fica na tela de início ✦ abre igual app</div>
@@ -4168,10 +4170,10 @@
           <input type="tel" id="welcome-phone" class="card-input" placeholder="celular com ddd ✦ ex: 11 91234-5678" autocomplete="tel" inputmode="tel" oninput="formatWelcomePhone(this); updateWelcomeBtn()">
           <input type="email" id="welcome-email" class="card-input" placeholder="email (obrigatório)" autocomplete="email" inputmode="email" oninput="updateWelcomeBtn()" required>
           <div class="welcome-privacy">
-            🛟 a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
+            a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
           </div>
           <div class="welcome-gift">
-            <div class="wg-emoji">🎁</div>
+            <div class="wg-emoji"></div>
             <div class="wg-body">
               <div class="wg-title">seu cupom de estreia</div>
               <div class="wg-code">DROPE10</div>
@@ -4180,7 +4182,7 @@
           </div>
         </div>
         <div class="onboard-btns">
-          <button class="btn-primary" id="welcome-btn" onclick="finishOnboard()" disabled style="opacity:0.4">dropar 🔥</button>
+          <button class="btn-primary" id="welcome-btn" onclick="finishOnboard()" disabled style="opacity:0.4">dropar</button>
           <button class="btn-ghost" onclick="skipOnboard()" style="margin-top:8px; font-size:0.85rem; opacity:0.7">só dar uma olhada ✦</button>
         </div>
       </div>
@@ -4197,7 +4199,7 @@
       <input type="text" id="gate-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateGateBtn()">
       <input type="tel" id="gate-phone" class="card-input" placeholder="celular com ddd ✦ ex: 11 91234-5678" autocomplete="tel" inputmode="tel" oninput="formatGatePhone(this); updateGateBtn()">
       <input type="email" id="gate-email" class="card-input" placeholder="email (obrigatório)" autocomplete="email" inputmode="email" oninput="updateGateBtn()" required>
-      <div class="welcome-privacy">🛟 zero spam, zero venda pra terceiros.</div>
+      <div class="welcome-privacy">zero spam, zero venda pra terceiros.</div>
     </div>
     <button class="btn-primary" id="gate-btn" onclick="finishGateRegister()" disabled style="opacity:0.4; margin-top:12px; width:100%">cadastrar e dropar ✦</button>
   </div>
@@ -4220,7 +4222,7 @@
   <!-- ============ INÍCIO — descoberta de tabacarias ============ -->
   <div class="screen" id="inicio">
     <div style="padding: 22px 20px 8px">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text);line-height:1.1">Tabacarias<br>perto de você 🦎</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text);line-height:1.1">Lojas <span style="color:#C6FF00;text-shadow:0 0 12px rgba(198,255,0,0.65)">DROPE</span></div>
       <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Escolha uma loja e receba em minutos ✦</div>
       <div class="inicio-search">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -4228,11 +4230,13 @@
       </div>
       <div class="inicio-banner">
         <div>
-          <div class="ib-title">drops em minutos ✦</div>
-          <div class="ib-sub">peça da tabacaria mais perto<br>e receba voando 🦎</div>
+          <div class="ib-title">Drops em minutos ✦</div>
+          <div class="ib-sub">Peça da tabacaria mais próxima<br>e receba rapidinho!</div>
         </div>
         <div class="ib-moto-wrap">
           <img class="ib-moto" src="icons/drope-moto.png" alt="DROPE na moto" draggable="false">
+          <img class="ib-wheel front" src="icons/drope-wheel-front.png" alt="" aria-hidden="true" draggable="false">
+          <img class="ib-wheel rear" src="icons/drope-wheel-rear.png" alt="" aria-hidden="true" draggable="false">
         </div>
       </div>
       <div class="inicio-sec-lbl">Tabacarias disponíveis</div>
@@ -4246,7 +4250,7 @@
   <!-- ============ OFERTAS ============ -->
   <div class="screen" id="ofertas">
     <div style="padding: 22px 20px 6px">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Ofertas 🔥</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Ofertas</div>
       <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Produtos em promoção nas tabacarias</div>
     </div>
     <div id="ofertas-list" style="padding: 14px 20px 24px"></div>
@@ -4380,7 +4384,7 @@
         <span class="lj-lbl">Endereço (rua e número)</span>
         <input id="lj-address" class="card-input" placeholder="ex: Rua Dianópolis, 4100" maxlength="90" oninput="_ljBtn()">
       </label>
-      <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
+      <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">usamos pra mostrar sua loja pros clientes mais perto</div>
 
       <div class="lj-sec lj-sec-label">Seu contato</div>
       <label class="lj-field">
@@ -4403,16 +4407,16 @@
       </label>
 
       <button class="btn-primary" id="lj-submit" onclick="submitFilialRegister()" disabled style="opacity:0.4; width:100%; margin-top:20px">Cadastrar loja ✦</button>
-      <div class="lj-note">🔒 Depois do cadastro você conecta a conta de recebimento pra receber das vendas (com uma pequena comissão do DROPE por venda).</div>
+      <div class="lj-note">Depois do cadastro você conecta a conta de recebimento pra receber das vendas (com uma pequena comissão do DROPE por venda).</div>
     </div>
     <div id="lojista-done-wrap" style="display:none; padding: 30px 20px; text-align:center">
-      <div style="font-size:56px">🎉</div>
+      <div style="font-size:56px"></div>
       <div class="onboard-title" style="margin-top:8px">Loja cadastrada!</div>
       <div class="onboard-sub" id="lj-done-msg" style="margin:10px 0 20px">Recebemos o cadastro da sua tabacaria.</div>
       <div style="background:rgba(255,255,255,0.04); border-radius:16px; padding:16px; text-align:left; font-size:13px; color:var(--text-dim); line-height:1.6">
         <b style="color:var(--text)">Seu painel já está pronto:</b><br>
         Entre com o <b style="color:var(--text)">email e senha</b> que você criou pra gerenciar seus produtos, estoque e pedidos.<br><br>
-        🔗 O recebimento das vendas (conta pra receber) a gente conecta em seguida — te avisamos no WhatsApp assim que liberar.
+        O recebimento das vendas (conta pra receber) a gente conecta em seguida — te avisamos no WhatsApp assim que liberar.
       </div>
       <button class="btn-primary" id="lj-goto-painel" onclick="_ljGoToPainel()" style="width:100%; margin-top:16px">entrar no meu painel ✦</button>
       <button class="btn-secondary" onclick="go('home')" style="width:100%; margin-top:10px">voltar pro app</button>
@@ -4432,7 +4436,7 @@
     </div>
 
     <div class="product-hero">
-      <div class="product-emoji" id="d-emoji">🧊</div>
+      <div class="product-emoji" id="d-emoji"></div>
     </div>
     <div class="product-name display" id="d-name"></div>
     <div class="product-meta" id="d-meta"></div>
@@ -4474,13 +4478,13 @@
     <div id="cart-notice"></div>
     <!-- FRICÇÃO #009: banner MODO TESTE no carrinho -->
     <div id="cart-test-banner" class="test-mode-banner" style="display:none">
-      🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
+      <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
     </div>
     <div id="cart-scheduled-banner" class="sched-banner" style="display:none"></div>
     <div class="cart-list" id="cart-list"></div>
 
     <div class="cart-empty" id="cart-empty" style="display:none">
-      <div class="big">🏜️</div>
+      
       <div class="t">Seu carrinho tá seco</div>
       <div class="s">bora dropar algum sabor?</div>
       <button class="btn-primary" onclick="go('home')" style="max-width: 220px">ver catálogo</button>
@@ -4489,7 +4493,7 @@
     <!-- Cupom no carrinho (antes do total) -->
     <div id="cart-coupon-area" style="padding: 0 20px; margin-top: 8px;">
       <div class="co-coupon-toggle" id="cart-coupon-toggle" onclick="toggleCartCoupon()">
-        🎟️ tem cupom?
+        tem cupom?
       </div>
       <div class="co-coupon" id="cart-coupon-wrap" style="display:none">
         <div class="co-coupon-row">
@@ -4524,7 +4528,7 @@
 
     <!-- FRICÇÃO #009: banner modo teste (aparece só quando cupom isTest aplicado) -->
     <div id="test-mode-banner" class="test-mode-banner" style="display:none">
-      🧪 <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
+      <strong>MODO TESTE ATIVO</strong> — pedido fake, sem cobrar, sem mexer no estoque
     </div>
 
     <!-- Loja fechada: pedido é aceito e agendado pra próxima abertura -->
@@ -4542,13 +4546,13 @@
     <div class="co-wrap">
       <div class="co-section-lbl">como quer receber</div>
       <div class="co-mode" id="co-mode">
-        <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">🛵 Entrega</div>
-        <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">🏪 Retirar na loja</div>
+        <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">Entrega</div>
+        <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">Retirar na loja</div>
       </div>
       <div id="co-address-wrap"></div>
 
       <div class="co-contact-mini" onclick="go('profile-edit')">
-        <div class="ic">👤</div>
+        <div class="ic"></div>
         <div class="info">
           <div class="lbl">contato</div>
           <div class="val" id="co-customer">—</div>
@@ -4570,12 +4574,12 @@
         <div class="pw-title">quando você quer pagar?</div>
         <div class="pw-toggle">
           <button class="pw-opt active" id="pw-now" onclick="setPayWhen('now')">
-            <div class="pw-emoji">⚡</div>
+            <div class="pw-emoji"></div>
             <div class="pw-lbl">pagar agora</div>
             <div class="pw-sub">Pix antes de buscar</div>
           </button>
           <button class="pw-opt" id="pw-later" onclick="setPayWhen('later')">
-            <div class="pw-emoji">🏪</div>
+            <div class="pw-emoji"></div>
             <div class="pw-lbl">pagar na retirada</div>
             <div class="pw-sub">dinheiro, cartão ou Pix na loja</div>
           </button>
@@ -4654,7 +4658,7 @@
       <div class="proc-ring">
         <div class="proc-ring-bg"></div>
         <div class="proc-ring-spin"></div>
-        <div class="proc-ring-icon" id="proc-icon">💳</div>
+        <div class="proc-ring-icon" id="proc-icon"></div>
       </div>
       <div class="proc-title display" id="proc-title">processando</div>
       <div class="proc-sub" id="proc-sub">conectando com o banco ✦</div>
@@ -4678,7 +4682,7 @@
 
     <!-- FRICÇÃO #009: banner MODO TESTE na tela de pagamento -->
     <div id="pix-test-banner" class="test-mode-banner" style="display:none">
-      🧪 <strong>MODO TESTE ATIVO</strong> — sem pagar, sem QR code real. Clica abaixo pra concluir o teste 🦎
+      <strong>MODO TESTE ATIVO</strong> — sem pagar, sem QR code real. Clica abaixo pra concluir o teste
     </div>
 
     <!-- Step indicator -->
@@ -4712,7 +4716,7 @@
 
     <!-- Modo teste TESTE100OFF: botão fica visível só quando isTest=true -->
     <div class="sticky-cta" id="pix-test-cta" style="display:none">
-      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()" style="background: var(--lime); color: #000; font-size: 15px; padding: 14px;">🧪 concluir pedido teste</button>
+      <button class="btn-primary" id="pix-confirm-btn" onclick="confirmOrder()" style="background: var(--lime); color: #000; font-size: 15px; padding: 14px;">concluir pedido teste</button>
     </div>
   </div>
 
@@ -4721,7 +4725,7 @@
   <div class="screen no-nav" id="success">
     <!-- FRICÇÃO #009: banner MODO TESTE no sucesso -->
     <div id="success-test-banner" class="test-mode-banner" style="display:none">
-      🧪 <strong>PEDIDO DE TESTE</strong> — não foi enviado, não foi cobrado, estoque intacto. Tu pode navegar a tela final em paz 🦎
+      <strong>PEDIDO DE TESTE</strong> — não foi enviado, não foi cobrado, estoque intacto. Tu pode navegar a tela final em paz
     </div>
     <div class="success-wrap">
       <div class="check">✓</div>
@@ -4730,7 +4734,7 @@
       <div class="success-order" id="success-order">#dr-4291</div>
 
       <div class="success-btns">
-        <button class="btn-primary" id="success-whats-btn" onclick="shareOnWhats()">abrir whats da loja 💬</button>
+        <button class="btn-primary" id="success-whats-btn" onclick="shareOnWhats()">abrir whats da loja</button>
         <button class="btn-secondary" onclick="go('order-tracking')">acompanhar pedido →</button>
       </div>
     </div>
@@ -4879,7 +4883,7 @@
     </div>
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
-        <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">🏪 Meu painel da loja <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">Meu painel da loja <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
@@ -4935,12 +4939,12 @@
       <div class="icon-btn" onclick="go('profile')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Meu perfil 🦎</div>
+      <div class="brand-small">Meu perfil</div>
       <div style="width: 42px"></div>
     </div>
     <div id="flavor-profile-body"></div>
     <div style="padding: 0 20px 80px">
-      <button class="btn-secondary" onclick="shareFlavorCard()" style="width:100%;margin-top:6px">compartilhar meu perfil 🦎</button>
+      <button class="btn-secondary" onclick="shareFlavorCard()" style="width:100%;margin-top:6px">compartilhar meu perfil</button>
     </div>
   </div>
 
@@ -4969,7 +4973,7 @@
 
     <div class="adm-dash-wrap collapsed" id="adm-dash-wrap">
       <button class="adm-dash-toggle" onclick="toggleAdminDash()" aria-expanded="false">
-        <span>📊 resumo do dia</span>
+        <span>resumo do dia</span>
         <svg class="adm-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div class="adm-dash-body" id="adm-dash-body">
@@ -5007,20 +5011,20 @@
     </div>
 
     <div class="adm-actions">
-      <div class="adm-sec-label">⚡ ações rápidas</div>
+      <div class="adm-sec-label">ações rápidas</div>
       <div class="adm-quick">
-        <button class="adm-tile pink" onclick="openPOS()"><span class="ti">💰</span><span class="tt">vender no balcão</span><span class="ts">PDV presencial</span></button>
-        <button class="adm-tile lime" onclick="openReceberWithToken()"><span class="ti">📦</span><span class="tt">receber estoque</span><span class="ts">scanner</span></button>
-        <button class="adm-tile amber" onclick="openBalancoWithToken()"><span class="ti">📊</span><span class="tt">fazer balanço</span><span class="ts">contagem</span></button>
+        <button class="adm-tile pink" onclick="openPOS()"><span class="ti"></span><span class="tt">vender no balcão</span><span class="ts">PDV presencial</span></button>
+        <button class="adm-tile lime" onclick="openReceberWithToken()"><span class="ti"></span><span class="tt">receber estoque</span><span class="ts">scanner</span></button>
+        <button class="adm-tile amber" onclick="openBalancoWithToken()"><span class="ti"></span><span class="tt">fazer balanço</span><span class="ts">contagem</span></button>
       </div>
 
-      <div class="adm-sec-label">🛒 pedidos</div>
+      <div class="adm-sec-label">pedidos</div>
       <div class="adm-menu">
         <button class="adm-item" onclick="openAdminOrders('all')"><span>ver todos os pedidos</span><small>lista completa</small></button>
         <button class="adm-item" onclick="exportOrdersCSV()"><span>exportar pedidos</span><small>planilha CSV</small></button>
       </div>
 
-      <div class="adm-sec-label">📦 estoque & produtos</div>
+      <div class="adm-sec-label">estoque & produtos</div>
       <div class="adm-menu">
         <button class="adm-item" onclick="go('admin-products')"><span>gerenciar drops</span><small>preço, estoque, esconder</small></button>
         <button class="adm-item" onclick="openImportDrops()"><span>importar em lote</span><small>vários drops de uma vez</small></button>
@@ -5028,20 +5032,20 @@
         <button class="adm-item" onclick="openRevisarReferencias()"><span>revisar artes</span><small>pipeline de referências</small></button>
       </div>
 
-      <div class="adm-sec-label">👥 clientes & marketing</div>
+      <div class="adm-sec-label">clientes & marketing</div>
       <div class="adm-menu">
         <button class="adm-item" onclick="go('admin-customers')"><span>clientes (CRM)</span><small>quem já comprou</small></button>
         <button class="adm-item" onclick="go('admin-coupons')"><span>cupons</span><small>criar e gerenciar</small></button>
-        <button class="adm-item" onclick="go('admin-filiais')"><span>🏪 lojas parceiras</span><small>tabacarias cadastradas</small></button>
+        <button class="adm-item" onclick="go('admin-filiais')"><span>lojas parceiras</span><small>tabacarias cadastradas</small></button>
       </div>
 
-      <div class="adm-sec-label">⚙️ config & ferramentas</div>
+      <div class="adm-sec-label">config & ferramentas</div>
       <div class="adm-menu">
-        <button class="adm-item" onclick="go('admin-brand-covers')"><span>🖼️ imagens das marcas</span><small>foto do filtro por marca</small></button>
-        <button class="adm-item" onclick="go('admin-vibe-images')"><span>🎨 imagens das vibes</span><small>frutado, doce, gelado, mentol</small></button>
+        <button class="adm-item" onclick="go('admin-brand-covers')"><span>imagens das marcas</span><small>foto do filtro por marca</small></button>
+        <button class="adm-item" onclick="go('admin-vibe-images')"><span>imagens das vibes</span><small>frutado, doce, gelado, mentol</small></button>
         <button class="adm-item" onclick="go('admin-store')"><span>config da loja</span><small>dados, chaves, whats</small></button>
         <button class="adm-item" onclick="go('admin-ai')"><span>agente Drope (IA)</span><small>assistente</small></button>
-        <button class="adm-item" id="btn-sync-cloud" onclick="syncToCloud()"><span>☁️ sincronizar nuvem</span><small>subir dados locais</small></button>
+        <button class="adm-item" id="btn-sync-cloud" onclick="syncToCloud()"><span>sincronizar nuvem</span><small>subir dados locais</small></button>
       </div>
     </div>
   </div>
@@ -5083,11 +5087,11 @@
 
       </div>
       <div style="background: rgba(212,255,46,0.06); border: 1px solid rgba(212,255,46,0.25); border-radius: 14px; padding: 12px 14px; margin: 14px 0; font-size: 12px; color: var(--text-dim)">
-        🛵 <b style="color: var(--lime)">entrega</b> ✦ taxa cotada por motoboy (99, Uber, Lalamove). Cliente combina com você no whats antes de liberar.
+        <b style="color: var(--lime)">entrega</b> ✦ taxa cotada por motoboy (99, Uber, Lalamove). Cliente combina com você no whats antes de liberar.
       </div>
       <button class="btn-primary" onclick="saveStoreConfig()">salvar ✦</button>
       <div style="color: var(--text-dim); font-size: 12px; margin-top: 16px; text-align: center">
-        ⚡ chave Pix aparece no QR dos clientes<br>
+        chave Pix aparece no QR dos clientes<br>
         whats é pra onde os comprovantes chegam
       </div>
     </div>
@@ -5122,16 +5126,16 @@
       <div class="pos-pay-label">como foi pago?</div>
       <div class="pos-pay-grid">
         <div class="pos-pay-opt" data-pay="dinheiro" onclick="posSetPay('dinheiro')">
-          <div class="pp-emoji">💵</div><div class="pp-lbl">dinheiro</div>
+          <div class="pp-emoji"></div><div class="pp-lbl">dinheiro</div>
         </div>
         <div class="pos-pay-opt" data-pay="debito" onclick="posSetPay('debito')">
-          <div class="pp-emoji">💳</div><div class="pp-lbl">débito</div>
+          <div class="pp-emoji"></div><div class="pp-lbl">débito</div>
         </div>
         <div class="pos-pay-opt" data-pay="credito" onclick="posSetPay('credito')">
-          <div class="pp-emoji">💳</div><div class="pp-lbl">crédito</div>
+          <div class="pp-emoji"></div><div class="pp-lbl">crédito</div>
         </div>
         <div class="pos-pay-opt" data-pay="pix" onclick="posSetPay('pix')">
-          <div class="pp-emoji">⚡</div><div class="pp-lbl">Pix</div>
+          <div class="pp-emoji"></div><div class="pp-lbl">Pix</div>
         </div>
       </div>
 
@@ -5211,13 +5215,13 @@
       </div>
 
       <div class="imp-actions-row">
-        <button class="imp-mini-btn" onclick="insertImportSample()">📄 inserir modelo</button>
-        <button class="imp-mini-btn" onclick="clearImportBox()">🧹 limpar</button>
+        <button class="imp-mini-btn" onclick="insertImportSample()">inserir modelo</button>
+        <button class="imp-mini-btn" onclick="clearImportBox()">limpar</button>
       </div>
 
       <textarea id="imp-json" class="imp-textarea" placeholder='[
   {
-    "emoji": "🧊",
+    "emoji": "",
     "name": "ice blast",
     "desc": "gelado intenso ✦ menta + limão",
     "price": 45,
@@ -5259,7 +5263,7 @@
       </button>
 
       <div class="imp-tip">
-        💡 <b>dica:</b> me manda foto dos produtos aqui no chat e eu gero o JSON pronto pra colar nesse campo. preço, marca, sabor, puffs — tudo extraído automaticamente.
+        <b>dica:</b> me manda foto dos produtos aqui no chat e eu gero o JSON pronto pra colar nesse campo. preço, marca, sabor, puffs — tudo extraído automaticamente.
       </div>
     </div>
   </div>
@@ -5324,7 +5328,7 @@
     <div class="admin-detail-block">
       <div class="lab">cliente</div>
       <div class="txt" id="adm-det-customer">—</div>
-      <button class="btn-secondary" id="adm-whats-btn" style="margin-top:10px; padding: 10px" onclick="openOrderWhats()">💬 abrir whats do cliente</button>
+      <button class="btn-secondary" id="adm-whats-btn" style="margin-top:10px; padding: 10px" onclick="openOrderWhats()">abrir whats do cliente</button>
     </div>
 
     <div class="admin-detail-block">
@@ -5332,7 +5336,7 @@
       <div class="txt" id="adm-det-addr">—</div>
       <div id="adm-det-motoboy" style="display:none; margin-top:12px">
         <div class="delivery-fee-note">
-          <div class="dfn-icon">🛵</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title">cotar motoboy</div>
             <div class="dfn-sub">chama no 99, Uber flash ou Lalamove ✦ depois manda a taxa pro cliente no whats</div>
@@ -5383,7 +5387,7 @@
     </div>
     <div class="section-title display" style="padding-top: 10px">Drops<span>ativos no catálogo</span></div>
     <div style="padding: 0 20px 14px">
-      <input type="text" id="adm-prod-search" class="card-input" placeholder="🔍 buscar drope por nome ou sabor" oninput="filterAdminProducts()">
+      <input type="text" id="adm-prod-search" class="card-input" placeholder="buscar drope por nome ou sabor" oninput="filterAdminProducts()">
     </div>
     <div id="admin-products-list" style="padding: 0 20px 20px"></div>
     <div style="padding: 0 20px 40px">
@@ -5423,7 +5427,7 @@
 
     <div class="af-wrap">
       <div class="af-preview">
-        <div class="af-preview-emoji" id="af-pv-emoji">🧊</div>
+        <div class="af-preview-emoji" id="af-pv-emoji"></div>
         <div class="af-preview-name" id="af-pv-name">nome do drope</div>
         <div class="af-preview-desc" id="af-pv-desc">descrição curta</div>
         <div class="af-preview-price" id="af-pv-price">R$ 0</div>
@@ -5436,7 +5440,7 @@
       </div>
 
       <label class="card-lbl">emoji / ícone</label>
-      <input class="card-input" id="af-emoji" maxlength="4" placeholder="🧊" oninput="updateFormPreview()">
+      <input class="card-input" id="af-emoji" maxlength="4" placeholder="" oninput="updateFormPreview()">
 
       <label class="card-lbl">nome</label>
       <input class="card-input" id="af-name" placeholder="Black Sheep Blueberry 55k" oninput="updateFormPreview()">
@@ -5550,7 +5554,7 @@
   <!-- ============ MODAL DE CONFIRMAÇÃO ============ -->
   <div class="confirm-bd" id="confirm-bd" onclick="closeConfirm()"></div>
   <div class="confirm-modal" id="confirm-modal">
-    <div class="confirm-icon" id="confirm-icon">⚠️</div>
+    <div class="confirm-icon" id="confirm-icon"></div>
     <div class="confirm-title" id="confirm-title">tem certeza?</div>
     <div class="confirm-msg" id="confirm-msg">essa ação não tem volta</div>
     <div class="confirm-btns">
@@ -5951,8 +5955,8 @@
     { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
     // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
     // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
-    { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
-    { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: '🛵 frete grátis ✦ entrega por nossa conta', active: true },
+    { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
+    { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
   ];
   let appliedCoupon = null;
   function saveCoupons() {
@@ -5968,8 +5972,8 @@
     const BUILT_IN = [
       { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
       { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
-      { code: 'TESTE100OFF', discount: 99999, desc: '🧪 modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
-      { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: '🛵 frete grátis ✦ entrega por nossa conta', active: true },
+      { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
+      { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
     ];
     BUILT_IN.forEach(bc => {
       if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
@@ -6210,9 +6214,9 @@
     if (!appliedCoupon) { msg.className = 'co-coupon-msg'; msg.innerHTML = ''; return; }
     msg.className = 'co-coupon-msg ok';
     const label = appliedCoupon.isTest
-      ? '🧪 MODO TESTE ATIVO — total zerado'
+      ? 'MODO TESTE ATIVO — total zerado'
       : appliedCoupon.freeShipping
-        ? `cupom ${appliedCoupon.code} ✦ 🛵 frete grátis`
+        ? `cupom ${appliedCoupon.code} ✦ frete grátis`
         : `cupom ${appliedCoupon.code} ✦ -${money(appliedCoupon.discount)}`;
     msg.innerHTML = `${label} <span class="coupon-remove" onclick="removeCoupon()">✕ remover</span>`;
   }
@@ -6806,7 +6810,7 @@
     const labelsEl = document.getElementById('dcc-labels');
     if (weekTotal === 0) {
       if (chartEl) {
-        chartEl.innerHTML = `<div class="dcc-empty-msg">📈 <span>sem vendas ainda ✦ bora vender o primeiro drop</span></div>`;
+        chartEl.innerHTML = `<div class="dcc-empty-msg"><span>sem vendas ainda ✦ bora vender o primeiro drop</span></div>`;
       }
       if (labelsEl) labelsEl.innerHTML = '';
     } else {
@@ -6862,7 +6866,7 @@
       } else {
         wrap.innerHTML = `
           <div class="lowstock-alert" onclick="go('admin-products')">
-            <div class="ls-icon">⚠️</div>
+            <div class="ls-icon"></div>
             <div class="ls-body">
               <div class="ls-title">${low.length} drope${low.length>1?'s':''} com estoque baixo</div>
               <div class="ls-sub">${low.slice(0,3).map(p => `${p.emoji||''} ${p.name} (${p.stock})`).join(' ✦ ')}${low.length>3?' ✦ +':''}</div>
@@ -6914,16 +6918,16 @@
       return;
     }
     if (!window.__dropeSupabase) { toast('adapter supabase não carregado'); return; }
-    if (btn) { btn.disabled = true; btn.textContent = '☁️ sincronizando...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'sincronizando...'; }
     try {
       await window.__dropeSupabase.pushAll();
       toast('sincronizado ✦ tudo na nuvem');
-      if (btn) btn.textContent = '☁️ sincronizado ✓';
-      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '☁️ sincronizar com nuvem'; } }, 2500);
+      if (btn) btn.textContent = 'sincronizado ✓';
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = 'sincronizar com nuvem'; } }, 2500);
     } catch(e) {
       console.error(e);
       toast('erro na sincronização ✦ ver console');
-      if (btn) { btn.disabled = false; btn.textContent = '☁️ sincronizar com nuvem'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'sincronizar com nuvem'; }
     }
   }
 
@@ -6931,7 +6935,7 @@
     const list = document.getElementById('coupons-list');
     if (!list) return;
     if (!coupons.length) {
-      list.innerHTML = '<div class="empty"><div class="big">🎟️</div><div class="t">sem cupons ainda</div><div class="s">cria um aí em cima</div></div>';
+      list.innerHTML = '<div class="empty"><div class="t">sem cupons ainda</div><div class="s">cria um aí em cima</div></div>';
       return;
     }
     list.innerHTML = coupons.map((c, i) => `
@@ -6966,7 +6970,7 @@
   }
   function toggleCoupon(i) { coupons[i].active = !coupons[i].active; saveCoupons(); renderCoupons(); }
   function deleteCoupon(i) {
-    askConfirm({ title: 'apagar cupom?', msg: coupons[i].code, icon: '🎟️', okLabel: 'apagar', danger: true }, () => {
+    askConfirm({ title: 'apagar cupom?', msg: coupons[i].code, icon: '', okLabel: 'apagar', danger: true }, () => {
       coupons.splice(i, 1); saveCoupons(); renderCoupons();
       toast('cupom apagado');
     });
@@ -7017,8 +7021,8 @@
 
   function insertImportSample() {
     const sample = [
-      { emoji: '🍋', name: 'lemon ice', desc: 'gelado cítrico ✦ limão siciliano', price: 48, cat: 'pod', perfil: 'gelado', puffs: 8000, marca: 'elfbar', sabor: 'limão', stock: 15 },
-      { emoji: '🍑', name: 'peach dream', desc: 'frutado doce ✦ pêssego branco', price: 45, cat: 'pod', perfil: 'frutado', puffs: 6000, marca: 'lost mary', sabor: 'pêssego', stock: 12 }
+      { emoji: '', name: 'lemon ice', desc: 'gelado cítrico ✦ limão siciliano', price: 48, cat: 'pod', perfil: 'gelado', puffs: 8000, marca: 'elfbar', sabor: 'limão', stock: 15 },
+      { emoji: '', name: 'peach dream', desc: 'frutado doce ✦ pêssego branco', price: 45, cat: 'pod', perfil: 'frutado', puffs: 6000, marca: 'lost mary', sabor: 'pêssego', stock: 12 }
     ];
     const ta = document.getElementById('imp-json');
     if (ta) { ta.value = JSON.stringify(sample, null, 2); validateImportJSON(); }
@@ -7054,7 +7058,7 @@
     let arr;
     try { arr = JSON.parse(raw); } catch(e) {
       status.className = 'imp-status err';
-      status.innerHTML = `❌ JSON inválido: ${e.message}`;
+      status.innerHTML = `JSON inválido: ${e.message}`;
       if (prevWrap) prevWrap.style.display = 'none';
       importParsed = null;
       updateImportApplyBtn();
@@ -7062,7 +7066,7 @@
     }
     if (!Array.isArray(arr)) {
       status.className = 'imp-status err';
-      status.textContent = '❌ o JSON precisa ser um array [ ... ]';
+      status.textContent = 'o JSON precisa ser um array [ ... ]';
       importParsed = null;
       updateImportApplyBtn();
       return;
@@ -7089,7 +7093,7 @@
     });
     if (errors.length) {
       status.className = 'imp-status err';
-      status.innerHTML = `❌ ${errors.length} erro${errors.length>1?'s':''}:<br>${errors.slice(0,5).map(e => '• '+e).join('<br>')}${errors.length>5?'<br>...':''}`;
+      status.innerHTML = `${errors.length} erro${errors.length>1?'s':''}:<br>${errors.slice(0,5).map(e => '• '+e).join('<br>')}${errors.length>5?'<br>...':''}`;
       importParsed = null;
       if (prevWrap) prevWrap.style.display = 'none';
       updateImportApplyBtn();
@@ -7186,7 +7190,7 @@
       return hay.includes(q);
     });
     if (!list.length) {
-      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div><div class="t">nada encontrado</div></div>`;
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="t">nada encontrado</div></div>`;
       return;
     }
     grid.innerHTML = list.map(p => {
@@ -7197,7 +7201,7 @@
       return `
         <div class="pos-tile ${out?'out':''}" onclick="posAdd('${p.name.replace(/'/g,"\\'")}')">
           ${cartQty > 0 ? `<div class="pt-badge">${cartQty}</div>` : ''}
-          <div class="pt-emoji">${p.emoji || '🍬'}</div>
+          <div class="pt-emoji">${p.emoji || ''}</div>
           <div class="pt-name">${p.name}</div>
           <div class="pt-price">${money(p.price)}</div>
           <div class="pt-stock">${stock} un</div>
@@ -7216,7 +7220,7 @@
       existing.qty++;
     } else {
       if (stock <= 0) { toast('produto zerado ✦'); return; }
-      posCart.push({ name: p.name, emoji: p.emoji || '🍬', price: p.price, qty: 1, stock });
+      posCart.push({ name: p.name, emoji: p.emoji || '', price: p.price, qty: 1, stock });
     }
     renderPOSGrid();
     renderPOSSummary();
@@ -7297,7 +7301,7 @@
     orderCounter++;
     const total = posCart.reduce((s, i) => s + i.price * i.qty, 0);
     const summary = posCart.map(i => `${i.qty}× ${i.name}`).join(' ✦ ');
-    const payLabels = { dinheiro: '💵 dinheiro', debito: '💳 débito', credito: '💳 crédito', pix: '⚡ Pix' };
+    const payLabels = { dinheiro: 'dinheiro', debito: 'débito', credito: 'crédito', pix: 'Pix' };
     orders.unshift({
       num: orderCounter,
       status: `concluído ✦ ${payLabels[posPayMethod]}`,
@@ -7365,7 +7369,7 @@
       });
     }
     if (filtered.length === 0) {
-      list.innerHTML = `<div class="empty"><div class="big">📭</div><div class="t">Nenhum pedido encontrado</div><div class="s">${adminSearch ? 'tenta outro termo' : 'quando chegar, aparece'}</div></div>`;
+      list.innerHTML = `<div class="empty"><div class="t">Nenhum pedido encontrado</div><div class="s">${adminSearch ? 'tenta outro termo' : 'quando chegar, aparece'}</div></div>`;
       return;
     }
     list.innerHTML = filtered.map(o => `
@@ -7396,7 +7400,7 @@
     const addrEl = document.getElementById('adm-det-addr');
     if (addrEl) {
       if (o.mode === 'pickup') {
-        addrEl.textContent = '🏪 retirar na loja ✦ cliente busca no balcão';
+        addrEl.textContent = 'retirar na loja ✦ cliente busca no balcão';
       } else if (o.address) {
         const a = o.address;
         addrEl.textContent = `${a.label} ✦ ${a.street}, ${a.num}${a.comp ? ' (' + a.comp + ')' : ''} ✦ ${a.neigh || ''}, ${a.city}/${(a.uf || '').toUpperCase()}${a.cep ? ' ✦ CEP ' + a.cep : ''}${a.ref ? ' ✦ ref: ' + a.ref : ''}`;
@@ -7408,7 +7412,7 @@
     const payMethodEl = document.getElementById('adm-det-paymethod');
     if (payMethodEl) {
       if (o.mode === 'pos' && o.payMethod) {
-        const payEmojis = { dinheiro: '💵', debito: '💳', credito: '💳', pix: '⚡' };
+        const payEmojis = { dinheiro: '', debito: '', credito: '', pix: '' };
         const payLabel = { dinheiro: 'dinheiro', debito: 'débito', credito: 'crédito', pix: 'Pix' };
         payMethodEl.parentElement.style.display = 'block';
         payMethodEl.textContent = `${payEmojis[o.payMethod] || ''} ${payLabel[o.payMethod] || o.payMethod}`;
@@ -7439,11 +7443,11 @@
       if (unpaid) btn.textContent = '✓ confirmar pagamento';
       else if (isPickup) {
         if (bs === 'ready_for_pickup') btn.textContent = 'marcar como retirado';
-        else if (bs === 'preparing') btn.textContent = 'marcar pronto pra retirar 🏪';
+        else if (bs === 'preparing') btn.textContent = 'marcar pronto pra retirar';
         else btn.textContent = 'separar pedido';
       } else {
         if (bs === 'out_for_delivery') btn.textContent = 'marcar como entregue ✓';
-        else if (bs === 'preparing') btn.textContent = 'liberar pra entrega 🛵';
+        else if (bs === 'preparing') btn.textContent = 'liberar pra entrega';
         else btn.textContent = 'preparar pedido';
       }
     }
@@ -7477,12 +7481,12 @@
     });
     const customers = Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent);
     if (!customers.length) {
-      list.innerHTML = '<div class="empty"><div class="big">👥</div><div class="t">Nenhum cliente ainda</div><div class="s">quando vier o primeiro pedido, aparece</div></div>';
+      list.innerHTML = '<div class="empty"><div class="t">Nenhum cliente ainda</div><div class="s">quando vier o primeiro pedido, aparece</div></div>';
       return;
     }
     list.innerHTML = customers.map(c => `
       <div class="customer-row">
-        <div class="cr-avatar">👤</div>
+        <div class="cr-avatar"></div>
         <div class="cr-info">
           <div class="cr-name">${c.name}</div>
           <div class="cr-contact">${c.phone}${c.email ? ' ✦ ' + c.email : ''}</div>
@@ -7562,7 +7566,7 @@
   function askConfirm({ title, msg, icon, okLabel, danger }, cb) {
     document.getElementById('confirm-title').textContent = title || 'tem certeza?';
     document.getElementById('confirm-msg').textContent = msg || '';
-    document.getElementById('confirm-icon').textContent = icon || '⚠️';
+    document.getElementById('confirm-icon').textContent = icon || '';
     const okBtn = document.getElementById('confirm-ok');
     okBtn.textContent = okLabel || 'confirmar';
     okBtn.style.background = danger ? 'var(--pink)' : '';
@@ -7590,8 +7594,8 @@
     let msg = '';
     if (o.statusCls === 'waiting') msg = `Oi ${o.customer.name} ✦ recebemos seu pedido #dr-${o.num}, tô confirmando o pagamento`;
     else if (o.statusCls === 'separating') msg = `Oi ${o.customer.name} ✦ tô separando seu pedido #dr-${o.num}, já já fica pronto`;
-    else if (o.statusCls === 'ready') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} tá pronto pra retirar na loja 🏪✦`;
-    else if (o.statusCls === 'way') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} saiu pra entrega 🛵✦`;
+    else if (o.statusCls === 'ready') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} tá pronto pra retirar na loja✦`;
+    else if (o.statusCls === 'way') msg = `Oi ${o.customer.name} ✦ seu pedido #dr-${o.num} saiu pra entrega✦`;
     else msg = `Oi ${o.customer.name} ✦ sobre seu pedido #dr-${o.num}`;
     window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
   }
@@ -7602,7 +7606,7 @@
     askConfirm({
       title: 'cancelar pedido?',
       msg: `#dr-${o.num} vai pra cancelado. o cliente não recebe o pedido.`,
-      icon: '🚫',
+      icon: '',
       okLabel: 'sim, cancelar',
       danger: true,
     }, async () => {
@@ -7680,13 +7684,13 @@
     const on = loja.open_now;
     const lh = loja.hours || {};
     const statusLine = (on === true)
-      ? `<span style="color:#4ADE80;font-weight:700">🟢 aberta agora</span>${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}`
+      ? `<span style="color:#4ADE80;font-weight:700">aberta agora</span>${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}`
       : (on === false)
-        ? `<span style="color:#FF6B6B;font-weight:700">🔴 fechada agora</span>${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}`
-        : '🟢 aberto ✦ entrega em minutos';
+        ? `<span style="color:#FF6B6B;font-weight:700">fechada agora</span>${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}`
+        : 'aberto ✦ entrega em minutos';
     const img = loja.photo_url
       ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:60px;height:60px;border-radius:16px;object-fit:cover;flex:0 0 auto;box-shadow:0 4px 14px rgba(0,0,0,0.3)">`
-      : `<div style="width:60px;height:60px;border-radius:16px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:28px">🏪</div>`;
+      : `<div style="width:60px;height:60px;border-radius:16px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:28px"></div>`;
     el.innerHTML = `${img}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px">
@@ -7727,7 +7731,7 @@
     const el = document.getElementById(elId); if (!el) return;
     if (!storeIsClosed()) { el.style.display = 'none'; el.innerHTML = ''; return; }
     const nx = _nextOpeningText();
-    el.innerHTML = `🕒 <strong>Loja fechada agora</strong> — seu pedido é aceito e entra na fila. ${nx ? `Preparamos assim que abrir (${escapeHtml(nx)}).` : 'Preparamos assim que a loja abrir.'}`;
+    el.innerHTML = `<strong>Loja fechada agora</strong> — seu pedido é aceito e entra na fila. ${nx ? `Preparamos assim que abrir (${escapeHtml(nx)}).` : 'Preparamos assim que a loja abrir.'}`;
     el.style.display = 'block';
   }
   // Trocar filial via menu (botão no perfil)
@@ -7761,7 +7765,7 @@
         const sub = [cityTc, (f.produtos ? (f.produtos + ' produto' + (f.produtos !== 1 ? 's' : '')) : 'nova ✦')].filter(Boolean).join(' · ');
         const cover = f.cover
           ? `<img src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:52px;height:52px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
-          : `<div style="width:52px;height:52px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px">🏪</div>`;
+          : `<div style="width:52px;height:52px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:22px"></div>`;
         return `<button onclick="pickClientFilial('${escapeHtml(f.slug)}')" style="display:flex;align-items:center;gap:12px;width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:12px;border-radius:16px;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left">
           ${cover}
           <span style="flex:1;min-width:0"><div style="font-weight:800;font-size:15px">${escapeHtml(label)}</div><div style="font-size:12px;color:rgba(255,255,255,0.6)">${escapeHtml(sub)}</div></span>
@@ -7785,17 +7789,17 @@
     const label = f.name || f.city || '';
     const cityTc = (f.city || '').replace(/\b\w/g, c => c.toUpperCase());
     const cover = f.cover
-      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'>🏪</div>'">`
-      : `<div class="loja-cover-ph">🏪</div>`;
+      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
+      : `<div class="loja-cover-ph"></div>`;
     const kmTxt = (typeof f._km === 'number') ? (f._km < 1 ? Math.round(f._km * 1000) + ' m' : f._km.toFixed(1).replace('.', ',') + ' km') : '';
     const chips = [
-      kmTxt ? `<span class="lc-chip dist">📍 ${kmTxt}</span>` : '',
-      `<span class="lc-chip time">⏱ 20-40 min</span>`,
-      f.produtos ? `<span class="lc-chip">📦 ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
-      cityTc ? `<span class="lc-chip">🏙️ ${escapeHtml(cityTc)}</span>` : '',
+      kmTxt ? `<span class="lc-chip dist">${kmTxt}</span>` : '',
+      `<span class="lc-chip time">20-40 min</span>`,
+      f.produtos ? `<span class="lc-chip">${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
+      cityTc ? `<span class="lc-chip">${escapeHtml(cityTc)}</span>` : '',
       (f.open_now === false)
-        ? `<span class="lc-chip closed">🔴 fechada</span>`
-        : `<span class="lc-chip open">🟢 aberto${f.open_now === true ? 'a' : ''}</span>`,
+        ? `<span class="lc-chip closed">fechada</span>`
+        : `<span class="lc-chip open">aberto${f.open_now === true ? 'a' : ''}</span>`,
     ].filter(Boolean).join('');
     const fav = _isFavStore(f.slug);
     return `<div class="loja-card" onclick="pickClientFilial('${escapeHtml(f.slug)}')">
@@ -7863,7 +7867,7 @@
     const list = document.getElementById('ofertas-list');
     if (!list) return;
     const emptyHtml = `<div style="text-align:center;padding:44px 20px;color:var(--text-dim)">
-      <div style="font-size:46px;margin-bottom:10px">🔥</div>
+      <div style="font-size:46px;margin-bottom:10px"></div>
       <div style="font-size:15px;font-weight:700;color:var(--text)">Nenhuma oferta rolando agora</div>
       <div style="font-size:13px;margin-top:6px;line-height:1.5">As tabacarias ainda não marcaram promoções ✦ volta mais tarde</div>
     </div>`;
@@ -7879,7 +7883,7 @@
         const off = o.price_cents ? Math.round((1 - o.offer_cents / o.price_cents) * 100) : 0;
         const img = o.image_url
           ? `<img src="${escapeHtml(o.image_url)}" alt="" draggable="false" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex:0 0 auto">`
-          : `<div style="width:56px;height:56px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--card-hi);font-size:24px">🔥</div>`;
+          : `<div style="width:56px;height:56px;border-radius:12px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--card-hi);font-size:24px"></div>`;
         return `<div onclick="openOffer('${escapeHtml(o.filial_slug)}')" style="display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px;cursor:pointer">
           ${img}
           <div style="flex:1;min-width:0">
@@ -8011,7 +8015,7 @@
   // ===== Profile (nome + whats) =====
   const PROFILE_KEY = 'drope_profile_v1';
   // 'cham' = avatar oficial da marca (camaleão Drope); demais são emojis genéricos
-  const AVATAR_OPTIONS = ['cham', '🧊', '💨', '⚡', '🫧', '🔥'];
+  const AVATAR_OPTIONS = ['cham', '', '', '', '', ''];
   const BRAND_AVATAR = 'cham';
   // Usa o camaleão embutido no splash (base64) — nunca dá 404 como o arquivo em icons/
   const BRAND_AVATAR_SRC = (document.getElementById('splash-logo-img') || {}).src || 'icons/drope-avatar.png';
@@ -8073,8 +8077,8 @@
     try {
       const s = localStorage.getItem(PROFILE_KEY);
       if (s) profile = JSON.parse(s);
-      // Migra avatares antigos: 🦎 emoji → 'cham' (camaleão da marca)
-      if (profile.avatar === '🦎') {
+      // Migra avatares antigos: emoji → 'cham' (camaleão da marca)
+      if (profile.avatar === '') {
         profile.avatar = BRAND_AVATAR;
         try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}
       }
@@ -8170,7 +8174,7 @@
     if (!addresses.length) {
       list.innerHTML = `
         <div class="addr-empty">
-          <div class="icon">📍</div>
+          <div class="icon"></div>
           <div class="t">Nenhum endereço ainda</div>
           <div class="s">cadastra um pra dropar direto na sua porta</div>
           <button class="btn-primary" onclick="openAddressForm()" style="max-width: 240px; margin: 0 auto">cadastrar endereço ✦</button>
@@ -8183,7 +8187,7 @@
       return `
       <div class="addr-card ${a.id === selectedAddressId ? 'selected' : ''} ${pending ? 'pending-delete' : ''}" onclick="selectAddress('${a.id}')">
         <div class="addr-head">
-          <div class="addr-label"><div class="addr-icon">📍</div>${a.label || 'endereço'}</div>
+          <div class="addr-label"><div class="addr-icon"></div>${a.label || 'endereço'}</div>
           ${a.id === selectedAddressId ? '<div class="addr-badge">padrão</div>' : ''}
         </div>
         <div class="addr-street">${a.street}, ${a.num}${a.comp ? ' ✦ ' + a.comp : ''}</div>
@@ -8344,7 +8348,7 @@
     if (cleanCep.length !== 8) return null;
     const quoteEl = document.getElementById('af-quote');
 
-    // 1️⃣ Cache local — 0ms
+    // 1Cache local — 0ms
     const cached = _loadQuoteCache(cleanCep);
     if (cached && cached.ok) {
       window._deliveryQuote = { ...cached, cep: cleanCep };
@@ -8352,9 +8356,9 @@
       return cached;
     }
 
-    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">🛵 calculando taxa…</div>';
+    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">calculando taxa…</div>';
 
-    // 2️⃣ AwesomeAPI direto do navegador (~100-300ms, sem bloqueio Vercel)
+    // 2AwesomeAPI direto do navegador (~100-300ms, sem bloqueio Vercel)
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 3500);
@@ -8372,7 +8376,7 @@
       }
     } catch (_) {}
 
-    // 3️⃣ Fallback: backend (BrasilAPI+Nominatim com cache Supabase)
+    // 3Fallback: backend (BrasilAPI+Nominatim com cache Supabase)
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 5000);
@@ -8386,11 +8390,11 @@
         return data;
       }
       window._deliveryQuote = null;
-      if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">⚠️ ${data.error || 'CEP não localizado'}</div>`;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">${data.error || 'CEP não localizado'}</div>`;
       return data;
     } catch (e) {
       window._deliveryQuote = null;
-      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5">⚠️ <b>não consegui calcular</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats — pedido segue normal</span></div>`;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>não consegui calcular</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats — pedido segue normal</span></div>`;
       return null;
     }
   }
@@ -8398,9 +8402,9 @@
   function _renderQuoteBox(el, data) {
     if (!el) return;
     if (data.out_of_range) {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);border-radius:10px;color:#FFB800;font-size:13px;line-height:1.5">⚠️ <b>${data.message}</b><br><span style="font-size:11px;color:var(--text-dim)">~${data.km}km até a loja</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);border-radius:10px;color:#FFB800;font-size:13px;line-height:1.5"><b>${data.message}</b><br><span style="font-size:11px;color:var(--text-dim)">~${data.km}km até a loja</span></div>`;
     } else {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">🛵 taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
     }
   }
 
@@ -8512,7 +8516,7 @@
         : '';
       return `
       <div class="order-row-admin" style="margin: 0 0 8px; cursor: pointer ${soldOut ? '; opacity:0.6' : ''}${isHidden ? '; border-left: 3px solid var(--pink)' : ''}" onclick="openProductForm(${i})">
-        <div class="em" style="font-size: 32px">${p.emoji || '📦'}</div>
+        <div class="em" style="font-size: 32px">${p.emoji || ''}</div>
         <div class="info" style="margin-left: 8px">
           <div class="nm" style="font-size: 14px; font-weight: 600; color: var(--text); text-transform: lowercase">${p.name}${hiddenBadge}</div>
           <div class="items">${money(p.price)} ✦ ${p.cat === 'pod' ? 'drop' : 'tabacaria'} ${stockTag ? '✦ ' + stockTag : ''}</div>
@@ -8527,7 +8531,7 @@
   // /api/admin-update-stock (exige ADMIN_TOKEN). Cadastro NOVO segue pelo scanner/bot.
   function openProductForm(idx) {
     if (typeof idx !== 'number') {
-      toast('pra cadastrar drope novo, usa "receber estoque" (scanner) ou o bot 🦎');
+      toast('pra cadastrar drope novo, usa "receber estoque" (scanner) ou o bot');
       return;
     }
     const p = products[idx];
@@ -8624,7 +8628,7 @@
   }
 
   function updateFormPreview() {
-    const emoji = document.getElementById('af-emoji').value || '📦';
+    const emoji = document.getElementById('af-emoji').value || '';
     const name = document.getElementById('af-name').value || 'nome do drope';
     const desc = document.getElementById('af-desc').value || 'descrição curta';
     const price = document.getElementById('af-price').value || '0';
@@ -8637,10 +8641,10 @@
   function saveProduct() {
     // REFATOR 30/04/2026: catálogo é READ-ONLY do app cliente. Cadastro/edição é pelo bot
     // (mais qualidade — Vision extrai dados das fotos) ou admin gallery (preço/barcode).
-    toast('use o bot WhatsApp pra cadastrar (manda "cadastra") ou a gallery pra ajustar 🦎');
+    toast('use o bot WhatsApp pra cadastrar (manda "cadastra") ou a gallery pra ajustar');
     return;
     /* eslint-disable */
-    const emoji = document.getElementById('af-emoji').value.trim() || '📦';
+    const emoji = document.getElementById('af-emoji').value.trim() || '';
     const name = document.getElementById('af-name').value.trim();
     const desc = document.getElementById('af-desc').value.trim();
     const price = parseFloat(document.getElementById('af-price').value) || 0;
@@ -8672,7 +8676,7 @@
   function deleteProduct() {
     // REFATOR 30/04/2026: pra remover produto, esconde no admin gallery (image_status →
     // pending_regeneration ou hidden=true direto no Supabase). App cliente é READ-ONLY.
-    toast('pra esconder/apagar produto, usa o admin gallery 🦎');
+    toast('pra esconder/apagar produto, usa o admin gallery');
     return;
   }
 
@@ -8706,11 +8710,11 @@
     const lowStock = !soldOut && typeof p.stock === 'number' && p.stock <= 3;
     const stockBadge = soldOut
       ? '<div class="stock-badge out">esgotado</div>'
-      : (lowStock ? `<div class="stock-badge low">🔥 últimas ${p.stock}</div>` : '');
+      : (lowStock ? `<div class="stock-badge low">últimas ${p.stock}</div>` : '');
     // onerror: se a imagem 404 (arquivo não existe ou Storage URL quebrada), troca pelo
     // emoji do produto. Evita o "alt text feio" que apareceu quando 21-26 PNGs sumiram.
     const visual = p.img
-      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '🦎').replace(/'/g,'\\\'')}</div>'">`
+      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
     // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
@@ -9164,11 +9168,11 @@
     if (brands.length === 0) { wrap.style.display = 'none'; return; }
     wrap.style.display = '';
     // Render: cada marca vira bolinha. Primeiro item = "tudo" pra resetar.
-    // Capa do TUDO = imagem de IA (mistura de pods), se gerada no admin; senão 🌎.
+    // Capa do TUDO = imagem de IA (mistura de pods), se gerada no admin; senão.
     const tudoImg = (typeof VIBE_IMAGES !== 'undefined' && VIBE_IMAGES && VIBE_IMAGES.tudo) || '';
     const tudoInner = tudoImg
-      ? `<img src="${escapeHtml(tudoImg)}" alt="tudo" draggable="false" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='🌎'">`
-      : '🌎';
+      ? `<img src="${escapeHtml(tudoImg)}" alt="tudo" draggable="false" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent=''">`
+      : '';
     let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
       <div class="brand-bubble-circle"${tudoImg ? ' style="padding:0"' : ' style="background:linear-gradient(135deg,#b026ff,#ff2d95);"'}>${tudoInner}</div>
       <div class="brand-bubble-name">TUDO</div>
@@ -9197,7 +9201,7 @@
       'ex: uva gelada',
       'ex: 50K puffs',
       'ex: BLACKSHEEP',
-      'digita o que você quer 🦎',
+      'digita o que você quer',
     ];
     let idx = 0;
     setInterval(() => {
@@ -9360,7 +9364,7 @@
       const soldOut = _soldOut(p);
       const visual = p.img
         ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
-        : `<div class="emoji">${p.emoji || '🦎'}</div>`;
+        : `<div class="emoji">${p.emoji || ''}</div>`;
       const muted = labels.muted ? `<div class="hero-muted" style="font-size:13px;color:var(--text-dim);font-weight:500;text-transform:lowercase;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
       const cta = soldOut
         ? `<button class="hero-cta" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">esgotado — toca pra avisar</button>`
@@ -9537,7 +9541,7 @@
         const lojaEnd = isSantos ? 'combina retirada com a Natalia no whats ✦ +55 11 98926-0808' : store.address;
         addrWrap.innerHTML = `
           <div class="co-address" style="cursor:default">
-            <div class="ic">🏪</div>
+            <div class="ic"></div>
             <div class="info">
               <div class="lbl">retirar em</div>
               <div class="val">${lojaNome} ✦ ${lojaEnd}</div>
@@ -9548,7 +9552,7 @@
         if (a) {
           addrWrap.innerHTML = `
             <div class="co-address" onclick="pickAddressFromCheckout()">
-              <div class="ic">📍</div>
+              <div class="ic"></div>
               <div class="info">
                 <div class="lbl">entrega em</div>
                 <div class="val">${a.label} ✦ ${a.street}, ${a.num}</div>
@@ -9558,7 +9562,7 @@
         } else {
           addrWrap.innerHTML = `
             <div class="co-address" onclick="pickAddressFromCheckout()" style="border-color: rgba(255, 45, 111, 0.4)">
-              <div class="ic">📍</div>
+              <div class="ic"></div>
               <div class="info">
                 <div class="lbl">endereço</div>
                 <div class="val" style="color: var(--pink)">cadastrar endereço de entrega</div>
@@ -9581,35 +9585,35 @@
       info.className = 'delivery-fee-note';
       if (q && q.ok && !q.out_of_range) {
         info.innerHTML = `
-          <div class="dfn-icon">🛵</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: var(--lime)">taxa de entrega ✦ ${q.fmt}</div>
             <div class="dfn-sub">${q.km}km da loja · calculado automático</div>
           </div>`;
       } else if (q && q.out_of_range) {
         info.innerHTML = `
-          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: #FFB800">~${q.km}km de distância</div>
             <div class="dfn-sub">${q.message || 'longe ✦ confirmamos pelo whats antes de fechar'}</div>
           </div>`;
       } else if (!addrCep || addrCep.length !== 8) {
         info.innerHTML = `
-          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: var(--pink)">endereço sem CEP</div>
             <div class="dfn-sub">edita o endereço acima e preenche o CEP pra calcular a taxa</div>
           </div>`;
       } else if (q && !q.ok) {
         info.innerHTML = `
-          <div class="dfn-icon">⚠️</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: var(--pink)">CEP não localizado</div>
             <div class="dfn-sub">confere o CEP do endereço — pode ter erro de digitação</div>
           </div>`;
       } else {
         info.innerHTML = `
-          <div class="dfn-icon">🛵</div>
+          <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title">calculando taxa…</div>
             <div class="dfn-sub">aguarda o CEP carregar</div>
@@ -9666,7 +9670,7 @@
     if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
     appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest, freeShipping: !!c.freeShipping };
     _syncCouponMsg('cart-coupon-msg');
-    toast(c.isTest ? '🧪 modo teste ativo' : 'cupom aplicado ✦');
+    toast(c.isTest ? 'modo teste ativo' : 'cupom aplicado ✦');
     renderCart();
   }
 
@@ -9698,24 +9702,24 @@
     const totalEl = document.getElementById('co-total');
     const bits = [];
     if (appliedCoupon && appliedCoupon.isTest) {
-      bits.push(`🧪 modo teste ativo ✦ total zerado`);
+      bits.push(`modo teste ativo ✦ total zerado`);
     } else if (appliedCoupon && appliedCoupon.freeShipping) {
-      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ 🛵 frete grátis`);
+      bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ frete grátis`);
     } else if (appliedCoupon) {
       bits.push(`cupom <b>${appliedCoupon.code}</b> ✦ -${money(appliedCoupon.discount)}`);
     }
     // Andrade 04/06: mostra taxa de entrega real (calculada via CEP)
     if (deliveryMode === 'delivery') {
       if (appliedCoupon && appliedCoupon.freeShipping) {
-        bits.push(`🛵 entrega grátis ✦ cupom`);
+        bits.push(`entrega grátis ✦ cupom`);
       } else {
         const q = window._deliveryQuote;
         if (q && q.ok && !q.out_of_range) {
-          bits.push(`🛵 entrega ${q.fmt} (~${q.km}km)`);
+          bits.push(`entrega ${q.fmt} (~${q.km}km)`);
         } else if (q && q.out_of_range) {
-          bits.push(`🛵 entrega: longe ✦ confirmar`);
+          bits.push(`entrega: longe ✦ confirmar`);
         } else {
-          bits.push(`🛵 taxa calculada após preencher CEP`);
+          bits.push(`taxa calculada após preencher CEP`);
         }
       }
     }
@@ -9742,10 +9746,10 @@
       warn.style.display = 'none';
     } else if (kind === 'pod') {
       warn.style.display = 'block';
-      warn.innerHTML = `<div class="pay-chip pix-only">⚡ Só Pix ✦ regra da casa pra drops</div>`;
+      warn.innerHTML = `<div class="pay-chip pix-only">Só Pix ✦ regra da casa pra drops</div>`;
     } else if (kind === 'mix') {
       warn.style.display = 'block';
-      warn.innerHTML = `<div class="pay-chip mix">⚡ carrinho misto ✦ só Pix libera tudo</div>`;
+      warn.innerHTML = `<div class="pay-chip mix">carrinho misto ✦ só Pix libera tudo</div>`;
     } else {
       warn.style.display = 'none';
     }
@@ -9757,7 +9761,7 @@
     if (payBlocked) {
       html = `
         <div class="co-method disabled" style="border-color: rgba(255, 45, 111, 0.4)">
-          <div class="co-method-icon">📍</div>
+          <div class="co-method-icon"></div>
           <div class="co-method-body">
             <div class="co-method-title">cadastra o endereço de entrega</div>
             <div class="co-method-sub" style="color: var(--pink)">toca no card de endereço acima</div>
@@ -9768,7 +9772,7 @@
     else if (deliveryMode === 'pickup' && payWhen === 'later') {
       html = `
         <div class="co-method reserve" onclick="reserveOrderPickup()">
-          <div class="co-method-icon">🏪</div>
+          <div class="co-method-icon"></div>
           <div class="co-method-body">
             <div class="co-method-title">reservar e pagar na loja</div>
             <div class="co-method-sub">dinheiro, cartão máquina ou Pix presencial</div>
@@ -9776,7 +9780,7 @@
           <div class="co-method-arrow">→</div>
         </div>
         <div class="reserve-note">
-          🛟 separamos pra você ✦ vem buscar em até <b>2h</b> depois do pedido
+          separamos pra você ✦ vem buscar em até <b>2h</b> depois do pedido
         </div>
       `;
     } else {
@@ -9786,7 +9790,7 @@
 
       html = `
         <div class="co-method" onclick="${blockClick}">
-          <div class="co-method-icon">⚡</div>
+          <div class="co-method-icon"></div>
           <div class="co-method-body">
             <div class="co-method-title">Pix</div>
             <div class="co-method-sub">aprovação automática ✦ sem comprovante</div>
@@ -9800,7 +9804,7 @@
       if (cardLiberado) {
         html += `
           <div class="co-method" onclick="${blockCard}">
-            <div class="co-method-icon">💳</div>
+            <div class="co-method-icon"></div>
             <div class="co-method-body">
               <div class="co-method-title">cartão</div>
               <div class="co-method-sub">crédito ou débito ✦ até 3x sem juros</div>
@@ -9811,7 +9815,7 @@
       } else {
         html += `
           <div class="co-method disabled">
-            <div class="co-method-icon">💳</div>
+            <div class="co-method-icon"></div>
             <div class="co-method-body">
               <div class="co-method-title">cartão</div>
               <div class="co-method-sub">indisponível pra drops</div>
@@ -9828,10 +9832,10 @@
     if (recap) {
       let where = '';
       if (deliveryMode === 'pickup') {
-        where = `🏪 retirar em ${store.name}`;
+        where = `retirar em ${store.name}`;
       } else {
         const a = getSelectedAddress();
-        where = a ? `🛵 ${a.label} ✦ ${a.street}, ${a.num}` : '🛵 entrega';
+        where = a ? `${a.label} ✦ ${a.street}, ${a.num}` : 'entrega';
       }
       const subtotal = cartTotal();
       const fee = deliveryFee();
@@ -9839,7 +9843,7 @@
       recap.innerHTML = `
         <div class="rec-row"><span class="rec-lbl">subtotal</span><span class="rec-val">${money(subtotal)}</span></div>
         ${discount ? `<div class="rec-row"><span class="rec-lbl">cupom</span><span class="rec-val" style="color:var(--lime)">-${money(discount)}</span></div>` : ''}
-        ${(appliedCoupon && appliedCoupon.freeShipping && deliveryMode === 'delivery') ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val" style="color:var(--lime)">grátis 🛵</span></div>` : (fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">${money(fee)}</span></div>` : '')}
+        ${(appliedCoupon && appliedCoupon.freeShipping && deliveryMode === 'delivery') ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val" style="color:var(--lime)">grátis</span></div>` : (fee > 0 ? `<div class="rec-row"><span class="rec-lbl">entrega</span><span class="rec-val">${money(fee)}</span></div>` : '')}
         <div class="rec-row"><span class="rec-lbl">onde</span><span class="rec-val">${where}</span></div>
         <div class="rec-row"><span class="rec-lbl">contato</span><span class="rec-val">${profile.name} ✦ ${profile.phone}</span></div>
       `;
@@ -9926,7 +9930,7 @@
   }
 
   // FRICÇÃO #004 (04/06 Andrade): tela detalhe com 3 cards informativos
-  // 🦎 sobre o pod (specs) | 🍇 perfil do sabor | ✨ vibe (storytelling)
+  // sobre o pod (specs) | perfil do sabor | vibe (storytelling)
   function populateInfoCards(p) {
     const el = document.getElementById('d-info-cards');
     if (!el) return;
@@ -9947,7 +9951,7 @@
       specsRows.push(['em estoque', p.stock + (p.stock === 1 ? ' unidade' : ' unidades')]);
     }
     const card1 = `<div class="info-card">
-      <div class="info-card-title">🦎 sobre o pod</div>
+      <div class="info-card-title">sobre o pod</div>
       ${specsRows.map(([l, v]) => `
         <div class="info-card-row">
           <span class="info-card-label">${escapeHtml(l)}</span>
@@ -9971,7 +9975,7 @@
     if (/\b(tropic|exotic)/i.test(lower)) perfilTags.push({ label: 'tropical', cls: '' });
 
     const card2 = `<div class="info-card">
-      <div class="info-card-title">🍇 perfil do sabor</div>
+      <div class="info-card-title">perfil do sabor</div>
       ${sabor ? `<div class="info-card-row">
         <span class="info-card-label">sabor</span>
         <span class="info-card-value">${escapeHtml(sabor)}</span>
@@ -9984,20 +9988,20 @@
     // Card 3 — Vibe (storytelling do Vision)
     const vibe = p.desc || '';
     const card3 = vibe ? `<div class="info-card">
-      <div class="info-card-title">✨ a vibe</div>
+      <div class="info-card-title">a vibe</div>
       <div class="info-card-vibe">"${escapeHtml(vibe)}"</div>
     </div>` : '';
 
     // Card 4 — Produtos similares (Andrade 04/06)
     const similares = findSimilarProducts(p, 6);
     const card4 = similares.length ? `<div class="info-card">
-      <div class="info-card-title">🦎 talvez você curta também</div>
+      <div class="info-card-title">talvez você curta também</div>
       <div class="similar-scroll">
         ${similares.map(s => {
           const sIdx = products.findIndex(x => x.slug === s.slug);
           const visual = s.img
             ? `<img src="${escapeHtml(s.img)}" alt="${escapeHtml(s.name)}" draggable="false">`
-            : `<div class="similar-emoji">${s.emoji || '🦎'}</div>`;
+            : `<div class="similar-emoji">${s.emoji || ''}</div>`;
           return `<div class="similar-card" onclick="openProduct(${sIdx})">
             <div class="similar-thumb">${visual}</div>
             <div class="similar-name">${escapeHtml((s.sabor || s.name || '').toLowerCase())}</div>
@@ -10122,10 +10126,10 @@
       } else if (p.stock <= 0) {
         stockInfo.textContent = ''; // botão já comunica esgotado
       } else if (p.stock === 1) {
-        stockInfo.textContent = '🔥 última unidade disponível';
+        stockInfo.textContent = 'última unidade disponível';
         stockInfo.style.color = 'var(--pink)';
       } else if (p.stock <= 3) {
-        stockInfo.textContent = `🔥 últimas ${p.stock} unidades`;
+        stockInfo.textContent = `últimas ${p.stock} unidades`;
         stockInfo.style.color = 'var(--pink)';
       } else {
         stockInfo.textContent = `${p.stock} em estoque`;
@@ -10136,7 +10140,7 @@
     // OSSO-FIX-PRECO-ZERO (parte 2): se preço inválido, trata como caso especial.
     // Cliente não pode adicionar ao carrinho um produto sem preço — vira WhatsApp.
     if (!hasValidPrice) {
-      addBtn.innerHTML = '📲 preço a confirmar — fala no whats';
+      addBtn.innerHTML = 'preço a confirmar — fala no whats';
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
       addBtn.onclick = function(e) {
@@ -10144,7 +10148,7 @@
         const wDigits = String(store.whats || '').replace(/\D/g, '');
         if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
-        const msg = `oi! qual o preço do ${p.name}? 🦎`;
+        const msg = `oi! qual o preço do ${p.name}?`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
       };
       if (stepper) stepper.classList.add('disabled');
@@ -10152,7 +10156,7 @@
       // OSSO-AVISO-CHEGADA: produto esgotado abre WhatsApp pré-preenchido.
       // O webhook.js detecta a mensagem, identifica produto, registra interesse
       // em drope_customer_interests e o cron de notificação avisa quando chegar.
-      addBtn.innerHTML = '📲 esgotado — me avise via whats';
+      addBtn.innerHTML = 'esgotado — me avise via whats';
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
       addBtn.onclick = function(e) {
@@ -10160,7 +10164,7 @@
         const wDigits = String(store.whats || '').replace(/\D/g, '');
         if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
-        const msg = `oi! quero saber quando chega o ${p.name} 🦎`;
+        const msg = `oi! quero saber quando chega o ${p.name}`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
       };
       if (stepper) stepper.classList.add('disabled');
@@ -10195,7 +10199,7 @@
       p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)
     );
     if (filtered.length === 0) {
-      list.innerHTML = `<div class="empty"><div class="big">🔍</div><div class="t">Nenhum drope com esse nome</div><div class="s">tenta "gelado" ou "frutado"</div></div>`;
+      list.innerHTML = `<div class="empty"><div class="t">Nenhum drope com esse nome</div><div class="s">tenta "gelado" ou "frutado"</div></div>`;
       return;
     }
     list.innerHTML = filtered.map(p => {
@@ -10223,7 +10227,7 @@
     const favLojas = (lojas || []).filter(f => _favStores.has(f.slug));
     const favProducts = products.filter(p => favorites.has(p.name));
     if (!favLojas.length && !favProducts.length) {
-      wrap.innerHTML = `<div class="empty"><div class="big">💜</div><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar lojas e dropes</div><button class="btn-primary" onclick="go('inicio')" style="max-width:220px;margin:0 auto">ver tabacarias</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar lojas e dropes</div><button class="btn-primary" onclick="go('inicio')" style="max-width:220px;margin:0 auto">ver tabacarias</button></div>`;
       return;
     }
     const secLbl = t => `<div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:0 0 10px 2px">${t}</div>`;
@@ -10263,14 +10267,14 @@
     if (st === 'cancelled') { statusCls = 'cancelled'; label = 'cancelado'; }
     else if (mode === 'pickup') {
       if (st === 'picked_up') { statusCls = 'done'; label = 'retirado ✓'; }
-      else if (st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar 🏪'; }
+      else if (st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar'; }
       else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
       else if (st === 'paid') { statusCls = 'separating'; label = 'pago ✦ separando'; }
       else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'separating'; label = 'reservado ✦ pague na retirada'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     } else {
       if (st === 'delivered') { statusCls = 'done'; label = 'entregue ✓'; }
-      else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho 🛵 ✦ motoboy retirou na loja'; }
+      else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho ✦ motoboy retirou na loja'; }
       else if (st === 'preparing') { statusCls = 'confirmed'; label = 'preparando teu pedido'; }
       else if (st === 'paid') { statusCls = 'confirmed'; label = 'pago ✦ preparando'; }
       else if (st === 'waiting_proof') { statusCls = 'waiting'; label = 'aguardando confirmação'; }
@@ -10383,16 +10387,16 @@
         const md = f.metadata || {};
         const pending = md.onboarding === 'pending_payment';
         const badge = pending
-          ? '<span style="background:rgba(255,170,45,0.18);color:#ffc46b;font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">⏳ aguardando recebimento</span>'
-          : '<span style="background:rgba(212,255,46,0.15);color:var(--lime);font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">✅ no ar</span>';
+          ? '<span style="background:rgba(255,170,45,0.18);color:#ffc46b;font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">aguardando recebimento</span>'
+          : '<span style="background:rgba(212,255,46,0.15);color:var(--lime);font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap">no ar</span>';
         const whats = (f.founder_phone || '').replace(/\D/g, '');
         return `<div style="background:rgba(255,255,255,0.04);border-radius:16px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,0.25)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div style="font-weight:700;color:var(--text)">${escapeHtml(f.name || '')}</div>
             ${badge}
           </div>
-          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">📍 ${escapeHtml(f.city || '')}/${escapeHtml(f.state || '')} ✦ 👤 ${escapeHtml(f.founder_name || '—')}</div>
-          ${whats ? `<a href="https://wa.me/${whats}" target="_blank" style="display:inline-block;margin-top:10px;background:rgba(37,211,102,0.15);color:#25D366;text-decoration:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700">💬 WhatsApp</a>` : ''}
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">${escapeHtml(f.city || '')}/${escapeHtml(f.state || '')} ✦ ${escapeHtml(f.founder_name || '—')}</div>
+          ${whats ? `<a href="https://wa.me/${whats}" target="_blank" style="display:inline-block;margin-top:10px;background:rgba(37,211,102,0.15);color:#25D366;text-decoration:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700">WhatsApp</a>` : ''}
         </div>`;
       }).join('');
     } catch (e) { list.innerHTML = '<div class="empty-mini">erro ao carregar ✦</div>'; }
@@ -10449,11 +10453,11 @@
 
   // ===== ADMIN — imagens das vibes (gera por IA a arte de cada tema) =====
   const _VIBE_DEFS_ADM = [
-    { fl: 'tudo',    emoji: '🌎', label: 'Tudo (filtro do topo)', desc: 'mistura de pods das marcas' },
-    { fl: 'fruity',  emoji: '🍇', label: 'Frutado', desc: 'frutas frescas' },
-    { fl: 'sweet',   emoji: '🍬', label: 'Doce',    desc: 'doces e sobremesas' },
-    { fl: 'icy',     emoji: '🧊', label: 'Gelado',  desc: 'gelo e frost' },
-    { fl: 'menthol', emoji: '🌿', label: 'Mentol',  desc: 'menta e eucalipto' },
+    { fl: 'tudo',    emoji: '', label: 'Tudo (filtro do topo)', desc: 'mistura de pods das marcas' },
+    { fl: 'fruity',  emoji: '', label: 'Frutado', desc: 'frutas frescas' },
+    { fl: 'sweet',   emoji: '', label: 'Doce',    desc: 'doces e sobremesas' },
+    { fl: 'icy',     emoji: '', label: 'Gelado',  desc: 'gelo e frost' },
+    { fl: 'menthol', emoji: '', label: 'Mentol',  desc: 'menta e eucalipto' },
   ];
   let _vibeGenBusy = {};
   function renderVibeImages() {
@@ -10471,7 +10475,7 @@
           <div style="font-weight:700;color:var(--text)">${v.emoji} ${v.label}</div>
           <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${v.desc}</div>
         </div>
-        <button onclick="generateVibeImage('${v.fl}')" ${busy ? 'disabled' : ''} style="flex:0 0 auto;background:${busy ? 'rgba(255,255,255,0.08)' : 'var(--lime)'};color:${busy ? 'var(--text-dim)' : '#0a0a14'};border:0;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:800;cursor:${busy ? 'default' : 'pointer'};font-family:inherit;white-space:nowrap">${busy ? '⏳ gerando…' : (im ? '↻ regerar' : '✨ gerar')}</button>
+        <button onclick="generateVibeImage('${v.fl}')" ${busy ? 'disabled' : ''} style="flex:0 0 auto;background:${busy ? 'rgba(255,255,255,0.08)' : 'var(--lime)'};color:${busy ? 'var(--text-dim)' : '#0a0a14'};border:0;padding:10px 14px;border-radius:12px;font-size:13px;font-weight:800;cursor:${busy ? 'default' : 'pointer'};font-family:inherit;white-space:nowrap">${busy ? 'gerando…' : (im ? '↻ regerar' : 'gerar')}</button>
       </div>`;
     }).join('');
   }
@@ -10511,8 +10515,8 @@
     _beepNewOrder();
     const f = fresh[0];
     const txt = fresh.length > 1 ? `${fresh.length} novos pedidos!` : `Novo pedido ✦ ${f.summary}`;
-    try { toast('🛎️ ' + txt); } catch (e) {}
-    _notifyNewOrder('🛎️ Novo pedido no DROPE!', fresh.length > 1 ? txt : `${f.summary} ✦ ${money(f.total)}`);
+    try { toast('' + txt); } catch (e) {}
+    _notifyNewOrder('Novo pedido no DROPE!', fresh.length > 1 ? txt : `${f.summary} ✦ ${money(f.total)}`);
   }
   function _beepNewOrder() {
     try {
@@ -10554,7 +10558,7 @@
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');
     if (orders.length === 0) {
-      wrap.innerHTML = `<div class="empty"><div class="big">📦</div><div class="t">Você ainda não dropou nada</div><div class="s">bora começar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="t">Você ainda não dropou nada</div><div class="s">bora começar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
     }
     wrap.innerHTML = orders.map((o, idx) => {
@@ -10572,7 +10576,7 @@
           }).join('')}
         </div>`;
       const repeatBtn = o.items ? `<div class="order-repeat" onclick="repeatOrder(${idx})">dropar de novo ✦</div>` : '';
-      const modeTag = o.mode === 'pickup' ? '🏪 retirar na loja' : '🛵 entrega';
+      const modeTag = o.mode === 'pickup' ? 'retirar na loja' : 'entrega';
       return `
         <div class="order-card">
           <div class="order-head">
@@ -10674,9 +10678,9 @@
         const cls = inStock ? 'reorder-card' : 'reorder-card disabled';
         const onclick = inStock ? `onclick="dropAgainFromHome(event)"` : '';
         const thumb = lo.product_image
-          ? `<img src="${escapeHtml(lo.product_image)}" alt="${escapeHtml(lo.product_name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(lo.emoji || '🦎')}'}))">`
-          : `<span>${escapeHtml(lo.emoji || '🦎')}</span>`;
-        const greeting = greetName ? `Fala, ${escapeHtml(greetName)}! Separei pra você 🦎` : `Fala! Separei uns pra você 🦎`;
+          ? `<img src="${escapeHtml(lo.product_image)}" alt="${escapeHtml(lo.product_name)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(lo.emoji || '')}'}))">`
+          : `<span>${escapeHtml(lo.emoji || '')}</span>`;
+        const greeting = greetName ? `Fala, ${escapeHtml(greetName)}! Separei pra você` : `Fala! Separei uns pra você`;
         html += `<div class="vibe-greet">${greeting}</div>`;
         // OSSO 25 — sabor hero + brand muted no card de "dropar de novo"
         const loLabels = productLabels({
@@ -10690,7 +10694,7 @@
             <div class="reorder-top">
               <div class="reorder-thumb">${thumb}</div>
               <div class="reorder-body">
-                <div class="reorder-title">🔄 Seu último drop</div>
+                <div class="reorder-title">Seu último drop</div>
                 <div class="reorder-flavor">${escapeHtml(loLabels.hero)}</div>
                 ${loLabels.muted ? `<div class="reorder-brand">${escapeHtml(loLabels.muted)}</div>` : ''}
                 <div class="reorder-meta">${escapeHtml(meta)}</div>
@@ -10775,7 +10779,7 @@
     const data = __personalizedHomeCache;
     if (!data || !data.last_order) { toast('último drop não encontrado ✦'); return; }
     const lo = data.last_order;
-    if (!lo.in_stock) { toast('esgotou — te aviso quando voltar 🦎'); return; }
+    if (!lo.in_stock) { toast('esgotou — te aviso quando voltar'); return; }
     // Tenta achar o produto no catálogo local pra reusar o objeto completo
     let prod = products.find(p => (lo.slug && p.slug === lo.slug) || p.id === lo.product_id);
     const cartItem = prod ? {
@@ -10783,7 +10787,7 @@
     } : {
       id: lo.product_id, slug: lo.slug, name: lo.product_name, img: lo.product_image,
       price: lo.product_price, price_cents: Math.round(lo.product_price * 100),
-      cat: 'pod', perfil: 'frutado', emoji: lo.emoji || '🦎', qty: 1
+      cat: 'pod', perfil: 'frutado', emoji: lo.emoji || '', qty: 1
     };
     // Se item já está no carrinho, incrementa qty; senão adiciona.
     const existing = cart.find(i => i.name === cartItem.name);
@@ -10801,12 +10805,12 @@
 
   // FEATURE 4 — tela do perfil de sabor (barras + stats + share)
   const FLAVOR_LABELS = {
-    fruity: { lbl: 'frutado', icon: '🍇', cls: 'fruity' },
-    sweet:  { lbl: 'doce',    icon: '🍬', cls: 'sweet'  },
-    icy:    { lbl: 'gelado',  icon: '🧊', cls: 'icy'    },
-    menthol:{ lbl: 'mentol',  icon: '🌿', cls: 'menthol'},
-    tobacco:{ lbl: 'tabaco',  icon: '🚬', cls: 'tobacco'},
-    other:  { lbl: 'variado', icon: '✨', cls: 'other'  },
+    fruity: { lbl: 'frutado', icon: '', cls: 'fruity' },
+    sweet:  { lbl: 'doce',    icon: '', cls: 'sweet'  },
+    icy:    { lbl: 'gelado',  icon: '', cls: 'icy'    },
+    menthol:{ lbl: 'mentol',  icon: '', cls: 'menthol'},
+    tobacco:{ lbl: 'tabaco',  icon: '', cls: 'tobacco'},
+    other:  { lbl: 'variado', icon: '', cls: 'other'  },
   };
   let __flavorProfileCache = null;
 
@@ -10825,12 +10829,12 @@
   function renderFlavorProfile() {
     const body = document.getElementById('flavor-profile-body');
     if (!body) return;
-    body.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--text-dim)">carregando 🦎...</div>`;
+    body.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--text-dim)">carregando...</div>`;
     fetchFlavorProfile().then(data => {
       if (!data) {
         body.innerHTML = `
           <div style="padding:60px 20px;text-align:center">
-            <div style="font-size:48px;margin-bottom:16px">🦎</div>
+            
             <div style="font-family:var(--font-display);font-size:22px;color:var(--text);margin-bottom:8px">seu perfil aparece aqui</div>
             <div style="color:var(--text-dim);font-size:14px">faz o primeiro drop pra começar</div>
           </div>`;
@@ -10847,13 +10851,13 @@
         : '—';
       let html = `
         <div style="padding:24px 20px 8px;text-align:center">
-          <div style="font-size:48px">🦎</div>
+          
           <div style="font-family:var(--font-display);font-size:24px;color:var(--text);margin-top:6px">seu perfil de sabor</div>
           <div style="color:var(--text-dim);font-size:13px;margin-top:4px">${total} drop${total === 1 ? '' : 's'} e contando</div>
         </div>`;
 
       if (entries.length === 0) {
-        html += `<div style="padding:30px 20px;text-align:center;color:var(--text-dim)">seu primeiro drop pinta o perfil 🦎</div>`;
+        html += `<div style="padding:30px 20px;text-align:center;color:var(--text-dim)">seu primeiro drop pinta o perfil</div>`;
       } else {
         html += `<div class="flavor-bars">`;
         for (const [cat, pct] of entries) {
@@ -10899,7 +10903,7 @@
   // Gera card 1080x1920 (story 9:16) com perfil pra compartilhar
   function shareFlavorCard() {
     const data = __flavorProfileCache;
-    if (!data) { toast('carrega o perfil primeiro 🦎'); return; }
+    if (!data) { toast('carrega o perfil primeiro'); return; }
     const W = 1080, H = 1920;
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
@@ -10916,7 +10920,7 @@
     ctx.fillStyle = '#d4ff2e';
     ctx.font = 'bold 84px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🦎 Drope', W/2, 200);
+    ctx.fillText('Drope', W/2, 200);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 56px sans-serif';
@@ -10970,13 +10974,13 @@
     ctx.fillText('drope-app.vercel.app', W/2, H - 180);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '28px sans-serif';
-    ctx.fillText('seu sabor, seu drop 🦎', W/2, H - 130);
+    ctx.fillText('seu sabor, seu drop', W/2, H - 130);
 
     c.toBlob(blob => {
       if (!blob) { toast('falhou gerar imagem ✦'); return; }
       const file = new File([blob], 'meu-perfil-drope.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: 'Meu perfil Drope 🦎', text: 'meu perfil de sabor no Drope' })
+        navigator.share({ files: [file], title: 'Meu perfil Drope', text: 'meu perfil de sabor no Drope' })
           .catch(() => downloadBlob(blob, 'meu-perfil-drope.png'));
       } else {
         downloadBlob(blob, 'meu-perfil-drope.png');
@@ -11011,7 +11015,7 @@
       : `onclick="go('order-tracking')"`;
     wrap.innerHTML = `
       <div class="home-last-order" ${action}>
-        <div class="hlo-emoji">${isDone ? '🎯' : '🛵'}</div>
+        <div class="hlo-emoji">${isDone ? '' : ''}</div>
         <div class="hlo-body">
           <div class="hlo-title">${title}</div>
           <div class="hlo-sub">${sub}</div>
@@ -11025,15 +11029,15 @@
     if (!body) return;
     const o = getMyLastOrder();
     if (!o) {
-      body.innerHTML = `<div class="empty" style="padding:60px 0"><div class="big">📦</div><div class="t">nenhum pedido aberto</div><div class="s">bora dropar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
+      body.innerHTML = `<div class="empty" style="padding:60px 0"><div class="t">nenhum pedido aberto</div><div class="s">bora dropar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
     }
     const steps = o.mode === 'pickup' ? ORDER_STEPS_PICKUP : ORDER_STEPS_DELIVERY;
     const curIdx = Math.max(0, steps.findIndex(s => s.key === o.statusCls));
     const isDone = o.statusCls === 'done';
     const where = o.mode === 'pickup'
-      ? `🏪 retirar em ${store.name}`
-      : (o.address ? `🛵 ${o.address.street}, ${o.address.num}${o.address.comp ? ' — ' + o.address.comp : ''}${o.address.neigh ? ' — ' + o.address.neigh : ''}` : '🛵 entrega');
+      ? `retirar em ${store.name}`
+      : (o.address ? `${o.address.street}, ${o.address.num}${o.address.comp ? ' — ' + o.address.comp : ''}${o.address.neigh ? ' — ' + o.address.neigh : ''}` : 'entrega');
     body.innerHTML = `
       <div class="ot-card">
         <div class="ot-num">#dr-${o.num}</div>
@@ -11056,7 +11060,7 @@
         <div class="ot-where">${where}</div>
       </div>
       <div class="ot-btns">
-        ${!isDone ? `<button class="btn-primary" onclick="shareOnWhats()">falar com a loja no whats 💬</button>` : `<button class="btn-primary" onclick="repeatOrder(0)">dropar de novo ✦</button>`}
+        ${!isDone ? `<button class="btn-primary" onclick="shareOnWhats()">falar com a loja no whats</button>` : `<button class="btn-primary" onclick="repeatOrder(0)">dropar de novo ✦</button>`}
         <button class="btn-secondary" onclick="go('home')">voltar ao catálogo</button>
       </div>`;
   }
@@ -11072,7 +11076,7 @@
     o.statusCls = next.key;
     const labelMap = {
       confirmed: 'confirmado ✦ preparando',
-      way: 'a caminho 🛵',
+      way: 'a caminho',
       done: o.mode === 'pickup' ? 'retirado ✓' : 'entregue ✓',
       separating: 'separando',
       ready: 'pronto pra retirar',
@@ -11120,7 +11124,7 @@
     const t = document.getElementById('added-toast');
     if (!t) return;
     t.innerHTML = `
-      <div class="at-img">${p.img ? `<img src="${escapeHtml(p.img)}" alt="">` : `<span>${p.emoji || '🦎'}</span>`}</div>
+      <div class="at-img">${p.img ? `<img src="${escapeHtml(p.img)}" alt="">` : `<span>${p.emoji || ''}</span>`}</div>
       <div class="at-info">
         <div class="at-name">${escapeHtml(labels.hero)}</div>
         <div class="at-sub">${totalItems} ${totalItems === 1 ? 'item' : 'itens'} ✦ ${money(totalPrice)}</div>
@@ -11200,7 +11204,7 @@
       const lbl = productLabels(i);
       return `
       <div class="cart-item">
-        <div class="thumb">${i.img ? `<img class="prod-img" src="${i.img}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '🦎').replace(/'/g,'')}'">` : (i.emoji || '🦎')}</div>
+        <div class="thumb">${i.img ? `<img class="prod-img" src="${i.img}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '').replace(/'/g,'')}'">` : (i.emoji || '')}</div>
         <div class="info">
           <div class="n">${escapeHtml(lbl.hero)}</div>
           ${lbl.muted ? `<div class="b">${escapeHtml(lbl.muted)}</div>` : ''}
@@ -11222,7 +11226,7 @@
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
     const finalVal = Math.max(0, sum - discount);
     if (appliedCoupon && appliedCoupon.isTest) {
-      document.getElementById('cart-total-val').innerHTML = `R$ 0,00 <span style="font-size:13px;color:var(--lime);font-weight:600">🧪 modo teste</span>`;
+      document.getElementById('cart-total-val').innerHTML = `R$ 0,00 <span style="font-size:13px;color:var(--lime);font-weight:600">modo teste</span>`;
     } else if (discount > 0) {
       document.getElementById('cart-total-val').innerHTML = `${money(finalVal)} <span style="font-size:14px;color:var(--lime);font-weight:600">(-${money(discount)})</span>`;
     } else {
@@ -11266,7 +11270,7 @@
     });
     document.getElementById('proc-title').textContent = 'processando';
     document.getElementById('proc-sub').textContent = 'conectando com o banco ✦';
-    document.getElementById('proc-icon').textContent = '💳';
+    document.getElementById('proc-icon').textContent = '';
     go('processing');
 
     setTimeout(() => {
@@ -11392,7 +11396,7 @@
       // FRICÇÃO #009: marca pedido como teste pra não decrementar estoque + não enviar pedido real
       if (appliedCoupon.isTest) {
         orders[0].isTest = true;
-        orders[0].status = '🧪 pedido teste ✦ não foi enviado';
+        orders[0].status = 'pedido teste ✦ não foi enviado';
         orders[0].statusCls = 'test';
       }
     }
@@ -11446,9 +11450,9 @@
     const headline = isPayLater
       ? `*${store.name} ✦ RESERVA #dr-${last.num}*`
       : `*${store.name} ✦ pedido #dr-${last.num}*`;
-    let whereLine = '🛵 entrega';
+    let whereLine = 'entrega';
     if (last.mode === 'pickup') {
-      whereLine = '🏪 retirar na loja';
+      whereLine = 'retirar na loja';
     } else if (last.address) {
       const a = last.address;
       const parts = [`${a.street}, ${a.num}`];
@@ -11456,7 +11460,7 @@
       if (a.neigh) parts.push(a.neigh);
       if (a.ref) parts.push(`ref: ${a.ref}`);
       if (a.cep) parts.push(`cep: ${a.cep}`);
-      whereLine = `🛵 entrega: ${parts.join(' — ')}`;
+      whereLine = `entrega: ${parts.join(' — ')}`;
     }
     const closer = isPayLater
       ? 'to indo aí buscar ✦ pago na hora'
@@ -11468,12 +11472,12 @@
       '',
       last.discount ? `cupom ${last.coupon}: -R$ ${last.discount}` : '',
       `*${isPayLater ? 'total' : 'subtotal'}:* ${money(last.total)}`,
-      last.mode === 'delivery' && last.delivery_fee_cents ? `🛵 taxa de entrega: R$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : (last.mode === 'delivery' ? `_+ taxa de motoboy (cálculo após CEP)_` : ''),
-      isPayLater ? `_💰 pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
+      last.mode === 'delivery' && last.delivery_fee_cents ? `taxa de entrega: R$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : (last.mode === 'delivery' ? `_+ taxa de motoboy (cálculo após CEP)_` : ''),
+      isPayLater ? `_pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
       '',
       whereLine,
-      `👤 ${profile.name || 'cliente'} ✦ ${profile.phone || ''}`,
-      profile.email ? `📧 ${profile.email}` : '',
+      `${profile.name || 'cliente'} ✦ ${profile.phone || ''}`,
+      profile.email ? `${profile.email}` : '',
       '',
       closer,
     ];
@@ -11508,7 +11512,7 @@
       modal.style.cssText = 'display:flex;align-items:center;justify-content:center;padding:24px;z-index:9998';
       modal.innerHTML = `
         <div style="background:var(--card);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:28px 24px;max-width:380px;width:100%;text-align:center">
-          <div style="font-size:44px;margin-bottom:10px">📋</div>
+          <div style="font-size:44px;margin-bottom:10px"></div>
           <div class="display" style="font-size:22px;color:var(--text);margin-bottom:8px">mensagem copiada ✦</div>
           <div style="color:var(--text-dim);font-size:14px;line-height:1.5;margin-bottom:18px">
             a loja ainda não cadastrou o whats oficial.<br>
@@ -11556,7 +11560,7 @@
 
   function shareDrope() {
     const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://resonant-truffle-84fd2e.netlify.app/';
-    const msg = `mano, achei esse app aqui ✦ Drope\n\ndrops em minutos, paga com Pix, chega rápido 🛵\n\n${url}\n\n(só 18+)`;
+    const msg = `mano, achei esse app aqui ✦ Drope\n\ndrops em minutos, paga com Pix, chega rápido\n\n${url}\n\n(só 18+)`;
     // Usa Web Share API nativa quando dá (Android/iOS) — melhor UX
     if (navigator.share) {
       navigator.share({
@@ -11758,7 +11762,7 @@ REGRAS:
     if (aiMessages.length === 0) {
       aiMessages.push({
         role: 'assistant',
-        content: 'oi! sou o agente drope ✦ posso ajudar com informações sobre produtos, status de pedidos, entregas, ou qualquer dúvida sobre a loja. 🤖'
+        content: 'oi! sou o agente drope ✦ posso ajudar com informações sobre produtos, status de pedidos, entregas, ou qualquer dúvida sobre a loja.'
       });
     }
   }
@@ -11841,7 +11845,7 @@ REGRAS:
       return true;
     });
     if (filtered.length === 0) {
-      list.innerHTML = '<div style="padding:20px;opacity:.6">nenhum produto neste filtro 🦎</div>';
+      list.innerHTML = '<div style="padding:20px;opacity:.6">nenhum produto neste filtro</div>';
       return;
     }
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11857,7 +11861,7 @@ REGRAS:
       const thumbSrc = refUrl || boxUrl;
       const thumbHtml = thumbSrc
         ? `<img src="${esc(thumbSrc)}" style="width:88px;height:88px;object-fit:cover;border-radius:8px;background:#222" loading="lazy">`
-        : '<div style="width:88px;height:88px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;font-size:32px">📦</div>';
+        : '<div style="width:88px;height:88px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;font-size:32px"></div>';
       const googleQ = encodeURIComponent(`${meta.brand || ''} ${meta.model || ''} ${puffs} vape pod device`.trim().replace(/\s+/g, ' '));
       return `
         <div style="background:#181820;border:1px solid #2a2a35;border-radius:12px;padding:14px;margin-bottom:12px;display:flex;gap:12px">
@@ -11868,9 +11872,9 @@ REGRAS:
             <div style="margin-top:6px;font-size:11px"><span style="color:${statusColor}">●</span> <span style="opacity:.8">ref_status: ${esc(status)}</span></div>
             <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
               <a href="https://www.google.com/search?tbm=isch&q=${googleQ}" target="_blank" rel="noopener"
-                 style="background:#2a2a35;color:#7ff;padding:6px 10px;border-radius:6px;font-size:12px;text-decoration:none">🔍 google</a>
+                 style="background:#2a2a35;color:#7ff;padding:6px 10px;border-radius:6px;font-size:12px;text-decoration:none">google</a>
               <button onclick="triggerRefUpload(${p.id})"
-                 style="background:var(--lime,#aaff66);color:#000;padding:6px 10px;border-radius:6px;font-size:12px;border:none;cursor:pointer">📤 upload</button>
+                 style="background:var(--lime,#aaff66);color:#000;padding:6px 10px;border-radius:6px;font-size:12px;border:none;cursor:pointer">upload</button>
             </div>
           </div>
         </div>`;
