@@ -170,109 +170,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section">
-    <h2>⏰ funcionamento</h2>
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:14px">aparecer para clientes</div>
-          <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">sua loja aparece no app e recebe pedidos</div>
-        </div>
-        <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">🟢 online</button>
-      </div>
-      <div id="horario-box">
-        <div class="pf-lbl" style="margin-top:16px">dias que abre</div>
-        <div id="dias-row" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-        <div style="display:flex;gap:12px;margin-top:14px">
-          <div style="flex:1"><label class="pf-lbl">abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
-          <div style="flex:1"><label class="pf-lbl">fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
-        </div>
-        <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">🕒 o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
-      </div>
-      <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">salvar horário ✦</button>
-      <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
-    </div>
+    <h2>🛵 pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
+    <div id="pendentes-list"></div>
   </div>
 
   <div class="section">
-    <h2>📱 QR da minha loja</h2>
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">imprima e cole no balcão/vitrine. o cliente aponta a câmera e cai direto na sua loja no DROPE — sem precisar procurar.</div>
-      <div style="display:flex;gap:14px;align-items:center">
-        <div id="qr-preview" style="width:120px;height:120px;border-radius:12px;background:#fff;flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden">…</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:11px;color:var(--fg-dim)">link da sua loja</div>
-          <div id="qr-url" style="font-size:12px;word-break:break-all;margin:4px 0 12px;color:var(--fg)"></div>
-          <button class="pf-btn full" onclick="printQR()" style="margin-bottom:8px">🖨️ imprimir QR</button>
-          <button class="pf-btn sec full" onclick="copyQRLink()">copiar link</button>
-        </div>
-      </div>
-      <div id="qr-msg" style="font-size:12px;color:var(--green);margin-top:10px;min-height:14px"></div>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>🧩 meus filtros</h2>
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">crie filtros pra organizar seu catálogo (ex: Cervejas, Drinks, Garrafas). o cliente vê como categorias no app. dê uma imagem (envie a sua ou gere com IA no estilo DROPE).</div>
-      <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-      <label class="pf-lbl">novo filtro</label>
-      <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas">
-      <div style="display:flex;gap:10px;margin-top:8px">
-        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">📷 enviar imagem</button>
-        <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">✨ gerar com IA</button>
-      </div>
-      <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
-      <label class="pf-lbl" style="margin-top:12px;font-size:11px">imagem de referência p/ a IA (opcional)</label>
-      <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
-      <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
-    </div>
-    </div>
-
-    <div class="section">
-    <h2>🎨 minha loja</h2>
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
-        <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto">🏪</div>
-        <div style="flex:1">
-          <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">📷 foto da loja</button>
-          <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
-        </div>
-      </div>
-      <label class="pf-lbl">o que sua loja vende?</label>
-      <div id="seg-row" style="display:flex;gap:10px;margin-bottom:4px">
-        <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
-        <button type="button" class="seg-btn" data-seg="adega" onclick="toggleSeg(this)">Adega</button>
-      </div>
-      <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">pode marcar os dois ✦ define onde sua loja aparece no app</div>
-
-      <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
-      <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
-
-      <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
-      <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
-      <label class="pf-lbl">endereço (rua e número)</label>
-      <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
-      <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
-
-      <div class="pf-lbl" style="margin-top:16px">🎨 aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
-        <span style="font-size:13px;color:var(--fg-dim)">fundo</span>
-        <div class="theme-toggle">
-          <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">🌙 escuro</button>
-          <button id="th-light" class="th-opt" onclick="setPageTheme('light')">☀️ claro</button>
-        </div>
-      </div>
-      <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">cor de destaque</div>
-      <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-      <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
-
-      <div class="pf-lbl" style="margin-top:16px">👀 prévia da sua página</div>
-      <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
-
-      <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">salvar ✦</button>
-      <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
-    </div>
+    <h2>✅ últimas vendas</h2>
+    <div id="historico-list"></div>
   </div>
 
   <div class="section">
@@ -302,14 +206,121 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <div id="produtos-list"></div>
   </div>
 
+  <!-- ============ CONFIGURAÇÃO DA LOJA (recolhível — uso ocasional) ============ -->
   <div class="section">
-    <h2>🛵 pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
-    <div id="pendentes-list"></div>
-  </div>
+    <button onclick="toggleConfig()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">
+      <span>⚙️ configuração da loja</span>
+      <span id="config-chev" style="color:var(--fg-dim);font-weight:400">abrir ▾</span>
+    </button>
+    <div id="config-wrap" style="display:none;margin-top:6px">
 
-  <div class="section">
-    <h2>✅ últimas vendas</h2>
-    <div id="historico-list"></div>
+      <div class="section">
+        <h2>🎨 minha loja</h2>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+          <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
+            <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto">🏪</div>
+            <div style="flex:1">
+              <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">📷 foto da loja</button>
+              <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
+              <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
+            </div>
+          </div>
+          <label class="pf-lbl">o que sua loja vende?</label>
+          <div id="seg-row" style="display:flex;gap:10px;margin-bottom:4px">
+            <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
+            <button type="button" class="seg-btn" data-seg="adega" onclick="toggleSeg(this)">Adega</button>
+          </div>
+          <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">pode marcar os dois ✦ define onde sua loja aparece no app</div>
+
+          <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
+          <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
+
+          <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
+          <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
+          <label class="pf-lbl">endereço (rua e número)</label>
+          <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
+
+          <div class="pf-lbl" style="margin-top:16px">🎨 aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span style="font-size:13px;color:var(--fg-dim)">fundo</span>
+            <div class="theme-toggle">
+              <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">🌙 escuro</button>
+              <button id="th-light" class="th-opt" onclick="setPageTheme('light')">☀️ claro</button>
+            </div>
+          </div>
+          <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">cor de destaque</div>
+          <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
+
+          <div class="pf-lbl" style="margin-top:16px">👀 prévia da sua página</div>
+          <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
+
+          <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">salvar ✦</button>
+          <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>🧩 meus filtros</h2>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">crie filtros pra organizar seu catálogo (ex: Cervejas, Drinks, Garrafas). o cliente vê como categorias no app. dê uma imagem (envie a sua ou gere com IA no estilo DROPE).</div>
+          <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+          <label class="pf-lbl">novo filtro</label>
+          <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas">
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">📷 enviar imagem</button>
+            <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">✨ gerar com IA</button>
+          </div>
+          <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
+          <label class="pf-lbl" style="margin-top:12px;font-size:11px">imagem de referência p/ a IA (opcional)</label>
+          <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
+          <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>📱 QR da minha loja</h2>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">imprima e cole no balcão/vitrine. o cliente aponta a câmera e cai direto na sua loja no DROPE — sem precisar procurar.</div>
+          <div style="display:flex;gap:14px;align-items:center">
+            <div id="qr-preview" style="width:120px;height:120px;border-radius:12px;background:#fff;flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden">…</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;color:var(--fg-dim)">link da sua loja</div>
+              <div id="qr-url" style="font-size:12px;word-break:break-all;margin:4px 0 12px;color:var(--fg)"></div>
+              <button class="pf-btn full" onclick="printQR()" style="margin-bottom:8px">🖨️ imprimir QR</button>
+              <button class="pf-btn sec full" onclick="copyQRLink()">copiar link</button>
+            </div>
+          </div>
+          <div id="qr-msg" style="font-size:12px;color:var(--green);margin-top:10px;min-height:14px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>⏰ funcionamento</h2>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px">aparecer para clientes</div>
+              <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">sua loja aparece no app e recebe pedidos</div>
+            </div>
+            <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">🟢 online</button>
+          </div>
+          <div id="horario-box">
+            <div class="pf-lbl" style="margin-top:16px">dias que abre</div>
+            <div id="dias-row" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            <div style="display:flex;gap:12px;margin-top:14px">
+              <div style="flex:1"><label class="pf-lbl">abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
+              <div style="flex:1"><label class="pf-lbl">fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
+            </div>
+            <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">🕒 o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
+          </div>
+          <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">salvar horário ✦</button>
+          <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -808,6 +819,15 @@ async function delFiltro(id) {
     const d = await r.json().catch(() => ({}));
     if (d && d.ok) renderFiltros(d.filtros);
   } catch (e) {}
+}
+
+// ===== Configuração da loja (bloco recolhível) =====
+function toggleConfig() {
+  const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
+  const open = w.style.display !== 'none';
+  w.style.display = open ? 'none' : 'block';
+  if (c) c.textContent = open ? 'abrir ▾' : 'fechar ▴';
+  if (!open) { try { renderLojaPreview(); } catch (e) {} }
 }
 
 // ===== QR da loja (deep link) =====
