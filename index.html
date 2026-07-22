@@ -2849,14 +2849,31 @@
     box-shadow: 0 0 80px rgba(255, 45, 111, 0.5), 0 0 40px rgba(91, 33, 182, 0.6);
   }
   .onboard-hero-img {
-    width: 260px;
-    max-width: 75%;
-    height: auto;
-    margin: 0 auto 20px;
+    width: 200px; height: 200px;
+    max-width: 52vw;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;               /* recorta o card quadrado em círculo limpo */
+    border-radius: 50%;
+    margin: 0 auto 16px;
     display: block;
     filter: drop-shadow(0 20px 60px rgba(255, 45, 111, 0.4)) drop-shadow(0 0 80px rgba(91, 33, 182, 0.5));
-    border-radius: 24px;
   }
+  .onboard-age-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(237, 29, 105, 0.14);
+    border: 1.5px solid var(--pink, #ED1D69);
+    color: var(--pink, #ED1D69);
+    font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 13px;
+    letter-spacing: 0.02em; text-transform: uppercase;
+    padding: 5px 12px; border-radius: 999px; margin-top: 8px;
+  }
+  .terms-link { color: var(--lime, #C6FF00); text-decoration: underline; cursor: pointer; font-weight: 600; }
+  #terms-ov { position: fixed; inset: 0; z-index: 250; background: var(--bg, #0A0A14); display: none; flex-direction: column; }
+  #terms-ov .terms-body { flex: 1; overflow-y: auto; padding: 20px 22px 24px; max-width: 640px; width: 100%; margin: 0 auto; -webkit-overflow-scrolling: touch; }
+  #terms-ov .terms-body h3 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; color: var(--text, #fff); margin: 18px 0 6px; }
+  #terms-ov .terms-body p, #terms-ov .terms-body li { color: var(--text-dim, #b7b7c4); font-size: 13.5px; line-height: 1.6; margin: 0 0 8px; }
+  #terms-ov .terms-body ul { padding-left: 18px; margin: 0 0 8px; }
+  #terms-ov .terms-foot { padding: 14px 22px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,0.08); max-width: 640px; width: 100%; margin: 0 auto; }
   .onboard-wordmark {
     font-family: 'Space Grotesk';
     font-weight: 700;
@@ -4139,24 +4156,26 @@
       <div class="onboard-logo">
         <img id="onboard-hero-img" alt="drope" class="onboard-hero-img">
         <div class="onboard-tag">✦ drops em minutos ✦</div>
+        <div><span class="onboard-age-badge">+18 anos</span></div>
       </div>
 
       <!-- Step 1: Age gate -->
       <div id="onboard-step-1" class="onboard-step">
         <div class="onboard-body">
-          <div class="onboard-title">opa ✦ antes de entrar</div>
-          <div class="onboard-sub">DROPE é só pra maiores de 18. nicotina causa dependência ✦ produto proibido pra menores, gestantes e pessoas com problemas cardíacos.</div>
+          <div class="onboard-title">Opa ✦ antes de entrar</div>
+          <div class="onboard-sub">O DROPE é um app <b style="color:var(--pink)">exclusivo para maiores de 18 anos</b>. Nicotina causa dependência ✦ produto proibido para menores, gestantes e pessoas com problemas cardíacos.</div>
         </div>
         <div class="age-confirm-box">
           <label class="age-check">
             <input type="checkbox" id="age-check-box" onchange="updateAgeBtn()">
             <span class="age-check-mark"></span>
-            <span class="age-check-txt">confirmo que tenho <b>18 anos ou mais</b> e li os avisos</span>
+            <span class="age-check-txt">Confirmo que tenho <b>18 anos ou mais</b>, li e aceito os <span class="terms-link" onclick="event.preventDefault(); openTerms();">Termos de Uso</span></span>
           </label>
         </div>
         <div class="onboard-btns">
-          <button class="btn-primary" id="age-enter-btn" onclick="confirmAge()" disabled style="opacity:0.4">entrar no drope</button>
-          <button class="btn-secondary" onclick="ageDeny()">ainda não tenho 18</button>
+          <button class="btn-primary" id="age-login-btn" onclick="confirmAge('login')" disabled style="opacity:0.4">Entrar / criar conta</button>
+          <button class="btn-secondary" id="age-guest-btn" onclick="confirmAge('guest')" disabled style="opacity:0.4;margin-top:8px">Entrar como convidado</button>
+          <button class="btn-ghost" onclick="ageDeny()" style="margin-top:8px;font-size:0.85rem;opacity:0.7">Ainda não tenho 18</button>
         </div>
       </div>
 
@@ -4187,6 +4206,49 @@
           <button class="btn-ghost" onclick="skipOnboard()" style="margin-top:8px; font-size:0.85rem; opacity:0.7">só dar uma olhada ✦</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ TERMOS DE USO ============ -->
+  <div id="terms-ov">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="closeTerms()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="brand-small">Termos de Uso</div>
+      <div style="width:42px"></div>
+    </div>
+    <div class="terms-body">
+      <p style="color:var(--text)"><b>DROPE — Termos de Uso e Confirmação de Idade</b><br><span style="font-size:12px;color:var(--text-dim)">Última atualização: julho/2026</span></p>
+
+      <h3>1. Sobre o DROPE</h3>
+      <p>O DROPE é uma plataforma de intermediação de pedidos e entrega de produtos vendidos por tabacarias e adegas parceiras (o "Serviço"). O DROPE conecta você às lojas; os produtos são vendidos e fornecidos pelas lojas parceiras.</p>
+
+      <h3>2. Idade mínima — maiores de 18 anos</h3>
+      <p>O uso do DROPE é <b style="color:var(--pink)">exclusivo para pessoas com 18 anos ou mais</b>. Ao usar o app, você declara, sob sua responsabilidade, que tem 18 anos completos ou mais. A loja e/ou o entregador podem exigir documento com foto no momento da entrega, e o pedido pode ser recusado caso a maioridade não seja comprovada, sem direito a reembolso da entrega.</p>
+
+      <h3>3. Avisos de saúde</h3>
+      <p>Produtos com nicotina causam dependência. A venda e o consumo são <b>proibidos para menores de 18 anos, gestantes, lactantes e pessoas com problemas cardíacos ou respiratórios</b>. Bebidas alcoólicas devem ser consumidas com moderação; não dirija após consumir álcool.</p>
+
+      <h3>4. Uso da conta</h3>
+      <ul>
+        <li>Você é responsável pelos dados informados e por manter sua senha em sigilo.</li>
+        <li>É proibido comprar em nome de menores ou revender os produtos.</li>
+        <li>Informações falsas de idade ou identidade podem levar ao bloqueio da conta.</li>
+      </ul>
+
+      <h3>5. Pedidos, pagamento e entrega</h3>
+      <p>Preços, disponibilidade, prazos e área de entrega são definidos por cada loja parceira. O pedido é confirmado após a aprovação do pagamento. Cancelamentos e trocas seguem a política da loja e a legislação aplicável.</p>
+
+      <h3>6. Privacidade e dados (LGPD)</h3>
+      <p>Coletamos apenas os dados necessários para operar o Serviço (nome, telefone, endereço de entrega e histórico de pedidos), usados para processar e entregar seus pedidos e para comunicação sobre eles. <b>Não vendemos seus dados a terceiros.</b> Você pode solicitar acesso ou exclusão dos seus dados a qualquer momento.</p>
+
+      <h3>7. Responsabilidade</h3>
+      <p>O DROPE atua como intermediário. A responsabilidade pela qualidade, procedência e conformidade dos produtos é da loja vendedora. Em caso de problema, acione o suporte pelo app.</p>
+
+      <h3>8. Aceite</h3>
+      <p>Ao tocar em "Li e concordo", você confirma que <b>tem 18 anos ou mais</b> e que <b>leu e aceita estes Termos de Uso</b>.</p>
+    </div>
+    <div class="terms-foot">
+      <button class="btn-primary" onclick="acceptTerms()" style="width:100%">Li e concordo ✦ tenho 18+</button>
     </div>
   </div>
 
@@ -6322,24 +6384,39 @@
     _entryGo();
   }
 
+  const TERMS_VERSION = '2026-07';
   function updateAgeBtn() {
     const box = document.getElementById('age-check-box');
-    const btn = document.getElementById('age-enter-btn');
-    if (!box || !btn) return;
-    btn.disabled = !box.checked;
-    btn.style.opacity = box.checked ? '1' : '0.4';
+    const checked = !!(box && box.checked);
+    ['age-login-btn', 'age-guest-btn'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) { btn.disabled = !checked; btn.style.opacity = checked ? '1' : '0.4'; }
+    });
+  }
+  function openTerms() { const o = document.getElementById('terms-ov'); if (o) { o.style.display = 'flex'; const b = o.querySelector('.terms-body'); if (b) b.scrollTop = 0; } }
+  function closeTerms() { const o = document.getElementById('terms-ov'); if (o) o.style.display = 'none'; }
+  // "Assinatura": ao concordar no fim dos termos, marca a idade e fecha.
+  function acceptTerms() {
+    const box = document.getElementById('age-check-box');
+    if (box) { box.checked = true; updateAgeBtn(); }
+    closeTerms();
+    toast('termos aceitos ✦ agora é só entrar');
   }
 
-  function confirmAge() {
+  // mode: 'login' → entra e abre a tela de login/criar conta; 'guest' → entra como convidado.
+  function confirmAge(mode) {
     const box = document.getElementById('age-check-box');
     if (!box || !box.checked) return;
-    try { localStorage.setItem('drope_age_confirmed', '1'); } catch(e) {}
-    // Modelo: convidado entra DIRETO no catálogo. Não força cadastro aqui — a
-    // conta só é criada na hora de pedir (guest gate no checkout). Nada de "conta
-    // de visitante" persistida.
+    try {
+      localStorage.setItem('drope_age_confirmed', '1');
+      // Registra o aceite dos termos (data + versão) — "assinatura" do usuário.
+      localStorage.setItem('drope_terms_accepted_v1', JSON.stringify({ at: new Date().toISOString(), version: TERMS_VERSION }));
+    } catch(e) {}
+    // Convidado entra direto no catálogo; conta só é criada ao pedir (guest gate) ou no login.
     if (!(profile && profile.onboarded)) { profile.onboarded = false; }
     updateProfileAvatar();
     _entryGo();
+    if (mode === 'login') { try { openCustomerLogin(); } catch(e) {} }
   }
 
   function ageDeny() {
