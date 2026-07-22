@@ -13154,6 +13154,23 @@ async function handleOtpVerify(req, res) {
   } catch (e) { console.error('[otp_verify] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// GET action=my_store&phone=&token= → slug da loja que ESTE cliente é dono (founder).
+// Fecha o bug do "meu painel" apontar pra loja errada: a fonte da verdade é o
+// telefone logado casado com founder_phone da filial (não sessão de painel aleatória).
+async function handleMyStore(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  const qs = (req.url && req.url.includes('?')) ? req.url.split('?')[1] : '';
+  const params = {}; qs.split('&').forEach(p => { const [k, v] = p.split('='); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+  if (!(await _customerSessionOk(params.phone, params.token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
+    const p55 = _phone55(params.phone);
+    const rows = await sbGet('drope_filiais', `founder_phone=eq.${encodeURIComponent(p55)}&status=eq.active&select=slug,name&limit=1`);
+    const f = rows && rows[0];
+    return res.status(200).json({ ok: true, slug: f ? f.slug : null, name: f ? f.name : null });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
 // Retorna os pedidos do cliente (casados por telefone) com o status real do backend.
 // Segurança: exige token de sessão do próprio cliente (OTP) — sem lookup anônimo por telefone.
@@ -15921,6 +15938,10 @@ module.exports = async function handler(req, res) {
   // POST action=otp_verify — valida OTP e emite token de sessão do cliente
   if (req.url && req.url.indexOf('action=otp_verify') >= 0) {
     return await handleOtpVerify(req, res);
+  }
+  // GET action=my_store — slug da loja que o cliente logado é dono (founder)
+  if (req.url && req.url.indexOf('action=my_store') >= 0) {
+    return await handleMyStore(req, res);
   }
   // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.

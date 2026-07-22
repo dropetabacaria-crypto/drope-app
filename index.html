@@ -6490,13 +6490,22 @@
   // Detecta se este aparelho tem uma tabacaria (cadastrou aqui OU logou no painel).
   // App e filial.html dividem o mesmo localStorage (mesma origem).
   function _lojistaSlug() {
+    // SÓ a loja que ESTE dispositivo/conta é dono. NUNCA usar a sessão do painel
+    // (drope_filial_session_v1) como fallback — ela pode ser de outra loja qualquer
+    // (foi a causa do "meu painel" abrir a loja errada).
+    try { return localStorage.getItem('drope_lojista_slug') || ''; } catch (e) { return ''; }
+  }
+  // Confirma no servidor qual loja o telefone logado é dono (founder) e corrige o slug.
+  async function refreshMyStore() {
+    if (!_isLoggedIn() || !_custSession || !_custSession.phone) { try { localStorage.removeItem('drope_lojista_slug'); } catch (e) {} return; }
     try {
-      const s = localStorage.getItem('drope_lojista_slug');
-      if (s) return s;
-      const sess = JSON.parse(localStorage.getItem('drope_filial_session_v1') || 'null');
-      if (sess && sess.slug) return sess.slug;
+      const r = await fetch(`/api/webhook?action=my_store&phone=${encodeURIComponent(_custSession.phone)}&token=${encodeURIComponent(_custToken())}`, { cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.ok) {
+        try { if (d.slug) localStorage.setItem('drope_lojista_slug', d.slug); else localStorage.removeItem('drope_lojista_slug'); } catch (e) {}
+        const pr = document.getElementById('pr-painel'); if (pr) pr.style.display = d.slug ? '' : 'none';
+      }
     } catch (e) {}
-    return '';
   }
   function goMeuPainel() {
     const slug = _lojistaSlug();
@@ -8138,6 +8147,7 @@
         const pp = document.getElementById('prof-phone'); if (pp) pp.textContent = profile.phone;
         try { updateProfileAvatar(); } catch (e) {}
         try { _syncLoginUI(); } catch (e) {}
+        try { refreshMyStore(); } catch (e) {}
         toast('bem-vindo ✦ você tá logado');
         try { loadMyOrders(); } catch (e) {}
         try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
@@ -9566,8 +9576,9 @@
       setDisp('pr-create', false); // substituído pelo login OTP
       setDisp('pr-edit', logged);
       setDisp('pr-logout', logged);
-      // "Meu painel da loja" só pra quem tem tabacaria neste aparelho
+      // "Meu painel da loja" só pra quem é DONO da loja (confirmado no servidor).
       setDisp('pr-painel', !!_lojistaSlug());
+      refreshMyStore();
     }
     if (screen === 'profile-edit') fillProfileEdit();
     if (screen === 'admin-products') renderAdminProducts();
