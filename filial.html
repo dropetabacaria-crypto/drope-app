@@ -529,6 +529,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">Ofertas</button>
       <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">Ocultos</button>
     </div>
+    <div id="destaque-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:10px;box-shadow:var(--card-shadow)">
+      <div style="font-size:13px;font-weight:800;flex:0 0 auto">Destaque da vitrine</div>
+      <div style="display:flex;gap:6px;margin-left:auto;flex:0 0 auto">
+        <button id="dest-auto" onclick="setFeaturedMode('auto')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Automático</button>
+        <button id="dest-manual" onclick="setFeaturedMode('manual')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Manual</button>
+      </div>
+      <div id="destaque-hint" style="flex:1 1 100%;font-size:11px;color:var(--fg-dim)"></div>
+    </div>
     <div id="batch-bar" style="display:none;position:sticky;top:0;z-index:5;background:var(--bg2);border:1px solid var(--lime);border-radius:12px;padding:10px 12px;margin-bottom:10px">
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><b id="batch-count" style="color:var(--fg)">0</b> selecionado(s) — escolha a categoria e aplique</div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -634,6 +642,7 @@ function render(d) {
   _painelData = d;
   const f = d.filial;
   _filialName = f.name || '';
+  _featuredMode = f.featured_mode || 'auto';
   document.getElementById('hello').textContent = 'Oi, ' + (f.founder_name || 'fundadora');
   const _share = f.founder_share_cents || 0;
   document.getElementById('subtitle').textContent = _share > 0 ? (f.name + ' ✦ ganha R$ ' + (_share/100).toFixed(2).replace('.',',') + ' por venda') : f.name;
@@ -768,6 +777,28 @@ function renderDash(d) {
 
 let _lastProdutos = [];
 const _artBusy = {};
+// ===== Destaque da vitrine (carrossel da loja): auto (mais vendidos) | manual =====
+let _featuredMode = 'auto';
+function renderDestaqueBar() {
+  const auto = document.getElementById('dest-auto'), man = document.getElementById('dest-manual'), hint = document.getElementById('destaque-hint');
+  if (!auto || !man) return;
+  const on = _featuredMode === 'manual' ? man : auto, off = _featuredMode === 'manual' ? auto : man;
+  on.style.background = 'var(--lime)'; on.style.color = '#000'; on.style.borderColor = 'var(--lime)';
+  off.style.background = 'transparent'; off.style.color = 'var(--fg-dim)'; off.style.borderColor = 'var(--border)';
+  if (hint) hint.textContent = _featuredMode === 'manual'
+    ? 'Você escolhe os destaques (marque a estrela nos produtos). Até 4 aparecem no carrossel da loja.'
+    : 'Automático: os produtos mais vendidos da loja aparecem no carrossel de destaque.';
+}
+async function setFeaturedMode(m) {
+  _featuredMode = m; renderDestaqueBar(); renderProdutos();
+  try {
+    await fetch('/api/webhook?action=filial_profile_save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, featured_mode: m }) });
+  } catch (e) {}
+}
+async function toggleFeatured(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
+  await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, featured: !p.featured });
+}
 function _filtroOptions(sel) {
   return ['<option value="">— sem categoria —</option>']
     .concat((_filtros || []).map(f => `<option value="${esc(f.id)}" ${f.id === sel ? 'selected' : ''}>${esc(f.nome)}</option>`))
@@ -775,6 +806,7 @@ function _filtroOptions(sel) {
 }
 function renderProdutos(list) {
   _lastProdutos = list || _lastProdutos;
+  try { renderDestaqueBar(); } catch (e) {}
   const el = document.getElementById('produtos-list');
   if (!el) return;
   const all = _lastProdutos || [];
@@ -813,7 +845,7 @@ function renderProdutos(list) {
         ${cb}
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
-          <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
+          <div class="prod-name">${p.featured ? '<span style="color:var(--yellow)">★</span> ' : ''}${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
           <div class="prod-sub">${priceHtml}${meta ? ' · ' + esc(meta) : ''}</div>
         </div>
         <div class="stepper">
@@ -823,6 +855,7 @@ function renderProdutos(list) {
         </div>
       </div>
       <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:10px">
+        ${_featuredMode === 'manual' ? `<span class="mini-link" onclick="toggleFeatured(${p.id})" style="margin-right:auto;color:${p.featured ? 'var(--yellow)' : 'var(--fg-dim)'}">${p.featured ? '★ Destaque' : '☆ Destacar'}</span>` : ''}
         ${artBtn}
         <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">Preço & mais</span>
       </div>

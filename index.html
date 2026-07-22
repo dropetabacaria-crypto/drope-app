@@ -9714,18 +9714,27 @@
   renderGrid();
 
   // ===== Carrossel "dropou agora" — últimos drops EM ESTOQUE (desliza p/ esquerda) =====
+  // Produtos em DESTAQUE da loja: modo 'auto' (mais vendidos) ou 'manual' (loja escolhe).
+  // Sempre em estoque na frente. Máx 4 no carrossel. Independe do filtro de categoria.
+  function _featuredList() {
+    const mode = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.featured_mode) || 'auto';
+    const base = products.filter(p => typeof p.price === 'number' && p.price > 0 && !p.hidden);
+    let list;
+    if (mode === 'manual') {
+      list = base.filter(p => p.featured);
+      if (!list.length) list = base; // sem destaques marcados → cai nos mais vendidos
+    } else { list = base; }
+    list = list.slice().sort((a, b) => {
+      const sa = _soldOut(a) ? 1 : 0, sb = _soldOut(b) ? 1 : 0; if (sa !== sb) return sa - sb;
+      const ta = a.total_sold || 0, tb = b.total_sold || 0; if (tb !== ta) return tb - ta;
+      return (b.id || 0) - (a.id || 0);
+    });
+    return list.slice(0, 4);
+  }
   function updateHero() {
     const wrap = document.getElementById('hero-carousel');
     if (!wrap) return;
-    // Últimos cadastrados (id desc), com os EM ESTOQUE na frente. Ignora escondidos/sem preço.
-    const latest = products
-      .filter(p => matchFilter(p) && typeof p.price === 'number' && p.price > 0 && !p.hidden)
-      .sort((a, b) => {
-        const sa = _soldOut(a) ? 1 : 0, sb = _soldOut(b) ? 1 : 0;
-        if (sa !== sb) return sa - sb;
-        return (b.id || 0) - (a.id || 0);
-      })
-      .slice(0, 5);
+    const latest = _featuredList();
     if (!latest.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
     wrap.innerHTML = latest.map(p => {
@@ -9744,7 +9753,7 @@
         : `<span class="pink">${money(p.price)}</span>`;
       return `
         <div class="hero${soldOut ? ' sold-out' : ''}" onclick="openProduct(${idx})">
-          <div class="tag">dropou agora ✦</div>
+          <div class="tag">destaque ✦</div>
           ${visual}
           <div class="hero-name display">${escapeHtml(labels.hero)}${muted}</div>
           <div class="hero-sub">${sub}</div>

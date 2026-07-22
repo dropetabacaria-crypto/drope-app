@@ -4591,6 +4591,7 @@ async function handleFilialPainel(req, res) {
       sabor: ((p.metadata || {}).sabor) || null,
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
+      featured: !!((p.metadata || {}).featured),
     }));
 
     return res.status(200).json({
@@ -4606,6 +4607,7 @@ async function handleFilialPainel(req, res) {
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
         filtros: (filial.metadata || {}).filtros || [],
         plan: _planFor(filial),
+        featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
       },
       plans_catalog: DROPE_PLANS_CATALOG(),
       saldo_pendente_cents: saldoPendenteCents,
@@ -4681,6 +4683,11 @@ async function handleFilialProductSave(req, res) {
         if (fid) md.filtro_id = fid; else delete md.filtro_id;
         mdChanged = true;
       }
+      // destaque na vitrine (modo manual)
+      if (Object.prototype.hasOwnProperty.call(body, 'featured')) {
+        if (body.featured) md.featured = true; else delete md.featured;
+        mdChanged = true;
+      }
       if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
@@ -4715,6 +4722,7 @@ async function handleFilialProductSave(req, res) {
         flavor_pt: sabor || vmeta.flavor_pt || null,
         flavor_en: vmeta.flavor_en || null,
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
+        ...(body.featured ? { featured: true } : {}), // destaque na vitrine (manual)
         created_via: 'lojista_panel',
       },
     });
@@ -4849,6 +4857,8 @@ async function handleFilialProfileSave(req, res) {
       const w = String(body.whats).replace(/\D/g, '');
       md.profile.whats = w ? (w.length <= 11 ? '55' + w : w) : null;
     }
+    // modo de destaque da vitrine: 'auto' (mais vendidos) | 'manual' (loja escolhe)
+    if (body.featured_mode && ['auto', 'manual'].includes(body.featured_mode)) md.featured_mode = body.featured_mode;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
@@ -13447,7 +13457,7 @@ async function handleCatalog(req, res) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
       const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
-      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null,
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
         filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0, shape: f.shape || 'rect' })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
@@ -13514,6 +13524,7 @@ async function handleCatalog(req, res) {
         created_via: p.created_via,
         brand_cover: !!(p.metadata && p.metadata.brand_cover), // capa do filtro da marca (escolhida no admin)
         filtro_id: (p.metadata && p.metadata.filtro_id) || null, // filtro/categoria da loja
+        featured: !!(p.metadata && p.metadata.featured), // destaque na vitrine (manual)
       };
     });
 
