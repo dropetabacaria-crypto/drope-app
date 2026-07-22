@@ -7961,6 +7961,16 @@
     try { localStorage.setItem('drope_fav_stores', JSON.stringify([..._favStores])); } catch (e) {}
     if (el) el.classList.toggle('on', _favStores.has(slug));
   }
+  // ETA de entrega estimado pela distância real (cliente → loja). Sem geo → sem tempo fake.
+  function _etaFromKm(km) {
+    if (km == null) return '';
+    if (km <= 3) return '20-40 min';
+    if (km <= 6) return '30-50 min';
+    if (km <= 10) return '45 min-1h';
+    if (km <= 20) return '1h-1h30';
+    if (km <= 40) return '1h30-2h30';
+    return 'muito longe';
+  }
   // Card de loja (estilo Rappi) — usado no Início e nos Favoritos
   function _lojaCardHtml(f) {
     const label = f.name || f.city || '';
@@ -7969,9 +7979,10 @@
       ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
       : `<div class="loja-cover-ph"></div>`;
     const kmTxt = (typeof f._km === 'number') ? (f._km < 1 ? Math.round(f._km * 1000) + ' m' : f._km.toFixed(1).replace('.', ',') + ' km') : '';
+    const etaTxt = _etaFromKm(f._km);
     const chips = [
       kmTxt ? `<span class="lc-chip dist">${kmTxt}</span>` : '',
-      `<span class="lc-chip time">20-40 min</span>`,
+      etaTxt ? `<span class="lc-chip time">${etaTxt}</span>` : '',
       f.produtos ? `<span class="lc-chip">${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
       cityTc ? `<span class="lc-chip">${escapeHtml(cityTc)}</span>` : '',
       (f.open_now === false)
