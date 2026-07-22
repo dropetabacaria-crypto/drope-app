@@ -26,8 +26,12 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://udsjnhbkapjwpdolvtri.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
 
-// Mercado Pago — Pix
-const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || "";
+// Mercado Pago — Pix (conta plataforma DROPE, usada como fallback / recebe comissão)
+const MP_ACCESS_TOKEN = (process.env.MP_ACCESS_TOKEN || "").replace(/^["']|["']$/g, "").trim();
+// Mercado Pago — Marketplace/Split (OAuth das lojas)
+const MP_CLIENT_ID = (process.env.MP_CLIENT_ID || "").replace(/^["']|["']$/g, "").trim();
+const MP_CLIENT_SECRET = (process.env.MP_CLIENT_SECRET || "").replace(/^["']|["']$/g, "").trim();
+const MP_REDIRECT_URI = (process.env.MP_REDIRECT_URI || "https://drope-app.vercel.app/api/webhook?action=mp_oauth_callback").replace(/^["']|["']$/g, "").trim();
 
 // Whitelist: só esse número cadastra produto. Outros = cliente.
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
@@ -15263,6 +15267,115 @@ responde quando puder com preços e disponibilidade — fechamos hoje cedo.`;
   });
 }
 
+// ============ MERCADO PAGO — MARKETPLACE / SPLIT (OAuth por loja) ============
+// SaaS: cada loja conecta a conta MP dela (OAuth). No pagamento, o split é feito
+// na hora — a loja recebe a venda e a comissão do DROPE (application_fee) cai na
+// conta dona da aplicação MP (plataforma DROPE). Sem hardcode.
+// Credenciais da aplicação: MP_CLIENT_ID + MP_CLIENT_SECRET (env).
+// Tokens da loja: drope_filiais.metadata.payment.
+
+// Lê uma filial por slug (sem auth de lojista) — usado no checkout e no OAuth.
+async function _filialBySlugRead(slug) {
+  if (!slug) return null;
+  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(String(slug).toLowerCase().trim())}&select=id,slug,name,metadata&limit=1`);
+  return (Array.isArray(fr) && fr[0]) || null;
+}
+
+// Troca o "code" do OAuth por access_token + refresh_token da loja.
+async function _mpExchangeCode(code) {
+  const r = await fetch('https://api.mercadopago.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ client_id: MP_CLIENT_ID, client_secret: MP_CLIENT_SECRET, code, grant_type: 'authorization_code', redirect_uri: MP_REDIRECT_URI }),
+  });
+  const data = await r.json();
+  if (r.status >= 400) { console.error('[mp_oauth] exchange error:', JSON.stringify(data).slice(0, 300)); return null; }
+  return data; // { access_token, refresh_token, user_id, expires_in, public_key }
+}
+
+// Renova o access_token da loja usando o refresh_token.
+async function _mpRefreshToken(refreshToken) {
+  const r = await fetch('https://api.mercadopago.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ client_id: MP_CLIENT_ID, client_secret: MP_CLIENT_SECRET, refresh_token: refreshToken, grant_type: 'refresh_token' }),
+  });
+  const data = await r.json();
+  if (r.status >= 400) { console.error('[mp_oauth] refresh error:', JSON.stringify(data).slice(0, 300)); return null; }
+  return data;
+}
+
+// Retorna um access_token VÁLIDO da loja (renova + persiste se perto de expirar).
+// null se a loja não conectou o Mercado Pago.
+async function _mpTokenForFilial(filial) {
+  const pay = ((filial && filial.metadata) || {}).payment || {};
+  if (pay.provider !== 'mp' || !pay.access_token) return null;
+  const expMs = pay.expires_at ? new Date(pay.expires_at).getTime() : 0;
+  if (pay.refresh_token && expMs && (expMs - Date.now() < 24 * 60 * 60 * 1000)) {
+    const fresh = await _mpRefreshToken(pay.refresh_token);
+    if (fresh && fresh.access_token) {
+      const md = filial.metadata || {};
+      md.payment = { ...pay, access_token: fresh.access_token, refresh_token: fresh.refresh_token || pay.refresh_token, expires_at: new Date(Date.now() + (fresh.expires_in || 15552000) * 1000).toISOString(), public_key: fresh.public_key || pay.public_key };
+      try { await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md }); } catch (e) {}
+      filial.metadata = md;
+      return fresh.access_token;
+    }
+  }
+  return pay.access_token;
+}
+
+// GET action=mp_oauth_start&filial=<slug> → redireciona a loja pro consentimento do MP.
+async function handleMPOauthStart(req, res) {
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const slug = String(url.searchParams.get('filial') || '').toLowerCase().trim();
+    if (!MP_CLIENT_ID) return res.status(500).send('MP_CLIENT_ID não configurado');
+    if (!slug) return res.status(400).send('faltou ?filial=<slug>');
+    const auth = `https://auth.mercadopago.com.br/authorization?client_id=${encodeURIComponent(MP_CLIENT_ID)}&response_type=code&platform_id=mp&state=${encodeURIComponent(slug)}&redirect_uri=${encodeURIComponent(MP_REDIRECT_URI)}`;
+    res.statusCode = 302; res.setHeader('Location', auth); return res.end();
+  } catch (e) { console.error('[mp_oauth_start] ERROR:', e.message); return res.status(500).send('erro'); }
+}
+
+// GET action=mp_oauth_callback&code=..&state=<slug> → salva tokens da loja e volta pro painel.
+async function handleMPOauthCallback(req, res) {
+  const slugFrom = (req) => { try { return String(new URL(req.url, `https://${req.headers.host}`).searchParams.get('state') || '').toLowerCase().trim(); } catch (e) { return ''; } };
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const code = url.searchParams.get('code');
+    const slug = String(url.searchParams.get('state') || '').toLowerCase().trim();
+    const back = (ok) => { res.statusCode = 302; res.setHeader('Location', `/${encodeURIComponent(slug || '')}/painel?mp=${ok ? 'ok' : 'erro'}`); return res.end(); };
+    if (!code || !slug) return back(false);
+    const filial = await _filialBySlugRead(slug);
+    if (!filial) return back(false);
+    const tok = await _mpExchangeCode(code);
+    if (!tok || !tok.access_token) return back(false);
+    const md = filial.metadata || {};
+    md.payment = {
+      provider: 'mp', mp_user_id: tok.user_id, access_token: tok.access_token,
+      refresh_token: tok.refresh_token || null, public_key: tok.public_key || null,
+      expires_at: new Date(Date.now() + (tok.expires_in || 15552000) * 1000).toISOString(),
+      connected: true, connected_at: new Date().toISOString(),
+    };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    console.log('[mp_oauth] loja conectada:', slug, 'mp_user:', tok.user_id);
+    return back(true);
+  } catch (e) { console.error('[mp_oauth_callback] ERROR:', e.message); res.statusCode = 302; res.setHeader('Location', `/${encodeURIComponent(slugFrom(req))}/painel?mp=erro`); return res.end(); }
+}
+
+// GET action=mp_connect_status&filial=<slug>&token=<sess> → painel checa conexão.
+async function handleMPConnectStatus(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cache-Control', 'no-store');
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const slug = String(url.searchParams.get('filial') || '').toLowerCase().trim();
+    const token = String(url.searchParams.get('token') || '').trim();
+    const filial = await _filialAuthBySlug(slug, token);
+    if (!filial) return res.status(401).json({ ok: false });
+    const pay = (filial.metadata || {}).payment || {};
+    return res.status(200).json({ ok: true, connected: pay.provider === 'mp' && !!pay.access_token, mp_user_id: pay.mp_user_id || null, connected_at: pay.connected_at || null, plan: _planFor(filial) });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // ===== MERCADO PAGO PIX HANDLERS (05/05/2026) =====
 
 // Cria pagamento Pix via API do Mercado Pago, retorna QR code + copia-e-cola
@@ -15670,16 +15783,34 @@ async function handleMPCreatePix(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (!MP_ACCESS_TOKEN) {
-    return res.status(500).json({ error: 'MP_ACCESS_TOKEN not configured' });
-  }
-
   try {
     const body = req.body || {};
     const { items, total_cents, order_id, customer } = body;
 
     if (!items || !items.length || !total_cents) {
       return res.status(400).json({ error: 'missing items or total_cents' });
+    }
+
+    // ===== SPLIT: identifica a loja e usa o token dela + comissão do DROPE =====
+    const slug = String(body.filial_slug || (Array.isArray(items) && (items.find(i => i && i.slug) || {}).slug) || '').toLowerCase().trim();
+    let sellerToken = null, appFeeReais = 0, commissionPct = 0, split = false, sellerName = null;
+    if (slug) {
+      const filial = await _filialBySlugRead(slug);
+      if (filial) {
+        const t = await _mpTokenForFilial(filial);
+        if (t) {
+          sellerToken = t;
+          sellerName = filial.name || slug;
+          commissionPct = _planFor(filial).commission_pct || 0;
+          appFeeReais = Math.round(total_cents * commissionPct / 100) / 100; // comissão em reais, 2 casas
+          split = appFeeReais > 0;
+        }
+      }
+    }
+    // token da cobrança: da loja (com split) ou da plataforma (fallback, sem split)
+    const authToken = sellerToken || MP_ACCESS_TOKEN;
+    if (!authToken) {
+      return res.status(500).json({ error: 'loja sem Mercado Pago conectado e MP_ACCESS_TOKEN ausente' });
     }
 
     const description = `Drope - Pedido ${order_id || 'avulso'}`;
@@ -15701,14 +15832,16 @@ async function handleMPCreatePix(req, res) {
       },
       date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     };
+    // Split: comissão do DROPE só vale com o token da LOJA (marketplace).
+    if (split && appFeeReais > 0) payload.application_fee = appFeeReais;
 
-    console.log('[MercadoPago] Creating Pix:', JSON.stringify(payload).substring(0, 400));
+    console.log(`[MercadoPago] Creating Pix (split=${split}, loja=${slug || '-'}, fee=${appFeeReais}):`, JSON.stringify(payload).substring(0, 300));
 
     const response = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+        'Authorization': `Bearer ${authToken}`,
         'X-Idempotency-Key': order_id || `dr-${Date.now()}`,
       },
       body: JSON.stringify(payload),
@@ -15736,6 +15869,7 @@ async function handleMPCreatePix(req, res) {
       ticket_url: txData.ticket_url,
       expires_at: data.date_of_expiration,
       amount: data.transaction_amount,
+      split, commission_pct: commissionPct, commission_amount: appFeeReais, seller: sellerName,
     });
   } catch (err) {
     console.error('[MercadoPago] ERROR:', err.message);
@@ -18755,6 +18889,16 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=mp_webhook') >= 0) {
     return await handleMPWebhook(req, res);
+  }
+  // ===== MERCADO PAGO MARKETPLACE / SPLIT (OAuth por loja) =====
+  if (req.url && req.url.indexOf('action=mp_oauth_start') >= 0) {
+    return await handleMPOauthStart(req, res);
+  }
+  if (req.url && req.url.indexOf('action=mp_oauth_callback') >= 0) {
+    return await handleMPOauthCallback(req, res);
+  }
+  if (req.url && req.url.indexOf('action=mp_connect_status') >= 0) {
+    return await handleMPConnectStatus(req, res);
   }
 
   // ===== INFINITEPAY (08/05/2026) — migrado de api/infinitepay-*.js =====
