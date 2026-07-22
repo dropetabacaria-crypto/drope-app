@@ -5669,6 +5669,26 @@
 </script>
 
 <script>
+  // ============ MODO PRÉ-VISUALIZAÇÃO ============
+  // Lojista clicou "ver como cliente" no painel → abre com ?preview=1.
+  // Regra do produto: cada conta é única. O preview NUNCA mostra a conta pessoal
+  // de ninguém E NUNCA grava nada no aparelho (senão a sessão de cliente cacheada
+  // no navegador vaza — foi o bug do "abriu o perfil do Rafael a partir do Santos").
+  // Garantia forte: em preview, localStorage vira SÓ-LEITURA (writes viram no-op).
+  const PREVIEW_MODE = (function () { try { return /[?&]preview=1(?:&|$)/.test(location.search || ''); } catch (e) { return false; } })();
+  if (PREVIEW_MODE) {
+    try {
+      const _ls = window.localStorage;
+      const noop = function () {};
+      Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+        getItem: function (k) { try { return _ls.getItem(k); } catch (e) { return null; } },
+        setItem: noop, removeItem: noop, clear: noop,
+        key: function (i) { try { return _ls.key(i); } catch (e) { return null; } },
+        get length() { try { return _ls.length; } catch (e) { return 0; } }
+      } });
+    } catch (e) {}
+  }
+
   // ============ DATA LAYER (storage) ============
   // Este módulo abstrai persistência. Hoje usa localStorage.
   // Pra migrar pro Supabase: veja /supabase-setup.md neste projeto
@@ -6404,6 +6424,7 @@
   }
 
   function isGuest() {
+    if (PREVIEW_MODE) return true;
     return !profile.onboarded || !profile.name || profile.name === 'visitante' || profile.name === 'Lucas';
   }
 
@@ -6667,7 +6688,7 @@
       const lojaSlug = (u3.searchParams.get('loja') || '').toLowerCase().trim();
       if (lojaSlug) {
         history.replaceState(null, '', u3.origin + u3.pathname);
-        if (confirmed) { pickClientFilial(lojaSlug); return; }
+        if (confirmed || PREVIEW_MODE) { pickClientFilial(lojaSlug); return; }
         _pendingLojaSlug = lojaSlug; go('onboard'); return;
       }
     } catch(e) {}
@@ -7726,10 +7747,11 @@
   function setClientFilial(slug, name) {
     CLIENT_FILIAL = (slug || 'sp').toLowerCase();
     if (name != null) CLIENT_FILIAL_NAME = name;
-    try { localStorage.setItem(FILIAL_STORAGE_KEY, CLIENT_FILIAL); } catch(_){}
-    try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME || ''); } catch(_){}
     // Limpa cache de produtos pra forçar refetch do catálogo da nova filial
     try { localStorage.removeItem(PRODUCTS_KEY); } catch(_){}
+    if (PREVIEW_MODE) return; // preview não altera a loja selecionada do cliente real
+    try { localStorage.setItem(FILIAL_STORAGE_KEY, CLIENT_FILIAL); } catch(_){}
+    try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME || ''); } catch(_){}
   }
   // Chamada pelo card de loja (picker)
   function pickClientFilial(slug) {
@@ -8117,9 +8139,9 @@
   const CUST_SESSION_KEY = 'drope_customer_session_v1';
   let _custSession = null;
   try { _custSession = JSON.parse(localStorage.getItem(CUST_SESSION_KEY) || 'null'); } catch (e) {}
-  function _custToken() { return (_custSession && _custSession.token) || ''; }
-  function _isLoggedIn() { return !!_custToken(); }
-  function _saveCustSession(s) { _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
+  function _custToken() { return PREVIEW_MODE ? '' : ((_custSession && _custSession.token) || ''); }
+  function _isLoggedIn() { return !PREVIEW_MODE && !!_custToken(); }
+  function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
   let _otpPhone = '';
   function formatLoginPhone(el) { let d = el.value.replace(/\D/g, '').slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
@@ -8219,6 +8241,7 @@
     }
   }
   function persistProfile() {
+    if (PREVIEW_MODE) return; // preview não grava a conta pessoal no aparelho
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}
   }
   function saveProfile() {
@@ -8272,6 +8295,18 @@
     } catch(e) {}
   }
   loadProfile();
+  // Em preview, ignora a conta cacheada no aparelho: renderiza sempre como convidado.
+  if (PREVIEW_MODE) {
+    profile = { name: 'visitante', phone: '', email: '', avatar: 'cham', onboarded: false };
+    try {
+      const b = document.createElement('div');
+      b.id = 'preview-banner';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#C6FF00;color:#0A0A14;font:600 13px/1.3 "Space Grotesk",sans-serif;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px';
+      b.innerHTML = '<span>Pré-visualização — é assim que o cliente vê sua loja</span><span style="cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="history.back()">‹ voltar ao painel</span>';
+      const put = () => { if (document.body) { document.body.appendChild(b); document.body.style.paddingTop = '34px'; } else { setTimeout(put, 30); } };
+      put();
+    } catch (e) {}
+  }
   setTimeout(updateProfileAvatar, 0);
   function fillProfileEdit() {
     const ni = document.getElementById('pe-name');

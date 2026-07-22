@@ -515,14 +515,13 @@ async function loadData(showLoading) {
 }
 
 let _filialName = '';
-// Abre o app do cliente no catálogo DESTA loja (preview "como cliente").
+// Abre o app do cliente no catálogo DESTA loja em modo PRÉ-VISUALIZAÇÃO.
+// Regra: cada conta é única. O preview NÃO carrega a conta pessoal de ninguém
+// e NÃO grava nada no aparelho — o app abre como convidado, só pra ver a loja.
+// (Antes gravava drope_client_filial/age no localStorage, o que misturava a
+//  sessão de cliente cacheada no navegador — bug do "redirecionou pro Rafael".)
 function verLojaCliente() {
-  try {
-    localStorage.setItem('drope_client_filial_v1', (FILIAL_SLUG || '').toLowerCase());
-    localStorage.setItem('drope_client_filial_name_v1', _filialName || '');
-    localStorage.setItem('drope_age_confirmed', '1');
-  } catch (e) {}
-  location.href = '/';
+  location.href = '/?loja=' + encodeURIComponent((FILIAL_SLUG || '').toLowerCase()) + '&preview=1';
 }
 function render(d) {
   const f = d.filial;
