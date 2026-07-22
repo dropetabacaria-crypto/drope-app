@@ -4144,10 +4144,9 @@
         <div class="onboard-btns">
           <button class="btn-primary" id="age-login-btn" onclick="confirmAge('login')" disabled style="opacity:0.4">Entrar / criar conta</button>
           <button class="btn-secondary" id="age-guest-btn" onclick="confirmAge('guest')" disabled style="opacity:0.4;margin-top:8px">Entrar como convidado</button>
-          <button class="btn-ghost" onclick="ageDeny()" style="margin-top:8px;font-size:0.85rem;opacity:0.7">Ainda não tenho 18</button>
         </div>
         <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-dim);line-height:1.5">
-          É parceiro DROPE?<br><span style="color:var(--lime);font-weight:800;cursor:pointer" onclick="goPartnerEntry()">Entrar como loja (tabacaria ou adega) →</span>
+          É parceiro DROPE?<br><span style="color:var(--lime);font-weight:800;cursor:pointer" onclick="goPartnerEntry()">Entrar como loja →</span>
         </div>
       </div>
 
@@ -4404,12 +4403,12 @@
       </div>
       <label class="lj-field">
         <span class="lj-lbl">Nome da loja</span>
-        <input id="lj-store" class="card-input" placeholder="ex: Tabacaria do Zé" maxlength="40" oninput="_ljBtn()">
+        <input id="lj-store" class="card-input" placeholder="ex: Loja Central" maxlength="40" oninput="_ljBtn()">
       </label>
       <div class="lj-row">
         <label class="lj-field" style="flex:2">
           <span class="lj-lbl">Cidade</span>
-          <input id="lj-city" class="card-input" placeholder="ex: Santos" maxlength="40" oninput="_ljBtn()">
+          <input id="lj-city" class="card-input" placeholder="ex: São Paulo" maxlength="40" oninput="_ljBtn()">
         </label>
         <label class="lj-field" style="flex:1">
           <span class="lj-lbl">Estado</span>
@@ -4429,7 +4428,7 @@
       </label>
       <label class="lj-field">
         <span class="lj-lbl">Endereço (rua e número)</span>
-        <input id="lj-address" class="card-input" placeholder="ex: Rua Dianópolis, 4100" maxlength="90" oninput="_ljBtn()">
+        <input id="lj-address" class="card-input" placeholder="ex: Rua das Flores, 100" maxlength="90" oninput="_ljBtn()">
       </label>
       <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">usamos pra mostrar sua loja pros clientes mais perto</div>
 
@@ -4440,13 +4439,13 @@
       </label>
       <label class="lj-field">
         <span class="lj-lbl">WhatsApp</span>
-        <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLjPhone(this); _ljBtn()">
+        <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 99999-9999" oninput="formatLjPhone(this); _ljBtn()">
       </label>
 
       <div class="lj-sec lj-sec-label">Seu acesso ao painel</div>
       <label class="lj-field">
         <span class="lj-lbl">Email (login)</span>
-        <input id="lj-email" class="card-input" type="email" inputmode="email" autocomplete="email" placeholder="voce@email.com" maxlength="80" oninput="_ljBtn()">
+        <input id="lj-email" class="card-input" type="email" inputmode="email" autocomplete="email" placeholder="email@exemplo.com" maxlength="80" oninput="_ljBtn()">
       </label>
       <label class="lj-field">
         <span class="lj-lbl">Senha</span>
@@ -6390,10 +6389,6 @@
     updateProfileAvatar();
     _entryGo();
     if (mode === 'login') { try { openCustomerLogin(); } catch(e) {} }
-  }
-
-  function ageDeny() {
-    toast('volta quando tiver 18 ✦ o drope te espera');
   }
 
   // Entrada de parceiro (dono de tabacaria/adega) a partir da tela inicial.
