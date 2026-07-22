@@ -1084,7 +1084,7 @@ let _pageTheme = 'dark';
 let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
 let _currentLojaPhoto = null;
-function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; renderLojaPreview(); }
+function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; }
 function _segs() { return [...document.querySelectorAll('#seg-row .seg-btn.active')].map(b => b.dataset.seg); }
 function toggleSeg(el) { el.classList.toggle('active'); if (_segs().length === 0) el.classList.add('active'); }
 function renderSegs(segs) { segs = (Array.isArray(segs) && segs.length) ? segs : ['tabacaria']; document.querySelectorAll('#seg-row .seg-btn').forEach(b => b.classList.toggle('active', segs.includes(b.dataset.seg))); }
@@ -1270,37 +1270,29 @@ function setAccent(c, el) {
   document.querySelectorAll('#accent-swatches div').forEach(d => d.style.border = '3px solid ' + (d.dataset.c === c ? '#fff' : 'transparent'));
   renderLojaPreview();
 }
+// Prévia = a PÁGINA REAL da loja (modo preview), num frame de celular.
+// É literalmente o que o cliente vê. Tema/cor atualizam ao vivo via postMessage.
 function renderLojaPreview() {
   const el = document.getElementById('loja-preview'); if (!el) return;
-  const light = _pageTheme === 'light';
-  const acc = _pageAccent || '#D4FF2E';
-  const bg = light ? '#F5F3FB' : '#0A0A14';
-  const card = light ? '#FFFFFF' : '#1A1625';
-  const text = light ? '#191426' : '#F5F3FF';
-  const dim = light ? '#6B6480' : '#9B96B5';
-  const photo = _lojaPhotoB64 || _currentLojaPhoto || null;
-  const name = (typeof _filialName !== 'undefined' && _filialName) ? _filialName : 'Sua loja';
-  const bio = ((document.getElementById('loja-bio') || {}).value || 'sua descrição aparece aqui').slice(0, 80);
-  const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-  const scales = light ? 0.05 : 0.10;
-  const tile = (emoji, price) => `<div style="flex:1;background:${card};border-radius:12px;padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,${light ? 0.05 : 0.3})"><div style="font-size:26px;line-height:1">${emoji}</div><div style="font-size:9px;color:${dim};margin-top:4px">pod 8000</div><div style="font-size:11px;font-weight:800;color:${acc};margin-top:2px">${price}</div></div>`;
-  el.innerHTML = `<div style="position:relative;background:${bg};padding:14px">
-    <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 20% 30%, ${acc}22 0 2px, transparent 2px),radial-gradient(circle at 70% 60%, ${acc}22 0 2px, transparent 2px);background-size:26px 26px;opacity:${scales};pointer-events:none"></div>
-    <div style="position:relative">
-      <div style="display:flex;gap:11px;align-items:center;background:${card};border-radius:14px;padding:10px;box-shadow:0 3px 12px rgba(0,0,0,${light ? 0.06 : 0.35})">
-        ${photo ? `<img src="${photo}" style="width:44px;height:44px;border-radius:11px;object-fit:cover">` : `<div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);display:flex;align-items:center;justify-content:center;font-size:22px"></div>`}
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:13px;color:${text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)} <span style="color:${acc};font-size:10px;font-weight:700">trocar ›</span></div>
-          <div style="font-size:10.5px;color:${dim};line-height:1.35;margin-top:2px">${esc(bio)}</div>
-        </div>
+  const slug = FILIAL_SLUG;
+  if (!slug) { el.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--fg-dim)">A prévia aparece depois que a loja é cadastrada.</div>'; return; }
+  if (!document.getElementById('loja-preview-frame')) {
+    el.innerHTML = `<div style="background:#0A0A14;padding:16px 14px;display:flex;justify-content:center">
+      <div style="width:100%;max-width:290px;aspect-ratio:9/17;border-radius:26px;overflow:hidden;border:7px solid #000;box-shadow:0 10px 34px rgba(0,0,0,.55);background:#0A0A14">
+        <iframe id="loja-preview-frame" title="Prévia da loja" src="/?loja=${encodeURIComponent(slug)}&preview=1" style="width:100%;height:100%;border:0;display:block" onload="_pvPostTheme()"></iframe>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 2px 8px">
-        <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:${text}">GELADOS</div>
-        <div style="font-size:10px;color:${acc};font-weight:700">ver todos ›</div>
-      </div>
-      <div style="display:flex;gap:8px">${tile('', 'R$ 89,90')}${tile('', 'R$ 99,90')}${tile('', 'R$ 94,90')}</div>
     </div>
-  </div>`;
+    <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-top:10px">É a sua página real ✦ tema e cor mudam aqui na hora · foto e descrição aparecem depois de salvar</div>`;
+  }
+  _pvPostTheme();
+}
+function _pvPostTheme() {
+  const frame = document.getElementById('loja-preview-frame');
+  if (!frame || !frame.contentWindow) return;
+  const accent = (_pageAccent && /^#[0-9a-fA-F]{6}$/.test(_pageAccent)) ? _pageAccent : '';
+  try { frame.contentWindow.postMessage({ type: 'drope_preview_theme', theme: _pageTheme, accent }, '*'); } catch (e) {}
+  // reforço (caso a página ainda esteja carregando no 1º load)
+  setTimeout(() => { try { frame.contentWindow.postMessage({ type: 'drope_preview_theme', theme: _pageTheme, accent }, '*'); } catch (e) {} }, 800);
 }
 function _fmtLojaCep(el) { let d = el.value.replace(/\D/g, '').slice(0, 8); el.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d; }
 async function _lookupLojaCep() {

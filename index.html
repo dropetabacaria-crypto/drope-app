@@ -6775,7 +6775,7 @@
   // Sequência: 0s revela camaleão (1.5s) → 1.5s nome "drope" → segura →
   // 3.2s camufla tudo (1.1s) → 4.3s entra na home
   let _vanishTimer = setTimeout(_startChameleon, 3200);
-  const _splashTimer = setTimeout(_splashSkip, 4300);
+  const _splashTimer = setTimeout(_splashSkip, PREVIEW_MODE ? 200 : 4300);
   // Click no splash pula direto
   document.addEventListener('DOMContentLoaded', () => {
     const sp = document.getElementById('splash');
@@ -7827,12 +7827,29 @@
   let CLIENT_LOJA = null;
   // Aplica o tema (fundo claro/escuro) + cor de destaque da loja na PÁGINA do cliente.
   // Mantém a essência DROPE (escamas/aurora continuam).
+  // Override de tema/cor no modo preview (o painel manda por postMessage pra
+  // pré-visualizar a aparência ao vivo, sem precisar salvar).
+  let _pvTheme = null, _pvAccent = null;
   function applyLojaTheme(loja) {
     loja = loja || {};
-    const light = loja.theme === 'light';
+    let theme = loja.theme, accent = loja.accent;
+    if (PREVIEW_MODE) { if (_pvTheme != null) theme = _pvTheme; if (_pvAccent != null) accent = _pvAccent; }
+    const light = theme === 'light';
     document.body.classList.toggle('loja-light', light);
-    const acc = /^#[0-9a-fA-F]{6}$/.test(loja.accent || '') ? loja.accent : '';
+    const acc = /^#[0-9a-fA-F]{6}$/.test(accent || '') ? accent : '';
     document.documentElement.style.setProperty('--store-accent', acc || 'var(--lime)');
+  }
+  if (PREVIEW_MODE) {
+    try {
+      window.addEventListener('message', function (e) {
+        const d = e && e.data || {};
+        if (d.type === 'drope_preview_theme') {
+          _pvTheme = d.theme || null;
+          _pvAccent = d.accent || null;
+          try { applyLojaTheme(CLIENT_LOJA || {}); } catch (_) {}
+        }
+      });
+    } catch (e) {}
   }
   function renderLojaBar() {
     const el = document.getElementById('home-loja-bar');
@@ -8378,7 +8395,9 @@
   // Em preview, ignora a conta cacheada no aparelho: renderiza sempre como convidado.
   if (PREVIEW_MODE) {
     profile = { name: 'visitante', phone: '', email: '', avatar: 'cham', onboarded: false };
-    try {
+    // Banner só na prévia em tela cheia ("ver como cliente"); embutido no painel (iframe) não precisa.
+    const _embedded = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+    if (!_embedded) try {
       const b = document.createElement('div');
       b.id = 'preview-banner';
       b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#C6FF00;color:#0A0A14;font:600 13px/1.3 "Space Grotesk",sans-serif;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px';
