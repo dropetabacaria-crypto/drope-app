@@ -4899,7 +4899,7 @@ async function handleFilialPosSale(req, res) {
 // senha do painel (verificada no servidor). Assim o admin só digita a senha (no
 // login) e o token é buscado/salvo sozinho — sem mais colar token na mão.
 // NOTA[segurança]: gate = senha do painel; endurecer depois (senha forte/rate-limit).
-const ADMIN_PANEL_HASH = 'd9644f039dcb3d5cfb6e95e9cde7f9e28768b2f5ba0700f4740e1f9b0c05780a'; // sha256('drope2026')
+const ADMIN_PANEL_HASH = 'cbb8118e06d2ba75feddc923918ef1246cead42f242b086cd1ff0f88ffd6c1a4'; // sha256 da senha forte do painel
 async function handleAdminTokenIssue(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
