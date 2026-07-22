@@ -87,20 +87,25 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
     max-width: 1180px;
     display: grid !important; /* vence o style="display:block" inline setado via JS */
     grid-template-columns: 1.5fr 1fr;
+    grid-template-areas:
+      "header header"
+      "status status"
+      "resumo resumo"
+      "acoes  acoes"
+      "pend   prod"
+      "hist   config";
     column-gap: 24px;
     align-items: start;
     padding: 0 22px 40px;
   }
-  #painel > header,
-  #painel > .status-bar,
-  #painel > .sec-resumo,
-  #painel > .sec-acoes { grid-column: 1 / -1; }
-  #painel > .sec-pend,
-  #painel > .sec-hist { grid-column: 1; }
-  #painel > .sec-prod,
-  #painel > .sec-config { grid-column: 2; }
-  /* header/status viram cartões arredondados dentro do container (sem edge-to-edge) */
-  #painel > header { border-radius: 0 0 18px 18px; margin-bottom: 4px; }
+  #painel > header { grid-area: header; border-radius: 0 0 18px 18px; margin-bottom: 4px; }
+  #painel > .status-bar { grid-area: status; }
+  #painel > .sec-resumo { grid-area: resumo; }
+  #painel > .sec-acoes { grid-area: acoes; }
+  #painel > .sec-pend { grid-area: pend; }
+  #painel > .sec-prod { grid-area: prod; }   /* Meus produtos sobe (ao lado de Pra entregar) */
+  #painel > .sec-hist { grid-area: hist; }
+  #painel > .sec-config { grid-area: config; }
 }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
