@@ -19,7 +19,7 @@ const UAZAPI_SERVER = process.env.UAZAPI_SERVER || "https://dropepod.uazapi.com"
 const UAZAPI_TOKEN = process.env.UAZAPI_TOKEN || "";
 const CLAUDE_KEY = process.env.CLAUDE_KEY || process.env.ANTHROPIC_API_KEY || "";
 const XAI_API_KEY = process.env.XAI_API_KEY || "";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || "").replace(/^["']|["']$/g, "").trim();
 const SERPER_API_KEY = process.env.SERPER_API_KEY || "";
 const REMOVEBG_API_KEY = process.env.REMOVEBG_API_KEY || "";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
@@ -6417,6 +6417,40 @@ async function removeBackgroundSharp(imageUrl) {
   return result;
 }
 
+// ============ GERADOR DE IMAGEM (OpenAI gpt-image-1) ============
+// Andrade parou de usar o Grok (xAI). Toda geração de arte agora vai pela OpenAI.
+// Chave lida da env var OPENAI_API_KEY (configurada na Vercel).
+// OpenAI (gpt-image-1) retorna base64 (b64_json) — devolvemos como data URL,
+// que downloadImage() e applyDropeSeal() já sabem tratar (mesmo pipeline dos pods).
+async function openaiGenerateImage(prompt, tag) {
+  if (!OPENAI_API_KEY) {
+    console.error(`[openaiImage:${tag}] OPENAI_API_KEY não configurada`);
+    return null;
+  }
+  const t0 = Date.now();
+  let r, data;
+  try {
+    r = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: 'gpt-image-1', prompt, n: 1, size: '1024x1024' }),
+    });
+    data = await r.json();
+  } catch (e) {
+    console.error(`[openaiImage:${tag}] fetch error:`, e.message);
+    return null;
+  }
+  logApiCost('openai_image', { status: r.status, tag, ms: Date.now() - t0 }).catch(() => {});
+  if (r.status >= 400) {
+    console.error(`[openaiImage:${tag}] status ${r.status}:`, JSON.stringify(data).slice(0, 400));
+    return null;
+  }
+  const b64 = data.data?.[0]?.b64_json;
+  if (b64) return `data:image/png;base64,${b64}`;
+  const url = data.data?.[0]?.url; // fallback caso a API mude
+  return url || null;
+}
+
 // Gera APENAS o cenário dark neon (frutas, vapor, iluminação) SEM NENHUM device.
 // O centro fica vazio pro pod ser colado depois.
 async function generateBackgroundScene(flavor, flavorElements, qcFeedback) {
@@ -6447,29 +6481,8 @@ async function generateBackgroundScene(flavor, flavorElements, qcFeedback) {
     qcFeedback ? `CORRECTIONS: ${qcFeedback}` : '',
   ].filter(Boolean).join(' ');
 
-  if (!XAI_API_KEY) {
-    console.error('[generateBackgroundScene] XAI_API_KEY not configured');
-    return null;
-  }
-
   console.log('[generateBackgroundScene] generating dark neon scene, flavor:', flavorEls.slice(0, 60));
-  const t0 = Date.now();
-  const r = await fetch('https://api.x.ai/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
-    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
-  });
-
-  const data = await r.json();
-  console.log(`[generateBackgroundScene] status: ${r.status}, ${Date.now() - t0}ms`);
-  logApiCost('grok_background', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
-
-  if (r.status >= 400) {
-    console.error('[generateBackgroundScene] error:', JSON.stringify(data).slice(0, 400));
-    return null;
-  }
-
-  return data.data?.[0]?.url || null;
+  return await openaiGenerateImage(prompt, 'background');
 }
 
 // ============ IMAGENS DAS VIBES (chips Frutado/Doce/Gelado/Mentol) ============
@@ -6489,7 +6502,6 @@ const VIBE_THEMES = {
 async function generateVibeScene(vibe) {
   const theme = VIBE_THEMES[vibe];
   if (!theme) return null;
-  if (!XAI_API_KEY) { console.error('[generateVibeScene] XAI_API_KEY not configured'); return null; }
 
   const prompt = (vibe === 'tudo')
     ? [
@@ -6511,20 +6523,7 @@ async function generateVibeScene(vibe) {
       ].join(' ');
 
   console.log('[generateVibeScene] gerando vibe:', vibe);
-  const t0 = Date.now();
-  const r = await fetch('https://api.x.ai/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
-    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
-  });
-  const data = await r.json();
-  console.log(`[generateVibeScene] status: ${r.status}, ${Date.now() - t0}ms`);
-  logApiCost('grok_background', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
-  if (r.status >= 400) {
-    console.error('[generateVibeScene] error:', JSON.stringify(data).slice(0, 400));
-    return null;
-  }
-  return data.data?.[0]?.url || null;
+  return await openaiGenerateImage(prompt, 'vibe');
 }
 
 // ============ FILTROS CUSTOM DA LOJA (self-service) ============
@@ -6562,7 +6561,6 @@ function _filtroSubject(nome) {
 
 // Cena estilo DROPE (dark neon still-life) pra imagem de um filtro.
 async function generateFilterScene(subjectEn) {
-  if (!XAI_API_KEY) { console.error('[generateFilterScene] XAI_API_KEY missing'); return null; }
   const prompt = [
     `Dark cinematic product photography. HERO SUBJECT centered in frame: ${subjectEn}, arranged as a beautiful still-life on a matte black reflective surface with subtle mirror reflections.`,
     `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space.`,
@@ -6571,16 +6569,7 @@ async function generateFilterScene(subjectEn) {
     `NO people, NO hands. NO text, NO watermarks, NO labels.`,
     `Square format 1024x1024.`,
   ].join(' ');
-  const t0 = Date.now();
-  const r = await fetch('https://api.x.ai/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_API_KEY}` },
-    body: JSON.stringify({ model: 'grok-imagine-image', prompt, n: 1 }),
-  });
-  const data = await r.json();
-  logApiCost('grok_filtro', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
-  if (r.status >= 400) { console.error('[generateFilterScene] error:', JSON.stringify(data).slice(0, 300)); return null; }
-  return data.data?.[0]?.url || null;
+  return await openaiGenerateImage(prompt, 'filtro');
 }
 
 // Descreve uma imagem de referência (1 frase em inglês) pra alimentar o gerador.
@@ -6861,86 +6850,28 @@ async function generatePadraoAPlus(brand, model, flavor, coresPredominantes, dev
     ].filter(Boolean).join(' ');
   }
 
-  if (!XAI_API_KEY) {
-    console.error("[Grok image] XAI_API_KEY not configured");
-    return null;
-  }
+  console.log("[OpenAI image] generating for:", fullName, "attempt:", attempt, "flavorEls:", flavorEls.slice(0, 60));
 
-  console.log("[Grok image] generating for:", fullName, "attempt:", attempt, "mode:", useImg2Img ? 'IMG2IMG' : 'TEXT-ONLY', "flavorEls:", flavorEls.slice(0, 60));
+  // OpenAI gpt-image-1: text-to-image com o prompt detalhado (mesmo estilo dos pods).
+  // Retorna data URL (base64) que downloadImage()/applyDropeSeal() já tratam.
+  const out = await openaiGenerateImage(prompt, 'product');
+  if (out) return out;
 
-  // OSSO 34.6: IMG2IMG usa /v1/images/edits, TEXT-ONLY usa /v1/images/generations
-  const t0 = Date.now();
-  let apiUrl, bodyPayload;
-
-  if (useImg2Img) {
-    apiUrl = "https://api.x.ai/v1/images/edits";
-    bodyPayload = {
-      model: "grok-imagine-image",
-      prompt,
-      image: { url: referenceImageUrl, type: "image_url" },
-      n: 1
-    };
-    console.log(`[Grok image] IMG2IMG ref: ${referenceImageUrl.substring(0, 80)}...`);
-  } else {
-    apiUrl = "https://api.x.ai/v1/images/generations";
-    bodyPayload = { model: "grok-imagine-image", prompt, n: 1 };
-  }
-
-  const r = await fetch(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${XAI_API_KEY}`
-    },
-    body: JSON.stringify(bodyPayload)
-  });
-
-  const data = await r.json();
-  console.log("[Grok image] status:", r.status);
-  logApiCost('grok_image', {
-    status: r.status,
-    attempt,
-    mode: useImg2Img ? 'img2img' : 'text2img',
-    ms: Date.now() - t0,
-    full_name: fullName,
-  }).catch(() => {});
-
-  if (r.status >= 400) {
-    console.error(`[Grok image] error (${useImg2Img ? 'img2img' : 'text2img'}):`, JSON.stringify(data).slice(0, 500));
-    // Se img2img falhou, tenta text-only como fallback
-    if (useImg2Img) {
-      console.warn('[Grok image] img2img failed, falling back to text-only');
-      let fallbackDesc;
-      try { fallbackDesc = await getDeviceDescription(productCtx || { metadata: { brand, model } }); }
-      catch (e) { fallbackDesc = getDeviceBankDescription(brand, model) || 'compact rectangular pod device'; }
-      const fallbackPrompt = [
-        `Cinematic product photography of a single vape pod device.`,
-        `Device: ${fallbackDesc}. Body color: ${deviceColor}.`,
-        `${ART_QUALITY_RULES.position}.`, `${ART_QUALITY_RULES.deviceMaxSize}.`,
-        `${ART_QUALITY_RULES.background}.`,
-        `Fresh ${flavorEls} placed naturally around the base.`,
-        `${ART_QUALITY_RULES.vapor}.`, `${ART_QUALITY_RULES.lighting}.`,
-        `${ART_QUALITY_RULES.noText}.`, `Square format 1024x1024.`,
-      ].filter(Boolean).join(' ');
-      const rFb = await fetch("https://api.x.ai/v1/images/generations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${XAI_API_KEY}` },
-        body: JSON.stringify({ model: "grok-imagine-image", prompt: fallbackPrompt, n: 1 })
-      });
-      const dFb = await rFb.json();
-      if (rFb.status >= 400) return null;
-      return dFb.data?.[0]?.url || null;
-    }
-    return null;
-  }
-
-  // Grok retorna URL pública temporária. Caller faz downloadImage(url) e upload pro Supabase Storage.
-  const url = data.data?.[0]?.url;
-  if (url) return url;
-  // Fallback: caso Grok mude de comportamento e mande b64
-  const b64 = data.data?.[0]?.b64_json;
-  if (b64) return `data:image/png;base64,${b64}`;
-  return null;
+  // Fallback: prompt mais simples caso o detalhado falhe.
+  console.warn('[OpenAI image] retry com prompt simplificado');
+  let fallbackDesc;
+  try { fallbackDesc = await getDeviceDescription(productCtx || { metadata: { brand, model } }); }
+  catch (e) { fallbackDesc = getDeviceBankDescription(brand, model) || 'compact rectangular pod device'; }
+  const fallbackPrompt = [
+    `Cinematic product photography of a single vape pod device.`,
+    `Device: ${fallbackDesc}. Body color: ${deviceColor}.`,
+    `${ART_QUALITY_RULES.position}.`, `${ART_QUALITY_RULES.deviceMaxSize}.`,
+    `${ART_QUALITY_RULES.background}.`,
+    `Fresh ${flavorEls} placed naturally around the base.`,
+    `${ART_QUALITY_RULES.vapor}.`, `${ART_QUALITY_RULES.lighting}.`,
+    `${ART_QUALITY_RULES.noText}.`, `Square format 1024x1024.`,
+  ].filter(Boolean).join(' ');
+  return await openaiGenerateImage(fallbackPrompt, 'product_fb');
 }
 
 // ============ xAI GROK VIDEO — geração de vídeo curto a partir da arte aprovada ============
@@ -19485,8 +19416,8 @@ async function generateAll(){
   // Se produto não tem reference_image_url, busca via Serper+Vision antes de gerar.
   // GET (browser-friendly) ou POST. Processa 1 por chamada.
   if (req.url && req.url.indexOf('action=generate_pending') >= 0) {
-    if (!SUPABASE_KEY || !XAI_API_KEY) {
-      return res.status(500).json({ error: 'missing env vars (SUPABASE_KEY or XAI_API_KEY)' });
+    if (!SUPABASE_KEY || !OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'missing env vars (SUPABASE_KEY or OPENAI_API_KEY)' });
     }
     console.log('[generate_pending] starting...');
     const stalecutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
