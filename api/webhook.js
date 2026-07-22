@@ -4583,7 +4583,7 @@ async function handleFilialPainel(req, res) {
 
     // Produtos da loja (pro lojista gerenciar estoque/preço)
     const prods = await sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata&order=name.asc&limit=300`);
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes&order=name.asc&limit=300`);
     const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
       stock: p.qty_available, hidden: !!p.hidden,
@@ -4594,6 +4594,8 @@ async function handleFilialPainel(req, res) {
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
       featured: !!((p.metadata || {}).featured),
+      barcode: p.barcode || null,
+      barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
 
     return res.status(200).json({
@@ -4705,11 +4707,15 @@ async function handleFilialProductSave(req, res) {
     if (!isFinite(priceCents) || priceCents < 0) return res.status(400).json({ ok: false, error: 'preço inválido' });
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pod';
     const slug = base + '-' + filial.id + '-' + Date.now().toString(36).slice(-4);
+    // código de barras (do escaneamento por IA/leitor) — pro PDV achar o produto na venda
+    const bcRaw = String(body.barcode || vmeta.barcode || '').replace(/\D/g, '');
+    const barcodeVal = (bcRaw.length >= 8 && bcRaw.length <= 14) ? bcRaw : null;
     const row = await sbInsert('drope_products', {
       filial_id: filial.id, slug, name,
       price_cents: priceCents,
       qty_available: Number.isInteger(stock) && stock >= 0 ? stock : 0,
       hidden: false, image_status: 'ok',
+      barcode: barcodeVal,
       image_url: imageUrl || null,
       category: 'pod',
       metadata: {

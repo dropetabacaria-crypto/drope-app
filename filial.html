@@ -459,6 +459,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <h3>Vender no balcão</h3>
     <span id="pdv-total" style="font-weight:800;color:var(--lime)">R$ 0,00</span>
   </div>
+  <div style="padding:12px 16px 0">
+    <button class="pf-btn full" onclick="openBarcodeScanner('pdv')" style="font-size:14px;padding:14px">Escanear código de barras</button>
+    <div style="font-size:11px;color:var(--fg-dim);text-align:center;margin-top:6px">aponte a câmera no código — o produto entra na venda na hora</div>
+  </div>
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
     <div class="pay-opts" id="pdv-pay">
@@ -469,6 +473,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
     <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">Finalizar venda ✦</button>
     <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- Overlay: Leitor de código de barras (ao vivo) -->
+<div class="sheet-ov" id="scan-ov" style="background:#000;z-index:120">
+  <div class="sheet-hd" style="background:rgba(0,0,0,0.55)">
+    <button class="sheet-x" onclick="closeBarcodeScanner()">←</button>
+    <h3>Escanear código</h3>
+  </div>
+  <div style="flex:1;position:relative;overflow:hidden;background:#000">
+    <video id="scan-video" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
+    <div style="position:absolute;left:8%;right:8%;top:38%;height:22%;border:2px solid var(--lime);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45)"></div>
+    <div id="scan-hint" style="position:absolute;bottom:28px;left:0;right:0;text-align:center;color:#fff;font-size:14px;font-weight:600;padding:0 24px;text-shadow:0 2px 8px rgba(0,0,0,0.8)">Aponte a câmera pro código de barras</div>
   </div>
 </div>
 
@@ -1110,6 +1127,55 @@ function renderPDV() {
   btn.disabled = !ok; btn.style.opacity = ok ? 1 : 0.5;
 }
 function pdvInc(id) { const p = _pdvProds().find(x => x.id === id); const max = (p && typeof p.stock === 'number') ? p.stock : 999; _pdvCart[id] = Math.min(max, (_pdvCart[id] || 0) + 1); renderPDV(); }
+
+// ===== Leitor de código de barras ao vivo (ZXing) — PDV: escaneia e vende =====
+let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 };
+function _loadZxing() {
+  return new Promise((resolve, reject) => {
+    if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return resolve(window.ZXing);
+    const s = document.createElement('script');
+    s.src = '/vendor/zxing.min.js';
+    s.onload = () => (window.ZXing && window.ZXing.BrowserMultiFormatReader) ? resolve(window.ZXing) : reject(new Error('zxing'));
+    s.onerror = () => reject(new Error('load'));
+    document.head.appendChild(s);
+  });
+}
+async function openBarcodeScanner(ctx) {
+  _scanCtx = ctx || 'pdv';
+  const ov = document.getElementById('scan-ov'), hint = document.getElementById('scan-hint');
+  ov.classList.add('open');
+  hint.textContent = 'Carregando leitor…';
+  try {
+    const ZX = await _loadZxing();
+    _zxingReader = new ZX.BrowserMultiFormatReader();
+    hint.textContent = 'Aponte a câmera pro código de barras';
+    _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment' } }, document.getElementById('scan-video'), (result) => {
+      if (result) _onBarcode(result.getText());
+    });
+  } catch (e) {
+    hint.textContent = 'Não consegui abrir a câmera. Confira a permissão ou use "＋ Manual".';
+  }
+}
+function closeBarcodeScanner() {
+  const ov = document.getElementById('scan-ov'); if (ov) ov.classList.remove('open');
+  try { if (_zxingReader) _zxingReader.reset(); } catch (e) {}
+  _zxingReader = null;
+}
+function _onBarcode(raw) {
+  const code = String(raw || '').replace(/\D/g, '');
+  if (code.length < 8) return;
+  const now = Date.now();
+  if (code === _lastScan.code && now - _lastScan.t < 2500) return; // debounce leitura repetida
+  _lastScan = { code, t: now };
+  const hint = document.getElementById('scan-hint');
+  const p = (_lastProdutos || []).find(x => x.barcode === code || (Array.isArray(x.barcodes) && x.barcodes.includes(code)));
+  if (p) {
+    try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
+    if (_scanCtx === 'pdv') { pdvInc(p.id); if (hint) hint.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') — na venda'; }
+  } else if (hint) {
+    hint.textContent = 'Código ' + code + ' não cadastrado. Cadastre em "＋ Manual".';
+  }
+}
 function pdvDec(id) { _pdvCart[id] = Math.max(0, (_pdvCart[id] || 0) - 1); if (!_pdvCart[id]) delete _pdvCart[id]; renderPDV(); }
 function pdvPay(m, el) { _pdvPay = m; document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active')); if (el) el.classList.add('active'); renderPDV(); }
 async function pdvFinalize() {
