@@ -10590,6 +10590,9 @@
       address: o.address || null,
       customer: o.customer_snapshot || o.customer || {},
       createdAt: o.created_at ? new Date(o.created_at).getTime() : Date.now(),
+      store_name: o.store_name || null,
+      store_whats: o.store_whats || null,
+      store_slug: o.store_slug || null,
       _backend: true,
     };
   }
@@ -11688,6 +11691,9 @@
       payWhen: deliveryMode === 'pickup' ? payWhen : 'now',
       customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
       createdAt: Date.now(),
+      store_name: _currentStore().name || CLIENT_FILIAL_NAME || null,
+      store_whats: _currentStore().whats || null,
+      store_slug: _currentStore().slug || CLIENT_FILIAL || null,
     });
     if (appliedCoupon) {
       orders[0].coupon = appliedCoupon.code;
@@ -11742,13 +11748,20 @@
     // Não auto-abre whats — cliente decide quando quer abrir (botão na tela de sucesso)
   }
 
+  // Loja atualmente selecionada (com nome/whats de atendimento) — roteamento por loja.
+  function _currentStore() {
+    let l = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) ? CLIENT_LOJA : null;
+    if (!l) l = (_lojasCache || []).find(x => x.slug === CLIENT_FILIAL) || null;
+    return l || {};
+  }
   function shareOnWhats() {
     const last = orders[0];
     if (!last) { toast('nenhum pedido pra compartilhar'); return; }
+    const storeName = last.store_name || CLIENT_FILIAL_NAME || _currentStore().name || 'DROPE';
     const isPayLater = (last.mode === 'pickup' && last.payWhen === 'later');
     const headline = isPayLater
-      ? `*${store.name} ✦ RESERVA #dr-${last.num}*`
-      : `*${store.name} ✦ pedido #dr-${last.num}*`;
+      ? `*${storeName} ✦ RESERVA #dr-${last.num}*`
+      : `*${storeName} ✦ pedido #dr-${last.num}*`;
     let whereLine = 'entrega';
     if (last.mode === 'pickup') {
       whereLine = 'retirar na loja';
@@ -11781,7 +11794,7 @@
       closer,
     ];
     const msgText = lines.filter(l => l !== undefined).join('\n');
-    const digits = phoneDigits(store.whats);
+    const digits = phoneDigits(last.store_whats || _currentStore().whats || '');
     // Fallback: loja ainda não cadastrou whats → copia a mensagem + abre modal explicando
     if (!digits) {
       try {
@@ -11829,7 +11842,7 @@
     document.body.style.overflow = 'hidden';
   }
   function openHelpWhats() {
-    const digits = phoneDigits(store.whats);
+    const digits = phoneDigits(_currentStore().whats || '');
     if (!digits) { toast('a loja ainda não cadastrou whats ✦'); return; }
     const phone = digits.length <= 11 ? '55' + digits : digits;
     const msg = encodeURIComponent(`oi ✦ preciso de ajuda no Drope ✦ ${profile.name || ''}`);

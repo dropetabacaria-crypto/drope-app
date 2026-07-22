@@ -273,6 +273,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
           <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
 
+          <label class="pf-lbl" style="margin-top:12px">WhatsApp de atendimento</label>
+          <input class="pf-input" id="loja-whats" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 91234-5678" oninput="_fmtLojaWhats(this)">
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">é o número que o cliente usa pra falar com a sua loja</div>
+
           <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
           <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
           <label class="pf-lbl">endereço (rua e número)</label>
@@ -1165,9 +1169,10 @@ async function saveLojaProfile() {
   const bio = (document.getElementById('loja-bio').value || '').trim().slice(0, 80);
   const cep = (document.getElementById('loja-cep').value || '').replace(/\D/g, '');
   const address = (document.getElementById('loja-address').value || '').trim();
+  const whats = (document.getElementById('loja-whats').value || '').replace(/\D/g, '');
   const msg = document.getElementById('loja-msg');
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
-  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, theme: _pageTheme, segmentos: _segs() };
+  const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, whats, theme: _pageTheme, segmentos: _segs() };
   if (_pageAccent) payload.accent = _pageAccent;
   if (_lojaPhotoB64) payload.photo_base64 = _lojaPhotoB64;
   if (cep.length === 8) { payload.cep = cep; payload.address = address; }
@@ -1181,9 +1186,19 @@ async function saveLojaProfile() {
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
 }
+function _fmtWhatsStr(d) {
+  d = String(d || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length >= 8) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+  if (d.length >= 3) return '(' + d.slice(0, 2) + ') ' + d.slice(2);
+  if (d.length) return '(' + d;
+  return '';
+}
+function _fmtLojaWhats(el) { el.value = _fmtWhatsStr(el.value); }
 function renderLojaProfile(prof, endereco) {
   prof = prof || {}; endereco = endereco || {};
   const bio = document.getElementById('loja-bio'); if (bio && document.activeElement !== bio) { bio.value = prof.bio || ''; _bioCount(); }
+  const wEl = document.getElementById('loja-whats');
+  if (wEl && document.activeElement !== wEl) { let w = String(prof.whats || '').replace(/\D/g, ''); if (w.startsWith('55') && w.length > 11) w = w.slice(2); wEl.value = w ? _fmtWhatsStr(w) : ''; }
   if (prof.photo_url) {
     _currentLojaPhoto = prof.photo_url;
     if (!_lojaPhotoB64) {

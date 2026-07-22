@@ -4833,6 +4833,11 @@ async function handleFilialProfileSave(req, res) {
       md.endereco = { cep, address, city: filial.city || (md.endereco || {}).city || null };
       try { const geo = await _cepToGeo(cep); if (geo && geo.lat) md.geo = { lat: geo.lat, lng: geo.lng, cep, neigh: geo.neigh || null, street: geo.street || null }; } catch (e) {}
     }
+    // WhatsApp de atendimento (contato público que o cliente usa pra falar com a loja)
+    if (body.whats != null) {
+      const w = String(body.whats).replace(/\D/g, '');
+      md.profile.whats = w ? (w.length <= 11 ? '55' + w : w) : null;
+    }
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
@@ -12777,6 +12782,7 @@ async function handleFiliaisList(req, res) {
           lng: (typeof geo.lng === 'number') ? geo.lng : null,
           hours: hours ? { days: hours.days || [], open: hours.open || null, close: hours.close || null } : null,
           open_now: _storeOpenNow(hours),
+          whats: prof.whats || null, // WhatsApp de atendimento da loja (contato público, definido pela loja)
           pending: ((f.metadata || {}).onboarding) === 'pending_payment',
         };
       })
@@ -13309,12 +13315,21 @@ async function handleCustomerOrders(req, res) {
 
   try {
     const rows = await sbGet('drope_orders',
-      'select=order_nsu,status,total_cents,items,delivery_mode,address,customer_snapshot,created_at' +
+      'select=order_nsu,status,total_cents,items,delivery_mode,address,customer_snapshot,created_at,filial_id' +
       '&status=not.eq.expired&order=created_at.desc&limit=300');
-    const list = (Array.isArray(rows) ? rows : [])
+    const mine = (Array.isArray(rows) ? rows : [])
       .filter(o => norm(o.customer_snapshot && o.customer_snapshot.phone) === wanted)
-      .slice(0, 25)
-      .map(o => ({
+      .slice(0, 25);
+    // Enriquece com nome + whats de atendimento da loja de cada pedido (roteamento por loja).
+    const fids = [...new Set(mine.map(o => o.filial_id).filter(Boolean))];
+    const storeById = {};
+    if (fids.length) {
+      const frows = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name,slug,metadata`);
+      (frows || []).forEach(f => { storeById[f.id] = { name: f.name, slug: f.slug, whats: ((f.metadata || {}).profile || {}).whats || null }; });
+    }
+    const list = mine.map(o => {
+      const st = storeById[o.filial_id] || {};
+      return {
         order_nsu: o.order_nsu,
         status: o.status,
         total_cents: o.total_cents,
@@ -13322,7 +13337,11 @@ async function handleCustomerOrders(req, res) {
         delivery_mode: o.delivery_mode,
         address: o.address || null,
         created_at: o.created_at,
-      }));
+        store_name: st.name || null,
+        store_slug: st.slug || null,
+        store_whats: st.whats || null,
+      };
+    });
     return res.status(200).json({ ok: true, orders: list });
   } catch (err) {
     console.error('[customer_orders] ERROR:', err.message);
