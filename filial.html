@@ -1057,9 +1057,7 @@ async function onScanFile(input) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.data) {
       const v = d.data; _scanMeta = v;
-      // A própria foto escaneada vira a imagem do produto (jeito do Andrade) —
-      // não depende do "gerar imagem" por IA.
-      _apPhotoB64 = b64;
+      // A foto do scan é INPUT pra IA gerar a arte DROPE (não vira a imagem crua).
       document.getElementById('add-product-form').style.display = 'block';
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
@@ -1067,10 +1065,9 @@ async function onScanFile(input) {
       document.getElementById('ap-name').value = genname || [brand, model].filter(Boolean).join(' ') || flavor || '';
       document.getElementById('ap-marca').value = brand;
       document.getElementById('ap-sabor').value = flavor;
-      const afs = document.getElementById('ap-foto-status'); if (afs) { afs.style.color = 'var(--green)'; afs.textContent = 'foto do escaneamento será usada ✦ (ou envie/gere outra)'; }
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
-      st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona';
+      st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
     } else {
       st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
       st.textContent = ' ' + ((d && d.error) || 'não consegui identificar — tenta mais de perto ou usa "+ manual"');
