@@ -9095,22 +9095,44 @@
     return true;
   }
 
-  // Categorias/filtros que a loja criou — barra navegável no catálogo do cliente.
+  // Categorias/filtros que a loja criou — barra visual navegável (formato: círculo/quadrado/retângulo).
   function renderLojaFiltros() {
     const row = document.getElementById('loja-filtros-row');
     if (!row) return;
     const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
     if (!filtros.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
     const cur = homeState.filtroId || null;
-    const mk = (id, label) => {
+    const acc = 'var(--store-accent, var(--lime))';
+    const jid = id => id ? `'${String(id).replace(/'/g, '')}'` : 'null';
+    const item = (f) => {
+      const id = f.id, nome = f.nome || '', shape = f.shape || 'rect', img = f.image_url || null;
       const active = (id || null) === cur;
-      const style = `flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid ${active ? 'var(--lime)' : 'rgba(255,255,255,0.14)'};background:${active ? 'rgba(198,255,0,0.14)' : 'transparent'};color:${active ? 'var(--lime)' : 'var(--text-dim)'};font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap`;
-      return `<button style="${style}" onclick="setLojaFiltro(${id ? `'${String(id).replace(/'/g, '')}'` : 'null'})">${escapeHtml(label)}</button>`;
+      const ring = active ? `box-shadow:0 0 0 2px ${acc}` : '';
+      if (shape === 'rect') {
+        const bg = img ? `background-image:url('${img}');background-size:cover;background-position:center` : 'background:linear-gradient(135deg,#8C50FF,#FF2D6F)';
+        return `<button onclick="setLojaFiltro(${jid(id)})" style="flex:0 0 auto;border:0;padding:0;background:none;cursor:pointer;align-self:flex-start">
+          <div style="width:124px;height:76px;border-radius:14px;${bg};position:relative;overflow:hidden;${ring}">
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent 65%)"></div>
+            <div style="position:absolute;left:9px;right:9px;bottom:7px;color:#fff;font-size:12.5px;font-weight:800;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(nome)}</div>
+          </div></button>`;
+      }
+      const radius = shape === 'circle' ? '50%' : '16px';
+      const face = img
+        ? `background-image:url('${img}');background-size:cover;background-position:center`
+        : 'background:linear-gradient(135deg,#8C50FF,#FF2D6F);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:22px';
+      const initial = img ? '' : escapeHtml((nome || '?').charAt(0).toUpperCase());
+      const lbl = `<div style="font-size:11px;color:${active ? acc : 'var(--text-dim)'};text-align:center;margin-top:6px;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:${active ? '700' : '500'}">${escapeHtml(nome)}</div>`;
+      return `<button onclick="setLojaFiltro(${jid(id)})" style="flex:0 0 auto;border:0;padding:0;background:none;cursor:pointer;align-self:flex-start">
+        <div style="width:66px;height:66px;border-radius:${radius};${face};${ring};margin:0 auto">${initial}</div>${lbl}</button>`;
     };
+    const tudoOn = !cur;
+    const tudo = `<button onclick="setLojaFiltro(null)" style="flex:0 0 auto;border:0;padding:0;background:none;cursor:pointer;align-self:flex-start">
+      <div style="width:66px;height:66px;border-radius:50%;background:${tudoOn ? acc : 'rgba(255,255,255,0.08)'};display:flex;align-items:center;justify-content:center;color:${tudoOn ? '#0A0A14' : 'var(--text)'};font-weight:800;font-size:13px${tudoOn ? '' : ';border:1px solid rgba(255,255,255,0.14)'}">Tudo</div>
+      <div style="font-size:11px;color:${tudoOn ? acc : 'var(--text-dim)'};text-align:center;margin-top:6px;font-weight:${tudoOn ? '700' : '500'}">Todos</div></button>`;
     row.style.display = 'flex';
-    row.style.gap = '8px'; row.style.overflowX = 'auto'; row.style.padding = '2px 0 12px';
+    row.style.gap = '12px'; row.style.overflowX = 'auto'; row.style.padding = '4px 0 14px'; row.style.alignItems = 'flex-start';
     row.style.webkitOverflowScrolling = 'touch';
-    row.innerHTML = mk(null, 'Todos') + filtros.map(f => mk(f.id, f.nome || 'categoria')).join('');
+    row.innerHTML = tudo + filtros.map(item).join('');
   }
   function setLojaFiltro(id) {
     homeState.filtroId = id || null;

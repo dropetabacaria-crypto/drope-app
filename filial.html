@@ -1127,17 +1127,83 @@ function renderFiltros(list) {
       : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);flex:0 0 auto"></div>';
     const up = i > 0 ? `onclick="moveFiltro('${f.id}',-1)"` : `disabled style="${miniBtn};opacity:.3"`;
     const dn = i < _filtros.length - 1 ? `onclick="moveFiltro('${f.id}',1)"` : `disabled style="${miniBtn};opacity:.3"`;
-    return `<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px${hidden ? ';opacity:.7' : ''}">
-      <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 auto">
-        <button style="${miniBtn}" ${up}>↑</button>
-        <button style="${miniBtn}" ${dn}>↓</button>
+    const shape = f.shape || 'rect';
+    const shapeLbl = { circle: 'Redondo', square: 'Quadrado', rect: 'Retângulo' }[shape] || 'Retângulo';
+    const shBtn = (v, lab) => `<button type="button" class="fshape-btn ${shape === v ? 'active' : ''}" data-shape="${v}" onclick="_pickShape(this)" style="flex:1;padding:8px;border-radius:9px;border:1px solid ${shape === v ? 'var(--lime)' : 'var(--border)'};background:${shape === v ? 'rgba(212,255,46,0.14)' : 'transparent'};color:${shape === v ? 'var(--lime)' : 'var(--fg-dim)'};font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">${lab}</button>`;
+    const bigThumb = f.image_url
+      ? `<img src="${esc(f.image_url)}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex:0 0 auto">`
+      : '<div style="width:52px;height:52px;border-radius:10px;background:var(--bg3);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--fg-dim)">sem<br>foto</div>';
+    return `<div style="background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px${hidden ? ';opacity:.7' : ''}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 auto">
+          <button style="${miniBtn}" ${up}>↑</button>
+          <button style="${miniBtn}" ${dn}>↓</button>
+        </div>
+        ${thumb}
+        <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(f.nome || '')}${hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div><div style="font-size:10px;color:var(--fg-dim)">${shapeLbl}${f.image_url ? '' : ' · sem imagem'}</div></div>
+        <button class="pf-btn sec" onclick="toggleFiltroEdit('${f.id}')" style="padding:6px 10px;font-size:12px">Editar</button>
+        <button class="pf-btn sec" onclick="toggleFiltroHidden('${f.id}')" style="padding:6px 10px;font-size:12px">${hidden ? 'Mostrar' : 'Ocultar'}</button>
       </div>
-      ${thumb}
-      <div style="flex:1;min-width:0;font-size:14px;font-weight:600">${esc(f.nome || '')}${hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
-      <button class="pf-btn sec" onclick="toggleFiltroHidden('${f.id}')" style="padding:6px 10px;font-size:12px">${hidden ? 'Mostrar' : 'Ocultar'}</button>
-      <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 10px;font-size:12px">Apagar</button>
+      <div id="fedit-${f.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)">
+        <label class="pf-lbl">Nome</label>
+        <input class="pf-input" id="fe-nome-${f.id}" maxlength="30" value="${esc(f.nome || '')}" style="margin-bottom:0">
+        <label class="pf-lbl" style="margin-top:10px">Formato na vitrine</label>
+        <div style="display:flex;gap:8px">${shBtn('circle', 'Redondo')}${shBtn('square', 'Quadrado')}${shBtn('rect', 'Retângulo')}</div>
+        <label class="pf-lbl" style="margin-top:10px">Imagem</label>
+        <div style="display:flex;gap:10px;align-items:center">
+          ${bigThumb}
+          <div style="flex:1;display:flex;gap:8px">
+            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('fe-file-${f.id}').click()">Enviar</button>
+            <button class="pf-btn" style="flex:1" onclick="gerarFiltroIAEdit('${f.id}')">Gerar com IA</button>
+          </div>
+        </div>
+        <input type="file" id="fe-file-${f.id}" accept="image/*" style="display:none" onchange="onFiltroFileEdit('${f.id}',this)">
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="pf-btn full" style="flex:1" onclick="saveFiltroEdit('${f.id}')">Salvar</button>
+          <button class="pf-btn sec" onclick="delFiltro('${f.id}')">Apagar</button>
+        </div>
+        <div id="fe-msg-${f.id}" style="font-size:11px;color:var(--fg-dim);min-height:12px;margin-top:6px"></div>
+      </div>
     </div>`;
   }).join('');
+}
+function _pickShape(el) {
+  const row = el.parentElement;
+  row.querySelectorAll('.fshape-btn').forEach(b => {
+    const on = b === el;
+    b.classList.toggle('active', on);
+    b.style.border = '1px solid ' + (on ? 'var(--lime)' : 'var(--border)');
+    b.style.background = on ? 'rgba(212,255,46,0.14)' : 'transparent';
+    b.style.color = on ? 'var(--lime)' : 'var(--fg-dim)';
+  });
+}
+function toggleFiltroEdit(id) { const e = document.getElementById('fedit-' + id); if (e) e.style.display = e.style.display === 'none' ? 'block' : 'none'; }
+function _feNome(id) { return (document.getElementById('fe-nome-' + id) || {}).value || (_filtros.find(f => f.id === id) || {}).nome || ''; }
+function _feShape(id) { const a = document.querySelector('#fedit-' + id + ' .fshape-btn.active'); return a ? a.dataset.shape : 'rect'; }
+async function saveFiltroEdit(id) {
+  const nome = String(_feNome(id)).trim(); if (!nome) return;
+  await _saveFiltro({ id, nome, shape: _feShape(id) }, true);
+}
+async function onFiltroFileEdit(id, input) {
+  const msg = document.getElementById('fe-msg-' + id); if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando imagem...'; }
+  const b64 = await _fileToDataUrl(input.files[0], 800); input.value = ''; if (!b64) return;
+  await _saveFiltro({ id, nome: _feNome(id).trim(), shape: _feShape(id), photo_base64: b64 }, true);
+}
+async function gerarFiltroIAEdit(id) {
+  const nome = String(_feNome(id)).trim(); const msg = document.getElementById('fe-msg-' + id);
+  if (!nome) return;
+  // salva shape/nome antes (silencioso) e gera a arte pra ESTE filtro
+  await _saveFiltro({ id, nome, shape: _feShape(id) }, true);
+  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'gerando imagem com IA... (~15s)'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_filtro_art', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, nome }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { loadData(true); }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
 }
 async function _saveFiltro(extra, silent) {
   const msg = document.getElementById('filtro-msg');
