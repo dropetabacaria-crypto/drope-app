@@ -1183,18 +1183,18 @@ function renderPedidoCard(p, isEntregue) {
     ? '<span class="status-badge status-entregue">✓ entregue</span>'
     : '<span class="status-badge status-novo">🛵 pra entregar</span>';
   const cust = p.customer || {};
-  const items = (p.items || []).map(it => `<div>• <strong>${it.qty||1}×</strong> ${it.name}</div>`).join('');
+  const items = (p.items || []).map(it => `<div>• <strong>${parseInt(it.qty || it.quantity || 1, 10) || 1}×</strong> ${esc(it.name)}</div>`).join('');
   const schedBadge = p.scheduled
     ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">🕒 pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
     : '';
   return `
     <div class="pedido-card ${cls}">
       <div class="pedido-head">
-        <div class="cliente">${cust.name || '—'}</div>
+        <div class="cliente">${esc(cust.name) || '—'}</div>
         ${statusBadge}
       </div>
       ${schedBadge}
-      <div class="cliente-info">${cust.phone || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
+      <div class="cliente-info">${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
       <div class="total">
         <span>total: ${fmtBRL(p.total_cents)}</span>

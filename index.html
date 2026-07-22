@@ -11081,8 +11081,8 @@
     const curIdx = Math.max(0, steps.findIndex(s => s.key === o.statusCls));
     const isDone = o.statusCls === 'done';
     const where = o.mode === 'pickup'
-      ? `retirar em ${store.name}`
-      : (o.address ? `${o.address.street}, ${o.address.num}${o.address.comp ? ' — ' + o.address.comp : ''}${o.address.neigh ? ' — ' + o.address.neigh : ''}` : 'entrega');
+      ? `retirar em ${escapeHtml(store.name || '')}`
+      : (o.address ? `${escapeHtml(o.address.street || '')}, ${escapeHtml(String(o.address.num || ''))}${o.address.comp ? ' — ' + escapeHtml(o.address.comp) : ''}${o.address.neigh ? ' — ' + escapeHtml(o.address.neigh) : ''}` : 'entrega');
     body.innerHTML = `
       <div class="ot-card">
         <div class="ot-num">#dr-${o.num}</div>
