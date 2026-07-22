@@ -4094,7 +4094,7 @@
 <div id="filial-picker-overlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0A0A14 0%,#1a0a20 100%);z-index:9999;align-items:center;justify-content:center;padding:24px">
   <div style="max-width:420px;width:100%;text-align:center">
     
-    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Tabacarias disponíveis</h2>
+    <h2 style="color:#fff;font-size:24px;font-weight:700;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Lojas disponíveis</h2>
     <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa loja pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
     <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
     <div id="filial-picker-list">
@@ -4109,7 +4109,7 @@
     </div>
     <div onclick="document.getElementById('filial-picker-overlay').style.display='none'; go('lojista-signup');"
          style="margin-top:22px; font-size:13px; color:rgba(255,255,255,0.6); cursor:pointer">
-      É dono de tabacaria? <span style="color:var(--lime,#D4FF2E); font-weight:700">Cadastre sua loja →</span>
+      É dono de loja? <span style="color:var(--lime,#D4FF2E); font-weight:700">Cadastre a sua →</span>
     </div>
   </div>
 </div>
@@ -4288,10 +4288,10 @@
   <div class="screen" id="inicio">
     <div style="padding: 22px 20px 8px">
       <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text);line-height:1.1">Lojas <span style="color:#C6FF00;text-shadow:0 0 12px rgba(198,255,0,0.65)">DROPE</span></div>
-      <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Tabacarias parceiras perto de você ✦</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Lojas parceiras perto de você ✦</div>
       <div class="inicio-search">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input id="inicio-search-input" placeholder="Buscar tabacaria..." autocomplete="off" oninput="filterInicio(this.value)">
+        <input id="inicio-search-input" placeholder="Buscar loja..." autocomplete="off" oninput="filterInicio(this.value)">
       </div>
       <div class="inicio-banner">
         <div>
@@ -4311,7 +4311,7 @@
     </div>
     <div id="inicio-list" style="padding: 4px 20px 8px"></div>
     <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 28px">
-      É dono de tabacaria? <span style="color:var(--lime);font-weight:800">Cadastre sua loja →</span>
+      É dono de loja? <span style="color:var(--lime);font-weight:800">Cadastre a sua →</span>
     </div>
   </div>
 
@@ -4319,7 +4319,7 @@
   <div class="screen" id="ofertas">
     <div style="padding: 22px 20px 6px">
       <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Ofertas</div>
-      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Produtos em promoção nas tabacarias</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Produtos em promoção nas lojas</div>
     </div>
     <div id="ofertas-list" style="padding: 14px 20px 24px"></div>
   </div>
@@ -8065,7 +8065,7 @@
     const emptyHtml = `<div style="text-align:center;padding:44px 20px;color:var(--text-dim)">
       <div style="font-size:46px;margin-bottom:10px"></div>
       <div style="font-size:15px;font-weight:700;color:var(--text)">Nenhuma oferta rolando agora</div>
-      <div style="font-size:13px;margin-top:6px;line-height:1.5">As tabacarias ainda não marcaram promoções ✦ volta mais tarde</div>
+      <div style="font-size:13px;margin-top:6px;line-height:1.5">As lojas ainda não marcaram promoções ✦ volta mais tarde</div>
     </div>`;
     list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dim)">carregando ofertas…</div>';
     try {
@@ -10536,7 +10536,7 @@
     const favLojas = (lojas || []).filter(f => _favStores.has(f.slug));
     const favProducts = products.filter(p => favorites.has(p.name));
     if (!favLojas.length && !favProducts.length) {
-      wrap.innerHTML = `<div class="empty"><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar lojas e dropes</div><button class="btn-primary" onclick="go('inicio')" style="max-width:220px;margin:0 auto">ver tabacarias</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="t">Nada favoritado ainda</div><div class="s">toca no coração pra salvar lojas e dropes</div><button class="btn-primary" onclick="go('inicio')" style="max-width:220px;margin:0 auto">ver lojas</button></div>`;
       return;
     }
     const secLbl = t => `<div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:0 0 10px 2px">${t}</div>`;
