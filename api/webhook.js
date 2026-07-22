@@ -13084,10 +13084,79 @@ async function handleFilialLogin(req, res) {
   }
 }
 
-// GET /api/webhook?action=customer_orders&phone=<phone>
-// Retorna os pedidos do cliente (casados por telefone) com o status real do backend,
-// pro app montar o acompanhamento (pendente → preparando → a caminho/pronto → entregue/retirado).
-// NOTA[segurança]: lookup por telefone sem auth — endurecer depois (token por cliente).
+// ============ AUTH DO CLIENTE (OTP por WhatsApp) ============
+function _normPhone(s) { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; }
+function _phone55(d) { d = _normPhone(d); return d.startsWith('55') ? d : '55' + d; }
+
+// Verifica a sessão do cliente (token emitido no otp_verify). Fecha o lookup por telefone.
+async function _customerSessionOk(phone, token) {
+  const p = _normPhone(phone);
+  if (!p || !token) return false;
+  const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=session_hash,session_exp&limit=1`);
+  const c = rows && rows[0];
+  if (!c || !c.session_hash) return false;
+  if (c.session_exp && new Date(c.session_exp).getTime() < Date.now()) return false;
+  return _sha256hex(token) === c.session_hash;
+}
+
+// POST action=otp_request { phone } → gera código de 6 dígitos, guarda o HASH e envia no WhatsApp.
+async function handleOtpRequest(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    if (phone.length < 10 || phone.length > 11) return res.status(400).json({ ok: false, error: 'telefone inválido' });
+    const now = Date.now();
+    const ex = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=last_sent_at&limit=1`);
+    if (ex && ex[0] && ex[0].last_sent_at && (now - new Date(ex[0].last_sent_at).getTime()) < 45000) {
+      return res.status(429).json({ ok: false, error: 'espera alguns segundos pra pedir outro código' });
+    }
+    const code = String(crypto.randomInt(100000, 1000000)); // 6 dígitos
+    const rec = { phone, code_hash: _sha256hex(code), expires_at: new Date(now + 10 * 60000).toISOString(), attempts: 0, last_sent_at: new Date(now).toISOString() };
+    if (ex && ex[0]) await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, rec);
+    else await sbInsert('drope_otp', rec);
+    try { await sendText(_phone55(phone), `DROPE ✦ seu código é ${code}\n\nVale por 10 minutos. Não compartilhe com ninguém.`); }
+    catch (e) { console.warn('[otp_request] whats falhou:', e.message); }
+    return res.status(200).json({ ok: true }); // NUNCA devolve o código
+  } catch (e) { console.error('[otp_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=otp_verify { phone, code } → valida o código, cria/pega o cliente e emite token de sessão.
+async function handleOtpVerify(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    const code = String(body.code || '').replace(/\D/g, '');
+    if (phone.length < 10) return res.status(400).json({ ok: false, error: 'telefone inválido' });
+    const rows = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=*&limit=1`);
+    const otp = rows && rows[0];
+    if (!otp || !otp.code_hash) return res.status(400).json({ ok: false, error: 'peça um código primeiro' });
+    if (new Date(otp.expires_at).getTime() < Date.now()) return res.status(400).json({ ok: false, error: 'código expirado, peça outro' });
+    if ((otp.attempts || 0) >= 5) return res.status(429).json({ ok: false, error: 'muitas tentativas, peça outro código' });
+    if (_sha256hex(code) !== otp.code_hash) {
+      await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { attempts: (otp.attempts || 0) + 1 });
+      return res.status(401).json({ ok: false, error: 'código incorreto' });
+    }
+    await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { code_hash: '', expires_at: new Date(Date.now() - 1000).toISOString() }); // consome
+    const token = crypto.randomBytes(24).toString('hex');
+    const sessionHash = _sha256hex(token);
+    const sessionExp = new Date(Date.now() + 60 * 86400000).toISOString(); // 60 dias
+    const cust = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id&limit=1`);
+    if (cust && cust[0]) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: sessionHash, session_exp: sessionExp, last_seen_at: new Date().toISOString() });
+    else await sbInsert('drope_customers', { phone, session_hash: sessionHash, session_exp: sessionExp, source: 'app', created_at: new Date().toISOString() });
+    const c2 = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=name,phone&limit=1`);
+    return res.status(200).json({ ok: true, token, customer: (c2 && c2[0]) || { phone } });
+  } catch (e) { console.error('[otp_verify] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
+// Retorna os pedidos do cliente (casados por telefone) com o status real do backend.
+// Segurança: exige token de sessão do próprio cliente (OTP) — sem lookup anônimo por telefone.
 async function handleCustomerOrders(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -13103,6 +13172,7 @@ async function handleCustomerOrders(req, res) {
   const norm = (s) => { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; };
   const wanted = norm(params.phone);
   if (wanted.length < 10) return res.status(400).json({ ok: false, error: 'invalid phone' });
+  if (!(await _customerSessionOk(params.phone, params.token))) { await new Promise(r => setTimeout(r, 500)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
 
   try {
     const rows = await sbGet('drope_orders',
@@ -13464,11 +13534,14 @@ async function handleHomePersonalized(req, res) {
 
   try {
     let customer = null;
+    // Personalização só com sessão válida do cliente (senão cai no genérico 'new').
+    // Fecha o vetor de puxar o "último pedido" de alguém só sabendo o telefone.
+    const _authed = await _customerSessionOk(params.customer_phone, params.token);
     if (params.customer_id) {
       const rows = await sbGet('drope_customers',
         `id=eq.${encodeURIComponent(params.customer_id)}&select=id,phone,name,flavor_profile,favorite_flavor,favorite_brand,total_orders,last_order_date,last_product_id,last_delivery_address&limit=1`);
       customer = rows[0] || null;
-    } else if (params.customer_phone) {
+    } else if (params.customer_phone && _authed) {
       const phoneClean = String(params.customer_phone).replace(/\D/g, '');
       if (phoneClean) {
         const rows = await sbGet('drope_customers',
@@ -13630,6 +13703,11 @@ async function handleCustomerProfile(req, res) {
     if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
   });
 
+  // Segurança: perfil do cliente só com sessão válida (não vaza por telefone).
+  if (params.customer_phone && !(await _customerSessionOk(params.customer_phone, params.token))) {
+    await new Promise(r => setTimeout(r, 400));
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
   try {
     let customer = null;
     if (params.customer_id) {
@@ -15836,7 +15914,15 @@ module.exports = async function handler(req, res) {
     return await handleCatalog(req, res);
   }
 
-  // GET /api/webhook?action=customer_orders&phone=<phone>
+  // POST action=otp_request — envia código OTP no WhatsApp do cliente
+  if (req.url && req.url.indexOf('action=otp_request') >= 0) {
+    return await handleOtpRequest(req, res);
+  }
+  // POST action=otp_verify — valida OTP e emite token de sessão do cliente
+  if (req.url && req.url.indexOf('action=otp_verify') >= 0) {
+    return await handleOtpVerify(req, res);
+  }
+  // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.
   if (req.url && req.url.indexOf('action=customer_orders') >= 0) {
     return await handleCustomerOrders(req, res);

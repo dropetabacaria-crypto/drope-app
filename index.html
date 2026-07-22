@@ -4897,6 +4897,7 @@
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
         <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">Meu painel da loja <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-login" onclick="openCustomerLogin()" style="color: var(--lime); display:none">Entrar / criar conta <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('favorites')">Favoritos <span class="arrow">›</span></div>
@@ -4908,6 +4909,32 @@
       <div style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
         Tem tabacaria?<br>
         <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Seja parceiro DROPE ✦</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LOGIN DO CLIENTE (OTP WhatsApp) ============ -->
+  <div id="clogin-ov" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="closeCustomerLogin()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="brand-small">Entrar no DROPE</div>
+      <div style="width:42px"></div>
+    </div>
+    <div style="padding:24px 22px;max-width:440px;width:100%;margin:0 auto">
+      <div id="clogin-step1">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Seu WhatsApp</div>
+        <div style="color:var(--text-dim);font-size:13px;margin:6px 0 18px">A gente manda um código pra confirmar que é você. Sem senha ✦</div>
+        <input id="clogin-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px">
+        <button class="btn-primary" id="clogin-send" onclick="sendOtp()" style="width:100%;margin-top:16px">enviar código ✦</button>
+        <div id="clogin-msg1" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
+      </div>
+      <div id="clogin-step2" style="display:none">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Código</div>
+        <div style="color:var(--text-dim);font-size:13px;margin:6px 0 18px">Digite o código de 6 dígitos que chegou no seu WhatsApp <span id="clogin-phone-lbl" style="color:var(--text)"></span>.</div>
+        <input id="clogin-code" class="card-input" type="tel" inputmode="numeric" maxlength="6" placeholder="______" style="width:100%;font-size:26px;text-align:center;letter-spacing:10px;padding:15px">
+        <button class="btn-primary" id="clogin-verify" onclick="verifyOtp()" style="width:100%;margin-top:16px">entrar ✦</button>
+        <div style="text-align:center;margin-top:12px"><span onclick="backToPhone()" style="color:var(--text-dim);font-size:13px;cursor:pointer">‹ trocar número</span> &nbsp;·&nbsp; <span onclick="sendOtp(true)" id="clogin-resend" style="color:var(--lime);font-size:13px;cursor:pointer">reenviar código</span></div>
+        <div id="clogin-msg2" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
     </div>
   </div>
@@ -8066,6 +8093,64 @@
   const BRAND_AVATAR_SRC = (document.getElementById('splash-logo-img') || {}).src || 'icons/drope-avatar.png';
   let profile = { name: 'Lucas', phone: '+55 11 98765-4321', email: '', avatar: 'cham' };
   let pickedAvatar = 'cham';
+  // ===== Sessão do cliente (login por OTP no WhatsApp) =====
+  const CUST_SESSION_KEY = 'drope_customer_session_v1';
+  let _custSession = null;
+  try { _custSession = JSON.parse(localStorage.getItem(CUST_SESSION_KEY) || 'null'); } catch (e) {}
+  function _custToken() { return (_custSession && _custSession.token) || ''; }
+  function _isLoggedIn() { return !!_custToken(); }
+  function _saveCustSession(s) { _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
+  function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
+  let _otpPhone = '';
+  function formatLoginPhone(el) { let d = el.value.replace(/\D/g, '').slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
+  function _loginPhoneDigits() { return (document.getElementById('clogin-phone').value || '').replace(/\D/g, ''); }
+  function openCustomerLogin() { document.getElementById('clogin-step1').style.display = 'block'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-msg1').textContent = ''; document.getElementById('clogin-msg2').textContent = ''; document.getElementById('clogin-ov').style.display = 'flex'; }
+  function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
+  function backToPhone() { document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step1').style.display = 'block'; }
+  async function sendOtp(resend) {
+    const phone = (resend && _otpPhone) ? _otpPhone : _loginPhoneDigits();
+    const msg = document.getElementById(resend ? 'clogin-msg2' : 'clogin-msg1');
+    if (phone.length < 10) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe um número válido com DDD'; return; }
+    const btn = document.getElementById(resend ? 'clogin-resend' : 'clogin-send'); const old = btn.textContent; btn.textContent = 'enviando...'; btn.style.pointerEvents = 'none';
+    try {
+      const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { _otpPhone = phone; document.getElementById('clogin-phone-lbl').textContent = ''; document.getElementById('clogin-step1').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'block'; document.getElementById('clogin-msg2').textContent = ''; const c = document.getElementById('clogin-code'); c.value = ''; c.focus(); }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    finally { btn.textContent = old; btn.style.pointerEvents = 'auto'; }
+  }
+  async function verifyOtp() {
+    const code = (document.getElementById('clogin-code').value || '').replace(/\D/g, '');
+    const msg = document.getElementById('clogin-msg2');
+    if (code.length !== 6) { msg.style.color = 'var(--pink)'; msg.textContent = 'o código tem 6 dígitos'; return; }
+    const btn = document.getElementById('clogin-verify'); btn.textContent = 'entrando...'; btn.disabled = true;
+    try {
+      const r = await fetch('/api/webhook?action=otp_verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: _otpPhone, code }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok && d.token) {
+        _saveCustSession({ token: d.token, phone: _otpPhone, name: (d.customer && d.customer.name) || '' });
+        profile.phone = _otpPhone; profile.onboarded = true; if (d.customer && d.customer.name) profile.name = d.customer.name;
+        try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) {}
+        try { localStorage.setItem('drope_age_confirmed', '1'); } catch (e) {}
+        closeCustomerLogin();
+        const pn = document.getElementById('prof-name'); if (pn && profile.name) pn.textContent = profile.name;
+        const pp = document.getElementById('prof-phone'); if (pp) pp.textContent = profile.phone;
+        try { updateProfileAvatar(); } catch (e) {}
+        try { _syncLoginUI(); } catch (e) {}
+        toast('bem-vindo ✦ você tá logado');
+        try { loadMyOrders(); } catch (e) {}
+        try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
+      } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'código incorreto'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
+  }
+  // Mostra/esconde itens do perfil conforme login
+  function _syncLoginUI() {
+    const logged = _isLoggedIn();
+    const rLogin = document.getElementById('pr-login'); if (rLogin) rLogin.style.display = logged ? 'none' : 'flex';
+    const rLogout = document.getElementById('pr-logout'); if (rLogout) rLogout.style.display = logged ? 'flex' : 'none';
+  }
   // Renderiza avatar (string emoji ou 'cham' = imagem do camaleão da marca)
   function renderAvatarInto(el, val) {
     if (!el) return;
@@ -8098,7 +8183,7 @@
   function updateProfileAvatar() {
     renderAvatarInto(document.getElementById('prof-avatar-big'), profile.avatar);
     renderAvatarInto(document.getElementById('home-avatar'), profile.avatar);
-    const guest = isGuest();
+    const guest = isGuest() && !_isLoggedIn();
     // Saudação da home: convidado não tem "nome de conta" — mostra algo neutro.
     const greet = document.getElementById('home-greet');
     if (greet) {
@@ -8107,7 +8192,7 @@
         : `Oi, <b id="home-greet-name">${escapeHtml(profile.name)}</b> ✦`;
     }
     const pn = document.getElementById('prof-name');
-    if (pn) pn.textContent = guest ? 'Convidado' : profile.name;
+    if (pn) pn.textContent = guest ? 'Convidado' : (profile.name || 'Você');
     const pp = document.getElementById('prof-phone');
     if (pp) pp.textContent = guest ? 'crie sua conta pra pedir ✦' : (profile.phone || '');
   }
@@ -9474,12 +9559,13 @@
     if (screen === 'admin-products') renderAdminProducts();
     if (screen === 'profile') {
       updateProfileAvatar(); // define nome/telefone (ou estado de convidado)
-      // Convidado: mostra "criar conta", esconde editar/sair (não há conta ainda)
-      const guest = isGuest();
+      // Login por OTP: não logado → "Entrar"; logado → editar/sair
+      const logged = _isLoggedIn();
       const setDisp = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
-      setDisp('pr-create', guest);
-      setDisp('pr-edit', !guest);
-      setDisp('pr-logout', !guest);
+      setDisp('pr-login', !logged);
+      setDisp('pr-create', false); // substituído pelo login OTP
+      setDisp('pr-edit', logged);
+      setDisp('pr-logout', logged);
       // "Meu painel da loja" só pra quem tem tabacaria neste aparelho
       setDisp('pr-painel', !!_lojistaSlug());
     }
@@ -10349,7 +10435,7 @@
     if (!profile || !profile.phone || _loadingMyOrders) return;
     _loadingMyOrders = true;
     try {
-      const r = await fetch('/api/webhook?action=customer_orders&phone=' + encodeURIComponent(profile.phone), { cache: 'no-store' });
+      const r = await fetch('/api/webhook?action=customer_orders&phone=' + encodeURIComponent(profile.phone) + '&token=' + encodeURIComponent(_custToken()), { cache: 'no-store' });
       if (r.ok) {
         const d = await r.json();
         if (d && Array.isArray(d.orders)) {
@@ -10602,6 +10688,10 @@
 
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');
+    if (!_isLoggedIn()) {
+      wrap.innerHTML = `<div class="empty"><div class="t">Entre pra ver seus pedidos</div><div class="s">um código no seu WhatsApp e pronto ✦</div><button class="btn-primary" onclick="openCustomerLogin()" style="max-width:220px;margin:0 auto">entrar</button></div>`;
+      return;
+    }
     if (orders.length === 0) {
       wrap.innerHTML = `<div class="empty"><div class="t">Você ainda não dropou nada</div><div class="s">bora começar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
@@ -10681,7 +10771,7 @@
     __personalizedHomeKey = key;
     const filialQS = CLIENT_FILIAL ? `&filial=${encodeURIComponent(CLIENT_FILIAL)}` : '';
     const url = phone
-      ? `/api/webhook?action=home_personalized&customer_phone=${encodeURIComponent(phone)}${filialQS}`
+      ? `/api/webhook?action=home_personalized&customer_phone=${encodeURIComponent(phone)}&token=${encodeURIComponent(_custToken())}${filialQS}`
       : `/api/webhook?action=home_personalized${filialQS}`;
     try {
       const r = await fetch(url, { cache: 'no-store' });
@@ -10863,7 +10953,7 @@
     const phone = getCustomerPhoneClean();
     if (!phone) return null;
     try {
-      const r = await fetch(`/api/webhook?action=customer_profile&customer_phone=${encodeURIComponent(phone)}`);
+      const r = await fetch(`/api/webhook?action=customer_profile&customer_phone=${encodeURIComponent(phone)}&token=${encodeURIComponent(_custToken())}`);
       if (!r.ok) return null;
       const data = await r.json();
       __flavorProfileCache = data;
@@ -11596,7 +11686,9 @@
       localStorage.removeItem('drope_cart_v1');
       localStorage.removeItem('drope_welcome_coupon');
       localStorage.removeItem('drope_picked_vibe');
+      localStorage.removeItem(CUST_SESSION_KEY); // encerra a sessão OTP
     } catch(e) {}
+    _clearCustSession();
     profile = { name: '', phone: '', email: '', avatar: '' };
     toast('saiu da conta ✦ até a próxima');
     // location.reload() volta pro splash → boot detecta age_confirmed=null → onboard
