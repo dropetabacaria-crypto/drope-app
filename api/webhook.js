@@ -4590,6 +4590,7 @@ async function handleFilialPainel(req, res) {
       marca: ((p.metadata || {}).marca) || null,
       sabor: ((p.metadata || {}).sabor) || null,
       offer_cents: ((p.metadata || {}).offer_cents) || null,
+      filtro_id: ((p.metadata || {}).filtro_id) || null,
     }));
 
     return res.status(200).json({
@@ -4665,13 +4666,22 @@ async function handleFilialProductSave(req, res) {
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
       if (imageUrl !== undefined) upd.image_url = imageUrl || null;
+      // metadata: oferta e/ou filtro/categoria da loja
+      const md = ex[0].metadata || {};
+      let mdChanged = false;
       // preço de oferta (promoção): guarda em metadata.offer_cents; vazio/0 limpa
       if (Object.prototype.hasOwnProperty.call(body, 'offer_price')) {
-        const md = ex[0].metadata || {};
         const oc = Math.round(Number(body.offer_price) * 100);
         if (isFinite(oc) && oc > 0) md.offer_cents = oc; else delete md.offer_cents;
-        upd.metadata = md;
+        mdChanged = true;
       }
+      // filtro/categoria da loja (ex.: Cervejas) — vazio limpa
+      if (Object.prototype.hasOwnProperty.call(body, 'filtro_id')) {
+        const fid = body.filtro_id ? String(body.filtro_id) : null;
+        if (fid) md.filtro_id = fid; else delete md.filtro_id;
+        mdChanged = true;
+      }
+      if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
     }
@@ -13032,6 +13042,35 @@ async function handleFilialSetPlan(req, res) {
   } catch (e) { console.error('[filial_set_plan] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_products_filtro { filial, token, product_ids:[], filtro_id }
+// Marca vários produtos com um filtro/categoria da loja de uma vez (filtro_id null = remove).
+async function handleFilialProductsFiltro(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const ids = (Array.isArray(body.product_ids) ? body.product_ids : []).map(x => parseInt(x, 10)).filter(Number.isInteger);
+    if (!ids.length) return res.status(400).json({ ok: false, error: 'nenhum produto selecionado' });
+    const fid = body.filtro_id ? String(body.filtro_id) : null;
+    if (fid) {
+      const flist = ((filial.metadata || {}).filtros) || [];
+      if (!flist.some(f => f.id === fid)) return res.status(400).json({ ok: false, error: 'filtro inválido' });
+    }
+    const rows = await sbGet('drope_products', `id=in.(${ids.join(',')})&filial_id=eq.${filial.id}&select=id,metadata`);
+    for (const p of (rows || [])) {
+      const md = p.metadata || {};
+      if (fid) md.filtro_id = fid; else delete md.filtro_id;
+      await sbUpdate('drope_products', `id=eq.${p.id}&filial_id=eq.${filial.id}`, { metadata: md });
+    }
+    return res.status(200).json({ ok: true, updated: (rows || []).length });
+  } catch (e) { console.error('[filial_products_filtro] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 async function handleFilialRegister(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -13389,7 +13428,9 @@ async function handleCatalog(req, res) {
     if (fr && fr[0]) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
-      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours) };
+      const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null,
+        filtros: flist.map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0 })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
 
@@ -13454,6 +13495,7 @@ async function handleCatalog(req, res) {
         emoji: emojiForFlavor(flavorName || desc),
         created_via: p.created_via,
         brand_cover: !!(p.metadata && p.metadata.brand_cover), // capa do filtro da marca (escolhida no admin)
+        filtro_id: (p.metadata && p.metadata.filtro_id) || null, // filtro/categoria da loja
       };
     });
 
@@ -18813,6 +18855,10 @@ async function generateAll(){
   // action=filial_set_plan — POST: lojista troca de plano (Start/Pro/Max)
   if (req.url && req.url.indexOf('action=filial_set_plan') >= 0) {
     return await handleFilialSetPlan(req, res);
+  }
+  // action=filial_products_filtro — POST: marca vários produtos com um filtro
+  if (req.url && req.url.indexOf('action=filial_products_filtro') >= 0) {
+    return await handleFilialProductsFiltro(req, res);
   }
   // action=filial_filtro_save — POST: lojista cria/edita/apaga filtro da loja
   if (req.url && req.url.indexOf('action=filial_filtro_save') >= 0) {

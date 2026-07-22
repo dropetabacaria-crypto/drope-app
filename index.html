@@ -4340,6 +4340,9 @@
 
     <div id="home-last-order-wrap"></div>
 
+    <!-- Categorias/filtros da loja (aparecem só quando a loja criou filtros) -->
+    <div id="loja-filtros-row" class="loja-filtros-row" style="display:none"></div>
+
     <div class="cat-section">drops</div>
     <div class="grid" id="grid-pods"></div>
     <div id="pods-more"></div>
@@ -8101,9 +8104,13 @@
       products = apply99(data.products);
       allProducts = products;
       // Dados da loja (nome/foto/bio) pro cabeçalho estilo iFood
+      const _prevLojaSlug = CLIENT_LOJA && CLIENT_LOJA.slug;
       CLIENT_LOJA = data.loja || null;
+      // Trocou de loja → zera o filtro de categoria selecionado (não vaza entre lojas)
+      if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; } catch(e) {} }
       if (CLIENT_LOJA && CLIENT_LOJA.name) { CLIENT_FILIAL_NAME = CLIENT_LOJA.name; try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME); } catch(e) {} }
       try { renderLojaBar(); } catch(e) {}
+      try { renderLojaFiltros(); } catch(e) {}
       // Cache local pra próxima abertura ser fast-paint (por filial)
       try {
         const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
@@ -9063,8 +9070,35 @@
         ].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      // Filtro/categoria da loja (ex.: Cervejas)
+      if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
     }
     return true;
+  }
+
+  // Categorias/filtros que a loja criou — barra navegável no catálogo do cliente.
+  function renderLojaFiltros() {
+    const row = document.getElementById('loja-filtros-row');
+    if (!row) return;
+    const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
+    if (!filtros.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+    const cur = homeState.filtroId || null;
+    const mk = (id, label) => {
+      const active = (id || null) === cur;
+      const style = `flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid ${active ? 'var(--lime)' : 'rgba(255,255,255,0.14)'};background:${active ? 'rgba(198,255,0,0.14)' : 'transparent'};color:${active ? 'var(--lime)' : 'var(--text-dim)'};font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap`;
+      return `<button style="${style}" onclick="setLojaFiltro(${id ? `'${String(id).replace(/'/g, '')}'` : 'null'})">${escapeHtml(label)}</button>`;
+    };
+    row.style.display = 'flex';
+    row.style.gap = '8px'; row.style.overflowX = 'auto'; row.style.padding = '2px 0 12px';
+    row.style.webkitOverflowScrolling = 'touch';
+    row.innerHTML = mk(null, 'Todos') + filtros.map(f => mk(f.id, f.nome || 'categoria')).join('');
+  }
+  function setLojaFiltro(id) {
+    homeState.filtroId = id || null;
+    renderLojaFiltros();
+    renderGrid();
+    const cs = document.getElementById('catalog');
+    if (cs && cs.classList.contains('active') && typeof renderCatalog === 'function') renderCatalog();
   }
 
   function hasAdvancedFilters() {
@@ -9390,7 +9424,7 @@
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
-  const homeState = { searchText: '', selectedBrand: null };
+  const homeState = { searchText: '', selectedBrand: null, filtroId: null };
 
   function searchProducts(text) {
     homeState.searchText = (text || '').toLowerCase().trim();

@@ -407,7 +407,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeProdutos()">←</button>
     <h3>meus produtos</h3>
-    <span class="mini-link" onclick="toggleAddProduct()">＋ manual</span>
+    <span><span class="mini-link" onclick="toggleBatchMode()" id="batch-toggle">organizar</span> &nbsp; <span class="mini-link" onclick="toggleAddProduct()">＋ manual</span></span>
   </div>
   <div class="sheet-scroll">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
@@ -439,6 +439,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <button class="fchip" data-f="sem-imagem" onclick="setProdFilter('sem-imagem',this)">sem imagem</button>
       <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">ofertas</button>
       <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">ocultos</button>
+    </div>
+    <div id="batch-bar" style="display:none;position:sticky;top:0;z-index:5;background:var(--bg2);border:1px solid var(--lime);border-radius:12px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><b id="batch-count" style="color:var(--fg)">0</b> selecionado(s) — escolha a categoria e aplique</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="pf-input" id="batch-filtro" style="margin:0;flex:1"></select>
+        <button class="pf-btn" style="margin:0;white-space:nowrap" onclick="applyBatchFiltro()">Aplicar</button>
+      </div>
+      <div id="batch-msg" style="font-size:11px;color:var(--fg-dim);min-height:12px;margin-top:6px"></div>
     </div>
     <div class="prod-count" id="prod-count"></div>
     <div id="produtos-list"></div>
@@ -671,6 +679,11 @@ function renderDash(d) {
 
 let _lastProdutos = [];
 const _artBusy = {};
+function _filtroOptions(sel) {
+  return ['<option value="">— sem categoria —</option>']
+    .concat((_filtros || []).map(f => `<option value="${esc(f.id)}" ${f.id === sel ? 'selected' : ''}>${esc(f.nome)}</option>`))
+    .join('');
+}
 function renderProdutos(list) {
   _lastProdutos = list || _lastProdutos;
   const el = document.getElementById('produtos-list');
@@ -705,8 +718,10 @@ function renderProdutos(list) {
     const artBtn = gerando
       ? `<button class="icon-btn2 art" disabled title="gerando imagem…"></button>`
       : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}"></button>`;
+    const cb = _batchMode ? `<input type="checkbox" class="batch-cb" ${_batchSel.has(p.id) ? 'checked' : ''} onclick="toggleBatchItem(${p.id})" style="width:20px;height:20px;flex:0 0 auto;margin-right:6px;accent-color:var(--lime)">` : '';
     return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
       <div class="prod-line">
+        ${cb}
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
           <div class="prod-name">${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
@@ -727,11 +742,53 @@ function renderProdutos(list) {
         <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="preço">
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
+        ${(_filtros && _filtros.length)
+          ? `<label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
+             <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0">${_filtroOptions(p.filtro_id)}</select>`
+          : `<div style="font-size:11px;color:var(--fg-dim);margin-top:10px">Crie filtros em Configuração → Meus filtros pra organizar seu catálogo em categorias.</div>`}
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
         <button class="pf-btn full" onclick="saveEditProduct(${p.id})">Salvar</button>
       </div>
     </div>`;
   }).join('');
+}
+// ===== Organizar em lote: marca vários produtos com um filtro de uma vez =====
+let _batchMode = false;
+const _batchSel = new Set();
+function toggleBatchMode() {
+  _batchMode = !_batchMode;
+  _batchSel.clear();
+  const bar = document.getElementById('batch-bar');
+  const tog = document.getElementById('batch-toggle');
+  if (tog) tog.textContent = _batchMode ? 'concluir' : 'organizar';
+  if (bar) {
+    bar.style.display = _batchMode ? 'block' : 'none';
+    const sel = document.getElementById('batch-filtro');
+    if (sel) sel.innerHTML = _filtroOptions('');
+    const msg = document.getElementById('batch-msg'); if (msg) msg.textContent = (_filtros && _filtros.length) ? '' : 'crie filtros em Configuração → Meus filtros primeiro';
+  }
+  _updateBatchCount();
+  renderProdutos();
+}
+function toggleBatchItem(id) {
+  if (_batchSel.has(id)) _batchSel.delete(id); else _batchSel.add(id);
+  _updateBatchCount();
+}
+function _updateBatchCount() { const c = document.getElementById('batch-count'); if (c) c.textContent = _batchSel.size; }
+async function applyBatchFiltro() {
+  const msg = document.getElementById('batch-msg');
+  if (!_batchSel.size) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione ao menos um produto'; } return; }
+  const fid = (document.getElementById('batch-filtro') || {}).value || null;
+  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'aplicando...'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_products_filtro', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, product_ids: [..._batchSel], filtro_id: fid }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _batchSel.clear(); _updateBatchCount(); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = `${d.updated} produto(s) atualizado(s) ✦`; } loadData(true); }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
 }
 let _prodFilter = 'todos';
 function setProdFilter(f, el) {
@@ -889,7 +946,10 @@ async function saveEditProduct(id) {
   const hidden = document.getElementById('ep-hidden-' + id).checked;
   const offerRaw = (document.getElementById('ep-offer-' + id).value || '').replace(',', '.').trim();
   const offer_price = offerRaw === '' ? 0 : parseFloat(offerRaw); // 0/vazio limpa a oferta
-  await _saveProduct({ id, price, stock: (p.stock || 0), hidden, offer_price }); // estoque vem do +/− inline
+  const fEl = document.getElementById('ep-filtro-' + id);
+  const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
+  if (fEl) payload.filtro_id = fEl.value || null; // categoria/filtro da loja
+  await _saveProduct(payload);
 }
 
 // ===================== PDV — vender no balcão =====================
