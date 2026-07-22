@@ -998,7 +998,7 @@ function toggleAddProduct() {
   const f = document.getElementById('add-product-form');
   const opening = f.style.display === 'none';
   f.style.display = opening ? 'block' : 'none';
-  if (opening) { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _filtroOptions(''); }
+  if (opening) { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _filtroOptions(''); _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = ''; }
 }
 
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
@@ -1057,6 +1057,9 @@ async function onScanFile(input) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.data) {
       const v = d.data; _scanMeta = v;
+      // A própria foto escaneada vira a imagem do produto (jeito do Andrade) —
+      // não depende do "gerar imagem" por IA.
+      _apPhotoB64 = b64;
       document.getElementById('add-product-form').style.display = 'block';
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
@@ -1064,6 +1067,7 @@ async function onScanFile(input) {
       document.getElementById('ap-name').value = genname || [brand, model].filter(Boolean).join(' ') || flavor || '';
       document.getElementById('ap-marca').value = brand;
       document.getElementById('ap-sabor').value = flavor;
+      const afs = document.getElementById('ap-foto-status'); if (afs) { afs.style.color = 'var(--green)'; afs.textContent = 'foto do escaneamento será usada ✦ (ou envie/gere outra)'; }
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona';
