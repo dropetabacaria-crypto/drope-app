@@ -13117,8 +13117,10 @@ async function handleOtpRequest(req, res) {
     const rec = { phone, code_hash: _sha256hex(code), expires_at: new Date(now + 10 * 60000).toISOString(), attempts: 0, last_sent_at: new Date(now).toISOString() };
     if (ex && ex[0]) await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, rec);
     else await sbInsert('drope_otp', rec);
-    try { await sendText(_phone55(phone), `DROPE ✦ seu código é ${code}\n\nVale por 10 minutos. Não compartilhe com ninguém.`); }
+    let sent = false;
+    try { const r = await sendText(_phone55(phone), `DROPE ✦ seu código é ${code}\n\nVale por 10 minutos. Não compartilhe com ninguém.`); sent = !!(r && r.ok); if (!sent) console.warn('[otp_request] whats HTTP', r && r.status); }
     catch (e) { console.warn('[otp_request] whats falhou:', e.message); }
+    if (!sent) return res.status(502).json({ ok: false, error: 'não conseguimos enviar o código pelo WhatsApp agora. Tente de novo em instantes.' });
     return res.status(200).json({ ok: true }); // NUNCA devolve o código
   } catch (e) { console.error('[otp_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
