@@ -12,11 +12,12 @@
 <style>
 :root {
   --bg: #0A0A14;
-  --bg2: #14141F;
-  --bg3: #1F1F2E;
+  --bg2: #1A1526;   /* card — roxo levemente mais claro (igual ao app), separa do fundo */
+  --bg3: #251C38;   /* elevado (steppers, thumbs, nested) */
+  --card-shadow: 0 6px 20px rgba(0,0,0,0.45);
   --fg: #FFFFFF;
-  --fg-dim: #8B8BA0;
-  --border: #2A2A3E;
+  --fg-dim: #9B96B5;
+  --border: rgba(255,255,255,0.08);   /* borda sutil porém visível */
   --lime: #D4FF2E;
   --pink: #FF4D8F;
   --orange: #FF8533;
@@ -31,7 +32,7 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .section { padding: 16px; }
 .section h2 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 10px; }
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.kpi { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px; }
+.kpi { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--card-shadow); }
 .kpi.lime { background: linear-gradient(135deg, rgba(212,255,46,0.12), var(--bg2)); border-color: rgba(212,255,46,0.3); }
 .kpi.pink { background: linear-gradient(135deg, rgba(255,77,143,0.12), var(--bg2)); border-color: rgba(255,77,143,0.3); }
 .kpi-label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
@@ -40,7 +41,7 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .kpi.pink .kpi-value { color: var(--pink); }
 .kpi-sub { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
 /* Dashboard: gráfico 7 dias + top produtos */
-.dash-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px; margin-top: 10px; }
+.dash-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-top: 10px; box-shadow: var(--card-shadow); }
 .dash-card .dh { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
 .dash-card .dh .t { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .04em; }
 .dash-card .dh .tot { font-size: 18px; font-weight: 800; color: var(--lime); }
