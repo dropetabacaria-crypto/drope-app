@@ -14,6 +14,7 @@
     { "src": "manifest.json", "use": "@vercel/static" },
     { "src": "manifest-receber.json", "use": "@vercel/static" },
     { "src": "icons/**", "use": "@vercel/static" },
+    { "src": "vendor/**", "use": "@vercel/static" },
     { "src": "og/**", "use": "@vercel/static" },
     { "src": "03_Logo/**", "use": "@vercel/static" },
     { "src": "04_Produto_Artes/**", "use": "@vercel/static" },
