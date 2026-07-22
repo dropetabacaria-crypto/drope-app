@@ -13156,6 +13156,46 @@ async function handleOtpVerify(req, res) {
   } catch (e) { console.error('[otp_verify] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=customer_login_password { phone, password } → valida senha e emite token de sessão.
+// Alternativa ao OTP (usada quando o WhatsApp está fora ou o cliente prefere senha).
+async function handleCustomerLoginPassword(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    const password = String(body.password || '');
+    if (phone.length < 10 || !password) return res.status(400).json({ ok: false, error: 'informe telefone e senha' });
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id,name,phone,pass_salt,pass_hash&limit=1`);
+    const c = rows && rows[0];
+    const ok = c && c.pass_hash && c.pass_salt && _ljVerifyPassword(password, c.pass_salt, c.pass_hash);
+    if (!ok) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'telefone ou senha incorretos' }); }
+    const token = crypto.randomBytes(24).toString('hex');
+    const sessionExp = new Date(Date.now() + 60 * 86400000).toISOString();
+    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: _sha256hex(token), session_exp: sessionExp, last_seen_at: new Date().toISOString() });
+    return res.status(200).json({ ok: true, token, customer: { name: c.name || '', phone: c.phone } });
+  } catch (e) { console.error('[customer_login_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=customer_set_password { phone, token, password } → define/troca a senha.
+// Exige sessão válida (token do OTP ou de um login anterior). Assim ninguém troca senha sem estar logado.
+async function handleCustomerSetPassword(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    const password = String(body.password || '');
+    if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
+    if (!(await _customerSessionOk(phone, body.token))) return res.status(401).json({ ok: false, error: 'sessão inválida — entre de novo' });
+    const p = _ljHashPassword(password);
+    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { pass_salt: p.salt, pass_hash: p.hash });
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[customer_set_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // GET action=my_store&phone=&token= → slug da loja que ESTE cliente é dono (founder).
 // Fecha o bug do "meu painel" apontar pra loja errada: a fonte da verdade é o
 // telefone logado casado com founder_phone da filial (não sessão de painel aleatória).
@@ -15944,6 +15984,14 @@ module.exports = async function handler(req, res) {
   // GET action=my_store — slug da loja que o cliente logado é dono (founder)
   if (req.url && req.url.indexOf('action=my_store') >= 0) {
     return await handleMyStore(req, res);
+  }
+  // POST action=customer_login_password — login por telefone+senha (fallback do OTP)
+  if (req.url && req.url.indexOf('action=customer_login_password') >= 0) {
+    return await handleCustomerLoginPassword(req, res);
+  }
+  // POST action=customer_set_password — cria/troca senha (exige sessão válida)
+  if (req.url && req.url.indexOf('action=customer_set_password') >= 0) {
+    return await handleCustomerSetPassword(req, res);
   }
   // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.

@@ -4898,6 +4898,7 @@
         <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">Meu painel da loja <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-login" onclick="openCustomerLogin()" style="color: var(--lime); display:none">Entrar / criar conta <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Criar / trocar senha <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('favorites')">Favoritos <span class="arrow">›</span></div>
@@ -4927,6 +4928,16 @@
         <input id="clogin-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px">
         <button class="btn-primary" id="clogin-send" onclick="sendOtp()" style="width:100%;margin-top:16px">enviar código ✦</button>
         <div id="clogin-msg1" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
+        <div style="text-align:center;margin-top:10px"><span onclick="showPwLogin()" style="color:var(--lime);font-size:13px;cursor:pointer">Entrar com senha ›</span></div>
+      </div>
+      <div id="clogin-step-pw" style="display:none">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Entrar com senha</div>
+        <div style="color:var(--text-dim);font-size:13px;margin:6px 0 18px">Use seu telefone e a senha da sua conta DROPE.</div>
+        <input id="clogin-pw-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px">
+        <input id="clogin-pw-pass" class="card-input" type="password" placeholder="sua senha" style="width:100%;font-size:16px;padding:15px;margin-top:10px" onkeydown="if(event.key==='Enter')loginWithPassword()">
+        <button class="btn-primary" id="clogin-pw-btn" onclick="loginWithPassword()" style="width:100%;margin-top:16px">entrar ✦</button>
+        <div style="text-align:center;margin-top:12px"><span onclick="showCodeLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">‹ usar código no WhatsApp</span></div>
+        <div id="clogin-msg-pw" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
       <div id="clogin-step2" style="display:none">
         <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Código</div>
@@ -8113,7 +8124,9 @@
   let _otpPhone = '';
   function formatLoginPhone(el) { let d = el.value.replace(/\D/g, '').slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
   function _loginPhoneDigits() { return (document.getElementById('clogin-phone').value || '').replace(/\D/g, ''); }
-  function openCustomerLogin() { document.getElementById('clogin-step1').style.display = 'block'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-msg1').textContent = ''; document.getElementById('clogin-msg2').textContent = ''; document.getElementById('clogin-ov').style.display = 'flex'; }
+  function openCustomerLogin() { document.getElementById('clogin-step1').style.display = 'block'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step-pw').style.display = 'none'; document.getElementById('clogin-msg1').textContent = ''; document.getElementById('clogin-msg2').textContent = ''; const mpw = document.getElementById('clogin-msg-pw'); if (mpw) mpw.textContent = ''; document.getElementById('clogin-ov').style.display = 'flex'; }
+  function showPwLogin() { document.getElementById('clogin-step1').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step-pw').style.display = 'block'; const pf = document.getElementById('clogin-pw-phone'), src = document.getElementById('clogin-phone'); if (pf && src && src.value && !pf.value) pf.value = src.value; document.getElementById('clogin-msg-pw').textContent = ''; }
+  function showCodeLogin() { document.getElementById('clogin-step-pw').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step1').style.display = 'block'; }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
   function backToPhone() { document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step1').style.display = 'block'; }
   async function sendOtp(resend) {
@@ -8137,21 +8150,39 @@
     try {
       const r = await fetch('/api/webhook?action=otp_verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: _otpPhone, code }) });
       const d = await r.json().catch(() => ({}));
-      if (r.ok && d.ok && d.token) {
-        _saveCustSession({ token: d.token, phone: _otpPhone, name: (d.customer && d.customer.name) || '' });
-        profile.phone = _otpPhone; profile.onboarded = true; if (d.customer && d.customer.name) profile.name = d.customer.name;
-        try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) {}
-        try { localStorage.setItem('drope_age_confirmed', '1'); } catch (e) {}
-        closeCustomerLogin();
-        const pn = document.getElementById('prof-name'); if (pn && profile.name) pn.textContent = profile.name;
-        const pp = document.getElementById('prof-phone'); if (pp) pp.textContent = profile.phone;
-        try { updateProfileAvatar(); } catch (e) {}
-        try { _syncLoginUI(); } catch (e) {}
-        try { refreshMyStore(); } catch (e) {}
-        toast('bem-vindo ✦ você tá logado');
-        try { loadMyOrders(); } catch (e) {}
-        try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
-      } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'código incorreto'; }
+      if (r.ok && d.ok && d.token) { _applyCustomerLogin(d.token, _otpPhone, (d.customer && d.customer.name) || ''); }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'código incorreto'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
+  }
+  // Aplica o estado de "logado" na UI (usado pelo OTP e pelo login por senha).
+  function _applyCustomerLogin(token, phone, name) {
+    _saveCustSession({ token, phone, name: name || '' });
+    profile.phone = phone; profile.onboarded = true; if (name) profile.name = name;
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) {}
+    try { localStorage.setItem('drope_age_confirmed', '1'); } catch (e) {}
+    closeCustomerLogin();
+    const pn = document.getElementById('prof-name'); if (pn && profile.name) pn.textContent = profile.name;
+    const pp = document.getElementById('prof-phone'); if (pp) pp.textContent = profile.phone;
+    try { updateProfileAvatar(); } catch (e) {}
+    try { _syncLoginUI(); } catch (e) {}
+    try { refreshMyStore(); } catch (e) {}
+    toast('bem-vindo ✦ você tá logado');
+    try { loadMyOrders(); } catch (e) {}
+    try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
+  }
+  async function loginWithPassword() {
+    const phone = (document.getElementById('clogin-pw-phone').value || '').replace(/\D/g, '');
+    const pass = document.getElementById('clogin-pw-pass').value || '';
+    const msg = document.getElementById('clogin-msg-pw');
+    if (phone.length < 10) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe um número válido com DDD'; return; }
+    if (!pass) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite sua senha'; return; }
+    const btn = document.getElementById('clogin-pw-btn'); btn.textContent = 'entrando...'; btn.disabled = true;
+    try {
+      const r = await fetch('/api/webhook?action=customer_login_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password: pass }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok && d.token) { document.getElementById('clogin-pw-pass').value = ''; _applyCustomerLogin(d.token, phone, (d.customer && d.customer.name) || ''); }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'telefone ou senha incorretos'; }
     } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
     finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
   }
@@ -8160,6 +8191,22 @@
     const logged = _isLoggedIn();
     const rLogin = document.getElementById('pr-login'); if (rLogin) rLogin.style.display = logged ? 'none' : 'flex';
     const rLogout = document.getElementById('pr-logout'); if (rLogout) rLogout.style.display = logged ? 'flex' : 'none';
+    const rSetpw = document.getElementById('pr-setpw'); if (rSetpw) rSetpw.style.display = logged ? 'flex' : 'none';
+  }
+  async function openSetPassword() {
+    if (!_isLoggedIn()) { openCustomerLogin(); return; }
+    const pass = prompt('Escolha uma senha (mínimo 6 caracteres):');
+    if (pass == null) return;
+    if (String(pass).length < 6) { toast('a senha precisa de 6+ caracteres'); return; }
+    const conf = prompt('Confirme a senha:');
+    if (conf == null) return;
+    if (conf !== pass) { toast('as senhas não conferem'); return; }
+    try {
+      const r = await fetch('/api/webhook?action=customer_set_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: (_custSession && _custSession.phone) || profile.phone, token: _custToken(), password: pass }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) toast('senha salva ✦ agora dá pra entrar com telefone + senha');
+      else toast(d.error || 'não deu pra salvar a senha');
+    } catch (e) { toast('erro de rede'); }
   }
   // Renderiza avatar (string emoji ou 'cham' = imagem do camaleão da marca)
   function renderAvatarInto(el, val) {
@@ -9575,6 +9622,7 @@
       setDisp('pr-login', !logged);
       setDisp('pr-create', false); // substituído pelo login OTP
       setDisp('pr-edit', logged);
+      setDisp('pr-setpw', logged);
       setDisp('pr-logout', logged);
       // "Meu painel da loja" só pra quem é DONO da loja (confirmado no servidor).
       setDisp('pr-painel', !!_lojistaSlug());
