@@ -159,8 +159,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="auth-box">
     <h1 id="auth-title">Painel da loja</h1>
     <p>Entre com seu email e senha</p>
-    <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="email" autofocus>
-    <input type="password" id="login-pass" autocomplete="current-password" placeholder="senha" onkeydown="if(event.key==='Enter')login()">
+    <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
+    <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" onkeydown="if(event.key==='Enter')login()">
     <button onclick="login()">entrar</button>
     <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
@@ -406,8 +406,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="sheet-ov" id="produtos-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeProdutos()">←</button>
-    <h3>meus produtos</h3>
-    <span><span class="mini-link" onclick="toggleBatchMode()" id="batch-toggle">organizar</span> &nbsp; <span class="mini-link" onclick="toggleAddProduct()">＋ manual</span></span>
+    <h3>Meus produtos</h3>
+    <span><span class="mini-link" onclick="toggleBatchMode()" id="batch-toggle">Organizar</span> &nbsp; <span class="mini-link" onclick="toggleAddProduct()">＋ Manual</span></span>
   </div>
   <div class="sheet-scroll">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
@@ -425,20 +425,20 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
       </div>
       <div class="pf-hint">A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
-      <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
+      <input class="pf-input" id="ap-img" placeholder="Link da foto (opcional)">
       <div style="display:flex; gap:10px; margin-top:4px">
         <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
         <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
       </div>
       <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
-    <input class="prod-search" id="prod-search" placeholder=" buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
+    <input class="prod-search" id="prod-search" placeholder="Buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
     <div class="prod-filters" id="prod-filters">
-      <button class="fchip active" data-f="todos" onclick="setProdFilter('todos',this)">todos</button>
-      <button class="fchip" data-f="sem-estoque" onclick="setProdFilter('sem-estoque',this)">sem estoque</button>
-      <button class="fchip" data-f="sem-imagem" onclick="setProdFilter('sem-imagem',this)">sem imagem</button>
-      <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">ofertas</button>
-      <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">ocultos</button>
+      <button class="fchip active" data-f="todos" onclick="setProdFilter('todos',this)">Todos</button>
+      <button class="fchip" data-f="sem-estoque" onclick="setProdFilter('sem-estoque',this)">Sem estoque</button>
+      <button class="fchip" data-f="sem-imagem" onclick="setProdFilter('sem-imagem',this)">Sem imagem</button>
+      <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">Ofertas</button>
+      <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">Ocultos</button>
     </div>
     <div id="batch-bar" style="display:none;position:sticky;top:0;z-index:5;background:var(--bg2);border:1px solid var(--lime);border-radius:12px;padding:10px 12px;margin-bottom:10px">
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><b id="batch-count" style="color:var(--fg)">0</b> selecionado(s) — escolha a categoria e aplique</div>
@@ -735,11 +735,11 @@ function renderProdutos(list) {
       </div>
       <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:10px">
         ${artBtn}
-        <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">preço & mais</span>
+        <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">Preço & mais</span>
       </div>
       <div class="prod-edit" id="edit-${p.id}">
         <label class="pf-lbl" style="margin-top:12px">Preço (R$)</label>
-        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="preço">
+        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço">
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         ${(_filtros && _filtros.length)
