@@ -6593,13 +6593,28 @@ async function handleFilialFiltroSave(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     const md = filial.metadata || {};
     let filtros = Array.isArray(md.filtros) ? md.filtros : [];
-    if ((body.op || 'save') === 'delete') {
+    const op = body.op || 'save';
+    if (op === 'delete') {
       filtros = filtros.filter(f => f.id !== body.id);
-    } else {
+    } else if (op === 'reorder') {
+      // body.order = [id1, id2, ...] na ordem desejada
+      const order = Array.isArray(body.order) ? body.order.map(String) : [];
+      const pos = {}; order.forEach((id, i) => { pos[id] = i; });
+      filtros.forEach(f => { if (pos[f.id] != null) f.ordem = pos[f.id]; });
+      filtros.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    } else if (op === 'toggle_hidden') {
+      const f = filtros.find(x => x.id === body.id);
+      if (!f) return res.status(404).json({ ok: false, error: 'filtro não encontrado' });
+      f.hidden = !f.hidden;
+    } else { // save (cria ou edita)
       const nome = String(body.nome || '').trim().slice(0, 30);
       if (!nome) return res.status(400).json({ ok: false, error: 'nome do filtro vazio' });
       let f = filtros.find(x => x.id === body.id);
-      if (!f) { const id = 'f' + Date.now().toString(36); f = { id, nome, image_url: null, ordem: filtros.length }; filtros.push(f); }
+      if (!f) {
+        // evita duplicar pelo nome (ex.: ao adicionar uma sugestão já existente)
+        const dup = filtros.find(x => (x.nome || '').toLowerCase() === nome.toLowerCase());
+        if (dup) { f = dup; } else { const id = 'f' + Date.now().toString(36); f = { id, nome, image_url: null, ordem: filtros.length, hidden: false }; filtros.push(f); }
+      }
       f.nome = nome;
       if (body.photo_base64) {
         const url = await uploadToStorage(`filtro-${filial.id}-${f.id}`, String(body.photo_base64), 'image/jpeg');
@@ -13430,7 +13445,7 @@ async function handleCatalog(req, res) {
       const prof = (fr[0].metadata || {}).profile || {};
       const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
       lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null,
-        filtros: flist.map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0 })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
+        filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0 })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
 

@@ -247,12 +247,29 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </button>
     <div id="config-wrap" style="display:none;margin-top:6px">
 
-      <div class="section">
-        <h2>Meu plano</h2>
-        <div id="planos-wrap"></div>
+      <!-- MENU hierárquico da configuração -->
+      <div id="config-menu" style="display:flex;flex-direction:column;gap:8px">
+        <button class="cfg-item" onclick="openCfg('loja')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">foto, nome, descrição, endereço e aparência</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
+        <button class="cfg-item" onclick="openCfg('filtros')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Meus filtros</span><br><small style="color:var(--fg-dim);font-weight:400">categorias da sua vitrine</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
+        <button class="cfg-item" onclick="openCfg('func')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Funcionamento</span><br><small style="color:var(--fg-dim);font-weight:400">dias, horário e visibilidade</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
+        <button class="cfg-item" onclick="openCfg('qr')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">QR da loja</span><br><small style="color:var(--fg-dim);font-weight:400">link e QR pra vitrine/balcão</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
+        <button class="cfg-item" onclick="openCfg('plano')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Meu plano</span><br><small style="color:var(--fg-dim);font-weight:400">comissão, mensalidade e recursos</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
       </div>
 
-      <div class="section">
+      <!-- SEÇÃO: Minha loja -->
+      <div class="cfg-sec" id="cfg-loja" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
         <h2>Minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
@@ -301,15 +318,22 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">Salvar ✦</button>
           <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
         </div>
+        </div>
       </div>
 
-      <div class="section">
+      <!-- SEÇÃO: Meus filtros -->
+      <div class="cfg-sec" id="cfg-filtros" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
         <h2>Meus filtros</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">crie filtros pra organizar seu catálogo (ex: Cervejas, Drinks, Garrafas). o cliente vê como categorias no app. dê uma imagem (envie a sua ou gere com IA no estilo DROPE).</div>
-          <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-          <label class="pf-lbl">Novo filtro</label>
-          <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas">
+          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">Filtros são as categorias da sua vitrine. O cliente navega por elas no app. Toque numa sugestão pra adicionar, ou crie a sua.</div>
+          <div class="pf-lbl">Sugestões pro seu segmento</div>
+          <div id="filtro-sugestoes" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px"></div>
+          <div class="pf-lbl">Suas categorias <span style="color:var(--fg-dim);font-weight:400">(ordene com ↑↓ · oculte sem apagar)</span></div>
+          <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 18px"></div>
+          <label class="pf-lbl">Criar categoria personalizada</label>
+          <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas artesanais">
           <div style="display:flex;gap:10px;margin-top:8px">
             <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar imagem</button>
             <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar com IA</button>
@@ -319,9 +343,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
           <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
         </div>
+        </div>
       </div>
 
-      <div class="section">
+      <!-- SEÇÃO: QR da loja -->
+      <div class="cfg-sec" id="cfg-qr" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
         <h2>QR da minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">imprima e cole no balcão/vitrine. o cliente aponta a câmera e cai direto na sua loja no DROPE — sem precisar procurar.</div>
@@ -336,9 +364,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
           <div id="qr-msg" style="font-size:12px;color:var(--green);margin-top:10px;min-height:14px"></div>
         </div>
+        </div>
       </div>
 
-      <div class="section">
+      <!-- SEÇÃO: Funcionamento -->
+      <div class="cfg-sec" id="cfg-func" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
         <h2>Funcionamento</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -359,6 +391,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
           <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">Salvar horário ✦</button>
           <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+        </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: Meu plano -->
+      <div class="cfg-sec" id="cfg-plano" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
+          <h2>Meu plano</h2>
+          <div id="planos-wrap"></div>
         </div>
       </div>
 
@@ -1050,14 +1092,29 @@ function renderSegs(segs) { segs = (Array.isArray(segs) && segs.length) ? segs :
 // ===== Filtros custom da loja =====
 let _filtros = [];
 function renderFiltros(list) {
-  _filtros = Array.isArray(list) ? list : [];
+  _filtros = (Array.isArray(list) ? list : (_filtros || [])).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+  try { renderFiltroSugestoes(); } catch (e) {}
   const el = document.getElementById('filtros-list'); if (!el) return;
-  if (!_filtros.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-dim)">nenhum filtro ainda ✦ crie o primeiro abaixo</div>'; return; }
-  el.innerHTML = _filtros.map(f => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px">
-    ${f.image_url ? `<img src="${f.image_url}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto">` : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex:0 0 auto"></div>'}
-    <div style="flex:1;min-width:0;font-size:14px;font-weight:600">${(f.nome || '').replace(/[<>&]/g, '')}</div>
-    <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 12px">Apagar</button>
-  </div>`).join('');
+  if (!_filtros.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-dim)">Nenhuma categoria ainda ✦ toque numa sugestão acima ou crie a sua abaixo.</div>'; return; }
+  const miniBtn = 'background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;color:var(--fg);width:28px;height:20px;font-size:11px;cursor:pointer;line-height:1;font-family:inherit';
+  el.innerHTML = _filtros.map((f, i) => {
+    const hidden = !!f.hidden;
+    const thumb = f.image_url
+      ? `<img src="${esc(f.image_url)}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto${hidden ? ';opacity:.4' : ''}">`
+      : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);flex:0 0 auto"></div>';
+    const up = i > 0 ? `onclick="moveFiltro('${f.id}',-1)"` : `disabled style="${miniBtn};opacity:.3"`;
+    const dn = i < _filtros.length - 1 ? `onclick="moveFiltro('${f.id}',1)"` : `disabled style="${miniBtn};opacity:.3"`;
+    return `<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px${hidden ? ';opacity:.7' : ''}">
+      <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 auto">
+        <button style="${miniBtn}" ${up}>↑</button>
+        <button style="${miniBtn}" ${dn}>↓</button>
+      </div>
+      ${thumb}
+      <div style="flex:1;min-width:0;font-size:14px;font-weight:600">${esc(f.nome || '')}${hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
+      <button class="pf-btn sec" onclick="toggleFiltroHidden('${f.id}')" style="padding:6px 10px;font-size:12px">${hidden ? 'Mostrar' : 'Ocultar'}</button>
+      <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 10px;font-size:12px">Apagar</button>
+    </div>`;
+  }).join('');
 }
 async function _saveFiltro(extra, silent) {
   const msg = document.getElementById('filtro-msg');
@@ -1116,8 +1173,49 @@ function toggleConfig() {
   const open = w.style.display !== 'none';
   w.style.display = open ? 'none' : 'block';
   if (c) c.textContent = open ? 'abrir ▾' : 'fechar ▴';
-  if (!open) { try { renderLojaPreview(); } catch (e) {} }
+  if (!open) { try { closeCfg(); } catch (e) {} } // sempre abre no menu
 }
+// Navegação hierárquica da configuração (menu → seção)
+function openCfg(name) {
+  const menu = document.getElementById('config-menu'); if (menu) menu.style.display = 'none';
+  document.querySelectorAll('.cfg-sec').forEach(s => s.style.display = 'none');
+  const sec = document.getElementById('cfg-' + name); if (sec) sec.style.display = 'block';
+  try {
+    if (name === 'loja') renderLojaPreview();
+    if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
+    if (name === 'qr') renderQR();
+  } catch (e) {}
+  const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function closeCfg() {
+  document.querySelectorAll('.cfg-sec').forEach(s => s.style.display = 'none');
+  const menu = document.getElementById('config-menu'); if (menu) menu.style.display = 'flex';
+}
+
+// Sugestões de categorias por segmento (legalizadas — nada de "pod" na vitrine pública)
+const FILTROS_SUGERIDOS = {
+  tabacaria: ['Narguilé', 'Essências', 'Carvão', 'Sedas & filtros', 'Isqueiros', 'Acessórios'],
+  adega: ['Cervejas', 'Vinhos', 'Destilados', 'Drinks prontos', 'Gelo & gelados', 'Sem álcool'],
+};
+function renderFiltroSugestoes() {
+  const el = document.getElementById('filtro-sugestoes'); if (!el) return;
+  const segs = _segs();
+  const have = new Set((_filtros || []).map(f => (f.nome || '').toLowerCase()));
+  let sug = [];
+  segs.forEach(s => (FILTROS_SUGERIDOS[s] || []).forEach(n => { if (!sug.includes(n)) sug.push(n); }));
+  sug = sug.filter(n => !have.has(n.toLowerCase()));
+  if (!sug.length) { el.innerHTML = '<span style="font-size:12px;color:var(--fg-dim)">Todas as sugestões já foram adicionadas ✦</span>'; return; }
+  el.innerHTML = sug.map(n => `<button class="pf-btn sec" style="padding:6px 12px;font-size:13px" onclick="addFiltroSugestao('${n.replace(/'/g, '')}')">+ ${esc(n)}</button>`).join('');
+}
+async function addFiltroSugestao(nome) { await _saveFiltro({ nome }, true); renderFiltroSugestoes(); }
+async function moveFiltro(id, dir) {
+  const arr = (_filtros || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+  const idx = arr.findIndex(f => f.id === id); if (idx < 0) return;
+  const ni = idx + dir; if (ni < 0 || ni >= arr.length) return;
+  const t = arr[idx]; arr[idx] = arr[ni]; arr[ni] = t;
+  await _saveFiltro({ op: 'reorder', order: arr.map(f => f.id) }, true);
+}
+async function toggleFiltroHidden(id) { await _saveFiltro({ op: 'toggle_hidden', id }, true); }
 
 // ===== QR da loja (deep link) =====
 const APP_BASE = 'https://drope-app.vercel.app';
