@@ -1012,11 +1012,12 @@ async function onScanFile(input) {
       document.getElementById('add-product-form').style.display = 'block';
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
-      document.getElementById('ap-name').value = [brand, model].filter(Boolean).join(' ') || flavor || '';
+      const genname = (v.name || '').trim();
+      document.getElementById('ap-name').value = genname || [brand, model].filter(Boolean).join(' ') || flavor || '';
       document.getElementById('ap-marca').value = brand;
       document.getElementById('ap-sabor').value = flavor;
       try { document.getElementById('ap-price').focus(); } catch (e) {}
-      const label = [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
+      const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona';
     } else {
       st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';

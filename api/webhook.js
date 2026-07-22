@@ -4279,12 +4279,14 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
 async function analyzeProductImage(caixaUrl, podUrl = null) {
-  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da Drope, loja Gen Z de pods em Vila Prudente-SP.
-Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo, deixa null:
+  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE (tabacaria + adega). Analise a foto de UM produto — pode ser pod/vape, cigarro, tabaco, seda/filtro, narguile, essencia, isqueiro, carvao, cerveja, vinho, destilado ou outro — e extraia em JSON valido (sem markdown). Se nao identificar um campo, deixa null.
+IMPORTANTE: os campos model, puffs, ml, mg_nicotina, device_color, device_visual, device_visual_detailed, flavor_elements, flavor_category SO valem pra POD/VAPE — pra QUALQUER outro produto, deixa esses null e preenche "name".
 
 {
   "barcode": "OCR dos NUMEROS IMPRESSOS embaixo (ou ao lado) do codigo de barras. NAO decodifica as listras pretas/brancas — LE o numero em TEXTO que esta escrito ali, igual OCR comum. Le digito por digito EXATO, da esquerda pra direita. Se 1 unico digito estiver duvidoso/embacado/cortado, retorna null (nunca chuta). Atencao a 2/5/7, 0/8, 3/8, 1/7, 6/9 quando o texto for pequeno. EAN-13=13 digitos, UPC-A=12, EAN-8=8. Se nao ver os numeros claramente impressos, retorna null.",
-  "brand": "marca em maiusculo (IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER, LOST MARY=LOSTMARY)",
+  "name": "nome do produto pra vitrine, portugues BR, curto e claro (ex 'Cigarro Marlboro Box', 'Cerveja Heineken Long Neck 330ml', 'Seda Smoking King Size', 'Carvao de Coco 250g', 'Whisky Johnnie Walker Red Label'). SO pra pod deixa null (nesse caso o nome vem de brand+model+flavor).",
+  "type": "categoria do produto: 'pod' | 'cigarro' | 'tabaco' | 'seda' | 'narguile' | 'essencia' | 'isqueiro' | 'carvao' | 'cerveja' | 'vinho' | 'destilado' | 'bebida' | 'outro'. Escolhe a mais especifica.",
+  "brand": "marca do produto em maiusculo. Pods: IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER (LOST MARY=LOSTMARY). Outros: le a marca da embalagem (ex MARLBORO, HEINEKEN, SMOKING, JOHNNIE WALKER, ADALYA).",
   "model": "linha/modelo. SE NAO LER, USA null. NUNCA escreve 'unknown', 'desconhecido', '?'. Catalogo de modelos por marca:\n  - IGNITE: 'V155', 'V250', 'V300', 'V55', 'Boost'\n  - ELFBAR: 'BC15K', 'BC Pro', 'Trio', 'Iceking', 'TE 30K', 'GH 23K'\n  - BLACKSHEEP: 'Cyber Tank Pro', 'Cybertank', 'Spherex', 'Spherex Plus'\n  - LOSTMARY: 'MO5000', 'MO10000', 'MO20000', 'MT15000', 'OS5000', 'BM6000', 'PSYBER', 'Cosmic Edition', 'Tappo'\n  - DOJO: 'Fresh', 'Frosty', 'Splash'\n  - GEEKBAR: 'Frozen', 'White Peach', 'Stone Freeze', 'Pulse'\n  - ADALYA: 'AD5000', 'AD40K'\n  - VANTHER: '30K', 'Cool Mint Edition'\nSe a foto mostrar marca mas modelo ilegivel/cortado, preenche brand e deixa model=null. Procura na CAIXA texto pequeno tipo 'MO20000', 'V300', 'BC15K' (frequentemente perto do logo ou no canto).",
   "flavor_en": "sabor em ingles (ex 'Menthol', 'Mango Magic', 'Strawberry Ice')",
   "flavor_pt": "NOME DE PRATELEIRA em portugues BR — marketing Gen Z, não tradução literal. REGRAS: (1) usa conectivos quando bater bem ('Morango com Banana' não 'Morango Banana', 'Maçã no Gelo'), (2) diminutivos atrativos quando aplicável ('Maçã Verde Azedinha' não 'Maçã Verde Azeda', 'Uvinha Gelada' OK pra Grape Ice), (3) tropicaliza nomes evocativos ('Tropical Rainbow' → 'Arco-íris Tropical', 'Cosmic Edition' → 'Edição Cósmica'), (4) NUNCA literal robótico ('Strawberry Watermelon' → 'Morango com Melancia' não 'Morango Melancia'; 'Sour Apple Ice' → 'Maçã Verde Azedinha Gelada' não 'Maçã Verde Azeda Gelada'), (5) capitaliza palavras principais (não tudo minúsculo, não tudo CAPS), (6) max 4-5 palavras pra não virar nome longo demais. Ex bons: 'Manga Mágica', 'Framboesa Azul Gelada', 'Menta no Gelo', 'Uva Cosmic', 'Cereja com Limão', 'Frutas Vermelhas Gelada'. Ex ruins (evita): 'Maçã Verde Azeda Gelada', 'Frutas Vermelhas Assustadoras', 'Cabeças de Limão Lima'",
@@ -4301,7 +4303,7 @@ Analise a foto e extraia em JSON valido (sem markdown). Se nao identificar campo
   "alertas": ["lista de strings com qualquer ambiguidade. ex: 'sabor pode ser Menthol ou Icy Mint', 'nao consegui ler mg de nicotina'"]
 }
 
-NAO invente dado. Se a foto nao for de pod, retorna {"alertas":["nao parece pod"]} e o resto null.`;
+NAO invente dado. Identifique o produto seja ele qual for (pod, cigarro, tabaco, seda, narguile, bebida, etc.) e preenche name+type+brand+barcode. Se a foto nao mostrar um produto identificavel, retorna {"alertas":["nao identifiquei o produto"]} e o resto null.`;
 
   // Helper pra montar source aceitando HTTP URL ou data: URL (base64 inline)
   const makeSource = (url) => {
