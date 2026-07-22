@@ -4924,8 +4924,8 @@
     </div>
     <div style="padding: 30px 20px; text-align: center">
       <div class="prof-avatar-big" id="prof-avatar-big"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="display" id="prof-name" style="font-size: 28px; color: var(--text)">Lucas</div>
-      <div id="prof-phone" style="color: var(--text-dim); font-size: 14px; margin-top: 4px">+55 11 98765-4321</div>
+      <div class="display" id="prof-name" style="font-size: 28px; color: var(--text)"></div>
+      <div id="prof-phone" style="color: var(--text-dim); font-size: 14px; margin-top: 4px"></div>
     </div>
     <div style="padding: 0 20px">
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px">
@@ -10242,9 +10242,6 @@
       const label = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
       specsRows.push(['duração', label]);
     }
-    // Nicotina e ml não vem direto, mas tem hardcode padrão Brasil
-    specsRows.push(['nicotina', '5% (50mg)']);
-    specsRows.push(['pagamento', 'só Pix']);
     if (typeof p.stock === 'number' && p.stock > 0) {
       specsRows.push(['em estoque', p.stock + (p.stock === 1 ? ' unidade' : ' unidades')]);
     }
@@ -11863,7 +11860,7 @@
   }
 
   function shareDrope() {
-    const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://resonant-truffle-84fd2e.netlify.app/';
+    const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://drope-app.vercel.app/';
     const msg = `mano, achei esse app aqui ✦ Drope\n\ndrops em minutos, paga com Pix, chega rápido\n\n${url}\n\n(só 18+)`;
     // Usa Web Share API nativa quando dá (Android/iOS) — melhor UX
     if (navigator.share) {
