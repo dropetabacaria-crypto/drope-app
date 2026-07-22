@@ -4604,7 +4604,9 @@ async function handleFilialPainel(req, res) {
         endereco: (filial.metadata || {}).endereco || {},
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
         filtros: (filial.metadata || {}).filtros || [],
+        plan: _planFor(filial),
       },
+      plans_catalog: DROPE_PLANS_CATALOG(),
       saldo_pendente_cents: saldoPendenteCents,
       vendas_mes: pedidos.length,
       faturamento_mes_cents: faturamentoMesCents,
@@ -12975,6 +12977,55 @@ function _normSegmentos(v) {
   return arr.length ? arr : ['tabacaria'];
 }
 
+// ===== Planos DROPE (fonte da verdade da comissão + mensalidade) =====
+// A loja guarda só o tier em metadata.plan.tier. A comissão pode ter override
+// por loja (deal especial) via metadata.plan.commission_pct_override.
+// Comissão decrescente: quanto mais a loja vende, mais compensa subir de plano.
+const DROPE_PLANS = {
+  start: { tier: 'start', label: 'Start', commission_pct: 10, monthly_fee_cents: 0,
+           features: ['App e catálogo', 'Pix com split', 'Gestão de pedidos', 'A loja faz a própria entrega'] },
+  pro:   { tier: 'pro',   label: 'Pro',   commission_pct: 6,  monthly_fee_cents: 9990,
+           features: ['Tudo do Start', 'Destaque na vitrine', 'Filtros com IA', 'Dashboard e relatórios', 'Prioridade no ranking', 'Cupons'] },
+  max:   { tier: 'max',   label: 'Max',   commission_pct: 5,  monthly_fee_cents: 16990,
+           features: ['Tudo do Pro', 'Entrega pelo DROPE', 'Push e marketing', 'Destaque máximo'] },
+};
+function _planFor(filial) {
+  const pmeta = ((filial && filial.metadata) || {}).plan || {};
+  const tier = DROPE_PLANS[pmeta.tier] ? pmeta.tier : 'start';
+  const base = DROPE_PLANS[tier];
+  const pct = (typeof pmeta.commission_pct_override === 'number' && pmeta.commission_pct_override >= 0)
+    ? pmeta.commission_pct_override : base.commission_pct;
+  return { tier, label: base.label, commission_pct: pct, monthly_fee_cents: base.monthly_fee_cents, since: pmeta.since || null };
+}
+const DROPE_PLANS_CATALOG = () => Object.values(DROPE_PLANS);
+
+// POST action=filial_set_plan { filial, token, tier } → troca o plano da loja.
+// Enquanto o pagamento (Asaas) não estiver ativo, só 'start' é aplicável — planos
+// pagos (pro/max) só entram em vigor após a cobrança da mensalidade confirmar
+// (evita a loja pegar 5% sem pagar). O upgrade real será disparado pelo billing.
+async function handleFilialSetPlan(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const tier = String(body.tier || '').toLowerCase().trim();
+    if (!DROPE_PLANS[tier]) return res.status(400).json({ ok: false, error: 'plano inválido' });
+    if (tier !== 'start') {
+      // Billing via Asaas ainda não construído — não ativa plano pago sem pagamento.
+      return res.status(409).json({ ok: false, error: 'em breve', pending_payment: true });
+    }
+    const md = filial.metadata || {};
+    md.plan = { ...(md.plan || {}), tier: 'start', since: new Date().toISOString() };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, plan: _planFor({ metadata: md }) });
+  } catch (e) { console.error('[filial_set_plan] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 async function handleFilialRegister(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
@@ -18739,6 +18790,10 @@ async function generateAll(){
   // action=filial_profile_save — POST: foto + descrição + prefs da loja
   if (req.url && req.url.indexOf('action=filial_profile_save') >= 0) {
     return await handleFilialProfileSave(req, res);
+  }
+  // action=filial_set_plan — POST: lojista troca de plano (Start/Pro/Max)
+  if (req.url && req.url.indexOf('action=filial_set_plan') >= 0) {
+    return await handleFilialSetPlan(req, res);
   }
   // action=filial_filtro_save — POST: lojista cria/edita/apaga filtro da loja
   if (req.url && req.url.indexOf('action=filial_filtro_save') >= 0) {

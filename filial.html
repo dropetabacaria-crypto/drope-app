@@ -248,6 +248,11 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <div id="config-wrap" style="display:none;margin-top:6px">
 
       <div class="section">
+        <h2>Meu plano</h2>
+        <div id="planos-wrap"></div>
+      </div>
+
+      <div class="section">
         <h2>🎨 minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
@@ -523,7 +528,9 @@ let _filialName = '';
 function verLojaCliente() {
   location.href = '/?loja=' + encodeURIComponent((FILIAL_SLUG || '').toLowerCase()) + '&preview=1';
 }
+let _painelData = null;
 function render(d) {
+  _painelData = d;
   const f = d.filial;
   _filialName = f.name || '';
   document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
@@ -560,6 +567,68 @@ function render(d) {
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
   if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
+  try { renderPlanos(d); } catch (e) {}
+}
+
+// Planos: mostra os 3 planos, destaca o atual e calcula o custo estimado no
+// faturamento do mês (comissão + mensalidade) pra sugerir o melhor pra loja.
+function renderPlanos(d) {
+  const wrap = document.getElementById('planos-wrap');
+  if (!wrap) return;
+  const catalog = d.plans_catalog || [];
+  if (!catalog.length) { wrap.innerHTML = ''; return; }
+  const cur = ((d.filial || {}).plan || {}).tier || 'start';
+  const fatCents = d.faturamento_mes_cents || 0;
+  // custo total estimado por plano nesse faturamento (comissão + mensalidade)
+  const cost = p => Math.round(fatCents * p.commission_pct / 100) + (p.monthly_fee_cents || 0);
+  const cheapest = fatCents > 0 ? catalog.slice().sort((a, b) => cost(a) - cost(b))[0].tier : null;
+
+  const cards = catalog.map(p => {
+    const isCur = p.tier === cur;
+    const isBest = cheapest === p.tier;
+    const feeTxt = p.monthly_fee_cents ? fmtBRL(p.monthly_fee_cents) + '/mês' : 'grátis';
+    const feats = (p.features || []).map(x => `<div style="font-size:12px;color:var(--fg-dim);line-height:1.5">• ${esc(x)}</div>`).join('');
+    const costLine = fatCents > 0
+      ? `<div style="font-size:12px;color:var(--fg);margin-top:8px">No seu faturamento do mês: <b>${fmtBRL(cost(p))}</b> de taxa total</div>`
+      : '';
+    const border = isCur ? 'var(--lime)' : (isBest ? 'rgba(212,255,46,0.4)' : 'var(--border)');
+    let tag = '';
+    if (isCur) tag = '<span style="background:var(--lime);color:#000;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px">PLANO ATUAL</span>';
+    else if (isBest) tag = '<span style="background:rgba(212,255,46,0.15);color:var(--lime);font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px">MELHOR PRA VOCÊ</span>';
+    let btn;
+    if (isCur) btn = `<button class="pf-btn sec" disabled style="opacity:0.5;width:100%;margin-top:10px">Plano atual</button>`;
+    else if (p.tier === 'start') btn = `<button class="pf-btn sec" style="width:100%;margin-top:10px" onclick="selectPlan('start')">Usar o Start</button>`;
+    else btn = `<button class="pf-btn full" style="width:100%;margin-top:10px" onclick="selectPlan('${esc(p.tier)}')">Assinar</button>`;
+    return `<div style="background:var(--bg2);border:1px solid ${border};border-radius:14px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:16px;font-weight:800">DROPE ${esc(p.label)}</div>${tag}
+      </div>
+      <div style="font-size:13px;color:var(--fg-dim);margin-bottom:8px"><b style="color:var(--fg)">${String(p.commission_pct).replace('.', ',')}%</b> por venda · <b style="color:var(--fg)">${feeTxt}</b></div>
+      ${feats}${costLine}${btn}
+    </div>`;
+  }).join('');
+
+  const hint = fatCents > 0
+    ? `<div style="font-size:12px;color:var(--fg-dim);margin-bottom:10px">Você faturou <b style="color:var(--fg)">${fmtBRL(fatCents)}</b> esse mês. Escolhemos o plano mais barato pra esse volume ✦</div>`
+    : `<div style="font-size:12px;color:var(--fg-dim);margin-bottom:10px">Comece no Start (grátis). Conforme vender mais, um plano pago pode sair mais barato.</div>`;
+  wrap.innerHTML = hint + cards + '<div id="plano-msg" style="font-size:12px;color:var(--pink);min-height:14px;margin-top:2px"></div>';
+}
+
+async function selectPlan(tier) {
+  const msg = document.getElementById('plano-msg');
+  if (tier !== 'start') {
+    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Assinatura Pro/Max entra no ar junto com o pagamento ✦ te avisamos.'; }
+    return;
+  }
+  try {
+    const r = await fetch('/api/webhook?action=filial_set_plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { loadData(true); }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
 }
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
