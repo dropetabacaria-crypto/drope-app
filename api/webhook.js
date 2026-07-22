@@ -4714,6 +4714,7 @@ async function handleFilialProductSave(req, res) {
         model: vmeta.model || name,
         flavor_pt: sabor || vmeta.flavor_pt || null,
         flavor_en: vmeta.flavor_en || null,
+        filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
         created_via: 'lojista_panel',
       },
     });

@@ -500,16 +500,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
-      <label class="pf-lbl">Nome do pod</label>
-      <input class="pf-input" id="ap-name" placeholder="ex: ELFBAR Ice King" maxlength="60">
+      <label class="pf-lbl">Nome do produto</label>
+      <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
       <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: ELFBAR" maxlength="30"></div>
-        <div style="flex:1"><label class="pf-lbl">Sabor</label><input class="pf-input" id="ap-sabor" placeholder="ex: uva gelada" maxlength="40"></div>
+        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
+        <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
       </div>
       <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="109,90"></div>
+        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00"></div>
         <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
       </div>
+      <label class="pf-lbl" style="margin-top:2px">Categoria (filtro da loja)</label>
+      <select class="pf-input" id="ap-filtro"></select>
+      <div class="pf-hint" style="margin-top:2px">Organiza o produto na sua vitrine. Crie categorias em Configuração → Meus filtros.</div>
       <div class="pf-hint">A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
       <input class="pf-input" id="ap-img" placeholder="Link da foto (opcional)">
       <div style="display:flex; gap:10px; margin-top:4px">
@@ -930,7 +933,9 @@ async function generateProductArt(id) {
 
 function toggleAddProduct() {
   const f = document.getElementById('add-product-form');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  const opening = f.style.display === 'none';
+  f.style.display = opening ? 'block' : 'none';
+  if (opening) { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _filtroOptions(''); }
 }
 
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
@@ -1011,10 +1016,11 @@ async function saveNewProduct() {
   const stock = parseInt(document.getElementById('ap-stock').value || '0', 10);
   const img = (document.getElementById('ap-img').value || '').trim();
   const msg = document.getElementById('ap-msg');
-  if (name.length < 2) { msg.textContent = 'põe o nome do pod'; return; }
+  if (name.length < 2) { msg.textContent = 'põe o nome do produto'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
   msg.textContent = 'salvando...';
-  const payload = { name, marca, sabor, price, stock, image_url: img };
+  const filtro_id = (document.getElementById('ap-filtro') || {}).value || null;
+  const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id };
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
