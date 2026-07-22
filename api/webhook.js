@@ -13196,6 +13196,29 @@ async function handleCustomerSetPassword(req, res) {
   } catch (e) { console.error('[customer_set_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=customer_set_profile { phone, token, name, email } → salva nome/email do cliente no banco.
+// Exige sessão válida. É o que faz a conta ter nome de verdade (antes o nome só ficava no aparelho).
+async function handleCustomerSetProfile(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    if (!(await _customerSessionOk(phone, body.token))) return res.status(401).json({ ok: false, error: 'sessão inválida — entre de novo' });
+    const patch = {};
+    if (body.name != null) patch.name = String(body.name).trim().slice(0, 60);
+    if (body.email != null) {
+      const email = String(body.email).trim().toLowerCase();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+      patch.email = email || null;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: 'nada pra salvar' });
+    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
+    return res.status(200).json({ ok: true, name: patch.name });
+  } catch (e) { console.error('[customer_set_profile] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // GET action=my_store&phone=&token= → slug da loja que ESTE cliente é dono (founder).
 // Fecha o bug do "meu painel" apontar pra loja errada: a fonte da verdade é o
 // telefone logado casado com founder_phone da filial (não sessão de painel aleatória).
@@ -15992,6 +16015,10 @@ module.exports = async function handler(req, res) {
   // POST action=customer_set_password — cria/troca senha (exige sessão válida)
   if (req.url && req.url.indexOf('action=customer_set_password') >= 0) {
     return await handleCustomerSetPassword(req, res);
+  }
+  // POST action=customer_set_profile — salva nome/email do cliente no banco (exige sessão)
+  if (req.url && req.url.indexOf('action=customer_set_profile') >= 0) {
+    return await handleCustomerSetProfile(req, res);
   }
   // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.

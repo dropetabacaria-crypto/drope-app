@@ -6479,7 +6479,7 @@
 
   function isGuest() {
     if (PREVIEW_MODE) return true;
-    return !profile.onboarded || !profile.name || profile.name === 'visitante' || profile.name === 'Lucas';
+    return !profile.onboarded || !profile.name || profile.name === 'visitante';
   }
 
   function goCheckout() {
@@ -8187,7 +8187,7 @@
   const BRAND_AVATAR = 'cham';
   // Usa o camaleão embutido no splash (base64) — nunca dá 404 como o arquivo em icons/
   const BRAND_AVATAR_SRC = (document.getElementById('splash-logo-img') || {}).src || 'icons/drope-avatar.png';
-  let profile = { name: 'Lucas', phone: '+55 11 98765-4321', email: '', avatar: 'cham' };
+  let profile = { name: '', phone: '', email: '', avatar: 'cham' };
   let pickedAvatar = 'cham';
   // ===== Sessão do cliente (login por OTP no WhatsApp) =====
   const CUST_SESSION_KEY = 'drope_customer_session_v1';
@@ -8234,7 +8234,9 @@
   // Aplica o estado de "logado" na UI (usado pelo OTP e pelo login por senha).
   function _applyCustomerLogin(token, phone, name) {
     _saveCustSession({ token, phone, name: name || '' });
-    profile.phone = phone; profile.onboarded = true; if (name) profile.name = name;
+    const dg = String(phone).replace(/\D/g, '');
+    const fmtPhone = dg.length === 11 ? `(${dg.slice(0,2)}) ${dg.slice(2,7)}-${dg.slice(7)}` : dg.length === 10 ? `(${dg.slice(0,2)}) ${dg.slice(2,6)}-${dg.slice(6)}` : dg;
+    profile.phone = fmtPhone; profile.onboarded = true; profile.name = name || '';
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) {}
     try { localStorage.setItem('drope_age_confirmed', '1'); } catch (e) {}
     closeCustomerLogin();
@@ -8243,7 +8245,8 @@
     try { updateProfileAvatar(); } catch (e) {}
     try { _syncLoginUI(); } catch (e) {}
     try { refreshMyStore(); } catch (e) {}
-    toast('bem-vindo ✦ você tá logado');
+    if (!profile.name) { toast('bem-vindo ✦ adicione seu nome em Editar perfil'); }
+    else { toast('bem-vindo ✦ você tá logado'); }
     try { loadMyOrders(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
   }
@@ -8313,8 +8316,22 @@
     document.getElementById('prof-name').textContent = profile.name;
     document.getElementById('prof-phone').textContent = profile.phone;
     updateProfileAvatar();
+    _saveCustomerProfileToDB(n, e); // se logado, grava nome/email no banco (conta de verdade)
     toast('perfil salvo ✦');
     go('profile');
+  }
+  // Persiste nome/email na conta do cliente (banco), quando há sessão logada.
+  async function _saveCustomerProfileToDB(name, email) {
+    if (!_isLoggedIn()) return;
+    const phone = (_custSession && _custSession.phone) || '';
+    if (!phone) return;
+    try {
+      await fetch('/api/webhook?action=customer_set_profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, token: _custToken(), name: name || '', email: email || '' })
+      });
+      if (_custSession) { _custSession.name = name || ''; _saveCustSession(_custSession); }
+    } catch (e) {}
   }
   function updateProfileAvatar() {
     renderAvatarInto(document.getElementById('prof-avatar-big'), profile.avatar);
