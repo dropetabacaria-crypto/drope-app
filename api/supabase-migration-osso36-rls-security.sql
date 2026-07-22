@@ -40,3 +40,30 @@ drop policy if exists drope_products_anon_select_public on public.drope_products
 -- Resultado esperado: anon lê 0 linhas em orders/products/customers/filiais/
 -- ambassadors/commissions/balancos/cep_cache. Backend (service_role) segue
 -- lendo/escrevendo normal. App verificado (catálogo/lojas/checkout via /api).
+
+-- ============================================================
+-- PARTE 2 (mesma auditoria): camada LEGADA sem prefixo drope_
+-- ============================================================
+-- Tabelas antigas (adapter de sincronização legado do cliente) tinham
+-- policies role=public de SELECT/INSERT/UPDATE — anon lia E escrevia
+-- config da loja (pix/whats), cupons, e produtos legados. O app usa
+-- localStorage (primário) + /api (dados reais em drope_*), então trancar
+-- só remove a sincronização anon (degrada de boa pro localStorage).
+drop policy if exists "public read store"     on public.store_config;
+drop policy if exists "public write store"    on public.store_config;
+drop policy if exists "public update store"   on public.store_config;
+drop policy if exists "public read coupons"   on public.coupons;
+drop policy if exists "public write coupons"  on public.coupons;
+drop policy if exists "public update coupons" on public.coupons;
+drop policy if exists "public read orders"    on public.orders;
+drop policy if exists "public insert orders"  on public.orders;
+drop policy if exists "public update orders"  on public.orders;
+drop policy if exists "public read customers"   on public.customers;
+drop policy if exists "public insert customers" on public.customers;
+drop policy if exists "public update customers" on public.customers;
+drop policy if exists "public read products"   on public.products;
+drop policy if exists "public write products"  on public.products;
+drop policy if exists "public update products" on public.products;
+
+-- Resultado final verificado: NENHUMA tabela do schema public retorna
+-- dados via chave anon. Todo acesso é via /api (service_role).
