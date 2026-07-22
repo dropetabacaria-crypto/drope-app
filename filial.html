@@ -157,7 +157,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <!-- Auth modal -->
 <div class="auth-overlay" id="auth-overlay">
   <div class="auth-box">
-    <h1 id="auth-title">🦎 Painel da loja</h1>
+    <h1 id="auth-title">Painel da loja</h1>
     <p>Entre com seu email e senha</p>
     <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="email" autofocus>
     <input type="password" id="login-pass" autocomplete="current-password" placeholder="senha" onkeydown="if(event.key==='Enter')login()">
@@ -169,30 +169,30 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <!-- Painel -->
 <div id="painel" style="display:none">
   <header>
-    <div class="hello" id="hello">👋 Oi, ...</div>
+    <div class="hello" id="hello">Oi, ...</div>
     <div class="subtitle" id="subtitle">filial ...</div>
   </header>
 
   <div class="status-bar">
     <div class="dot"></div>
     <span id="last-update">atualizando...</span>
-    <button class="refresh-btn" style="margin-left:auto" onclick="verLojaCliente()">👁 ver como cliente</button>
-    <button class="refresh-btn" onclick="loadData(true)">↻ atualizar</button>
+    <button class="refresh-btn" style="margin-left:auto" onclick="verLojaCliente()">Ver como cliente</button>
+    <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
   </div>
 
   <div class="section">
-    <h2>📊 resumo</h2>
+    <h2>Resumo</h2>
     <div class="kpis" style="grid-template-columns:1fr 1fr 1fr">
       <div class="kpi lime">
-        <div class="kpi-label">faturamento mês</div>
+        <div class="kpi-label">Faturamento mês</div>
         <div class="kpi-value" id="faturamento-mes" style="font-size:19px">R$ 0</div>
       </div>
       <div class="kpi pink">
-        <div class="kpi-label">vendas mês</div>
+        <div class="kpi-label">Vendas mês</div>
         <div class="kpi-value" id="vendas-mes">0</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">saldo</div>
+        <div class="kpi-label">Saldo</div>
         <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--fg)">R$ 0</div>
         <div class="kpi-sub">cai sáb 18h</div>
       </div>
@@ -209,27 +209,27 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section">
-    <h2>⚡ ações rápidas</h2>
+    <h2>Ações rápidas</h2>
     <div class="qa-row">
-      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji">💰</span><span class="qa-tt">vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
-      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji">📊</span><span class="qa-tt">balanço</span><span class="qa-ts">contagem de estoque</span></button>
+      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji"></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji"></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
     </div>
   </div>
 
   <div class="section">
-    <h2>🛵 pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
+    <h2>Pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
     <div id="pendentes-list"></div>
   </div>
 
   <div class="section">
-    <h2>✅ últimas vendas</h2>
+    <h2>Últimas vendas</h2>
     <div id="historico-list"></div>
   </div>
 
   <div class="section">
-    <h2>📦 meus produtos</h2>
+    <h2>Meus produtos</h2>
     <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
-      <span style="font-size:22px;flex:0 0 auto">📦</span>
+      <span style="font-size:22px;flex:0 0 auto"></span>
       <span style="flex:1;min-width:0">
         <span style="display:block;font-size:15px;font-weight:800">gerenciar produtos</span>
         <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">cadastrar por foto, preço, estoque, imagens</span>
@@ -242,7 +242,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <!-- ============ CONFIGURAÇÃO DA LOJA (recolhível — uso ocasional) ============ -->
   <div class="section">
     <button onclick="toggleConfig()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">
-      <span>⚙️ configuração da loja</span>
+      <span>Configuração da loja</span>
       <span id="config-chev" style="color:var(--fg-dim);font-weight:400">abrir ▾</span>
     </button>
     <div id="config-wrap" style="display:none;margin-top:6px">
@@ -253,24 +253,24 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
 
       <div class="section">
-        <h2>🎨 minha loja</h2>
+        <h2>Minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
-            <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto">🏪</div>
+            <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto"></div>
             <div style="flex:1">
-              <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">📷 foto da loja</button>
+              <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">Foto da loja</button>
               <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
               <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
             </div>
           </div>
-          <label class="pf-lbl">o que sua loja vende?</label>
+          <label class="pf-lbl">O que sua loja vende?</label>
           <div id="seg-row" style="display:flex;gap:10px;margin-bottom:4px">
             <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
             <button type="button" class="seg-btn" data-seg="adega" onclick="toggleSeg(this)">Adega</button>
           </div>
           <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">pode marcar os dois ✦ define onde sua loja aparece no app</div>
 
-          <label class="pf-lbl">descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
+          <label class="pf-lbl">Descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
           <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
 
           <label class="pf-lbl" style="margin-top:12px">WhatsApp de atendimento</label>
@@ -279,50 +279,50 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
           <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
           <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
-          <label class="pf-lbl">endereço (rua e número)</label>
+          <label class="pf-lbl">Endereço (rua e número)</label>
           <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">📍 usamos pra mostrar sua loja pros clientes mais perto</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">usamos pra mostrar sua loja pros clientes mais perto</div>
 
-          <div class="pf-lbl" style="margin-top:16px">🎨 aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
+          <div class="pf-lbl" style="margin-top:16px">Aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
             <span style="font-size:13px;color:var(--fg-dim)">fundo</span>
             <div class="theme-toggle">
-              <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">🌙 escuro</button>
-              <button id="th-light" class="th-opt" onclick="setPageTheme('light')">☀️ claro</button>
+              <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">escuro</button>
+              <button id="th-light" class="th-opt" onclick="setPageTheme('light')">claro</button>
             </div>
           </div>
           <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">cor de destaque</div>
           <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
           <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
 
-          <div class="pf-lbl" style="margin-top:16px">👀 prévia da sua página</div>
+          <div class="pf-lbl" style="margin-top:16px">Prévia da sua página</div>
           <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
 
-          <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">salvar ✦</button>
+          <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">Salvar ✦</button>
           <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
         </div>
       </div>
 
       <div class="section">
-        <h2>🧩 meus filtros</h2>
+        <h2>Meus filtros</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">crie filtros pra organizar seu catálogo (ex: Cervejas, Drinks, Garrafas). o cliente vê como categorias no app. dê uma imagem (envie a sua ou gere com IA no estilo DROPE).</div>
           <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-          <label class="pf-lbl">novo filtro</label>
+          <label class="pf-lbl">Novo filtro</label>
           <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas">
           <div style="display:flex;gap:10px;margin-top:8px">
-            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">📷 enviar imagem</button>
-            <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">✨ gerar com IA</button>
+            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar imagem</button>
+            <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar com IA</button>
           </div>
           <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
-          <label class="pf-lbl" style="margin-top:12px;font-size:11px">imagem de referência p/ a IA (opcional)</label>
+          <label class="pf-lbl" style="margin-top:12px;font-size:11px">Imagem de referência p/ a IA (opcional)</label>
           <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
           <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
         </div>
       </div>
 
       <div class="section">
-        <h2>📱 QR da minha loja</h2>
+        <h2>QR da minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">imprima e cole no balcão/vitrine. o cliente aponta a câmera e cai direto na sua loja no DROPE — sem precisar procurar.</div>
           <div style="display:flex;gap:14px;align-items:center">
@@ -330,8 +330,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;color:var(--fg-dim)">link da sua loja</div>
               <div id="qr-url" style="font-size:12px;word-break:break-all;margin:4px 0 12px;color:var(--fg)"></div>
-              <button class="pf-btn full" onclick="printQR()" style="margin-bottom:8px">🖨️ imprimir QR</button>
-              <button class="pf-btn sec full" onclick="copyQRLink()">copiar link</button>
+              <button class="pf-btn full" onclick="printQR()" style="margin-bottom:8px">Imprimir QR</button>
+              <button class="pf-btn sec full" onclick="copyQRLink()">Copiar link</button>
             </div>
           </div>
           <div id="qr-msg" style="font-size:12px;color:var(--green);margin-top:10px;min-height:14px"></div>
@@ -339,25 +339,25 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
 
       <div class="section">
-        <h2>⏰ funcionamento</h2>
+        <h2>Funcionamento</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
             <div style="flex:1;min-width:0">
               <div style="font-weight:700;font-size:14px">aparecer para clientes</div>
               <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">sua loja aparece no app e recebe pedidos</div>
             </div>
-            <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">🟢 online</button>
+            <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">Online</button>
           </div>
           <div id="horario-box">
-            <div class="pf-lbl" style="margin-top:16px">dias que abre</div>
+            <div class="pf-lbl" style="margin-top:16px">Dias que abre</div>
             <div id="dias-row" style="display:flex;gap:6px;flex-wrap:wrap"></div>
             <div style="display:flex;gap:12px;margin-top:14px">
-              <div style="flex:1"><label class="pf-lbl">abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
-              <div style="flex:1"><label class="pf-lbl">fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
+              <div style="flex:1"><label class="pf-lbl">Abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
+              <div style="flex:1"><label class="pf-lbl">Fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
             </div>
-            <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">🕒 o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
+            <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
           </div>
-          <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">salvar horário ✦</button>
+          <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">Salvar horário ✦</button>
           <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
         </div>
       </div>
@@ -370,18 +370,18 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="sheet-ov" id="pdv-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closePDV()">←</button>
-    <h3>💰 vender no balcão</h3>
+    <h3>Vender no balcão</h3>
     <span id="pdv-total" style="font-weight:800;color:var(--lime)">R$ 0,00</span>
   </div>
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
     <div class="pay-opts" id="pdv-pay">
-      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">💵 dinheiro</div>
-      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">⚡ pix</div>
-      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">💳 débito</div>
-      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">💳 crédito</div>
+      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">dinheiro</div>
+      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">pix</div>
+      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">débito</div>
+      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">crédito</div>
     </div>
-    <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">finalizar venda ✦</button>
+    <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">Finalizar venda ✦</button>
     <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
 </div>
@@ -390,14 +390,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="sheet-ov" id="bal-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeBalanco()">←</button>
-    <h3>📊 balanço</h3>
+    <h3>Balanço</h3>
   </div>
   <div class="sheet-scroll">
     <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Conte o estoque real de cada produto e ajuste os números. Ao salvar, o estoque do catálogo é atualizado.</div>
     <div id="bal-list"></div>
   </div>
   <div class="sheet-foot">
-    <button class="pf-btn full" onclick="saveBalanco()">salvar contagem ✦</button>
+    <button class="pf-btn full" onclick="saveBalanco()">Salvar contagem ✦</button>
     <div id="bal-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
 </div>
@@ -406,12 +406,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="sheet-ov" id="produtos-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeProdutos()">←</button>
-    <h3>📦 meus produtos</h3>
+    <h3>meus produtos</h3>
     <span class="mini-link" onclick="toggleAddProduct()">＋ manual</span>
   </div>
   <div class="sheet-scroll">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
-    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">📸 escanear produto — a IA preenche pra você</button>
+    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
       <label class="pf-lbl">Nome do pod</label>
@@ -424,7 +424,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="109,90"></div>
         <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
       </div>
-      <div class="pf-hint">📸 A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
+      <div class="pf-hint">A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
       <input class="pf-input" id="ap-img" placeholder="link da foto (opcional)">
       <div style="display:flex; gap:10px; margin-top:4px">
         <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
@@ -432,7 +432,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
       <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
-    <input class="prod-search" id="prod-search" placeholder="🔍 buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
+    <input class="prod-search" id="prod-search" placeholder=" buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
     <div class="prod-filters" id="prod-filters">
       <button class="fchip active" data-f="todos" onclick="setProdFilter('todos',this)">todos</button>
       <button class="fchip" data-f="sem-estoque" onclick="setProdFilter('sem-estoque',this)">sem estoque</button>
@@ -537,7 +537,7 @@ function render(d) {
   _painelData = d;
   const f = d.filial;
   _filialName = f.name || '';
-  document.getElementById('hello').textContent = '👋 Oi, ' + (f.founder_name || 'fundadora');
+  document.getElementById('hello').textContent = 'Oi, ' + (f.founder_name || 'fundadora');
   const _share = f.founder_share_cents || 0;
   document.getElementById('subtitle').textContent = _share > 0 ? (f.name + ' ✦ ganha R$ ' + (_share/100).toFixed(2).replace('.',',') + ' por venda') : f.name;
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
@@ -559,7 +559,7 @@ function render(d) {
     pendList.innerHTML = pendentes.map(renderPedidoCard).join('');
   } else {
     pendCount.style.display = 'none';
-    pendList.innerHTML = '<div class="empty">📭 sem pedidos pendentes</div>';
+    pendList.innerHTML = '<div class="empty">sem pedidos pendentes</div>';
   }
 
   const historico = d.historico || [];
@@ -696,15 +696,15 @@ function renderProdutos(list) {
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
     const thumb = p.image_url
       ? `<img src="${esc(p.image_url)}" alt="" class="prod-thumb-img" draggable="false">`
-      : `<div class="prod-thumb-ph">${gerando ? '⏳' : '📦'}</div>`;
+      : `<div class="prod-thumb-ph">${gerando ? '' : ''}</div>`;
     const meta = [p.marca, p.sabor].filter(Boolean).join(' · ');
     const stock = p.stock || 0;
     const priceHtml = p.offer_cents
       ? `<span style="text-decoration:line-through;opacity:.55">R$ ${price}</span> <b style="color:var(--pink)">R$ ${((p.offer_cents) / 100).toFixed(2).replace('.', ',')}</b>`
       : `R$ ${price}`;
     const artBtn = gerando
-      ? `<button class="icon-btn2 art" disabled title="gerando imagem…">⏳</button>`
-      : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}">✨</button>`;
+      ? `<button class="icon-btn2 art" disabled title="gerando imagem…"></button>`
+      : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}"></button>`;
     return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
       <div class="prod-line">
         <div class="prod-thumb">${thumb}</div>
@@ -723,12 +723,12 @@ function renderProdutos(list) {
         <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">preço & mais</span>
       </div>
       <div class="prod-edit" id="edit-${p.id}">
-        <label class="pf-lbl" style="margin-top:12px">preço (R$)</label>
+        <label class="pf-lbl" style="margin-top:12px">Preço (R$)</label>
         <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="preço">
-        <label class="pf-lbl" style="margin-top:10px">preço de oferta 🔥 (vazio = sem oferta)</label>
+        <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
-        <button class="pf-btn full" onclick="saveEditProduct(${p.id})">salvar</button>
+        <button class="pf-btn full" onclick="saveEditProduct(${p.id})">Salvar</button>
       </div>
     </div>`;
   }).join('');
@@ -775,11 +775,11 @@ async function generateProductArt(id) {
     } else {
       renderProdutos();
       const err = (d && d.error) || (d && d.image_status === 'needs_manual_photo' ? 'a IA não achou uma boa referência — tenta de novo ou cola um link de foto' : 'não rolou gerar a arte agora');
-      alert('⚠️ ' + err);
+      alert(' ' + err);
     }
   } catch (e) {
     _artBusy[id] = false; renderProdutos();
-    alert('⚠️ erro de rede ao gerar a imagem');
+    alert(' erro de rede ao gerar a imagem');
   }
   // sincroniza com o servidor
   loadData(false);
@@ -817,7 +817,7 @@ async function onScanFile(input) {
   const btn = document.getElementById('scan-btn');
   st.style.display = 'block';
   st.style.background = 'rgba(212,255,46,0.08)'; st.style.color = 'var(--lime)';
-  st.textContent = '🔎 identificando o produto com IA…';
+  st.textContent = ' identificando o produto com IA…';
   if (btn) btn.disabled = true;
   try {
     const b64 = await _fileToDataUrl(file, 1280);
@@ -836,14 +836,14 @@ async function onScanFile(input) {
       document.getElementById('ap-sabor').value = flavor;
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
-      st.textContent = '✅ ' + label + ' — confira, põe preço e estoque, e adiciona';
+      st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona';
     } else {
       st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
-      st.textContent = '⚠️ ' + ((d && d.error) || 'não consegui identificar — tenta mais de perto ou usa "+ manual"');
+      st.textContent = ' ' + ((d && d.error) || 'não consegui identificar — tenta mais de perto ou usa "+ manual"');
     }
   } catch (e) {
     st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
-    st.textContent = '⚠️ erro ao ler a foto';
+    st.textContent = ' erro ao ler a foto';
   }
   if (btn) btn.disabled = false;
 }
@@ -994,9 +994,9 @@ function renderFiltros(list) {
   const el = document.getElementById('filtros-list'); if (!el) return;
   if (!_filtros.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-dim)">nenhum filtro ainda ✦ crie o primeiro abaixo</div>'; return; }
   el.innerHTML = _filtros.map(f => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:0.5px solid var(--border);border-radius:10px;padding:8px">
-    ${f.image_url ? `<img src="${f.image_url}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto">` : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex:0 0 auto">🧩</div>'}
+    ${f.image_url ? `<img src="${f.image_url}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto">` : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex:0 0 auto"></div>'}
     <div style="flex:1;min-width:0;font-size:14px;font-weight:600">${(f.nome || '').replace(/[<>&]/g, '')}</div>
-    <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 12px">apagar</button>
+    <button class="pf-btn sec" onclick="delFiltro('${f.id}')" style="padding:6px 12px">Apagar</button>
   </div>`).join('');
 }
 async function _saveFiltro(extra, silent) {
@@ -1130,17 +1130,17 @@ function renderLojaPreview() {
     <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 20% 30%, ${acc}22 0 2px, transparent 2px),radial-gradient(circle at 70% 60%, ${acc}22 0 2px, transparent 2px);background-size:26px 26px;opacity:${scales};pointer-events:none"></div>
     <div style="position:relative">
       <div style="display:flex;gap:11px;align-items:center;background:${card};border-radius:14px;padding:10px;box-shadow:0 3px 12px rgba(0,0,0,${light ? 0.06 : 0.35})">
-        ${photo ? `<img src="${photo}" style="width:44px;height:44px;border-radius:11px;object-fit:cover">` : `<div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>`}
+        ${photo ? `<img src="${photo}" style="width:44px;height:44px;border-radius:11px;object-fit:cover">` : `<div style="width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);display:flex;align-items:center;justify-content:center;font-size:22px"></div>`}
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:13px;color:${text};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)} <span style="color:${acc};font-size:10px;font-weight:700">trocar ›</span></div>
           <div style="font-size:10.5px;color:${dim};line-height:1.35;margin-top:2px">${esc(bio)}</div>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 2px 8px">
-        <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:${text}">🧊 GELADOS</div>
+        <div style="font-size:11px;font-weight:800;letter-spacing:.5px;color:${text}">GELADOS</div>
         <div style="font-size:10px;color:${acc};font-weight:700">ver todos ›</div>
       </div>
-      <div style="display:flex;gap:8px">${tile('🧊', 'R$ 89,90')}${tile('🍇', 'R$ 99,90')}${tile('🍓', 'R$ 94,90')}</div>
+      <div style="display:flex;gap:8px">${tile('', 'R$ 89,90')}${tile('', 'R$ 99,90')}${tile('', 'R$ 94,90')}</div>
     </div>
   </div>`;
 }
@@ -1230,7 +1230,7 @@ function toggleDia(n) { n = +n; if (_diasSel.has(n)) _diasSel.delete(n); else _d
 function toggleOnline() { _online = !_online; renderOnline(); }
 function renderOnline() {
   const b = document.getElementById('online-toggle'), h = document.getElementById('online-hint'), box = document.getElementById('horario-box');
-  if (b) { b.textContent = _online ? '🟢 online' : '⚪ offline'; }
+  if (b) { b.textContent = _online ? ' online' : ' offline'; }
   if (h) { h.textContent = _online ? 'sua loja aparece no app e recebe pedidos' : 'sua loja fica ESCONDIDA do app'; h.style.color = _online ? 'var(--fg-dim)' : 'var(--pink)'; }
   if (box) { box.style.opacity = _online ? '1' : '0.45'; box.style.pointerEvents = _online ? 'auto' : 'none'; }
 }
@@ -1264,11 +1264,11 @@ function renderPedidoCard(p, isEntregue) {
   const cls = isEntregue ? 'entregue' : 'novo';
   const statusBadge = isEntregue
     ? '<span class="status-badge status-entregue">✓ entregue</span>'
-    : '<span class="status-badge status-novo">🛵 pra entregar</span>';
+    : '<span class="status-badge status-novo">pra entregar</span>';
   const cust = p.customer || {};
   const items = (p.items || []).map(it => `<div>• <strong>${parseInt(it.qty || it.quantity || 1, 10) || 1}×</strong> ${esc(it.name)}</div>`).join('');
   const schedBadge = p.scheduled
-    ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">🕒 pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
+    ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
     : '';
   return `
     <div class="pedido-card ${cls}">
