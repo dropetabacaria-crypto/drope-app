@@ -205,7 +205,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <p>Entre com seu email e senha</p>
     <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
     <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" onkeydown="if(event.key==='Enter')login()">
-    <button onclick="login()">entrar</button>
+    <button onclick="login()">Entrar</button>
     <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
 </div>
@@ -238,7 +238,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="kpi">
         <div class="kpi-label">Saldo</div>
         <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--fg)">R$ 0</div>
-        <div class="kpi-sub">cai sáb 18h</div>
+        <div class="kpi-sub">Cai sáb 18h</div>
       </div>
     </div>
     <div class="dash-card">
@@ -275,8 +275,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
       <span style="font-size:22px;flex:0 0 auto"></span>
       <span style="flex:1;min-width:0">
-        <span style="display:block;font-size:15px;font-weight:800">gerenciar produtos</span>
-        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">cadastrar por foto, preço, estoque, imagens</span>
+        <span style="display:block;font-size:15px;font-weight:800">Gerenciar produtos</span>
+        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">Cadastrar por foto, preço, estoque, imagens</span>
       </span>
       <span id="prod-count-badge" style="font-size:13px;font-weight:800;color:var(--fg-dim);flex:0 0 auto"></span>
       <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
@@ -287,26 +287,26 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="section sec-config">
     <button onclick="toggleConfig()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">
       <span>Configuração da loja</span>
-      <span id="config-chev" style="color:var(--fg-dim);font-weight:400">abrir ▾</span>
+      <span id="config-chev" style="color:var(--fg-dim);font-weight:400">Abrir ▾</span>
     </button>
     <div id="config-wrap" style="display:none;margin-top:6px">
 
       <!-- MENU hierárquico da configuração -->
       <div id="config-menu" style="display:flex;flex-direction:column;gap:8px">
         <button class="cfg-item" onclick="openCfg('loja')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">foto, nome, descrição, endereço e aparência</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">Foto, nome, descrição, endereço e aparência</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('filtros')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Meus filtros</span><br><small style="color:var(--fg-dim);font-weight:400">categorias da sua vitrine</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Meus filtros</span><br><small style="color:var(--fg-dim);font-weight:400">Categorias da sua vitrine</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('func')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Funcionamento</span><br><small style="color:var(--fg-dim);font-weight:400">dias, horário e visibilidade</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Funcionamento</span><br><small style="color:var(--fg-dim);font-weight:400">Dias, horário e visibilidade</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('qr')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">QR da loja</span><br><small style="color:var(--fg-dim);font-weight:400">link e QR pra vitrine/balcão</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">QR da loja</span><br><small style="color:var(--fg-dim);font-weight:400">Link e QR pra vitrine/balcão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('plano')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Meu plano</span><br><small style="color:var(--fg-dim);font-weight:400">comissão, mensalidade e recursos</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Meu plano</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão, mensalidade e recursos</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
       </div>
 
@@ -321,7 +321,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <div style="flex:1">
               <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">Foto da loja</button>
               <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
-              <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">aparece pro cliente no topo da sua página</div>
+              <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">Aparece pro cliente no topo da sua página</div>
             </div>
           </div>
           <label class="pf-lbl">O que sua loja vende?</label>
@@ -346,13 +346,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
           <div class="pf-lbl" style="margin-top:16px">Aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
-            <span style="font-size:13px;color:var(--fg-dim)">fundo</span>
+            <span style="font-size:13px;color:var(--fg-dim)">Fundo</span>
             <div class="theme-toggle">
-              <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">escuro</button>
-              <button id="th-light" class="th-opt" onclick="setPageTheme('light')">claro</button>
+              <button id="th-dark" class="th-opt" onclick="setPageTheme('dark')">Escuro</button>
+              <button id="th-light" class="th-opt" onclick="setPageTheme('light')">Claro</button>
             </div>
           </div>
-          <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">cor de destaque</div>
+          <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">Cor de destaque</div>
           <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
           <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
 
@@ -400,7 +400,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div style="display:flex;gap:14px;align-items:center">
             <div id="qr-preview" style="width:120px;height:120px;border-radius:12px;background:#fff;flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden">…</div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:11px;color:var(--fg-dim)">link da sua loja</div>
+              <div style="font-size:11px;color:var(--fg-dim)">Link da sua loja</div>
               <div id="qr-url" style="font-size:12px;word-break:break-all;margin:4px 0 12px;color:var(--fg)"></div>
               <button class="pf-btn full" onclick="printQR()" style="margin-bottom:8px">Imprimir QR</button>
               <button class="pf-btn sec full" onclick="copyQRLink()">Copiar link</button>
@@ -419,8 +419,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:14px">aparecer para clientes</div>
-              <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">sua loja aparece no app e recebe pedidos</div>
+              <div style="font-weight:700;font-size:14px">Aparecer para clientes</div>
+              <div id="online-hint" style="font-size:11px;color:var(--fg-dim);margin-top:3px">Sua loja aparece no app e recebe pedidos</div>
             </div>
             <button id="online-toggle" class="pf-btn sec" onclick="toggleOnline()" style="flex:0 0 auto;min-width:110px">Online</button>
           </div>
@@ -462,10 +462,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
     <div class="pay-opts" id="pdv-pay">
-      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">dinheiro</div>
+      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">Dinheiro</div>
       <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">pix</div>
-      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">débito</div>
-      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">crédito</div>
+      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">Débito</div>
+      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">Crédito</div>
     </div>
     <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">Finalizar venda ✦</button>
     <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
@@ -653,14 +653,14 @@ function render(d) {
     pendList.innerHTML = pendentes.map(renderPedidoCard).join('');
   } else {
     pendCount.style.display = 'none';
-    pendList.innerHTML = '<div class="empty">sem pedidos pendentes</div>';
+    pendList.innerHTML = '<div class="empty">Sem pedidos pendentes</div>';
   }
 
   const historico = d.historico || [];
   const histList = document.getElementById('historico-list');
   histList.innerHTML = historico.length
     ? historico.map(p => renderPedidoCard(p, true)).join('')
-    : '<div class="empty">sem vendas ainda</div>';
+    : '<div class="empty">Sem vendas ainda</div>';
 
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
@@ -760,7 +760,7 @@ function renderDash(d) {
   const el = document.getElementById('dash-top');
   if (el) el.innerHTML = top.length
     ? top.map(([n, q], i) => `<div class="top-row"><div class="top-rank">${i + 1}</div><div class="top-name">${esc(n)}</div><div class="top-qty"><b>${q}</b> vendido${q !== 1 ? 's' : ''}</div></div>`).join('')
-    : '<div class="dash-empty">sem vendas ainda ✦ bora vender o primeiro</div>';
+    : '<div class="dash-empty">Sem vendas ainda ✦ bora vender o primeiro</div>';
 }
 
 let _lastProdutos = [];
@@ -788,8 +788,8 @@ function renderProdutos(list) {
   const cnt = document.getElementById('prod-count');
   const filtered = q || f !== 'todos';
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
-  if (!all.length) { el.innerHTML = '<div class="empty">nenhum produto ainda ✦ adiciona o primeiro no "＋ manual"</div>'; return; }
-  if (!items.length) { el.innerHTML = '<div class="empty">nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
+  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ manual"</div>'; return; }
+  if (!items.length) { el.innerHTML = '<div class="empty">Nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
   el.innerHTML = items.map(p => {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
@@ -1061,7 +1061,7 @@ function renderPDV() {
           <div class="step"><button onclick="pdvDec(${p.id})">−</button><span class="q">${q}</span><button onclick="pdvInc(${p.id})">+</button></div>
         </div>`;
       }).join('')
-    : '<div class="empty">sem produtos ainda — cadastra em "meus produtos"</div>';
+    : '<div class="empty">Sem produtos ainda — cadastra em "meus produtos"</div>';
   let cents = 0; prods.forEach(p => { cents += (p.price_cents || 0) * (_pdvCart[p.id] || 0); });
   document.getElementById('pdv-total').textContent = 'R$ ' + (cents / 100).toFixed(2).replace('.', ',');
   const n = Object.values(_pdvCart).reduce((s, q) => s + q, 0);
@@ -1098,7 +1098,7 @@ function renderBalanco() {
   const prods = _lastProdutos || [];
   list.innerHTML = prods.length
     ? prods.map(p => `<div class="bal-row"><div class="n">${esc(p.name)}</div><input type="number" inputmode="numeric" id="bal-${p.id}" value="${p.stock || 0}" min="0"></div>`).join('')
-    : '<div class="empty">sem produtos</div>';
+    : '<div class="empty">Sem produtos</div>';
 }
 async function saveBalanco() {
   const prods = _lastProdutos || [];
@@ -1282,7 +1282,7 @@ function toggleConfig() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
   const open = w.style.display !== 'none';
   w.style.display = open ? 'none' : 'block';
-  if (c) c.textContent = open ? 'abrir ▾' : 'fechar ▴';
+  if (c) c.textContent = open ? 'Abrir ▾' : 'Fechar ▴';
   if (!open) { try { closeCfg(); } catch (e) {} } // sempre abre no menu
 }
 // Navegação hierárquica da configuração (menu → seção)
@@ -1540,7 +1540,7 @@ function renderPedidoCard(p, isEntregue) {
       <div class="cliente-info">${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
       <div class="total">
-        <span>total: ${fmtBRL(p.total_cents)}</span>
+        <span>Total: ${fmtBRL(p.total_cents)}</span>
         <span class="ganho">+ ${fmtBRL(p.ganho_cents)} ✦ pra ti</span>
       </div>
     </div>
