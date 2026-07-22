@@ -4662,7 +4662,13 @@ async function handleFilialProductSave(req, res) {
     const priceCents = Math.round(Number(body.price) * 100);
     const stock = parseInt(body.stock, 10);
     const hidden = !!body.hidden;
-    const imageUrl = body.image_url != null ? String(body.image_url).trim() : undefined;
+    let imageUrl = body.image_url != null ? String(body.image_url).trim() : undefined;
+    // Upload da foto do produto (o lojista escolheu uma foto do aparelho)
+    if (body.photo_base64) {
+      const up = await uploadToStorage(`prod-${filial.id}-${id || ('n' + Date.now().toString(36))}`, String(body.photo_base64), 'image/jpeg');
+      if (up) imageUrl = up + '?v=' + Date.now();
+      else return res.status(502).json({ ok: false, error: 'falha ao salvar a foto' });
+    }
 
     if (id) {
       // editar — só se o produto pertence à loja
@@ -4672,6 +4678,7 @@ async function handleFilialProductSave(req, res) {
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
       if (imageUrl !== undefined) upd.image_url = imageUrl || null;
+      if (body.photo_base64) upd.image_status = 'ok'; // foto enviada pelo lojista
       // metadata: oferta e/ou filtro/categoria da loja
       const md = ex[0].metadata || {};
       let mdChanged = false;

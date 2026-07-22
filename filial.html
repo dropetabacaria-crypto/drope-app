@@ -530,8 +530,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <label class="pf-lbl" style="margin-top:2px">Categoria (filtro da loja)</label>
       <select class="pf-input" id="ap-filtro"></select>
       <div class="pf-hint" style="margin-top:2px">Organiza o produto na sua vitrine. Crie categorias em Configuração → Meus filtros.</div>
-      <div class="pf-hint">A foto do produto a IA gera pra você depois de adicionar — no estoque, é só clicar em <b style="color:var(--lime)">gerar imagem</b>. Se preferir, cola um link:</div>
-      <input class="pf-input" id="ap-img" placeholder="Link da foto (opcional)">
+      <label class="pf-lbl" style="margin-top:2px">Foto do produto</label>
+      <div style="display:flex;gap:10px">
+        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
+      </div>
+      <input type="file" id="ap-foto-file" accept="image/*" style="display:none" onchange="onApFotoFile(this)">
+      <div id="ap-foto-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
+      <div class="pf-hint">Envie uma foto do aparelho, cole um link, ou gere com IA depois de adicionar (no card do produto).</div>
+      <input class="pf-input" id="ap-img" placeholder="ou cole o link da foto (opcional)">
       <div style="display:flex; gap:10px; margin-top:4px">
         <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
         <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
@@ -885,6 +891,13 @@ function renderProdutos(list) {
           ? `<label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
              <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0">${_filtroOptions(p.filtro_id)}</select>`
           : `<div style="font-size:11px;color:var(--fg-dim);margin-top:10px">Crie filtros em Configuração → Meus filtros pra organizar seu catálogo em categorias.</div>`}
+        <label class="pf-lbl" style="margin-top:10px">Foto do produto</label>
+        <div style="display:flex;gap:8px">
+          <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ep-foto-${p.id}').click()">Enviar foto</button>
+          <button class="pf-btn sec" style="flex:1" onclick="generateProductArt(${p.id})">Gerar com IA</button>
+        </div>
+        <input type="file" id="ep-foto-${p.id}" accept="image/*" style="display:none" onchange="onEpFotoFile(${p.id},this)">
+        <div id="fe-prodfoto-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
         <button class="pf-btn full" onclick="saveEditProduct(${p.id})">Salvar</button>
       </div>
@@ -990,6 +1003,24 @@ function toggleAddProduct() {
 
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
 let _scanMeta = null;
+let _apPhotoB64 = null;
+async function onApFotoFile(input) {
+  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  const st = document.getElementById('ap-foto-status');
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'preparando foto…'; }
+  const b64 = await _fileToDataUrl(f, 900);
+  if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+  _apPhotoB64 = b64;
+  if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta ✦ será salva ao adicionar'; }
+}
+async function onEpFotoFile(id, input) {
+  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  const b64 = await _fileToDataUrl(f, 900); if (!b64) return;
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
+  const msg = document.getElementById('fe-prodfoto-' + id); if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando foto…'; }
+  const err = await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, photo_base64: b64 });
+  if (err !== true && msg) { msg.style.color = 'var(--pink)'; msg.textContent = (typeof err === 'string' ? err : 'erro ao salvar foto'); }
+}
 function _fileToDataUrl(file, maxPx) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1072,8 +1103,10 @@ async function saveNewProduct() {
   msg.textContent = 'salvando...';
   const filtro_id = (document.getElementById('ap-filtro') || {}).value || null;
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id };
+  if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
+    _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('add-product-form').style.display = 'none';
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
