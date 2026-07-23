@@ -4769,6 +4769,23 @@
     </div>
   </div>
 
+  <!-- ============ PIX MERCADO PAGO (split por loja) ============ -->
+  <div class="screen no-nav" id="pix-mp">
+    <div style="max-width:460px;margin:0 auto;padding:24px 20px;text-align:center">
+      <button onclick="cancelMPPix()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;display:block;margin-bottom:8px">‹ Voltar</button>
+      <div class="display" style="font-size:24px;margin-bottom:4px">Pague com Pix</div>
+      <div id="mppix-amount" style="color:var(--lime);font-size:15px;font-weight:800;margin-bottom:2px"></div>
+      <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Escaneie o QR no app do seu banco</div>
+      <div style="background:#fff;border-radius:16px;padding:14px;display:inline-block;margin-bottom:16px">
+        <img id="mppix-qr" alt="QR Pix" style="width:220px;height:220px;display:block"/>
+      </div>
+      <div style="color:var(--text-dim);font-size:12px;margin-bottom:6px">ou copie o código Pix:</div>
+      <div id="mppix-code" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px;font-size:11px;word-break:break-all;color:var(--text);margin-bottom:10px;max-height:78px;overflow:auto"></div>
+      <button id="mppix-copy" onclick="copyMPPix()" class="btn-primary" style="background:var(--lime);color:#000;font-weight:800;padding:14px;width:100%;margin-bottom:14px">copiar código Pix</button>
+      <div id="mppix-status" style="font-size:14px;color:var(--text-dim);min-height:20px">aguardando pagamento…</div>
+    </div>
+  </div>
+
   <!-- ============ SUCCESS ============ -->
   <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999;display:none"></canvas>
   <div class="screen no-nav" id="success">
@@ -6201,7 +6218,12 @@
     if (section) section.style.display = 'block';
   }
 
-  async function openInfinitePay() {
+  async function openInfinitePay(forceInfinite) {
+    // SaaS: se a loja conectou o Mercado Pago, usa o Pix do MP com split (comissão na hora).
+    // Senão (ou se o MP falhar → forceInfinite), mantém o fluxo InfinitePay atual (não quebra nada).
+    if (!forceInfinite && typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
+      return openMPPix();
+    }
     const btn = document.getElementById('infinitepay-btn');
     if (!btn) return;
     btn.textContent = 'gerando link...';
@@ -6315,6 +6337,131 @@
       btn.textContent = 'pagar agora ✦';
       btn.disabled = false;
     }
+  }
+
+  // ============ PIX MERCADO PAGO (split por loja) ============
+  let _mpPixPoll = null;
+  let _mpPixCode = '';
+  let _mpPixOrderNsu = '';
+  async function openMPPix() {
+    const btn = document.getElementById('infinitepay-btn');
+    if (btn) { btn.textContent = 'gerando Pix...'; btn.disabled = true; }
+    try {
+      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const discount = appliedCoupon ? appliedCoupon.discount : 0;
+      const total = Math.max(0, subtotal - discount);
+      const deliveryFeeReais = deliveryFee();
+      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+      if (chargeCents <= 100) {
+        toast('pedido mínimo de R$ 1,00 pra pagar no Pix ✦');
+        if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
+        return;
+      }
+      const slug = (CLIENT_LOJA && CLIENT_LOJA.slug) || (cart[0] && cart[0].slug) || '';
+      const orderNsu = `dr-${Date.now().toString(36)}`;
+      const addr = getSelectedAddress();
+
+      // salva pedido pendente (reserva estoque) — igual InfinitePay, só muda o método
+      try {
+        const saveResp = await fetch('/api/save-order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_nsu: orderNsu, payment_method: 'mercadopago_pix',
+            subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            delivery_mode: deliveryMode,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+            scheduled: _scheduledInfo(),
+          }),
+        });
+        const sd = await saveResp.json().catch(() => ({}));
+        if (saveResp.status === 409 && sd.error === 'out_of_stock') {
+          toast('estoque acabou ✦ ' + (sd.item || 'item indisponível'));
+          if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
+          go('cart'); renderCart(); renderGrid();
+          return;
+        }
+      } catch (eSave) { console.error('[save-order/mp]', eSave && eSave.message); }
+
+      // cria o Pix com split
+      const res = await fetch('/api/webhook?action=mp_create_pix', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filial_slug: slug, order_id: orderNsu, total_cents: chargeCents,
+          items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || slug })),
+          customer: { name: profile.name, email: profile.email || '', phone: profile.phone },
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.qr_code) { throw new Error((d && d.error) || 'erro ao gerar Pix'); }
+
+      _mpPixCode = d.qr_code;
+      _mpPixOrderNsu = orderNsu;
+      const amtEl = document.getElementById('mppix-amount');
+      if (amtEl) amtEl.textContent = 'R$ ' + (total + deliveryFeeReais).toFixed(2).replace('.', ',');
+      const qrEl = document.getElementById('mppix-qr');
+      if (qrEl) qrEl.src = 'data:image/png;base64,' + d.qr_code_base64;
+      const codeEl = document.getElementById('mppix-code');
+      if (codeEl) codeEl.textContent = d.qr_code;
+      const stEl = document.getElementById('mppix-status');
+      if (stEl) { stEl.textContent = 'aguardando pagamento…'; stEl.style.color = 'var(--text-dim)'; }
+      if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
+      go('pix-mp');
+      _startMPPixPoll(d.payment_id, slug);
+    } catch (e) {
+      console.error('[MP Pix] falhou, caindo pro InfinitePay:', e && e.message);
+      if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
+      // FALLBACK: se o Pix do MP falhar (loja mal configurada, MP fora do ar, etc.),
+      // o cliente NUNCA fica sem pagar — volta pro InfinitePay automaticamente.
+      return openInfinitePay(true);
+    }
+  }
+
+  function copyMPPix() {
+    if (!_mpPixCode) return;
+    const done = () => { const b = document.getElementById('mppix-copy'); if (b) { b.textContent = 'copiado ✦'; setTimeout(() => b.textContent = 'copiar código Pix', 1500); } toast('código Pix copiado ✦'); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(_mpPixCode).then(done, () => toast('não deu pra copiar')); }
+      else { const t = document.createElement('textarea'); t.value = _mpPixCode; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); done(); }
+    } catch (e) { toast('não deu pra copiar'); }
+  }
+
+  function _startMPPixPoll(paymentId, slug) {
+    if (_mpPixPoll) clearInterval(_mpPixPoll);
+    let tries = 0;
+    _mpPixPoll = setInterval(async () => {
+      tries++;
+      if (tries > 150) { clearInterval(_mpPixPoll); _mpPixPoll = null; return; } // ~10 min
+      try {
+        const r = await fetch(`/api/webhook?action=mp_check_pix&payment_id=${encodeURIComponent(paymentId)}&filial=${encodeURIComponent(slug)}`, { cache: 'no-store' });
+        const d = await r.json();
+        if (d && d.status === 'approved') {
+          clearInterval(_mpPixPoll); _mpPixPoll = null;
+          _onMPPixApproved();
+        }
+      } catch (e) {}
+    }, 4000);
+  }
+
+  function cancelMPPix() {
+    if (_mpPixPoll) { clearInterval(_mpPixPoll); _mpPixPoll = null; }
+    go('checkout');
+  }
+
+  function _onMPPixApproved() {
+    const st = document.getElementById('mppix-status');
+    if (st) { st.innerHTML = '✅ pagamento aprovado!'; st.style.color = 'var(--lime)'; }
+    try { cart = []; saveCart(); renderCart(); renderGrid(); } catch (e) {}
+    try { appliedCoupon = null; } catch (e) {}
+    try {
+      const so = document.getElementById('success-order');
+      if (so) so.textContent = '#' + (_mpPixOrderNsu || '');
+      const sBanner = document.getElementById('success-test-banner'); if (sBanner) sBanner.style.display = 'none';
+      const sSub = document.getElementById('success-sub'); if (sSub) sSub.textContent = 'pagamento aprovado ✦ pedido confirmado';
+      const sWhats = document.getElementById('success-whats-btn'); if (sWhats) sWhats.style.display = '';
+    } catch (e) {}
+    setTimeout(() => { try { go('success'); fireConfetti(); } catch (e) {} }, 700);
   }
 
   // Mostra o cupom aplicado + link "✕ remover" (ou limpa a msg se não há cupom)

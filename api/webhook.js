@@ -13408,6 +13408,7 @@ async function handleCatalog(req, res) {
       const prof = (fr[0].metadata || {}).profile || {};
       const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
       lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
+        mp_connected: !!((((fr[0].metadata || {}).payment) || {}).access_token),
         filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0, shape: f.shape || 'rect' })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
@@ -15885,12 +15886,21 @@ async function handleMPCheckPix(req, res) {
 
   const url = new URL(req.url, `https://${req.headers.host}`);
   const paymentId = url.searchParams.get('payment_id');
-  if (!paymentId || !MP_ACCESS_TOKEN) {
-    return res.status(400).json({ error: 'missing payment_id or token' });
+  const slug = String(url.searchParams.get('filial') || url.searchParams.get('filial_slug') || '').toLowerCase().trim();
+  if (!paymentId) {
+    return res.status(400).json({ error: 'missing payment_id' });
+  }
+  // Pagamento com split é criado com o token da LOJA — checa com o token dela.
+  let token = MP_ACCESS_TOKEN;
+  if (slug) {
+    try { const f = await _filialBySlugRead(slug); if (f) { const t = await _mpTokenForFilial(f); if (t) token = t; } } catch (e) {}
+  }
+  if (!token) {
+    return res.status(400).json({ error: 'missing token' });
   }
   try {
     const checkRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
+      headers: { 'Authorization': `Bearer ${token}` },
     });
     const checkData = await checkRes.json();
     return res.status(200).json({
