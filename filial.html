@@ -550,6 +550,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <label class="pf-lbl" style="margin-top:2px">Categoria (filtro da loja)</label>
       <select class="pf-input" id="ap-filtro"></select>
       <div class="pf-hint" style="margin-top:2px">Organiza o produto na sua vitrine. Crie categorias em Configuração → Meus filtros.</div>
+      <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
+      <select class="pf-input" id="ap-payment">
+        <option value="both">Pix e cartão</option>
+        <option value="pix">Só Pix</option>
+      </select>
+      <div class="pf-hint" style="margin-top:2px">"Só Pix" = o cliente não vê a opção de cartão nesse produto.</div>
       <label class="pf-lbl" style="margin-top:2px">Foto do produto</label>
       <div style="display:flex;gap:10px">
         <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
@@ -911,6 +917,11 @@ function renderProdutos(list) {
           ? `<label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
              <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0">${_filtroOptions(p.filtro_id)}</select>`
           : `<div style="font-size:11px;color:var(--fg-dim);margin-top:10px">Crie filtros em Configuração → Meus filtros pra organizar seu catálogo em categorias.</div>`}
+        <label class="pf-lbl" style="margin-top:10px">Formas de pagamento</label>
+        <select class="pf-input" id="ep-payment-${p.id}" style="margin-bottom:0">
+          <option value="both"${p.pix_only ? '' : ' selected'}>Pix e cartão</option>
+          <option value="pix"${p.pix_only ? ' selected' : ''}>Só Pix</option>
+        </select>
         <label class="pf-lbl" style="margin-top:10px">Foto do produto</label>
         <div style="display:flex;gap:8px">
           <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ep-foto-${p.id}').click()">Enviar foto</button>
@@ -1123,7 +1134,8 @@ async function saveNewProduct() {
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
   msg.textContent = 'salvando...';
   const filtro_id = (document.getElementById('ap-filtro') || {}).value || null;
-  const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id };
+  const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
+  const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
   if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
@@ -1144,8 +1156,10 @@ async function saveEditProduct(id) {
   const offerRaw = (document.getElementById('ep-offer-' + id).value || '').replace(',', '.').trim();
   const offer_price = offerRaw === '' ? 0 : parseFloat(offerRaw); // 0/vazio limpa a oferta
   const fEl = document.getElementById('ep-filtro-' + id);
+  const payEl = document.getElementById('ep-payment-' + id);
   const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
   if (fEl) payload.filtro_id = fEl.value || null; // categoria/filtro da loja
+  if (payEl) payload.pix_only = (payEl.value === 'pix'); // forma de pagamento do produto
   await _saveProduct(payload);
 }
 

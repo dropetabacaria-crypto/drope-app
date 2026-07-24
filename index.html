@@ -10042,12 +10042,18 @@
   }
   function belowMinimum() { return false; }
 
+  // Item paga só no Pix? Usa a flag do produto (definida pelo lojista no cadastro);
+  // se o item não tem a flag (carrinho antigo/compra rápida), cai no comportamento
+  // legado (pod = só Pix).
+  function _itemPixOnly(i) {
+    return (i && typeof i.pix_only === 'boolean') ? i.pix_only : (i && i.cat === 'pod');
+  }
   function cartKind() {
-    const hasPod = cart.some(i => i.cat === 'pod');
-    const hasTabac = cart.some(i => i.cat === 'tabac');
-    if (hasPod && hasTabac) return 'mix';
-    if (hasPod) return 'pod';
-    return 'tabac';
+    const anyPixOnly = cart.some(i => _itemPixOnly(i));
+    const anyCardOk = cart.some(i => !_itemPixOnly(i));
+    if (anyPixOnly && anyCardOk) return 'mix';   // carrinho misto → fecha tudo no Pix
+    if (anyPixOnly) return 'pod';                 // tudo só Pix
+    return 'tabac';                               // tudo libera cartão
   }
 
   let deliveryMode = 'delivery'; // 'delivery' | 'pickup'
@@ -10642,7 +10648,7 @@
     const heart = document.getElementById('heart-btn');
     heart.classList.toggle('liked', favorites.has(p.name));
     const badge = document.getElementById('d-paybadge');
-    if (p.cat === 'pod') {
+    if (_itemPixOnly(p)) {
       badge.className = 'pay-badge pix pay-badge-lg';
       badge.textContent = 'só Pix';
     } else {
@@ -11729,14 +11735,14 @@
     total.style.display = 'flex';
     cta.style.display = 'block';
 
-    // Notice sobre método de pagamento
-    const hasPod = cart.some(i => i.cat === 'pod');
-    const hasTabac = cart.some(i => i.cat === 'tabac');
+    // Notice sobre método de pagamento (baseado na flag por produto)
+    const hasPod = cart.some(i => _itemPixOnly(i));
+    const hasTabac = cart.some(i => !_itemPixOnly(i));
     const notice = document.getElementById('cart-notice');
     if (hasPod && hasTabac) {
       notice.innerHTML = `<div class="mix-warn">seu carrinho mistura <b>só Pix</b> com <b>aceita cartão</b> ✦ vamos fechar tudo no Pix dessa vez pra não complicar</div>`;
     } else if (hasPod) {
-      notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">drops são <b>só no Pix</b> ✦ é a regra da casa</div>`;
+      notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">esse pedido é <b>só no Pix</b></div>`;
     } else if (hasTabac) {
       notice.innerHTML = `<div class="mix-warn" style="background: rgba(212,255,46,0.08); border-color: rgba(212,255,46,0.35); color: var(--text)">tabacaria <b style="color: var(--lime)">aceita Pix ou cartão</b> ✦ você escolhe no checkout</div>`;
     } else {

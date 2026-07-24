@@ -4598,6 +4598,7 @@ async function handleFilialPainel(req, res) {
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
       featured: !!((p.metadata || {}).featured),
+      pix_only: (typeof (p.metadata || {}).pix_only === 'boolean') ? (p.metadata).pix_only : ((p.category || 'pod') === 'pod'),
       barcode: p.barcode || null,
       barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
@@ -4703,6 +4704,11 @@ async function handleFilialProductSave(req, res) {
         if (body.featured) md.featured = true; else delete md.featured;
         mdChanged = true;
       }
+      // forma de pagamento do produto: só Pix (true) ou Pix e cartão (false)
+      if (Object.prototype.hasOwnProperty.call(body, 'pix_only')) {
+        if (body.pix_only) md.pix_only = true; else md.pix_only = false;
+        mdChanged = true;
+      }
       if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
@@ -4742,6 +4748,7 @@ async function handleFilialProductSave(req, res) {
         flavor_en: vmeta.flavor_en || null,
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
         ...(body.featured ? { featured: true } : {}), // destaque na vitrine (manual)
+        ...(Object.prototype.hasOwnProperty.call(body, 'pix_only') ? { pix_only: !!body.pix_only } : {}), // só Pix x Pix+cartão
         created_via: 'lojista_panel',
       },
     });
@@ -13476,6 +13483,7 @@ async function handleCatalog(req, res) {
         brand_cover: !!(p.metadata && p.metadata.brand_cover), // capa do filtro da marca (escolhida no admin)
         filtro_id: (p.metadata && p.metadata.filtro_id) || null, // filtro/categoria da loja
         featured: !!(p.metadata && p.metadata.featured), // destaque na vitrine (manual)
+        pix_only: (typeof meta.pix_only === 'boolean') ? meta.pix_only : ((p.category || 'pod') === 'pod'), // só Pix x Pix+cartão
       };
     });
 
