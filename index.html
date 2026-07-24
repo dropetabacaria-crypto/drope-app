@@ -6326,7 +6326,7 @@
       if (data.url) {
         // Abre o checkout InfinitePay (nova aba no mobile abre in-app browser)
         window.open(data.url, '_blank');
-        btn.textContent = 'pagar agora';
+        btn.textContent = 'pagar agora ✦';
         btn.disabled = false;
       } else {
         throw new Error(data.error || 'erro ao gerar link');
@@ -10078,7 +10078,7 @@
       if (deliveryMode === 'pickup') {
         const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
         const lojaNome = isSantos ? 'Drope Santos' : store.name;
-        const lojaEnd = isSantos ? 'combina retirada com a Natalia no whats ✦ +55 11 98926-0808' : store.address;
+        const lojaEnd = isSantos ? 'combina a retirada pelo whatsapp da loja ✦' : store.address;
         addrWrap.innerHTML = `
           <div class="co-address" style="cursor:default">
             <div class="ic"></div>
@@ -10280,11 +10280,8 @@
       }
     }
 
-    // Filial Santos: cartão liberado, esconde os avisos de "só Pix"
-    const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
-    if (isSantos) {
-      warn.style.display = 'none';
-    } else if (kind === 'pod') {
+    // Regra: pod = só Pix (em qualquer loja). Não-pod (tabacaria) libera cartão.
+    if (kind === 'pod') {
       warn.style.display = 'block';
       warn.innerHTML = `<div class="pay-chip pix-only">Drops são só no Pix ✦ aprovação na hora</div>`;
     } else if (kind === 'mix') {
@@ -10326,7 +10323,9 @@
     } else {
       // Caso 2: Pix antecipado (pickup pagar agora OU delivery sempre)
       const blockClick = "go('pix')";
-      const blockCard = "go('card')";
+      // Cartão vai pro checkout REAL do InfinitePay (que aceita cartão) — não mais o
+      // formulário falso go('card'). Só aparece pra não-pod (ver cardLiberado abaixo).
+      const blockCard = "openInfinitePay(true)";
 
       html = `
         <div class="co-method" onclick="${blockClick}">
@@ -10339,8 +10338,8 @@
         </div>
       `;
 
-      // Filial Santos: libera cartão SEMPRE (independente da categoria do produto)
-      const cardLiberado = kind === 'tabac' || (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
+      // Cartão só pra não-pod (tabacaria). Pod é sempre só Pix, em qualquer loja.
+      const cardLiberado = kind === 'tabac';
       if (cardLiberado) {
         html += `
           <div class="co-method" onclick="${blockCard}">
@@ -10683,7 +10682,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
+        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! qual o preço do ${p.name}?`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -10699,7 +10698,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja não configurado ✦ avisa o lucas'); return; }
+        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! quero saber quando chega o ${p.name}`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
