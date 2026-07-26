@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0A0A14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Drope ✦ Painel da Filial</title>
+<title>DROPE ✦ Painel da loja</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <style>
@@ -255,8 +255,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
-      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji"></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
-      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji"></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
+      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji">🛒</span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji">🧮</span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
     </div>
   </div>
 
@@ -273,7 +273,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="section sec-prod">
     <h2>Meus produtos</h2>
     <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
-      <span style="font-size:22px;flex:0 0 auto"></span>
+      <span style="font-size:22px;flex:0 0 auto">📦</span>
       <span style="flex:1;min-width:0">
         <span style="display:block;font-size:15px;font-weight:800">Gerenciar produtos</span>
         <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">Cadastrar por foto, preço, estoque, imagens</span>
@@ -320,7 +320,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <h2>Minha loja</h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
-            <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto"></div>
+            <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto">🏪</div>
             <div style="flex:1">
               <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">Foto da loja</button>
               <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
@@ -487,7 +487,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-foot">
     <div class="pay-opts" id="pdv-pay">
       <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">Dinheiro</div>
-      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">pix</div>
+      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">Pix</div>
       <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">Débito</div>
       <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">Crédito</div>
     </div>
@@ -692,7 +692,7 @@ function render(d) {
   const f = d.filial;
   _filialName = f.name || '';
   _featuredMode = f.featured_mode || 'auto';
-  document.getElementById('hello').textContent = 'Oi, ' + (f.founder_name || 'fundadora');
+  document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
   const _share = f.founder_share_cents || 0;
   document.getElementById('subtitle').textContent = _share > 0 ? (f.name + ' ✦ ganha R$ ' + (_share/100).toFixed(2).replace('.',',') + ' por venda') : f.name;
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
@@ -872,7 +872,7 @@ function renderProdutos(list) {
   const cnt = document.getElementById('prod-count');
   const filtered = q || f !== 'todos';
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
-  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ manual"</div>'; return; }
+  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ Manual"</div>'; return; }
   if (!items.length) { el.innerHTML = '<div class="empty">Nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
   el.innerHTML = items.map(p => {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
@@ -886,8 +886,8 @@ function renderProdutos(list) {
       ? `<span style="text-decoration:line-through;opacity:.55">R$ ${price}</span> <b style="color:var(--pink)">R$ ${((p.offer_cents) / 100).toFixed(2).replace('.', ',')}</b>`
       : `R$ ${price}`;
     const artBtn = gerando
-      ? `<button class="icon-btn2 art" disabled title="gerando imagem…"></button>`
-      : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}"></button>`;
+      ? `<button class="icon-btn2 art" disabled title="gerando imagem…">⏳</button>`
+      : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}">✨</button>`;
     const cb = _batchMode ? `<input type="checkbox" class="batch-cb" ${_batchSel.has(p.id) ? 'checked' : ''} onclick="toggleBatchItem(${p.id})" style="width:20px;height:20px;flex:0 0 auto;margin-right:6px;accent-color:var(--lime)">` : '';
     return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
       <div class="prod-line">
@@ -943,7 +943,7 @@ function toggleBatchMode() {
   _batchSel.clear();
   const bar = document.getElementById('batch-bar');
   const tog = document.getElementById('batch-toggle');
-  if (tog) tog.textContent = _batchMode ? 'concluir' : 'organizar';
+  if (tog) tog.textContent = _batchMode ? 'Concluir' : 'Organizar';
   if (bar) {
     bar.style.display = _batchMode ? 'block' : 'none';
     const sel = document.getElementById('batch-filtro');
@@ -1492,7 +1492,7 @@ async function mpRefreshStatus() {
     const d = await r.json();
     if (d && d.connected) {
       const pct = (d.plan && typeof d.plan.commission_pct === 'number') ? d.plan.commission_pct : null;
-      if (el) el.innerHTML = '✅ <b style="color:var(--lime)">Mercado Pago conectado</b>' + (pct != null ? ` — comissão DROPE de <b>${pct}%</b> por pedido.` : '');
+      if (el) el.innerHTML = '✅ <b style="color:var(--lime)">Mercado Pago conectado</b>' + (pct != null ? ` — comissão DROPE de <b>${String(pct).replace('.', ',')}%</b> por pedido.` : '');
       if (btn) btn.textContent = 'Reconectar Mercado Pago';
     } else {
       if (el) el.innerHTML = '⚠️ Ainda <b>não conectado</b>. Os pedidos não caem na sua conta até conectar.';
@@ -1538,7 +1538,7 @@ async function moveFiltro(id, dir) {
 async function toggleFiltroHidden(id) { await _saveFiltro({ op: 'toggle_hidden', id }, true); }
 
 // ===== QR da loja (deep link) =====
-const APP_BASE = 'https://drope-app.vercel.app';
+const APP_BASE = location.origin;
 function _lojaUrl() { return APP_BASE + '/?loja=' + encodeURIComponent(FILIAL_SLUG); }
 function _qrImg(size) { return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=10&data=' + encodeURIComponent(_lojaUrl()); }
 function renderQR() {
@@ -1700,7 +1700,7 @@ function toggleDia(n) { n = +n; if (_diasSel.has(n)) _diasSel.delete(n); else _d
 function toggleOnline() { _online = !_online; renderOnline(); }
 function renderOnline() {
   const b = document.getElementById('online-toggle'), h = document.getElementById('online-hint'), box = document.getElementById('horario-box');
-  if (b) { b.textContent = _online ? ' online' : ' offline'; }
+  if (b) { b.textContent = _online ? 'Online' : 'Offline'; }
   if (h) { h.textContent = _online ? 'sua loja aparece no app e recebe pedidos' : 'sua loja fica ESCONDIDA do app'; h.style.color = _online ? 'var(--fg-dim)' : 'var(--pink)'; }
   if (box) { box.style.opacity = _online ? '1' : '0.45'; box.style.pointerEvents = _online ? 'auto' : 'none'; }
 }
