@@ -4065,14 +4065,7 @@
     <p style="color:rgba(255,255,255,0.7);font-size:14px;margin-bottom:24px;line-height:1.5">Toque numa loja pra ver o catálogo dela ✦ dá pra trocar quando quiser</p>
     <!-- Lista dinâmica de lojas (renderFilialPicker). Os botões abaixo são o fallback. -->
     <div id="filial-picker-list">
-      <button onclick="pickClientFilial('sp')" style="display:block;width:100%;background:linear-gradient(90deg,#D4FF2E,#9CE600);color:#000;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px"></span>
-        <span style="flex:1"><div>São Paulo</div></span>
-      </button>
-      <button onclick="pickClientFilial('santos')" style="display:block;width:100%;background:linear-gradient(90deg,#FF4D8F,#FF8533);color:#fff;border:0;padding:18px;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;text-align:left;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px"></span>
-        <span style="flex:1"><div>Santos</div></span>
-      </button>
+      <div style="color:rgba(255,255,255,0.6);font-size:14px;padding:24px 0">carregando lojas…</div>
     </div>
     <div onclick="document.getElementById('filial-picker-overlay').style.display='none'; go('lojista-signup');"
          style="margin-top:22px; font-size:13px; color:rgba(255,255,255,0.6); cursor:pointer">
@@ -4164,7 +4157,7 @@
             a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
           </div>
           <div class="welcome-gift">
-            <div class="wg-emoji"></div>
+            <div class="wg-emoji">🎁</div>
             <div class="wg-body">
               <div class="wg-title">seu cupom de estreia</div>
               <div class="wg-code">DROPE10</div>
@@ -5046,7 +5039,7 @@
       <div class="icon-btn" onclick="go('profile')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Meu perfil</div>
+      <div class="brand-small">Meu perfil de sabor</div>
       <div style="width: 42px"></div>
     </div>
     <div id="flavor-profile-body"></div>
@@ -6147,9 +6140,9 @@
   let store = {
     name: 'Drope',
     whats: '+55 11 92481-0126', // OFICIAL: WhatsApp Business da loja (atualizado 2026-04-16)
-    pixKey: '32486582000154',
-    pixName: 'LUCAS DE ANDRADE SOUSA',
-    pixCity: 'SAO PAULO',
+    pixKey: '',
+    pixName: '',
+    pixCity: '',
     address: 'São Paulo',
     hours: 'seg-sáb ✦ 12h às 22h',
     claudeKey: '',
@@ -9904,8 +9897,8 @@
         : `<div class="emoji">${p.emoji || ''}</div>`;
       const muted = labels.muted ? `<div class="hero-muted" style="font-size:13px;color:var(--text-dim);font-weight:500;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
       const cta = soldOut
-        ? `<button class="hero-cta" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">esgotado — toca pra avisar</button>`
-        : `<button class="hero-cta">vou levar ✦</button>`;
+        ? `<button class="hero-cta" style="background:rgba(255,255,255,0.07);color:var(--text-dim)">esgotado — me avise</button>`
+        : `<button class="hero-cta">quero levar ✦</button>`;
       const sub = soldOut
         ? `<span class="pink">${money(p.price)}</span> esgotado`
         : `<span class="pink">${money(p.price)}</span>`;
@@ -10698,7 +10691,7 @@
       // OSSO-AVISO-CHEGADA: produto esgotado abre WhatsApp pré-preenchido.
       // O webhook.js detecta a mensagem, identifica produto, registra interesse
       // em drope_customer_interests e o cron de notificação avisa quando chegar.
-      addBtn.innerHTML = 'esgotado — me avise via whats';
+      addBtn.innerHTML = 'esgotado — me avise';
       addBtn.disabled = false;
       addBtn.style.opacity = '1';
       addBtn.onclick = function(e) {
