@@ -543,8 +543,22 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
       </div>
       <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00"></div>
+        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
         <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <!-- Calculadora de preço (opcional): custo + lucro → preço de venda, já com a comissão embutida -->
+      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-top:6px">
+        <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px">💡 Calculadora de preço <span style="opacity:.6">(opcional)</span></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label class="pf-lbl">Preço de custo (R$)</label><input class="pf-input" id="ap-custo" inputmode="decimal" placeholder="70,00" style="margin-bottom:0" oninput="apCalcPreco()"></div>
+          <div style="flex:1"><label class="pf-lbl">Lucro que quero</label>
+            <div style="display:flex;gap:6px">
+              <input class="pf-input" id="ap-lucro" inputmode="decimal" placeholder="30" style="flex:1;margin-bottom:0" oninput="apCalcPreco()">
+              <select class="pf-input" id="ap-lucro-tipo" style="width:60px;margin-bottom:0" onchange="apCalcPreco()"><option value="pct">%</option><option value="rs">R$</option></select>
+            </div>
+          </div>
+        </div>
+        <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;min-height:16px"></div>
       </div>
       <label class="pf-lbl" style="margin-top:2px">Categoria (filtro da loja)</label>
       <select class="pf-input" id="ap-filtro"></select>
@@ -909,7 +923,10 @@ function renderProdutos(list) {
       </div>
       <div class="prod-edit" id="edit-${p.id}">
         <label class="pf-lbl" style="margin-top:12px">Preço (R$)</label>
-        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço">
+        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço" oninput="epRecebe(${p.id})">
+        <label class="pf-lbl" style="margin-top:10px">Preço de custo (R$) <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
+        <input class="pf-input" id="ep-custo-${p.id}" inputmode="decimal" value="${p.cost_cents ? ((p.cost_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 70,00" style="margin-bottom:0" oninput="epRecebe(${p.id})">
+        <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:6px;min-height:14px"></div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         ${(_filtros && _filtros.length)
@@ -933,6 +950,8 @@ function renderProdutos(list) {
       </div>
     </div>`;
   }).join('');
+  // preenche a linha "você recebe" de cada produto (comissão + lucro)
+  try { (all || []).forEach(p => { try { epRecebe(p.id); } catch (e) {} }); } catch (e) {}
 }
 // ===== Organizar em lote: marca vários produtos com um filtro de uma vez =====
 let _batchMode = false;
@@ -1109,6 +1128,52 @@ async function onScanFile(input) {
   if (btn) btn.disabled = false;
 }
 
+// ===== Calculadora de preço (custo + lucro → preço de venda, embutindo a comissão) =====
+function _comm() { try { return Number((((_painelData || {}).filial || {}).plan || {}).commission_pct) || 10; } catch (e) { return 10; } }
+function _num(v) { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : NaN; }
+function _brl(n) { return 'R$ ' + n.toFixed(2).replace('.', ','); }
+function apUsarPreco(v) { const el = document.getElementById('ap-price'); if (el) { el.value = Number(v).toFixed(2).replace('.', ','); apCalcPreco(); } }
+function apCalcPreco() {
+  const out = document.getElementById('ap-calc'); if (!out) return;
+  const c = _comm();
+  const custo = _num(document.getElementById('ap-custo').value);
+  const lucroV = _num(document.getElementById('ap-lucro').value);
+  const tipo = (document.getElementById('ap-lucro-tipo') || {}).value || 'pct';
+  const preco = _num(document.getElementById('ap-price').value);
+  let html = '';
+  // 1) sugestão a partir de custo + lucro
+  if (isFinite(custo) && custo > 0 && isFinite(lucroV)) {
+    const lucroRs = tipo === 'pct' ? custo * lucroV / 100 : lucroV;
+    const alvo = custo + lucroRs;                 // o que a loja quer receber líquido
+    const sugerido = alvo / (1 - c / 100);        // embute a comissão do DROPE
+    html += `Preço de venda sugerido: <b style="color:var(--lime)">${_brl(sugerido)}</b> ` +
+      `<span class="mini-link" onclick="apUsarPreco(${sugerido.toFixed(2)})">usar</span><br>` +
+      `Você recebe <b style="color:var(--fg)">${_brl(alvo)}</b> (custo + lucro) após a comissão DROPE de ${String(c).replace('.', ',')}%.`;
+  } else if (isFinite(preco) && preco > 0) {
+    // 2) sem custo: mostra só quanto recebe pelo preço digitado
+    const recebe = preco * (1 - c / 100);
+    html += `Você recebe <b style="color:var(--fg)">${_brl(recebe)}</b> por venda (após comissão DROPE de ${String(c).replace('.', ',')}%).`;
+  }
+  if (html) html += `<br><span style="opacity:.6">O Mercado Pago ainda cobra ~1% de Pix por transação.</span>`;
+  out.innerHTML = html;
+}
+// Edição: mostra quanto a loja recebe pelo preço atual (+ lucro se tiver custo).
+function epRecebe(id) {
+  const el = document.getElementById('ep-recebe-' + id); if (!el) return;
+  const c = _comm();
+  const preco = _num((document.getElementById('ep-price-' + id) || {}).value);
+  const custo = _num((document.getElementById('ep-custo-' + id) || {}).value);
+  if (!isFinite(preco) || preco <= 0) { el.innerHTML = ''; return; }
+  const recebe = preco * (1 - c / 100);
+  let html = `Você recebe <b style="color:var(--fg)">${_brl(recebe)}</b> por venda (comissão DROPE ${String(c).replace('.', ',')}%).`;
+  if (isFinite(custo) && custo > 0) {
+    const lucro = recebe - custo;
+    const cor = lucro >= 0 ? 'var(--lime)' : 'var(--pink)';
+    html += ` Lucro: <b style="color:${cor}">${_brl(lucro)}</b>.`;
+  }
+  el.innerHTML = html;
+}
+
 async function _saveProduct(payload, onOk) {
   try {
     const r = await fetch('/api/webhook?action=filial_product_save', {
@@ -1134,12 +1199,15 @@ async function saveNewProduct() {
   msg.textContent = 'salvando...';
   const filtro_id = (document.getElementById('ap-filtro') || {}).value || null;
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
+  const cost_price = _num((document.getElementById('ap-custo') || {}).value);
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
+  if (isFinite(cost_price) && cost_price > 0) payload.cost_price = cost_price;
   if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
     _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
-    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img'].forEach(id => document.getElementById(id).value = '');
+    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
     document.getElementById('add-product-form').style.display = 'none';
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
     _scanMeta = null;
@@ -1156,9 +1224,11 @@ async function saveEditProduct(id) {
   const offer_price = offerRaw === '' ? 0 : parseFloat(offerRaw); // 0/vazio limpa a oferta
   const fEl = document.getElementById('ep-filtro-' + id);
   const payEl = document.getElementById('ep-payment-' + id);
+  const custoEl = document.getElementById('ep-custo-' + id);
   const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
   if (fEl) payload.filtro_id = fEl.value || null; // categoria/filtro da loja
   if (payEl) payload.pix_only = (payEl.value === 'pix'); // forma de pagamento do produto
+  if (custoEl) { const cc = _num(custoEl.value); payload.cost_price = (isFinite(cc) && cc > 0) ? cc : 0; } // preço de custo (0 limpa)
   await _saveProduct(payload);
 }
 

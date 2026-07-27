@@ -4608,6 +4608,7 @@ async function handleFilialPainel(req, res) {
       filtro_id: ((p.metadata || {}).filtro_id) || null,
       featured: !!((p.metadata || {}).featured),
       pix_only: (typeof (p.metadata || {}).pix_only === 'boolean') ? (p.metadata).pix_only : ((p.category || 'pod') === 'pod'),
+      cost_cents: ((p.metadata || {}).cost_cents) || null,
       barcode: p.barcode || null,
       barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
@@ -4718,6 +4719,12 @@ async function handleFilialProductSave(req, res) {
         if (body.pix_only) md.pix_only = true; else md.pix_only = false;
         mdChanged = true;
       }
+      // preço de custo (pra calculadora de lucro do lojista)
+      if (Object.prototype.hasOwnProperty.call(body, 'cost_price')) {
+        const cc = Math.round(Number(body.cost_price) * 100);
+        if (isFinite(cc) && cc > 0) md.cost_cents = cc; else delete md.cost_cents;
+        mdChanged = true;
+      }
       if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
@@ -4758,6 +4765,7 @@ async function handleFilialProductSave(req, res) {
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
         ...(body.featured ? { featured: true } : {}), // destaque na vitrine (manual)
         ...(Object.prototype.hasOwnProperty.call(body, 'pix_only') ? { pix_only: !!body.pix_only } : {}), // só Pix x Pix+cartão
+        ...(body.cost_price && Number(body.cost_price) > 0 ? { cost_cents: Math.round(Number(body.cost_price) * 100) } : {}), // preço de custo
         created_via: 'lojista_panel',
       },
     });
