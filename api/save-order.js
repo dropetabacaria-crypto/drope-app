@@ -178,10 +178,25 @@ module.exports = async function handler(req, res) {
     }
 
     // Insere ORDER
+    // Resolve a LOJA (filial) do pedido pelo produto do 1º item. Sem isso o pedido
+    // caía no default filial_id=1 e não aparecia no painel da loja certa.
+    let resolvedFilialId = null;
+    try {
+      const firstSlug = (itemsWithSlug[0] || {}).slug;
+      if (firstSlug) {
+        const pr = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_products?slug=eq.${encodeURIComponent(firstSlug)}&select=filial_id&limit=1`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        ).then(r => r.ok ? r.json() : []);
+        if (Array.isArray(pr) && pr[0] && pr[0].filial_id) resolvedFilialId = pr[0].filial_id;
+      }
+    } catch (e) { console.error('[save-order] resolve filial_id:', e.message); }
+
     const orderRow = {
       order_nsu,
       status,
       payment_method,
+      ...(resolvedFilialId ? { filial_id: resolvedFilialId } : {}),
       subtotal_cents: Math.round(subtotal * 100),
       delivery_fee_cents: Math.round(delivery_fee * 100),
       total_cents: Math.round(total * 100),
