@@ -630,9 +630,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
         <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;min-height:16px"></div>
       </div>
-      <label class="pf-lbl" style="margin-top:2px">Categoria (filtro da loja)</label>
-      <select class="pf-input" id="ap-filtro"></select>
-      <div class="pf-hint" style="margin-top:2px">Organiza o produto na sua vitrine. Crie categorias em Configuração → Meus filtros.</div>
+      <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
+      <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
+      <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
+        <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Pods)" maxlength="30" style="margin-bottom:0">
+      </div>
+      <div class="pf-hint" id="ap-filtro-hint" style="margin-top:4px">Todo produto entra numa categoria — é assim que sua vitrine fica organizada, igual ao iFood.</div>
       <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
       <select class="pf-input" id="ap-payment">
         <option value="both">Pix e cartão</option>
@@ -964,10 +967,32 @@ async function toggleFeatured(id) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
   await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, featured: !p.featured });
 }
+// Edição de produto: categoria SEMPRE obrigatória (sem opção "sem categoria").
+// Se o produto ainda não tem categoria, mostra um placeholder desabilitado.
 function _filtroOptions(sel) {
-  return ['<option value="">— sem categoria —</option>']
-    .concat((_filtros || []).map(f => `<option value="${esc(f.id)}" ${f.id === sel ? 'selected' : ''}>${esc(f.nome)}</option>`))
-    .join('');
+  const opts = (_filtros || []).map(f => `<option value="${esc(f.id)}" ${f.id === sel ? 'selected' : ''}>${esc(f.nome)}</option>`);
+  if (!sel) opts.unshift('<option value="" disabled selected>Escolha a categoria…</option>');
+  return opts.join('');
+}
+// Cadastro de novo produto: categorias existentes + opção de criar uma nova ali mesmo.
+function _apFiltroOptions() {
+  const has = (_filtros || []).length;
+  const parts = [];
+  if (has) parts.push('<option value="" disabled selected>Escolha a categoria…</option>');
+  parts.push(...(_filtros || []).map(f => `<option value="${esc(f.id)}">${esc(f.nome)}</option>`));
+  parts.push(`<option value="__new__"${has ? '' : ' selected'}>+ criar nova categoria</option>`);
+  return parts.join('');
+}
+// Mostra o campo de nome quando o lojista escolhe "criar nova categoria".
+function _apFiltroChange() {
+  const sel = document.getElementById('ap-filtro');
+  const wrap = document.getElementById('ap-newcat-wrap');
+  const hint = document.getElementById('ap-filtro-hint');
+  if (!sel || !wrap) return;
+  const isNew = sel.value === '__new__';
+  wrap.style.display = isNew ? 'block' : 'none';
+  if (isNew && hint) hint.textContent = 'Crie a categoria e o produto já entra nela ✦';
+  if (isNew) { const nc = document.getElementById('ap-newcat'); if (nc) setTimeout(() => nc.focus(), 50); }
 }
 function renderProdutos(list) {
   _lastProdutos = list || _lastProdutos;
@@ -1096,6 +1121,7 @@ async function applyBatchFiltro() {
   const msg = document.getElementById('batch-msg');
   if (!_batchSel.size) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione ao menos um produto'; } return; }
   const fid = (document.getElementById('batch-filtro') || {}).value || null;
+  if (!fid) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha uma categoria pra aplicar'; } return; }
   if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'aplicando...'; }
   try {
     const r = await fetch('/api/webhook?action=filial_products_filtro', {
@@ -1165,7 +1191,15 @@ function toggleAddProduct() {
   const f = document.getElementById('add-product-form');
   const opening = f.style.display === 'none';
   f.style.display = opening ? 'block' : 'none';
-  if (opening) { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _filtroOptions(''); _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = ''; }
+  if (opening) {
+    const sel = document.getElementById('ap-filtro');
+    if (sel) sel.innerHTML = _apFiltroOptions();
+    // Loja nova (sem categorias) → já abre no modo "criar categoria" com aviso.
+    const hint = document.getElementById('ap-filtro-hint');
+    if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
+    try { _apFiltroChange(); } catch (e) {}
+    _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
+  }
 }
 
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
@@ -1489,8 +1523,19 @@ async function saveNewProduct() {
   const msg = document.getElementById('ap-msg');
   if (name.length < 2) { msg.textContent = 'põe o nome do produto'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
-  msg.textContent = 'salvando...';
-  const filtro_id = (document.getElementById('ap-filtro') || {}).value || null;
+  // CATEGORIA OBRIGATÓRIA — resolve a existente ou cria a nova ali mesmo (filtro-primeiro)
+  let filtro_id = (document.getElementById('ap-filtro') || {}).value || '';
+  if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
+    const novoNome = (document.getElementById('ap-newcat').value || '').trim();
+    if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'dá um nome pra categoria do produto (ex: Tabaco)'; return; }
+    msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando a categoria...';
+    const okCat = await _saveFiltro({ nome: novoNome }, true);
+    if (okCat !== true) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦ tenta de novo'; return; }
+    const novo = (_filtros || []).find(f => (f.nome || '').toLowerCase() === novoNome.toLowerCase()) || (_filtros || [])[_filtros.length - 1];
+    filtro_id = novo && novo.id;
+  }
+  if (!filtro_id) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha (ou crie) uma categoria pro produto'; return; }
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
@@ -1499,7 +1544,8 @@ async function saveNewProduct() {
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
     _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
-    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
     document.getElementById('add-product-form').style.display = 'none';
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
