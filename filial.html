@@ -731,8 +731,10 @@ function render(d) {
   _filialName = f.name || '';
   _featuredMode = f.featured_mode || 'auto';
   document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
-  const _share = f.founder_share_cents || 0;
-  document.getElementById('subtitle').textContent = _share > 0 ? (f.name + ' ✦ ganha R$ ' + (_share/100).toFixed(2).replace('.',',') + ' por venda') : f.name;
+  // Modelo antigo mostrava "ganha R$X por venda" (founder_share fixo). Com o split,
+  // o ganho é o líquido por pedido (mostrado em cada card). No topo, só o nome + plano.
+  const _planTier = (((f.plan || {}).label) || '').trim();
+  document.getElementById('subtitle').textContent = f.name + (_planTier ? ` ✦ plano ${_planTier}` : '');
   try { renderLojaProfile(f.profile, f.endereco); } catch(e) {}
   try { renderHorario((f.profile || {}).hours); } catch(e) {}
   try { renderSegs(f.segmentos); } catch(e) {}
@@ -1869,7 +1871,7 @@ function renderPedidoCard(p, isEntregue) {
       <div class="items">${items}</div>
       <div class="total">
         <span>Total: ${fmtBRL(p.total_cents)}</span>
-        <span class="ganho">+ ${fmtBRL(p.ganho_cents)} ✦ pra ti</span>
+        <span class="ganho">${fmtBRL(p.ganho_cents)} ✦ líquido pra você</span>
       </div>
     </div>
   `;

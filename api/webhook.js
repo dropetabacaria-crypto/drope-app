@@ -4556,21 +4556,11 @@ async function handleFilialPainel(req, res) {
       (prodCosts || []).forEach(p => { costMap[p.id] = { cost: p.cost_cents || 0, price: p.price_cents || 0 }; });
     }
 
+    const _commPctPedidos = (_planFor(filial).commission_pct) || 10;
     const pedidos = (orders || []).map(o => {
       const totalCents = Number(o.total_cents || 0);
-      // Calcula ganho meio-a-meio do lucro de cada item: ((price - cost) / 2) * qty
-      let ganhoCents = 0;
-      if (Array.isArray(o.items)) {
-        for (const it of o.items) {
-          const pid = it.product_id || it.id;
-          const meta = costMap[pid];
-          const qty = parseInt(it.qty || it.quantity) || 1;
-          if (meta && meta.price > 0 && meta.cost > 0) {
-            const lucroUnit = Math.max(0, meta.price - meta.cost);
-            ganhoCents += Math.floor(lucroUnit / 2) * qty;
-          }
-        }
-      }
+      // Ganho da loja = LÍQUIDO = total - comissão do DROPE (modelo de split).
+      const ganhoCents = totalCents - Math.round(totalCents * _commPctPedidos / 100);
       return {
         id: o.id,
         order_nsu: o.order_nsu,
@@ -13507,7 +13497,7 @@ async function handleCatalog(req, res) {
     });
 
     // Cache de 5min na CDN — o app cliente também tem cache localStorage local.
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
     return res.status(200).json({
       products,
       count: products.length,
