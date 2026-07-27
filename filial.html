@@ -170,6 +170,14 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 /* Overlays (PDV / balanço) */
 .sheet-ov { position: fixed; inset: 0; background: var(--bg); z-index: 90; display: none; flex-direction: column; }
 .sheet-ov.open { display: flex; }
+/* Ajuda contextual */
+.help-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 24px; }
+.help-ov.open { display: flex; }
+.help-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; padding: 22px; max-width: 380px; width: 100%; box-shadow: 0 18px 50px rgba(0,0,0,0.5); animation: helpPop .18s ease; }
+.help-emoji { font-size: 34px; margin-bottom: 6px; }
+@keyframes helpPop { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.help-q { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg3); color: var(--fg-dim); font-size: 12px; font-weight: 800; cursor: pointer; margin-left: 8px; vertical-align: middle; flex: 0 0 auto; }
+.help-q:hover { color: var(--lime); border-color: var(--lime); }
 .sheet-hd { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 0.5px solid var(--border); }
 .sheet-hd h3 { font-size: 17px; font-weight: 700; flex: 1; margin: 0; }
 .sheet-x { background: var(--bg3); border: 0; color: var(--fg); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
@@ -272,7 +280,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section sec-prod">
-    <h2>Meus produtos</h2>
+    <h2>Meus produtos<span class="help-q" onclick="helpShow('produtos',true)" title="O que é isso?">?</span></h2>
     <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
       <span style="font-size:22px;flex:0 0 auto">📦</span>
       <span style="flex:1;min-width:0">
@@ -327,7 +335,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-loja" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-        <h2>Minha loja</h2>
+        <h2>Minha loja<span class="help-q" onclick="helpShow('loja',true)" title="O que é isso?">?</span></h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
             <div id="loja-foto" style="width:64px;height:64px;border-radius:16px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;flex:0 0 auto">🏪</div>
@@ -391,7 +399,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-filtros" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-        <h2>Meus filtros</h2>
+        <h2>Minhas categorias<span class="help-q" onclick="helpShow('filtros',true)" title="O que é isso?">?</span></h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">Filtros são as categorias da sua vitrine. O cliente navega por elas no app. Toque numa sugestão pra adicionar, ou crie a sua.</div>
           <div class="pf-lbl">Sugestões pro seu segmento</div>
@@ -416,7 +424,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-qr" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-        <h2>QR da minha loja</h2>
+        <h2>QR da minha loja<span class="help-q" onclick="helpShow('qr',true)" title="O que é isso?">?</span></h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">imprima e cole no balcão/vitrine. o cliente aponta a câmera e cai direto na sua loja no DROPE — sem precisar procurar.</div>
           <div style="display:flex;gap:14px;align-items:center">
@@ -437,7 +445,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-func" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-        <h2>Funcionamento</h2>
+        <h2>Funcionamento<span class="help-q" onclick="helpShow('func',true)" title="O que é isso?">?</span></h2>
         <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
             <div style="flex:1;min-width:0">
@@ -465,7 +473,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-pagamento" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-          <h2>Pagamentos</h2>
+          <h2>Pagamentos<span class="help-q" onclick="helpShow('pagamento',true)" title="O que é isso?">?</span></h2>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
             <div id="mp-status" style="font-size:14px;color:var(--fg-dim);margin-bottom:12px">Verificando…</div>
             <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">
@@ -482,7 +490,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-funcionarios" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-          <h2>Funcionários</h2>
+          <h2>Funcionários<span class="help-q" onclick="helpShow('funcionarios',true)" title="O que é isso?">?</span></h2>
           <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Cadastre quem vende na sua loja e a comissão de cada um. O dinheiro das vendas cai na SUA conta; aqui o sistema calcula quanto pagar pra cada funcionário. Deixar vazio é ok — nem toda loja tem funcionário.</p>
           <div id="func-list" style="margin-bottom:14px"></div>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px">
@@ -508,7 +516,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-parceiros" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-          <h2>Parceiros / Indicadores</h2>
+          <h2>Parceiros / Indicadores<span class="help-q" onclick="helpShow('parceiros',true)" title="O que é isso?">?</span></h2>
           <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem. O cliente pede pelo app (botão "Seja parceiro" na sua loja); você aprova aqui e define a comissão de cada um.</p>
           <div id="parc-pend-wrap" style="margin-bottom:14px"></div>
           <div id="parc-aprov-wrap"></div>
@@ -519,7 +527,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-plano" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-          <h2>Meu plano</h2>
+          <h2>Meu plano<span class="help-q" onclick="helpShow('plano',true)" title="O que é isso?">?</span></h2>
           <div id="planos-wrap"></div>
         </div>
       </div>
@@ -562,6 +570,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
     <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">Finalizar venda ✦</button>
     <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- Overlay: Ajuda contextual (explica cada seção; 1ª vez automática + botão ?) -->
+<div class="help-ov" id="help-ov" onclick="if(event.target===this)closeHelp()">
+  <div class="help-card">
+    <div class="help-emoji" id="help-emoji">💡</div>
+    <h3 id="help-title" style="margin:0 0 8px;font-size:18px;color:var(--fg)"></h3>
+    <div id="help-body" style="font-size:14px;line-height:1.5;color:var(--fg-dim)"></div>
+    <button class="pf-btn full" onclick="closeHelp()" style="margin-top:16px">Entendi ✦</button>
   </div>
 </div>
 
@@ -1199,6 +1217,7 @@ function toggleAddProduct() {
     if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
     try { _apFiltroChange(); } catch (e) {}
     _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
+    try { helpShow('produtos'); } catch (e) {} // explica filtro-primeiro na 1ª vez
   }
 }
 
@@ -1894,11 +1913,40 @@ function openCfg(name) {
     if (name === 'parceiros') renderParceiros();
   } catch (e) {}
   const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  try { helpShow(name); } catch (e) {} // explicação automática na 1ª vez que abre a seção
 }
 function closeCfg() {
   document.querySelectorAll('.cfg-sec').forEach(s => s.style.display = 'none');
   const menu = document.getElementById('config-menu'); if (menu) menu.style.display = 'flex';
 }
+
+// ===== Ajuda contextual: explica cada seção. Aparece 1x automática + botão "?" =====
+const HELP = {
+  produtos: { emoji: '📦', title: 'Cadastrar produtos', body: 'Aqui você monta o cardápio da sua loja.<br><br><b>Primeiro a categoria, depois o produto.</b> Ao adicionar um produto, escolha (ou crie ali mesmo) uma categoria — ex: <i>Tabaco, Narguilé, Pods</i>. É a categoria que organiza sua vitrine, igual ao iFood.<br><br>Loja nova? O primeiro passo é criar sua primeira categoria e cadastrar o produto dentro dela ✦' },
+  loja: { emoji: '🏪', title: 'Minha loja', body: 'São os dados que o cliente vê no topo da sua página: nome, <b>logo</b>, <b>subcapa</b> (banner), descrição e endereço.<br><br>Foto e capa são opcionais — pode pular agora e colocar depois.' },
+  filtros: { emoji: '🗂️', title: 'Minhas categorias', body: 'Categorias são as seções da sua vitrine (Tabaco, Narguilé, Pods…).<br><br>Crie, dê uma imagem e use as setas <b>↑ ↓</b> pra definir a <b>ordem</b> que elas aparecem pro cliente. Todo produto entra numa categoria.' },
+  qr: { emoji: '📱', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
+  func: { emoji: '🕐', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
+  pagamento: { emoji: '💳', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
+  funcionarios: { emoji: '🧑‍💼', title: 'Funcionários', body: 'Cadastre quem vende na sua loja e defina a comissão: <b>% do lucro</b> ou <b>R$ fixo por venda</b> (nunca % da venda).<br><br>O sistema calcula quanto pagar pra cada um; o pagamento é feito por você.' },
+  parceiros: { emoji: '🤝', title: 'Parceiros / Indicadores', body: 'Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem.<br><br>O cliente pede pra ser parceiro, <b>você aprova</b> e define a comissão dele.' },
+  plano: { emoji: '⭐', title: 'Meu plano', body: 'Seu plano define a comissão por venda e os recursos disponíveis. Veja os detalhes e troque de plano aqui.' },
+};
+function helpShow(key, force) {
+  const h = HELP[key]; if (!h) return;
+  if (!force) {
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem('drope_help_seen_v1') || '{}'); } catch (e) {}
+    if (seen[key]) return;
+    seen[key] = 1;
+    try { localStorage.setItem('drope_help_seen_v1', JSON.stringify(seen)); } catch (e) {}
+  }
+  const em = document.getElementById('help-emoji'); if (em) em.textContent = h.emoji || '💡';
+  const t = document.getElementById('help-title'); if (t) t.textContent = h.title;
+  const b = document.getElementById('help-body'); if (b) b.innerHTML = h.body;
+  const ov = document.getElementById('help-ov'); if (ov) ov.classList.add('open');
+}
+function closeHelp() { const ov = document.getElementById('help-ov'); if (ov) ov.classList.remove('open'); }
 
 // ===== Pagamentos: conectar Mercado Pago (OAuth) =====
 function mpConnect() {
