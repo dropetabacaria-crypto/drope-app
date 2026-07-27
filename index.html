@@ -4476,6 +4476,11 @@
         <span class="lj-lbl">WhatsApp</span>
         <input id="lj-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 99999-9999" oninput="formatLjPhone(this); _ljBtn()">
       </label>
+      <label class="lj-field">
+        <span class="lj-lbl">CPF ou CNPJ</span>
+        <input id="lj-doc" class="card-input" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00" maxlength="18" oninput="formatLjDoc(this); _ljBtn()">
+        <span class="onboard-sub" style="font-size:11px;margin:2px 0 0">usamos pra emitir o repasse das suas vendas</span>
+      </label>
 
       <div class="lj-sec lj-sec-label">Seu acesso ao painel</div>
       <label class="lj-field">
@@ -6835,6 +6840,7 @@
     if (_ljSegs().length === 0) el.classList.add('active'); // sempre pelo menos 1
     _ljBtn();
   }
+  function _ljDocDigits() { return (document.getElementById('lj-doc')?.value || '').replace(/\D/g, ''); }
   function _ljBtn() {
     const d = _ljPhoneDigits();
     const email = (document.getElementById('lj-email')?.value || '').trim();
@@ -6842,15 +6848,29 @@
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const cepD = (document.getElementById('lj-cep')?.value || '').replace(/\D/g, '');
     const addr = (document.getElementById('lj-address')?.value || '').trim();
+    const doc = _ljDocDigits();
+    const docOk = (doc.length === 11 || doc.length === 14) && !/^(\d)\1+$/.test(doc);
     const ok = (document.getElementById('lj-store')?.value || '').trim().length >= 2
       && (document.getElementById('lj-city')?.value || '').trim().length >= 2
       && (document.getElementById('lj-uf')?.value || '').length === 2
       && (document.getElementById('lj-name')?.value || '').trim().length >= 2
       && (d.length === 10 || d.length === 11)
+      && docOk
       && cepD.length === 8 && addr.length >= 3
       && emailOk && pass.length >= 6;
     const b = document.getElementById('lj-submit');
     if (b) { b.disabled = !ok; b.style.opacity = ok ? 1 : 0.4; }
+  }
+  // Formata CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00) conforme digita.
+  function formatLjDoc(el) {
+    let d = el.value.replace(/\D/g, '').slice(0, 14);
+    let out = d;
+    if (d.length <= 11) {
+      out = d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      out = d.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    el.value = out;
   }
   function formatLjPhone(el) {
     let d = el.value.replace(/\D/g, '').slice(0, 11); let out = '';
@@ -6893,18 +6913,30 @@
     const password = (document.getElementById('lj-pass')?.value || '');
     const cep = (document.getElementById('lj-cep')?.value || '').replace(/\D/g, '');
     const address = (document.getElementById('lj-address')?.value || '').trim();
+    const doc = _ljDocDigits();
     const b = document.getElementById('lj-submit');
     if (b) { b.disabled = true; b.textContent = 'cadastrando...'; }
     try {
       const r = await fetch('/api/webhook?action=filial_register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password, cep, address, segmentos: _ljSegs() }),
+        body: JSON.stringify({ store_name: store, city, state: uf, founder_name: name, founder_phone: phone, email, password, doc, cep, address, segmentos: _ljSegs() }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
         _ljNewSlug = (d.filial && d.filial.slug) || '';
         // marca este aparelho como dono de tabacaria → mostra "Meu painel" no perfil
         try { if (_ljNewSlug) localStorage.setItem('drope_lojista_slug', _ljNewSlug); } catch (e) {}
+        // Auto-login: guarda a sessão que o backend criou e cai DIRETO no painel.
+        if (d.token && _ljNewSlug) {
+          try {
+            localStorage.setItem('drope_filial_session_v1', JSON.stringify({ slug: _ljNewSlug, token: d.token }));
+            localStorage.setItem('drope_filial_email', email);
+          } catch (e) {}
+          if (b) b.textContent = 'entrando no painel...';
+          location.href = '/' + encodeURIComponent(_ljNewSlug) + '/painel';
+          return;
+        }
+        // Fallback (sem token): mostra a tela de "loja criada" com login manual.
         const msg = document.getElementById('lj-done-msg');
         if (msg) msg.textContent = `A loja ${(d.filial && d.filial.name) || ''} foi criada.`;
         document.getElementById('lojista-form-wrap').style.display = 'none';
@@ -6922,7 +6954,7 @@
     location.href = slug ? ('/' + encodeURIComponent(slug) + '/painel') : '/filial.html';
   }
   function _resetLojistaForm() {
-    ['lj-store', 'lj-city', 'lj-name', 'lj-phone', 'lj-email', 'lj-pass', 'lj-cep', 'lj-address'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['lj-store', 'lj-city', 'lj-name', 'lj-phone', 'lj-email', 'lj-pass', 'lj-cep', 'lj-address', 'lj-doc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const uf = document.getElementById('lj-uf'); if (uf) uf.value = '';
     const fw = document.getElementById('lojista-form-wrap'); if (fw) fw.style.display = 'block';
     const dw = document.getElementById('lojista-done-wrap'); if (dw) dw.style.display = 'none';

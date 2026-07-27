@@ -13236,6 +13236,7 @@ async function handleFilialRegister(req, res) {
     const password = String(body.password || '');
     const cep = String(body.cep || '').replace(/\D/g, '');
     const address = String(body.address || '').trim();
+    const doc = String(body.doc || '').replace(/\D/g, ''); // CPF (11) ou CNPJ (14)
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome da loja inválido' });
     if (city.length < 2) return res.status(400).json({ ok: false, error: 'cidade inválida' });
     if (state.length !== 2) return res.status(400).json({ ok: false, error: 'UF inválida' });
@@ -13245,6 +13246,9 @@ async function handleFilialRegister(req, res) {
     if (address.length < 3) return res.status(400).json({ ok: false, error: 'endereço inválido' });
     if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
     if (password.length < 6) return res.status(400).json({ ok: false, error: 'senha precisa de pelo menos 6 caracteres' });
+    if (doc.length !== 11 && doc.length !== 14) return res.status(400).json({ ok: false, error: 'CPF ou CNPJ inválido' });
+    if (/^(\d)\1+$/.test(doc)) return res.status(400).json({ ok: false, error: 'CPF ou CNPJ inválido' });
+    const docType = doc.length === 14 ? 'cnpj' : 'cpf';
     if (!founderPhone.startsWith('55')) founderPhone = '55' + founderPhone;
     // Geocodifica o CEP da loja (lat/lng) pro cálculo de proximidade no app
     let geo = null;
@@ -13255,6 +13259,8 @@ async function handleFilialRegister(req, res) {
       return res.status(409).json({ ok: false, error: 'já existe uma loja com esse email' });
     }
     const pass = _ljHashPassword(password);
+    // Já cria uma sessão no cadastro → o lojista cai DIRETO no painel (sem re-login).
+    const sessionToken = crypto.randomBytes(24).toString('hex');
     // slug a partir do nome (único)
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'loja';
@@ -13274,14 +13280,16 @@ async function handleFilialRegister(req, res) {
       metadata: {
         self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment',
         payment: { provider: null, account_id: null, status: 'not_connected' },
-        login: { email, pass_salt: pass.salt, pass_hash: pass.hash },
+        login: { email, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _sha256hex(sessionToken), session_at: new Date().toISOString() },
+        fiscal: { doc, doc_type: docType },
         segmentos: _normSegmentos(body.segmentos),
         endereco: { cep, address, city, state },
         geo: geo && geo.lat ? { lat: geo.lat, lng: geo.lng, cep, neigh: geo.neigh || null, street: geo.street || null } : { lat: null, lng: null, cep },
       },
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
-    return res.status(200).json({ ok: true, filial: { slug: row.slug, name: row.name, status: row.status } });
+    // token de sessão → app salva e entra direto no painel
+    return res.status(200).json({ ok: true, filial: { slug: row.slug, name: row.name, status: row.status }, token: sessionToken });
   } catch (e) {
     console.error('[filial_register] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
