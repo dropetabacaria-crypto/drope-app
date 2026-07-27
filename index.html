@@ -6367,6 +6367,7 @@
             address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
             scheduled: _scheduledInfo(),
+            ambassador_ref: getAmbassadorRef() || undefined,
           }),
         });
         const sd = await saveResp.json().catch(() => ({}));

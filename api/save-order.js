@@ -206,11 +206,27 @@ module.exports = async function handler(req, res) {
       } catch (e) { console.error('[save-order] operador:', e.message); }
     }
 
+    // Embaixador/afiliado: resolve o ref_code do link (?ref=) → ambassador_id, pra
+    // o webhook creditar a comissão. (Antes só o InfinitePay gravava isso.)
+    let ambassadorRef = null, ambassadorId = null;
+    if (body.ambassador_ref) {
+      ambassadorRef = String(body.ambassador_ref).toUpperCase().slice(0, 40);
+      try {
+        const ar = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(ambassadorRef)}&status=eq.active&select=id`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        ).then(r => r.ok ? r.json() : []);
+        if (Array.isArray(ar) && ar[0] && ar[0].id) ambassadorId = ar[0].id;
+      } catch (e) { console.error('[save-order] ambassador:', e.message); }
+    }
+
     const orderRow = {
       order_nsu,
       status,
       payment_method,
       ...(resolvedFilialId ? { filial_id: resolvedFilialId } : {}),
+      ...(ambassadorRef ? { ambassador_ref: ambassadorRef } : {}),
+      ...(ambassadorId ? { ambassador_id: ambassadorId } : {}),
       subtotal_cents: Math.round(subtotal * 100),
       delivery_fee_cents: Math.round(delivery_fee * 100),
       total_cents: Math.round(total * 100),

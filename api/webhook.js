@@ -16057,18 +16057,16 @@ async function handleMPWebhook(req, res) {
     const payerEmail = payment.payer?.email || '';
     const payerName = [payment.payer?.first_name, payment.payer?.last_name].filter(Boolean).join(' ') || '';
 
-    // Marca pedido como PAGO no Supabase
+    // Marca pedido como PAGO (idempotente: só transiciona quem NÃO está paid) e
+    // captura embaixador/cliente do pedido pra creditar a comissão.
+    let mpCustomerId = null, mpOrderId = null, mpAmbassadorId = null, mpAmbassadorRef = '', mpTransitioned = false;
     if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
       try {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}`,
+        const upRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}&status=neq.paid`,
           {
             method: 'PATCH',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json',
-            },
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
             body: JSON.stringify({
               status: 'paid',
               payment_confirmed_at: new Date().toISOString(),
@@ -16078,10 +16076,50 @@ async function handleMPWebhook(req, res) {
             }),
           }
         );
-        console.log('[MP Webhook] order updated:', orderNsu);
+        const upd = await upRes.json();
+        if (Array.isArray(upd) && upd[0]) {
+          mpTransitioned = true;
+          mpCustomerId = upd[0].customer_id || null;
+          mpOrderId = upd[0].id || null;
+          mpAmbassadorId = upd[0].ambassador_id || null;
+          mpAmbassadorRef = upd[0].ambassador_ref || '';
+          console.log('[MP Webhook] order paid:', orderNsu);
+        } else {
+          console.log('[MP Webhook] order já estava paga (idempotente):', orderNsu);
+        }
       } catch (e) {
         console.error('[MP Webhook] Supabase error:', e.message);
       }
+    }
+
+    // ===== PROGRAMA EMBAIXADOR ✦ comissão (10%) — igual ao InfinitePay, só na 1ª confirmação =====
+    if (mpTransitioned) {
+      try {
+        const H2 = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+        let effectiveAmbId = mpAmbassadorId || null;
+        const effectiveRef = (mpAmbassadorRef || '').toUpperCase();
+        if (!effectiveAmbId && effectiveRef) {
+          const ambRows = await (await fetch(`${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(effectiveRef)}&status=eq.active&select=id`, { headers: H2 })).json();
+          if (Array.isArray(ambRows) && ambRows[0]?.id) effectiveAmbId = ambRows[0].id;
+        }
+        // cola cliente ao embaixador (vitalício do 1º)
+        if (mpCustomerId) {
+          const custRows = await (await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${mpCustomerId}&select=referred_by_ambassador_id`, { headers: H2 })).json();
+          const existingAmb = Array.isArray(custRows) && custRows[0]?.referred_by_ambassador_id;
+          if (existingAmb) effectiveAmbId = existingAmb;
+          else if (effectiveAmbId) {
+            await fetch(`${SUPABASE_URL}/rest/v1/drope_customers?id=eq.${mpCustomerId}`, { method: 'PATCH', headers: H2, body: JSON.stringify({ referred_by_ambassador_id: effectiveAmbId, referred_at: new Date().toISOString() }) });
+          }
+        }
+        if (effectiveAmbId && amountCents > 0) {
+          const commissionCents = Math.round(amountCents * 0.10);
+          await fetch(`${SUPABASE_URL}/rest/v1/drope_ambassador_commissions`, {
+            method: 'POST', headers: H2,
+            body: JSON.stringify({ ambassador_id: effectiveAmbId, order_id: mpOrderId, order_nsu: orderNsu, customer_id: mpCustomerId, order_total_cents: amountCents, commission_cents: commissionCents, commission_percent: 10.00, status: 'pending' }),
+          });
+          console.log('[MP Webhook][Embaixador] comissão criada amb=' + effectiveAmbId + ' order=' + orderNsu);
+        }
+      } catch (eAmb) { console.error('[MP Webhook][Embaixador] err:', eAmb.message); }
     }
 
     // Notifica WhatsApp do Lucas
