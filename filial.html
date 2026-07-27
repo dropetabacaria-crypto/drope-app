@@ -334,9 +334,18 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <div style="flex:1">
               <button class="pf-btn sec" onclick="document.getElementById('loja-foto-input').click()">Foto da loja</button>
               <input type="file" id="loja-foto-input" accept="image/*" style="display:none" onchange="onLojaFoto(this)">
-              <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">Aparece pro cliente no topo da sua página</div>
+              <div style="font-size:11px;color:var(--fg-dim);margin-top:6px">O logo redondo, aparece no topo da sua página</div>
             </div>
           </div>
+
+          <label class="pf-lbl">Subcapa (banner do topo)</label>
+          <div id="loja-cover" style="width:100%;height:120px;border-radius:14px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-dim);margin-bottom:8px;background-size:cover;background-position:center">toque pra adicionar uma imagem larga</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('loja-cover-input').click()">Enviar subcapa</button>
+            <button class="pf-btn sec" id="loja-cover-remove" style="flex:0 0 auto;display:none" onclick="removeLojaCover()">Remover</button>
+          </div>
+          <input type="file" id="loja-cover-input" accept="image/*" style="display:none" onchange="onLojaCover(this)">
+          <div style="font-size:11px;color:var(--fg-dim);margin:-6px 0 14px">Imagem larga que aparece atrás do logo (estilo iFood). Ideal ~1200×400.</div>
           <label class="pf-lbl">O que sua loja vende?</label>
           <div id="seg-row" style="display:flex;gap:10px;margin-bottom:4px">
             <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
@@ -1662,6 +1671,8 @@ async function saveBalanco() {
 // ===== Minha loja: foto + bio + endereço + APARÊNCIA DA PÁGINA (tema/cor) =====
 // A aparência (tema/cor) é da PÁGINA que o cliente vê, NÃO deste painel.
 let _lojaPhotoB64 = null;
+let _lojaCoverB64 = null;
+let _removeCover = false;
 let _pageTheme = 'dark';
 let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
@@ -2005,6 +2016,29 @@ async function onLojaFoto(input) {
     renderLojaPreview();
   } catch (e) {}
 }
+async function onLojaCover(input) {
+  const file = input.files && input.files[0]; input.value = '';
+  if (!file) return;
+  try {
+    const b64 = await _fileToDataUrl(file, 1200);
+    _lojaCoverB64 = b64; _removeCover = false;
+    const el = document.getElementById('loja-cover');
+    if (el) { el.style.backgroundImage = `url('${b64}')`; el.textContent = ''; }
+    const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = '';
+    document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
+    document.getElementById('loja-msg').textContent = 'subcapa pronta — clica em salvar';
+    renderLojaPreview();
+  } catch (e) {}
+}
+function removeLojaCover() {
+  _lojaCoverB64 = null; _removeCover = true;
+  const el = document.getElementById('loja-cover');
+  if (el) { el.style.backgroundImage = ''; el.textContent = 'toque pra adicionar uma imagem larga'; }
+  const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = 'none';
+  document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
+  document.getElementById('loja-msg').textContent = 'subcapa removida — clica em salvar';
+  renderLojaPreview();
+}
 async function saveLojaProfile() {
   const bio = (document.getElementById('loja-bio').value || '').trim().slice(0, 80);
   const cep = (document.getElementById('loja-cep').value || '').replace(/\D/g, '');
@@ -2015,6 +2049,8 @@ async function saveLojaProfile() {
   const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, whats, theme: _pageTheme, segmentos: _segs() };
   if (_pageAccent) payload.accent = _pageAccent;
   if (_lojaPhotoB64) payload.photo_base64 = _lojaPhotoB64;
+  if (_lojaCoverB64) payload.cover_base64 = _lojaCoverB64;
+  if (_removeCover) payload.remove_cover = true;
   if (cep.length === 8) { payload.cep = cep; payload.address = address; }
   try {
     const r = await fetch('/api/webhook?action=filial_profile_save', {
@@ -2022,7 +2058,7 @@ async function saveLojaProfile() {
       body: JSON.stringify(payload),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { _lojaPhotoB64 = null; msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦'; }
+    if (r.ok && d.ok) { _lojaPhotoB64 = null; _lojaCoverB64 = null; _removeCover = false; msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦'; }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
 }
@@ -2044,6 +2080,13 @@ function renderLojaProfile(prof, endereco) {
     if (!_lojaPhotoB64) {
       const el = document.getElementById('loja-foto');
       if (el) el.innerHTML = `<img src="${prof.photo_url}" style="width:100%;height:100%;object-fit:cover" draggable="false">`;
+    }
+  }
+  if (!_lojaCoverB64 && !_removeCover) {
+    const cv = document.getElementById('loja-cover'), rm = document.getElementById('loja-cover-remove');
+    if (cv) {
+      if (prof.cover_url) { cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = ''; if (rm) rm.style.display = ''; }
+      else { cv.style.backgroundImage = ''; cv.textContent = 'toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
     }
   }
   setPageTheme(prof.theme || 'dark');

@@ -321,6 +321,16 @@
     backdrop-filter: blur(10px);
     border: 1px solid rgba(245, 243, 255, 0.12);
   }
+  .hero .hero-topseller {
+    display: inline-block;
+    background: linear-gradient(135deg,#FF2D6F,#FF8533);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(255,45,111,0.4);
+  }
   .hero .emoji {
     text-align: center;
     font-size: 110px;
@@ -1062,6 +1072,31 @@
   .loja-card { position: relative; display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 14px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.32), 0 0 20px rgba(91,33,182,0.10); transition: transform .12s; overflow: hidden; }
   .loja-card:active { transform: scale(0.985); }
   .loja-card::after { content: ''; position: absolute; inset: 0; border-radius: 20px; background: linear-gradient(120deg, transparent 55%, rgba(176,38,255,0.08)); pointer-events: none; }
+  /* ===== Header de loja estilo iFood (subcapa + logo sobreposto + info row) ===== */
+  .lj-hd-cover { width: 100%; height: 118px; background-size: cover; background-position: center; }
+  .lj-hd-cover-ph { background: linear-gradient(120deg,#8C50FF 0%, #FF2D6F 55%, #FF8533 100%); }
+  .lj-hd-favbtn { position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.42); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
+  .lj-hd-favbtn svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; }
+  .lj-hd-favbtn.on svg { fill: #FF2D6F; stroke: #FF2D6F; }
+  .lj-hd-body { display: flex; align-items: flex-end; gap: 12px; padding: 0 16px 14px; margin-top: -30px; position: relative; }
+  .lj-hd-logo { width: 64px; height: 64px; border-radius: 18px; object-fit: cover; flex: 0 0 auto; border: 3px solid var(--card); background: var(--card); box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+  .lj-hd-logo-ph { display: flex; align-items: center; justify-content: center; font-size: 28px; background: linear-gradient(135deg,#8C50FF,#FF2D6F); }
+  .lj-hd-info { flex: 1; min-width: 0; padding-bottom: 2px; }
+  .lj-hd-titlerow { display: flex; align-items: center; gap: 8px; }
+  .lj-hd-name { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 19px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lj-hd-trocar { color: var(--store-accent,var(--lime)); font-weight: 700; font-size: 12px; flex: 0 0 auto; cursor: pointer; }
+  .lj-hd-bio { font-size: 12.5px; color: var(--text-dim); line-height: 1.35; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lj-hd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .lj-hd-chip { font-size: 11px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+  .lj-hd-chip.open { color: #4ADE80; border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.1); }
+  .lj-hd-chip.closed { color: #FF6B6B; border-color: rgba(255,107,107,0.35); background: rgba(255,107,107,0.1); }
+  /* Barra de categorias compacta sticky (aparece ao rolar) */
+  .loja-cat-sticky { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; z-index: 60; display: none; background: var(--bg); border-bottom: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+  .loja-cat-sticky.show { display: block; }
+  .loja-cat-sticky-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 11px 16px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .loja-cat-sticky-scroll::-webkit-scrollbar { display: none; }
+  .lcp { flex: 0 0 auto; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text-dim); border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+  .lcp.active { background: var(--store-accent, var(--lime)); color: #0A0A14; border-color: transparent; }
   .loja-cover { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
   .loja-cover-ph { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 30px; background: linear-gradient(135deg,#8C50FF,#FF2D6F); }
   .loja-body { flex: 1; min-width: 0; }
@@ -4303,7 +4338,7 @@
     </div>
 
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
-    <div id="home-loja-bar" style="display:flex;align-items:center;gap:14px;margin:0 20px 6px;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,0.25)"></div>
+    <div id="home-loja-bar" style="position:relative;margin:0 16px 10px;border-radius:20px;overflow:hidden;background:var(--card);border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,0.25)"></div>
 
     <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
     <div class="search-bar-wrap">
@@ -4322,6 +4357,9 @@
         </button>
       </div>
     </div>
+
+    <!-- Barra de categorias COMPACTA sticky (aparece ao rolar, estilo iFood) -->
+    <div class="loja-cat-sticky" id="loja-cat-sticky"><div class="loja-cat-sticky-scroll" id="loja-cat-sticky-scroll"></div></div>
 
     <!-- DROPE HOME v2 — Carrossel horizontal de marcas (substitui chips redundantes embaixo) -->
     <div class="brands-wrap" id="brands-wrap" style="display:none">
@@ -8051,22 +8089,44 @@
     const bio = loja.bio;
     const on = loja.open_now;
     const lh = loja.hours || {};
-    const statusLine = (on === true)
-      ? `<span style="color:#4ADE80;font-weight:700">aberta agora</span>${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}`
+    const statusChip = (on === true)
+      ? `<span class="lj-hd-chip open">● aberta${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}</span>`
       : (on === false)
-        ? `<span style="color:#FF6B6B;font-weight:700">fechada agora</span>${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}`
-        : 'aberto ✦ entrega em minutos';
-    const img = loja.photo_url
-      ? `<img src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="width:60px;height:60px;border-radius:16px;object-fit:cover;flex:0 0 auto;box-shadow:0 4px 14px rgba(0,0,0,0.3)">`
-      : `<div style="width:60px;height:60px;border-radius:16px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8C50FF,#FF2D6F);font-size:28px"></div>`;
-    el.innerHTML = `${img}
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(nm)}</div>
-          <span onclick="event.stopPropagation();trocarFilialCliente()" style="color:var(--store-accent,var(--lime));font-weight:700;font-size:12px;flex:0 0 auto;cursor:pointer">trocar ›</span>
+        ? `<span class="lj-hd-chip closed">● fechada${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}</span>`
+        : `<span class="lj-hd-chip open">● aberta</span>`;
+    // distância/eta se o app já sabe a geo do cliente (senão fica genérico)
+    let etaTxt = 'entrega em minutos', kmTxt = '';
+    try {
+      const src = (typeof _currentStore === 'function' && _currentStore()) || null;
+      const km = src && typeof src._km === 'number' ? src._km : null;
+      if (km != null) { kmTxt = km < 1 ? Math.round(km * 1000) + ' m' : km.toFixed(1).replace('.', ',') + ' km'; etaTxt = (typeof _etaFromKm === 'function' && _etaFromKm(km)) || etaTxt; }
+    } catch (e) {}
+    const infoChips = [
+      `<span class="lj-hd-chip"> ${escapeHtml(etaTxt)}</span>`,
+      kmTxt ? `<span class="lj-hd-chip"> ${escapeHtml(kmTxt)}</span>` : '',
+      `<span class="lj-hd-chip"> frete a combinar</span>`,
+    ].filter(Boolean).join('');
+    const cover = loja.cover_url
+      ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
+      : `<div class="lj-hd-cover lj-hd-cover-ph"></div>`;
+    const logo = loja.photo_url
+      ? `<img class="lj-hd-logo" src="${escapeHtml(loja.photo_url)}" alt="" draggable="false">`
+      : `<div class="lj-hd-logo lj-hd-logo-ph">🏪</div>`;
+    const fav = (typeof _isFavStore === 'function' && loja.slug) ? _isFavStore(loja.slug) : false;
+    el.innerHTML = `${cover}
+      <div class="lj-hd-favbtn ${fav ? 'on' : ''}" onclick="event.stopPropagation();toggleFavStore('${escapeHtml(loja.slug || '')}',this)" title="Favoritar loja">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      </div>
+      <div class="lj-hd-body">
+        ${logo}
+        <div class="lj-hd-info">
+          <div class="lj-hd-titlerow">
+            <div class="lj-hd-name">${escapeHtml(nm)}</div>
+            <span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>
+          </div>
+          ${bio ? `<div class="lj-hd-bio">${escapeHtml(bio)}</div>` : ''}
+          <div class="lj-hd-chips">${statusChip}${infoChips}</div>
         </div>
-        ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : ''}
-        <div style="font-size:12px;color:var(--text-dim);margin-top:3px">${statusLine}</div>
       </div>`;
   }
   // Cliente pede pra ser parceiro/indicador da loja (precisa estar logado).
@@ -9382,6 +9442,40 @@
     row.style.gap = '12px'; row.style.overflowX = 'auto'; row.style.padding = '4px 0 14px'; row.style.alignItems = 'flex-start';
     row.style.webkitOverflowScrolling = 'touch';
     row.innerHTML = tudo + filtros.map(item).join('');
+    renderLojaCatSticky(filtros, cur);
+    _setupCatStickyToggle();
+  }
+  // Barra compacta (pílulas de texto) espelhando as categorias — usada no sticky ao rolar.
+  function renderLojaCatSticky(filtros, cur) {
+    const sc = document.getElementById('loja-cat-sticky-scroll');
+    if (!sc) return;
+    if (!filtros || !filtros.length) { sc.innerHTML = ''; const st = document.getElementById('loja-cat-sticky'); if (st) st.classList.remove('show'); return; }
+    const jid = id => id ? `'${String(id).replace(/'/g, '')}'` : 'null';
+    const pill = (id, nome) => `<button class="lcp ${(id || null) === (cur || null) ? 'active' : ''}" onclick="setLojaFiltro(${jid(id)})">${escapeHtml(nome)}</button>`;
+    sc.innerHTML = pill(null, 'Todos') + filtros.map(f => pill(f.id, f.nome || '')).join('');
+  }
+  let _catStickyBound = false;
+  function _setupCatStickyToggle() {
+    if (_catStickyBound) { _updateCatSticky(); return; }
+    _catStickyBound = true;
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => { _updateCatSticky(); ticking = false; });
+    }, { passive: true });
+  }
+  function _updateCatSticky() {
+    const st = document.getElementById('loja-cat-sticky');
+    const row = document.getElementById('loja-filtros-row');
+    const home = document.getElementById('home');
+    if (!st || !row) return;
+    // só na home ativa e com filtros
+    const onHome = home && home.classList.contains('active');
+    const hasFiltros = (document.getElementById('loja-cat-sticky-scroll') || {}).childElementCount > 0;
+    if (!onHome || !hasFiltros || row.style.display === 'none') { st.classList.remove('show'); return; }
+    const r = row.getBoundingClientRect();
+    // mostra quando a barra rica de categorias já saiu por cima do topo
+    st.classList.toggle('show', r.bottom < 8);
   }
   function setLojaFiltro(id) {
     homeState.filtroId = id || null;
@@ -9986,10 +10080,14 @@
     const latest = _featuredList();
     if (!latest.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
+    // "Mais pedido" (estilo iFood): o destaque com mais vendas (>0), se não estiver esgotado
+    let topSlug = null, topSold = 0;
+    latest.forEach(p => { const s = p.total_sold || 0; if (s > topSold && !_soldOut(p)) { topSold = s; topSlug = p.slug; } });
     wrap.innerHTML = latest.map(p => {
       const idx = products.findIndex(x => x.slug === p.slug);
       const labels = productLabels(p);
       const soldOut = _soldOut(p);
+      const topBadge = (p.slug === topSlug) ? `<div class="hero-topseller">🔥 Mais pedido</div>` : '';
       const visual = p.img
         ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
         : `<div class="emoji">${p.emoji || ''}</div>`;
@@ -10002,7 +10100,7 @@
         : `<span class="pink">${money(p.price)}</span>`;
       return `
         <div class="hero${soldOut ? ' sold-out' : ''}" onclick="openProduct(${idx})">
-          <div class="tag">destaque ✦</div>
+          ${topBadge || '<div class="tag">destaque ✦</div>'}
           ${visual}
           <div class="hero-name display">${escapeHtml(labels.hero)}${muted}</div>
           <div class="hero-sub">${sub}</div>
@@ -10035,6 +10133,8 @@
       b.classList.toggle('active', s === screen || (homeish && s === 'inicio'));
     });
     window.scrollTo(0, 0);
+    // barra de categorias sticky some ao trocar de tela (reavalia no próximo scroll)
+    { const _st = document.getElementById('loja-cat-sticky'); if (_st && screen !== 'home') _st.classList.remove('show'); }
     // tema da loja (claro/cor) vale só DENTRO da loja; fora volta pro DROPE dark
     const inStore = (screen === 'home' || screen === 'catalog' || screen === 'detail' || screen === 'cart' || screen === 'checkout');
     document.body.classList.toggle('in-loja', inStore);

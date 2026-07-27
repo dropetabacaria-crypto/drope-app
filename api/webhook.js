@@ -4911,6 +4911,13 @@ async function handleFilialProfileSave(req, res) {
       if (url) md.profile.photo_url = url + '?v=' + Date.now();
       else return res.status(502).json({ ok: false, error: 'falha ao salvar a foto' });
     }
+    // subcapa/banner da loja (imagem larga no topo da página, estilo iFood)
+    if (body.cover_base64) {
+      const url = await uploadToStorage(`filial-${filial.id}-cover`, String(body.cover_base64), 'image/jpeg');
+      if (url) md.profile.cover_url = url + '?v=' + Date.now();
+      else return res.status(502).json({ ok: false, error: 'falha ao salvar a subcapa' });
+    }
+    if (body.remove_cover) md.profile.cover_url = null;
     // endereço/CEP (edição pós-cadastro) → re-geocoda
     const cep = String(body.cep || '').replace(/\D/g, '');
     if (cep.length === 8) {
@@ -13620,7 +13627,7 @@ async function handleCatalog(req, res) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
       const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
-      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
+      lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, cover_url: prof.cover_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
         mp_connected: !!((((fr[0].metadata || {}).payment) || {}).access_token),
         filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0, shape: f.shape || 'rect' })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
