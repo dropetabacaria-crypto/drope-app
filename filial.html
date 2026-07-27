@@ -310,6 +310,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-item" onclick="openCfg('plano')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Meu plano</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão, mensalidade e recursos</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
+        <button class="cfg-item" onclick="confirmLogout()" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid rgba(255,45,111,0.35);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px;color:var(--pink)">Sair da conta</span><br><small style="color:var(--fg-dim);font-weight:400">Desconectar e trocar de loja</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
       </div>
 
       <!-- SEÇÃO: Minha loja -->
@@ -666,6 +669,7 @@ async function login() {
       FILIAL_SLUG = d.slug;
       ACCESS_CODE = d.token;
       try { localStorage.setItem(SESSION_KEY, JSON.stringify({ slug: d.slug, token: d.token })); } catch(_){}
+      try { localStorage.setItem('drope_filial_email', email); } catch(_){} // lembra o e-mail (senha nunca é salva)
       err.textContent = '';
       await loadData(true);
     } else {
@@ -677,6 +681,14 @@ function logout() {
   try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
   location.reload();
 }
+function confirmLogout() {
+  if (confirm('Sair da conta? Você vai precisar entrar de novo com email e senha pra voltar.')) logout();
+}
+// Lembra o último e-mail no formulário de login (senha nunca é salva).
+try {
+  const _le = localStorage.getItem('drope_filial_email');
+  if (_le) { const _el = document.getElementById('login-email'); if (_el && !_el.value) _el.value = _le; }
+} catch (_) {}
 
 async function loadData(showLoading) {
   if (!ACCESS_CODE || !FILIAL_SLUG) return;
@@ -1598,11 +1610,15 @@ async function mpRefreshStatus() {
     if (el) el.textContent = 'Não deu pra verificar agora.';
   }
 }
-// Feedback ao voltar do OAuth (?mp=ok|erro)
+// Feedback ao voltar do OAuth (?mp=ok|erro) — só UMA vez (limpa o param da URL
+// pra não repetir o alerta a cada reload).
 (function () {
   try {
     const q = new URLSearchParams(location.search);
     const mp = q.get('mp');
+    if (!mp) return;
+    // remove o ?mp=... da URL imediatamente pra o reload não re-disparar
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
     if (mp === 'ok') { setTimeout(() => { try { openCfg('pagamento'); } catch (e) {} alert('Mercado Pago conectado! ✦'); }, 400); }
     else if (mp === 'erro') { setTimeout(() => alert('Não deu pra conectar o Mercado Pago. Tenta de novo.'), 400); }
   } catch (e) {}
