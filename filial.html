@@ -607,7 +607,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
       <div id="batch-msg" style="font-size:11px;color:var(--fg-dim);min-height:12px;margin-top:6px"></div>
     </div>
-    <div class="prod-count" id="prod-count"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div class="prod-count" id="prod-count" style="flex:1"></div>
+      <span style="font-size:11px;color:var(--fg-dim);flex:0 0 auto">Ordenar:</span>
+      <select id="prod-sort" onchange="setProdSort(this.value)" style="background:var(--bg2);border:0.5px solid var(--border);color:var(--fg);padding:8px 10px;border-radius:10px;font-size:12.5px;font-family:inherit;cursor:pointer;flex:0 0 auto">
+        <option value="recentes">Mais recentes</option>
+        <option value="mais-vendidos">Mais vendidos</option>
+        <option value="menos-vendidos">Menos vendidos</option>
+        <option value="az">Nome (A–Z)</option>
+        <option value="estoque-baixo">Menor estoque</option>
+        <option value="maior-preco">Maior preço</option>
+        <option value="menor-preco">Menor preço</option>
+      </select>
+    </div>
     <div id="produtos-list"></div>
   </div>
 </div>
@@ -882,6 +894,19 @@ function renderProdutos(list) {
     if (f === 'ocultos') return !!p.hidden;
     return true;
   });
+  // ordenação (separada dos filtros)
+  const sortBy = _prodSort || 'recentes';
+  items.sort((a, b) => {
+    if (sortBy === 'az') return String(a.name || '').localeCompare(String(b.name || ''), 'pt', { sensitivity: 'base' });
+    if (sortBy === 'mais-vendidos') return (b.total_sold || 0) - (a.total_sold || 0);
+    if (sortBy === 'menos-vendidos') return (a.total_sold || 0) - (b.total_sold || 0);
+    if (sortBy === 'estoque-baixo') return (a.stock || 0) - (b.stock || 0);
+    if (sortBy === 'maior-preco') return (b.price_cents || 0) - (a.price_cents || 0);
+    if (sortBy === 'menor-preco') return (a.price_cents || 0) - (b.price_cents || 0);
+    const ta = a.created_at ? Date.parse(a.created_at) : (a.id || 0);
+    const tb = b.created_at ? Date.parse(b.created_at) : (b.id || 0);
+    return tb - ta; // recentes primeiro
+  });
   const cnt = document.getElementById('prod-count');
   const filtered = q || f !== 'todos';
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
@@ -908,7 +933,7 @@ function renderProdutos(list) {
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
           <div class="prod-name">${p.featured ? '<span style="color:var(--yellow)">★</span> ' : ''}${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
-          <div class="prod-sub">${priceHtml}${meta ? ' · ' + esc(meta) : ''}</div>
+          <div class="prod-sub">${priceHtml}${meta ? ' · ' + esc(meta) : ''}${(p.total_sold || 0) > 0 ? ' · ' + p.total_sold + ' vendido' + (p.total_sold > 1 ? 's' : '') : ''}</div>
         </div>
         <div class="stepper">
           <button onclick="bumpStock(${p.id},-1)" title="menos">−</button>
@@ -992,6 +1017,8 @@ async function applyBatchFiltro() {
   } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
 }
 let _prodFilter = 'todos';
+let _prodSort = 'recentes';
+function setProdSort(v) { _prodSort = v; renderProdutos(); }
 function setProdFilter(f, el) {
   _prodFilter = f;
   document.querySelectorAll('#prod-filters .fchip').forEach(b => b.classList.toggle('active', b === el));

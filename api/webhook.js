@@ -4596,7 +4596,7 @@ async function handleFilialPainel(req, res) {
 
     // Produtos da loja (pro lojista gerenciar estoque/preço)
     const prods = await sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes&order=name.asc&limit=300`);
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`);
     const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
       stock: p.qty_available, hidden: !!p.hidden,
@@ -4609,6 +4609,8 @@ async function handleFilialPainel(req, res) {
       featured: !!((p.metadata || {}).featured),
       pix_only: (typeof (p.metadata || {}).pix_only === 'boolean') ? (p.metadata).pix_only : ((p.category || 'pod') === 'pod'),
       cost_cents: ((p.metadata || {}).cost_cents) || null,
+      total_sold: p.total_sold || 0,
+      created_at: p.created_at || null,
       barcode: p.barcode || null,
       barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
