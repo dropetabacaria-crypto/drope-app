@@ -8050,7 +8050,31 @@
         </div>
         ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : ''}
         <div style="font-size:12px;color:var(--text-dim);margin-top:3px">${statusLine}</div>
+        <div style="margin-top:6px"><span onclick="event.stopPropagation();sejaParceiro()" style="color:var(--store-accent,var(--lime));font-weight:700;font-size:11.5px;cursor:pointer">✦ seja parceiro da loja</span></div>
       </div>`;
+  }
+  // Cliente pede pra ser parceiro/indicador da loja (precisa estar logado).
+  async function sejaParceiro() {
+    if (typeof isGuest === 'function' && isGuest()) {
+      toast('entra na sua conta pra virar parceiro ✦');
+      try { openCustomerLogin(); } catch (e) {}
+      return;
+    }
+    const loja = _currentStore();
+    if (!loja || !loja.slug) { toast('abre uma loja primeiro ✦'); return; }
+    if (!confirm(`Quer ser parceiro da ${loja.name || 'loja'}?\n\nVocê divulga por um link e ganha comissão nas vendas que trouxer. A loja aprova seu pedido.`)) return;
+    try {
+      const r = await fetch('/api/webhook?action=filial_parceiro_request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial_slug: loja.slug, nome: profile.name || '', phone: profile.phone || '', email: profile.email || '' }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        if (d.already === 'approved') toast('você já é parceiro dessa loja ✦');
+        else if (d.already === 'pending') toast('seu pedido já está aguardando aprovação ✦');
+        else toast('pedido enviado! ✦ a loja vai aprovar');
+      } else { toast(d.error || 'não deu pra enviar ✦ tenta de novo'); }
+    } catch (e) { toast('erro de rede ✦ tenta de novo'); }
   }
   // ===== Pedido agendado (loja fechada) =====
   // A compra é sempre permitida; quando a loja está fechada, o pedido entra na fila

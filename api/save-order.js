@@ -201,14 +201,16 @@ module.exports = async function handler(req, res) {
     if (resolvedFilialId) {
       try {
         const fr = await fetch(
-          `${SUPABASE_URL}/rest/v1/drope_filiais?id=eq.${resolvedFilialId}&select=metadata->funcionarios`,
+          `${SUPABASE_URL}/rest/v1/drope_filiais?id=eq.${resolvedFilialId}&select=metadata->funcionarios,metadata->parceiros`,
           { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
         ).then(r => r.ok ? r.json() : []);
         const funcs = (Array.isArray(fr) && fr[0] && fr[0].funcionarios) || [];
+        const parceiros = ((Array.isArray(fr) && fr[0] && fr[0].parceiros) || []).filter(p => p && p.status === 'approved');
         const oper = funcs.find(f => f && f.operador);
         if (oper) operadorId = oper.id;
         if (refUp) {
-          const byRef = funcs.find(f => f && (f.ref_code || '').toUpperCase() === refUp);
+          // link de indicação: funcionário OU parceiro aprovado
+          const byRef = funcs.concat(parceiros).find(f => f && (f.ref_code || '').toUpperCase() === refUp);
           if (byRef) refEmployeeId = byRef.id;
         }
       } catch (e) { console.error('[save-order] colaborador:', e.message); }

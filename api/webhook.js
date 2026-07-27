@@ -4605,9 +4605,11 @@ async function handleFilialPainel(req, res) {
       barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
 
-    // ===== Comissões dos funcionários (do mês) =====
+    // ===== Comissões (funcionários + parceiros aprovados) do mês =====
     const _funcs = Array.isArray((filial.metadata || {}).funcionarios) ? (filial.metadata || {}).funcionarios : [];
-    const comissoes = _funcs.map(f => {
+    const _parcAll = Array.isArray((filial.metadata || {}).parceiros) ? (filial.metadata || {}).parceiros : [];
+    const _parcAprov = _parcAll.filter(p => p && p.status === 'approved');
+    const comissoes = _funcs.concat(_parcAprov).map(f => {
       const myOrders = (orders || []).filter(o => ((o.metadata || {}).employee_id) === f.id);
       let comissaoCents = 0;
       if (f.tipo === 'fixo') {
@@ -4645,6 +4647,7 @@ async function handleFilialPainel(req, res) {
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
         filtros: (filial.metadata || {}).filtros || [],
         funcionarios: (filial.metadata || {}).funcionarios || [],
+        parceiros: (filial.metadata || {}).parceiros || [],
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
       },
@@ -6686,6 +6689,72 @@ async function handleFilialFuncionarioSave(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, funcionarios: funcs });
   } catch (e) { console.error('[filial_funcionario_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
+// Cria um pedido 'pending' em drope_filiais.metadata.parceiros; a loja aprova depois.
+async function handleFilialParceiroRequest(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const slug = String(body.filial || body.filial_slug || '').toLowerCase().trim();
+    const filial = await _filialBySlugRead(slug);
+    if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
+    const nome = String(body.nome || '').trim().slice(0, 40);
+    const phone = String(body.phone || '').replace(/\D/g, '').slice(0, 13);
+    const email = String(body.email || '').trim().slice(0, 80);
+    if (nome.length < 2 || phone.length < 10) return res.status(400).json({ ok: false, error: 'nome e telefone válidos são obrigatórios' });
+    const md = filial.metadata || {};
+    let parceiros = Array.isArray(md.parceiros) ? md.parceiros : [];
+    const existing = parceiros.find(p => (p.phone || '') === phone);
+    if (existing) return res.status(200).json({ ok: true, already: existing.status || 'pending' });
+    parceiros.push({ id: 'pc-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), nome, phone, email, status: 'pending', requested_at: new Date().toISOString() });
+    md.parceiros = parceiros;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, status: 'pending' });
+  } catch (e) { console.error('[filial_parceiro_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_parceiro_manage — LOJISTA aprova/recusa/edita/exclui parceiro.
+async function handleFilialParceiroManage(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    let parceiros = Array.isArray(md.parceiros) ? md.parceiros : [];
+    const op = body.op || 'approve';
+    const p = parceiros.find(x => x.id === body.id);
+    if (op === 'delete' || op === 'reject') {
+      parceiros = parceiros.filter(x => x.id !== body.id);
+    } else if (op === 'approve' || op === 'save') {
+      if (!p) return res.status(404).json({ ok: false, error: 'parceiro não encontrado' });
+      p.tipo = (body.tipo === 'fixo') ? 'fixo' : 'pct_lucro';
+      let valor = Number(body.valor); p.valor = (isFinite(valor) && valor >= 0) ? valor : 0;
+      if (op === 'approve') {
+        p.status = 'approved'; p.approved_at = new Date().toISOString();
+        if (!p.ref_code) {
+          const base = String(p.nome || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'REF';
+          let code = base + Math.floor(Math.random() * 90 + 10); let guard = 0;
+          const taken = (c) => parceiros.some(x => x.id !== p.id && x.ref_code === c) || (Array.isArray(md.funcionarios) && md.funcionarios.some(x => x.ref_code === c));
+          while (taken(code) && guard++ < 20) code = base + Math.floor(Math.random() * 900 + 100);
+          p.ref_code = code;
+        }
+      }
+    }
+    md.parceiros = parceiros;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, parceiros });
+  } catch (e) { console.error('[filial_parceiro_manage] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_filtro_save — cria/edita/apaga um filtro da loja.
@@ -19143,6 +19212,14 @@ async function generateAll(){
   // action=filial_funcionario_save — POST: lojista cria/edita/apaga funcionário
   if (req.url && req.url.indexOf('action=filial_funcionario_save') >= 0) {
     return await handleFilialFuncionarioSave(req, res);
+  }
+  // action=filial_parceiro_request — POST: cliente pede pra ser parceiro/indicador
+  if (req.url && req.url.indexOf('action=filial_parceiro_request') >= 0) {
+    return await handleFilialParceiroRequest(req, res);
+  }
+  // action=filial_parceiro_manage — POST: lojista aprova/recusa/edita parceiro
+  if (req.url && req.url.indexOf('action=filial_parceiro_manage') >= 0) {
+    return await handleFilialParceiroManage(req, res);
   }
   // action=filial_filtro_art — POST: lojista gera a imagem do filtro por IA
   if (req.url && req.url.indexOf('action=filial_filtro_art') >= 0) {

@@ -311,6 +311,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-item" onclick="openCfg('funcionarios')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionários</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão por venda e operador da loja</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
+        <button class="cfg-item" onclick="openCfg('parceiros')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Parceiros / Indicadores <span id="parc-badge" style="display:none;background:var(--pink);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;margin-left:4px"></span></span><br><small style="color:var(--fg-dim);font-weight:400">Aprovar quem divulga a loja e ver comissões</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
         <button class="cfg-item" onclick="openCfg('plano')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Meu plano</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão, mensalidade e recursos</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
@@ -488,6 +491,17 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <button class="pf-btn" onclick="saveFuncionario()">Adicionar funcionário ✦</button>
             <div id="fn-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: Parceiros / Indicadores -->
+      <div class="cfg-sec" id="cfg-parceiros" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
+          <h2>Parceiros / Indicadores</h2>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem. O cliente pede pelo app (botão "Seja parceiro" na sua loja); você aprova aqui e define a comissão de cada um.</p>
+          <div id="parc-pend-wrap" style="margin-bottom:14px"></div>
+          <div id="parc-aprov-wrap"></div>
         </div>
       </div>
 
@@ -764,7 +778,9 @@ function render(d) {
   _filialName = f.name || '';
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
+  _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
   _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
+  try { _updateParcBadge(); } catch (e) {}
   document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
   // Modelo antigo mostrava "ganha R$X por venda" (founder_share fixo). Com o split,
   // o ganho é o líquido por pedido (mostrado em cada card). No topo, só o nome + plano.
@@ -1258,6 +1274,7 @@ function epRecebe(id) {
 
 // ===== Funcionários (comissão por venda) =====
 let _funcionarios = [];
+let _parceiros = [];
 let _comissoes = [];
 let _fnEditId = null;
 function _fnTipoHint() {
@@ -1341,6 +1358,62 @@ function copyFuncLink(code) {
     else prompt('Copie o link:', link);
   } catch (e) { prompt('Copie o link:', link); }
 }
+// ===== Parceiros / Indicadores (auto-cadastro do cliente + aprovação da loja) =====
+function _updateParcBadge() {
+  const b = document.getElementById('parc-badge'); if (!b) return;
+  const pend = (_parceiros || []).filter(p => p.status === 'pending').length;
+  if (pend) { b.textContent = pend; b.style.display = 'inline'; } else b.style.display = 'none';
+}
+function renderParceiros() {
+  const pendWrap = document.getElementById('parc-pend-wrap');
+  const aprovWrap = document.getElementById('parc-aprov-wrap');
+  if (!pendWrap || !aprovWrap) return;
+  const ps = _parceiros || [];
+  const pend = ps.filter(p => p.status === 'pending');
+  const aprov = ps.filter(p => p.status === 'approved');
+  pendWrap.innerHTML = pend.length ? ('<div style="font-size:12px;font-weight:800;color:var(--pink);margin-bottom:6px">PEDIDOS PENDENTES</div>' + pend.map(p => `
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,45,111,0.4);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="font-weight:800;font-size:14px">${esc(p.nome)}</div>
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px">${esc(p.phone || '')}${p.email ? ' · ' + esc(p.email) : ''}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <select class="pf-input" id="pcap-tipo-${p.id}" style="flex:1;margin-bottom:0"><option value="pct_lucro">% do lucro</option><option value="fixo">R$ fixo por venda</option></select>
+        <input class="pf-input" id="pcap-valor-${p.id}" inputmode="decimal" placeholder="10" style="width:80px;margin-bottom:0">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="pf-btn" style="flex:1;margin:0" onclick="approveParceiro('${p.id}')">Aprovar ✦</button>
+        <button class="pf-btn sec" style="margin:0" onclick="rejectParceiro('${p.id}')">Recusar</button>
+      </div>
+    </div>`).join('')) : '';
+  aprovWrap.innerHTML = aprov.length ? ('<div style="font-size:12px;font-weight:800;color:var(--fg-dim);margin-bottom:6px">PARCEIROS ATIVOS</div>' + aprov.map(p => {
+    const regra = p.tipo === 'fixo' ? ('R$ ' + Number(p.valor || 0).toFixed(2).replace('.', ',') + ' por venda') : (String(p.valor || 0).replace('.', ',') + '% do lucro');
+    const c = (_comissoes || []).find(x => x.id === p.id);
+    const comLine = c ? `<div style="font-size:12px;color:var(--lime);margin-top:3px">este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · pagar <b>${fmtBRL(c.comissao_cents)}</b></div>` : '';
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px">${esc(p.nome)}</div><div style="font-size:12px;color:var(--fg-dim)">${regra}</div>${comLine}</div>
+        <span class="mini-link" style="color:var(--pink)" onclick="deleteParceiro('${p.id}')">remover</span>
+      </div>
+      ${p.ref_code ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:5px"><span class="mini-link" onclick="copyFuncLink('${p.ref_code}')">copiar link de indicação ✦</span></div>` : ''}
+    </div>`;
+  }).join('')) : (pend.length ? '' : '<div style="font-size:13px;color:var(--fg-dim)">Nenhum parceiro ainda. Quando um cliente pedir pra ser parceiro pelo app, o pedido aparece aqui pra você aprovar.</div>');
+}
+async function approveParceiro(id) {
+  const tipo = ((document.getElementById('pcap-tipo-' + id) || {}).value) || 'pct_lucro';
+  const valor = _num((document.getElementById('pcap-valor-' + id) || {}).value);
+  if (!isFinite(valor) || valor < 0) { alert('põe a comissão do parceiro (número)'); return; }
+  await _parceiroManage({ op: 'approve', id, tipo, valor });
+}
+async function rejectParceiro(id) { if (!confirm('Recusar esse pedido de parceria?')) return; await _parceiroManage({ op: 'reject', id }); }
+async function deleteParceiro(id) { if (!confirm('Remover esse parceiro?')) return; await _parceiroManage({ op: 'delete', id }); }
+async function _parceiroManage(payload) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_parceiro_manage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _parceiros = d.parceiros || []; renderParceiros(); _updateParcBadge(); }
+    else alert(d.error || ('erro ' + r.status));
+  } catch (e) { alert('erro de rede'); }
+}
+
 async function deleteFuncionario(id) {
   if (!confirm('Excluir esse funcionário?')) return;
   try {
@@ -1729,6 +1802,7 @@ function openCfg(name) {
     if (name === 'qr') renderQR();
     if (name === 'pagamento') mpRefreshStatus();
     if (name === 'funcionarios') { _fnTipoHint(); renderFuncionarios(); }
+    if (name === 'parceiros') renderParceiros();
   } catch (e) {}
   const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
