@@ -4617,6 +4617,7 @@ async function handleFilialPainel(req, res) {
         endereco: (filial.metadata || {}).endereco || {},
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
         filtros: (filial.metadata || {}).filtros || [],
+        funcionarios: (filial.metadata || {}).funcionarios || [],
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
       },
@@ -6613,6 +6614,41 @@ async function _describeRefImage(base64) {
     const txt = (d && d.content && d.content[0] && d.content[0].text) || '';
     return txt.trim().slice(0, 200) || null;
   } catch (e) { console.warn('[_describeRefImage]', e.message); return null; }
+}
+
+// POST action=filial_funcionario_save — cria/edita/apaga funcionário da loja.
+// Funcionário fica em drope_filiais.metadata.funcionarios = [{ id, nome, tipo, valor, operador }].
+// tipo: 'pct_lucro' (valor = %) | 'fixo' (valor = R$ por venda). operador = pega vendas do app/sem escolha.
+async function handleFilialFuncionarioSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    let funcs = Array.isArray(md.funcionarios) ? md.funcionarios : [];
+    const op = body.op || 'save';
+    if (op === 'delete') {
+      funcs = funcs.filter(f => f.id !== body.id);
+    } else {
+      const nome = String(body.nome || '').trim().slice(0, 40);
+      if (!nome) return res.status(400).json({ ok: false, error: 'nome do funcionário vazio' });
+      const tipo = (body.tipo === 'fixo') ? 'fixo' : 'pct_lucro';
+      let valor = Number(body.valor); if (!isFinite(valor) || valor < 0) valor = 0;
+      const operador = !!body.operador;
+      let f = funcs.find(x => x.id === body.id);
+      if (!f) { f = { id: 'fn-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000) }; funcs.push(f); }
+      f.nome = nome; f.tipo = tipo; f.valor = valor; f.operador = operador;
+      if (operador) funcs.forEach(x => { if (x.id !== f.id) x.operador = false; }); // só 1 operador
+    }
+    md.funcionarios = funcs;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, funcionarios: funcs });
+  } catch (e) { console.error('[filial_funcionario_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_filtro_save — cria/edita/apaga um filtro da loja.
@@ -19028,6 +19064,10 @@ async function generateAll(){
   // action=filial_filtro_save — POST: lojista cria/edita/apaga filtro da loja
   if (req.url && req.url.indexOf('action=filial_filtro_save') >= 0) {
     return await handleFilialFiltroSave(req, res);
+  }
+  // action=filial_funcionario_save — POST: lojista cria/edita/apaga funcionário
+  if (req.url && req.url.indexOf('action=filial_funcionario_save') >= 0) {
+    return await handleFilialFuncionarioSave(req, res);
   }
   // action=filial_filtro_art — POST: lojista gera a imagem do filtro por IA
   if (req.url && req.url.indexOf('action=filial_filtro_art') >= 0) {
