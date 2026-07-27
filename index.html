@@ -4229,6 +4229,7 @@
       <div class="welcome-privacy">zero spam, zero venda pra terceiros.</div>
     </div>
     <button class="btn-primary" id="gate-btn" onclick="finishGateRegister()" disabled style="opacity:0.4; margin-top:12px; width:100%">cadastrar e dropar ✦</button>
+    <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-dim)">já tem conta? <span style="color:var(--lime);font-weight:700;cursor:pointer" onclick="closeGuestGate(); openCustomerLogin();">entrar com telefone e senha ✦</span></div>
   </div>
 
   <!-- ============ EDITAR ESTOQUE (modal admin) ============ -->
@@ -6445,11 +6446,43 @@
   function _onMPPixApproved() {
     const st = document.getElementById('mppix-status');
     if (st) { st.innerHTML = '✅ pagamento aprovado!'; st.style.color = 'var(--lime)'; }
+    // Registra o pedido no histórico local (pago) — pra "acompanhar pedido" e
+    // "meus pedidos" mostrarem, igual ao checkout normal.
+    let orderNum = null;
+    try {
+      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const discount = appliedCoupon ? appliedCoupon.discount : 0;
+      const deliveryFeeReais = deliveryFee();
+      const total = Math.max(0, subtotal - discount) + deliveryFeeReais;
+      const addr = getSelectedAddress();
+      const maxOrder = orders.reduce((m, o) => Math.max(m, o.num || 0), orderCounter || 0);
+      orderNum = maxOrder + 1; orderCounter = orderNum;
+      orders.unshift({
+        num: orderNum,
+        nsu: _mpPixOrderNsu || null,
+        status: 'pagamento aprovado ✦ preparando',
+        statusCls: 'confirmed',
+        summary: cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ '),
+        subtotal, total,
+        delivery_fee_cents: Math.round(deliveryFeeReais * 100),
+        items: cart.map(i => ({ ...i })),
+        address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+        mode: deliveryMode,
+        payWhen: 'now',
+        payMethod: 'mercadopago_pix',
+        customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+        createdAt: Date.now(),
+        store_name: _currentStore().name || CLIENT_FILIAL_NAME || null,
+        store_whats: _currentStore().whats || null,
+        store_slug: _currentStore().slug || CLIENT_FILIAL || null,
+      });
+      saveOrders();
+    } catch (e) { console.error('[MP Pix] registrar pedido:', e && e.message); }
     try { cart = []; saveCart(); renderCart(); renderGrid(); } catch (e) {}
     try { appliedCoupon = null; } catch (e) {}
     try {
       const so = document.getElementById('success-order');
-      if (so) so.textContent = '#' + (_mpPixOrderNsu || '');
+      if (so) so.textContent = orderNum ? ('#dr-' + orderNum) : ('#' + (_mpPixOrderNsu || ''));
       const sBanner = document.getElementById('success-test-banner'); if (sBanner) sBanner.style.display = 'none';
       const sSub = document.getElementById('success-sub'); if (sSub) sSub.textContent = 'pagamento aprovado ✦ pedido confirmado';
       const sWhats = document.getElementById('success-whats-btn'); if (sWhats) sWhats.style.display = '';
