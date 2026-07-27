@@ -4605,8 +4605,35 @@ async function handleFilialPainel(req, res) {
       barcodes: Array.isArray(p.barcodes) ? p.barcodes : [],
     }));
 
+    // ===== Comissões dos funcionários (do mês) =====
+    const _funcs = Array.isArray((filial.metadata || {}).funcionarios) ? (filial.metadata || {}).funcionarios : [];
+    const comissoes = _funcs.map(f => {
+      const myOrders = (orders || []).filter(o => ((o.metadata || {}).employee_id) === f.id);
+      let comissaoCents = 0;
+      if (f.tipo === 'fixo') {
+        comissaoCents = myOrders.length * Math.round((Number(f.valor) || 0) * 100); // R$ fixo por venda
+      } else { // pct_lucro
+        for (const o of myOrders) {
+          let lucroCents = 0;
+          for (const it of (Array.isArray(o.items) ? o.items : [])) {
+            const meta = costMap[it.product_id || it.id];
+            const qty = parseInt(it.qty || it.quantity) || 1;
+            if (meta && meta.price > 0 && meta.cost > 0) lucroCents += Math.max(0, meta.price - meta.cost) * qty;
+          }
+          comissaoCents += Math.round(lucroCents * (Number(f.valor) || 0) / 100);
+        }
+      }
+      return {
+        id: f.id, nome: f.nome, tipo: f.tipo, valor: f.valor, operador: !!f.operador,
+        vendas: myOrders.length,
+        total_vendido_cents: myOrders.reduce((s, o) => s + Number(o.total_cents || 0), 0),
+        comissao_cents: comissaoCents,
+      };
+    });
+
     return res.status(200).json({
       ok: true,
+      comissoes,
       filial: {
         id: filial.id,
         slug: filial.slug,
@@ -4949,6 +4976,7 @@ async function handleFilialPosSale(req, res) {
       items: orderItems,
       delivery_mode: 'pos',
       customer_snapshot: { name: 'balcão', phone: '', email: '' },
+      ...(body.employee_id ? { metadata: { employee_id: String(body.employee_id) } } : {}),
       created_at: new Date().toISOString(),
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'falha ao gravar venda' });

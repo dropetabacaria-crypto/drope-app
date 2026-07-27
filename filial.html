@@ -517,6 +517,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
+    <div id="pdv-vendedor-wrap" style="display:none;margin-bottom:10px">
+      <label style="font-size:11px;color:var(--fg-dim);display:block;margin-bottom:4px">Vendedor (comissão)</label>
+      <select class="pf-input" id="pdv-vendedor" style="margin-bottom:0"></select>
+    </div>
     <div class="pay-opts" id="pdv-pay">
       <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">Dinheiro</div>
       <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">Pix</div>
@@ -760,6 +764,7 @@ function render(d) {
   _filialName = f.name || '';
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
+  _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
   document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
   // Modelo antigo mostrava "ganha R$X por venda" (founder_share fixo). Com o split,
   // o ganho é o líquido por pedido (mostrado em cada card). No topo, só o nome + plano.
@@ -1253,6 +1258,7 @@ function epRecebe(id) {
 
 // ===== Funcionários (comissão por venda) =====
 let _funcionarios = [];
+let _comissoes = [];
 let _fnEditId = null;
 function _fnTipoHint() {
   const t = ((document.getElementById('fn-tipo') || {}).value) || 'pct_lucro';
@@ -1269,10 +1275,15 @@ function renderFuncionarios() {
     const regra = f.tipo === 'fixo'
       ? ('R$ ' + Number(f.valor || 0).toFixed(2).replace('.', ',') + ' por venda')
       : (String(f.valor || 0).replace('.', ',') + '% do lucro');
+    const c = (_comissoes || []).find(x => x.id === f.id);
+    const comLine = c
+      ? `<div style="font-size:12px;color:var(--lime);margin-top:3px">este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · pagar <b>${fmtBRL(c.comissao_cents)}</b></div>`
+      : '';
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:14px">${esc(f.nome)}${f.operador ? ' <span style="font-size:10px;color:var(--lime)">✦ operador</span>' : ''}</div>
         <div style="font-size:12px;color:var(--fg-dim)">${regra}</div>
+        ${comLine}
       </div>
       <span class="mini-link" onclick="editFuncionario('${f.id}')">editar</span>
       <span class="mini-link" style="color:var(--pink)" onclick="deleteFuncionario('${f.id}')">excluir</span>
@@ -1390,6 +1401,17 @@ function openPDV() {
   _pdvCart = {}; _pdvPay = null;
   document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active'));
   document.getElementById('pdv-msg').textContent = '';
+  // Seletor de vendedor (comissão) — só aparece se tiver funcionário cadastrado.
+  const wrap = document.getElementById('pdv-vendedor-wrap');
+  const sel = document.getElementById('pdv-vendedor');
+  const fs = _funcionarios || [];
+  if (wrap && sel) {
+    if (fs.length) {
+      const oper = fs.find(f => f.operador);
+      sel.innerHTML = '<option value="">Ninguém / a loja</option>' + fs.map(f => `<option value="${f.id}"${oper && oper.id === f.id ? ' selected' : ''}>${esc(f.nome)}</option>`).join('');
+      wrap.style.display = 'block';
+    } else { wrap.style.display = 'none'; }
+  }
   renderPDV();
   document.getElementById('pdv-ov').classList.add('open');
 }
@@ -1474,7 +1496,7 @@ async function pdvFinalize() {
   try {
     const r = await fetch('/api/webhook?action=filial_pos_sale', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, items, payment_method: _pdvPay }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, items, payment_method: _pdvPay, employee_id: ((document.getElementById('pdv-vendedor') || {}).value) || null }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { closePDV(); loadData(true); }

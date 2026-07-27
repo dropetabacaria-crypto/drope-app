@@ -192,6 +192,20 @@ module.exports = async function handler(req, res) {
       }
     } catch (e) { console.error('[save-order] resolve filial_id:', e.message); }
 
+    // Venda do app conta pro OPERADOR padrão da loja (comissão de funcionário), se houver.
+    let operadorId = null;
+    if (resolvedFilialId) {
+      try {
+        const fr = await fetch(
+          `${SUPABASE_URL}/rest/v1/drope_filiais?id=eq.${resolvedFilialId}&select=metadata->funcionarios`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+        ).then(r => r.ok ? r.json() : []);
+        const funcs = (Array.isArray(fr) && fr[0] && fr[0].funcionarios) || [];
+        const oper = funcs.find(f => f && f.operador);
+        if (oper) operadorId = oper.id;
+      } catch (e) { console.error('[save-order] operador:', e.message); }
+    }
+
     const orderRow = {
       order_nsu,
       status,
@@ -217,6 +231,8 @@ module.exports = async function handler(req, res) {
         scheduled_at: new Date().toISOString(),
       };
     }
+    // Atribui a venda ao operador padrão (comissão de funcionário).
+    if (operadorId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: operadorId };
 
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
       method: 'POST',
