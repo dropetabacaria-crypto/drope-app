@@ -4379,12 +4379,8 @@
     <!-- Categorias/filtros da loja (aparecem só quando a loja criou filtros) -->
     <div id="loja-filtros-row" class="loja-filtros-row" style="display:none"></div>
 
-    <div class="cat-section">drops</div>
-    <div class="grid" id="grid-pods"></div>
-    <div id="pods-more"></div>
-
-    <div class="cat-section">tabacaria</div>
-    <div class="grid" id="grid-tabac"></div>
+    <!-- Seções dinâmicas por categoria da loja (substitui os antigos drops/tabacaria fixos) -->
+    <div id="home-cat-sections"></div>
   </div>
 
   <!-- ============ CATÁLOGO (página dedicada, paginada) ============ -->
@@ -10007,47 +10003,61 @@
     catalogSearch('');
   }
 
+  // Monta uma seção (título + grid + link "ver todos" opcional).
+  function _homeSectionHTML(title, items, opts) {
+    opts = opts || {};
+    if (!items.length) return '';
+    const shown = opts.cap ? items.slice(0, opts.cap) : items;
+    const grid = `<div class="grid">${shown.map(({ p, i }) => tileHTML(p, i)).join('')}</div>`;
+    let more = '';
+    if (opts.cap && items.length > opts.cap && opts.moreOnclick) {
+      const lbl = opts.moreLabel ? escapeHtml(opts.moreLabel) : '';
+      more = `<div class="see-all-link" onclick="${opts.moreOnclick}">ver todos os ${items.length}${lbl} →</div>`;
+    }
+    return `<div class="cat-section">${escapeHtml(title)}</div>${grid}${more}`;
+  }
   function renderGrid() {
     if (typeof updateHero === 'function') updateHero();
-    const podsEl = document.getElementById('grid-pods');
-    const tabacEl = document.getElementById('grid-tabac');
-    const moreEl = document.getElementById('pods-more');
+    const container = document.getElementById('home-cat-sections');
+    if (!container) return;
     const filtered = products.map((p, i) => ({ p, i })).filter(({ p }) => matchFilter(p));
-    const pods = filtered.filter(({ p }) => p.cat === 'pod').sort(_sortStockThenNew);
-    const tabac = filtered.filter(({ p }) => p.cat === 'tabac').sort(_sortStockThenNew);
+    const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
+    const searching = !!homeState.searchText || hasAdvancedFilters();
+    const selectedFiltro = homeState.filtroId || null;
+    let html = '';
 
-    // Regra do app: o home mostra só um PREVIEW de 4 drops. "Ver todos" abre o
-    // catálogo PAGINADO (9/página), que respeita os filtros ativos. Vale COM ou
-    // SEM filtro/marca/vibe/busca — o home NUNCA vira scroll infinito.
-    const limitPods = !_podsExpanded;
-    const shownPods = limitPods ? pods.slice(0, 4) : pods;
-
-    podsEl.innerHTML = shownPods.length
-      ? shownPods.map(({ p, i }) => tileHTML(p, i)).join('')
-      : '<div class="empty-mini">nenhum drop bate com os filtros ✦</div>';
-
-    if (moreEl) {
-      if (limitPods && pods.length > 4) {
-        moreEl.innerHTML = `<div class="see-all-link" onclick="openCatalog()">ver todos os ${pods.length} drops →</div>`;
-        moreEl.style.display = '';
-      } else if (_podsExpanded && pods.length > 4) {
-        moreEl.innerHTML = `<div class="see-all-link" onclick="collapsePods()">ver menos ↑</div>`;
-        moreEl.style.display = '';
-      } else {
-        moreEl.innerHTML = '';
-        moreEl.style.display = 'none';
-      }
-    }
-
-    const tabacSection = document.querySelector('.cat-section:nth-of-type(2)') || tabacEl.previousElementSibling;
-    if (hasAdvancedFilters()) {
-      tabacEl.style.display = 'none';
-      if (tabacSection) tabacSection.style.display = 'none';
+    if (searching || selectedFiltro) {
+      // Busca ou categoria selecionada → um grid único do que casa.
+      const items = filtered.slice().sort(_sortStockThenNew);
+      const title = selectedFiltro
+        ? ((filtros.find(f => f.id === selectedFiltro) || {}).nome || 'categoria')
+        : 'resultados';
+      html = items.length
+        ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
+        : '<div class="empty-mini">nenhum produto bate com os filtros ✦</div>';
+    } else if (filtros.length) {
+      // Seções dinâmicas: uma por categoria da loja, na ordem que ela definiu.
+      filtros.forEach(f => {
+        const items = filtered.filter(({ p }) => (p.filtro_id || null) === f.id).sort(_sortStockThenNew);
+        html += _homeSectionHTML(f.nome || 'categoria', items, {
+          cap: 6,
+          moreOnclick: `setLojaFiltro('${String(f.id).replace(/'/g, '')}')`,
+          moreLabel: ' em ' + (f.nome || ''),
+        });
+      });
+      // Produtos sem categoria (legado) → seção "Outros", só se existir.
+      const semCat = filtered.filter(({ p }) => !p.filtro_id).sort(_sortStockThenNew);
+      if (semCat.length) html += _homeSectionHTML('Outros', semCat, { cap: 6, moreOnclick: 'openCatalog()' });
+      if (!html) html = '<div class="empty-mini">essa loja ainda não tem produtos ✦</div>';
     } else {
-      tabacEl.style.display = '';
-      if (tabacSection) tabacSection.style.display = '';
-      tabacEl.innerHTML = tabac.map(({ p, i }) => tileHTML(p, i)).join('');
+      // Loja sem categorias → uma seção só "Cardápio" (preview + ver todos).
+      const items = filtered.slice().sort(_sortStockThenNew);
+      html = items.length
+        ? _homeSectionHTML('Cardápio', items, { cap: 8, moreOnclick: 'openCatalog()' })
+        : '<div class="empty-mini">essa loja ainda não tem produtos ✦</div>';
     }
+    container.innerHTML = html;
+
     // Se a página de catálogo estiver aberta, reflete filtros/busca nela também
     const catScreen = document.getElementById('catalog');
     if (catScreen && catScreen.classList.contains('active') && typeof renderCatalog === 'function') {
