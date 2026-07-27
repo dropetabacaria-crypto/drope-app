@@ -236,8 +236,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="kpi-value" id="vendas-mes">0</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Saldo</div>
-        <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--fg)">R$ 0</div>
+        <div class="kpi-label">Recebido (líquido)</div>
+        <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--lime)">R$ 0</div>
+        <div class="kpi-sub" id="liq-sub">após comissão</div>
       </div>
     </div>
     <div class="dash-card">
@@ -737,9 +738,14 @@ function render(d) {
   try { renderSegs(f.segmentos); } catch(e) {}
   try { renderFiltros(f.filtros); } catch(e) {}
   try { renderQR(); } catch(e) {}
-  document.getElementById('saldo').textContent = fmtBRL(d.saldo_pendente_cents);
+  // Faturamento = BRUTO (total vendido). "Recebido" = líquido após a comissão do DROPE.
+  const _commPct = Number((((d.filial || {}).plan || {}).commission_pct)) || 10;
+  const _fatCents = d.faturamento_mes_cents || 0;
+  const _liqCents = Math.round(_fatCents * (1 - _commPct / 100));
+  document.getElementById('faturamento-mes').textContent = fmtBRL(_fatCents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
-  document.getElementById('faturamento-mes').textContent = fmtBRL(d.faturamento_mes_cents);
+  document.getElementById('saldo').textContent = fmtBRL(_liqCents);
+  const _ls = document.getElementById('liq-sub'); if (_ls) _ls.textContent = `após comissão de ${String(_commPct).replace('.', ',')}%`;
   try { renderDash(d); } catch (e) {}
 
   const pendentes = d.pedidos_pendentes || [];
