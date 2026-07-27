@@ -12162,6 +12162,13 @@
     }
     saveOrders();
     saveProducts();
+    // Pedido registrado → esvazia o carrinho JÁ (persistindo), sem depender do
+    // botão "voltar". Os itens já foram copiados pro pedido (orders[0].items) e o
+    // estoque já foi decrementado acima, então é seguro limpar aqui.
+    cart = [];
+    try { saveCart(); } catch (e) {}
+    try { updateCartBadge(); } catch (e) {}
+    try { renderCart(); } catch (e) {}
     renderGrid();
     // FRICÇÃO #009: ajusta tela success se for pedido teste
     const sBanner = document.getElementById('success-test-banner');
@@ -12389,7 +12396,10 @@
 
   function resetAndHome() {
     cart = [];
+    try { saveCart(); } catch (e) {}          // BUG FIX: persistir o carrinho vazio (senão volta ao recarregar)
+    try { appliedCoupon = null; } catch (e) {}
     updateCartBadge();
+    try { renderCart(); } catch (e) {}
     go('home');
   }
 
