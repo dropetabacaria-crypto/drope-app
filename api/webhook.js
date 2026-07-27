@@ -15331,6 +15331,23 @@ async function _mpRefreshToken(refreshToken) {
   return data;
 }
 
+// Token do MARKETPLACE (dono do app) via client_credentials — consegue ler os
+// pagamentos com split das lojas conectadas. Cache de 1h. Usado no webhook.
+let _mpAppTok = null, _mpAppTokAt = 0;
+async function _mpAppToken() {
+  if (_mpAppTok && (Date.now() - _mpAppTokAt) < 60 * 60 * 1000) return _mpAppTok;
+  if (!MP_CLIENT_ID || !MP_CLIENT_SECRET) return MP_ACCESS_TOKEN || null;
+  try {
+    const r = await fetch('https://api.mercadopago.com/oauth/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: MP_CLIENT_ID, client_secret: MP_CLIENT_SECRET, grant_type: 'client_credentials' }),
+    });
+    const d = await r.json();
+    if (d.access_token) { _mpAppTok = d.access_token; _mpAppTokAt = Date.now(); return _mpAppTok; }
+  } catch (e) { console.error('[_mpAppToken]', e.message); }
+  return MP_ACCESS_TOKEN || null;
+}
+
 // Retorna um access_token VÁLIDO da loja (renova + persiste se perto de expirar).
 // null se a loja não conectou o Mercado Pago.
 async function _mpTokenForFilial(filial) {
@@ -15957,12 +15974,14 @@ async function handleMPWebhook(req, res) {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    if (!MP_ACCESS_TOKEN) {
+    // Token do MARKETPLACE (client_credentials) — lê pagamentos com split das lojas.
+    const mpTok = await _mpAppToken();
+    if (!mpTok) {
       return res.status(200).json({ ok: false, error: 'token_missing' });
     }
 
     const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
+      headers: { 'Authorization': `Bearer ${mpTok}` },
     });
 
     if (!paymentRes.ok) {
