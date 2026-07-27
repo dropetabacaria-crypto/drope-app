@@ -192,8 +192,12 @@ module.exports = async function handler(req, res) {
       }
     } catch (e) { console.error('[save-order] resolve filial_id:', e.message); }
 
-    // Venda do app conta pro OPERADOR padrão da loja (comissão de funcionário), se houver.
-    let operadorId = null;
+    // Atribuição da comissão:
+    //  1) ?ref= que bate com o ref_code de um COLABORADOR da loja → conta pra ele (link de indicação).
+    //  2) senão, o OPERADOR padrão da loja pega a venda do app.
+    //  3) ?ref= que NÃO é da loja → cai no embaixador GLOBAL (drope_ambassadors), como antes.
+    let operadorId = null, refEmployeeId = null;
+    const refUp = body.ambassador_ref ? String(body.ambassador_ref).toUpperCase().slice(0, 40) : '';
     if (resolvedFilialId) {
       try {
         const fr = await fetch(
@@ -203,14 +207,18 @@ module.exports = async function handler(req, res) {
         const funcs = (Array.isArray(fr) && fr[0] && fr[0].funcionarios) || [];
         const oper = funcs.find(f => f && f.operador);
         if (oper) operadorId = oper.id;
-      } catch (e) { console.error('[save-order] operador:', e.message); }
+        if (refUp) {
+          const byRef = funcs.find(f => f && (f.ref_code || '').toUpperCase() === refUp);
+          if (byRef) refEmployeeId = byRef.id;
+        }
+      } catch (e) { console.error('[save-order] colaborador:', e.message); }
     }
+    const employeeId = refEmployeeId || operadorId; // link tem prioridade sobre operador padrão
 
-    // Embaixador/afiliado: resolve o ref_code do link (?ref=) → ambassador_id, pra
-    // o webhook creditar a comissão. (Antes só o InfinitePay gravava isso.)
+    // Embaixador GLOBAL: só se o ref não bateu com colaborador da loja.
     let ambassadorRef = null, ambassadorId = null;
-    if (body.ambassador_ref) {
-      ambassadorRef = String(body.ambassador_ref).toUpperCase().slice(0, 40);
+    if (refUp && !refEmployeeId) {
+      ambassadorRef = refUp;
       try {
         const ar = await fetch(
           `${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(ambassadorRef)}&status=eq.active&select=id`,
@@ -248,7 +256,7 @@ module.exports = async function handler(req, res) {
       };
     }
     // Atribui a venda ao operador padrão (comissão de funcionário).
-    if (operadorId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: operadorId };
+    if (employeeId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: employeeId };
 
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
       method: 'POST',

@@ -1279,14 +1279,23 @@ function renderFuncionarios() {
     const comLine = c
       ? `<div style="font-size:12px;color:var(--lime);margin-top:3px">este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · pagar <b>${fmtBRL(c.comissao_cents)}</b></div>`
       : '';
-    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:14px">${esc(f.nome)}${f.operador ? ' <span style="font-size:10px;color:var(--lime)">✦ operador</span>' : ''}</div>
-        <div style="font-size:12px;color:var(--fg-dim)">${regra}</div>
-        ${comLine}
+    const linkLine = f.ref_code
+      ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+           <span>link de indicação:</span>
+           <span class="mini-link" onclick="copyFuncLink('${f.ref_code}')">copiar link ✦</span>
+         </div>`
+      : '';
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px">${esc(f.nome)}${f.operador ? ' <span style="font-size:10px;color:var(--lime)">✦ operador</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--fg-dim)">${regra}</div>
+          ${comLine}
+        </div>
+        <span class="mini-link" onclick="editFuncionario('${f.id}')">editar</span>
+        <span class="mini-link" style="color:var(--pink)" onclick="deleteFuncionario('${f.id}')">excluir</span>
       </div>
-      <span class="mini-link" onclick="editFuncionario('${f.id}')">editar</span>
-      <span class="mini-link" style="color:var(--pink)" onclick="deleteFuncionario('${f.id}')">excluir</span>
+      ${linkLine}
     </div>`;
   }).join('');
 }
@@ -1323,6 +1332,14 @@ function editFuncionario(id) {
   document.getElementById('fn-operador').checked = !!f.operador;
   _fnTipoHint();
   const msg = document.getElementById('fn-msg'); if (msg) msg.textContent = 'editando ' + (f.nome || '') + '…';
+}
+function copyFuncLink(code) {
+  const link = location.origin + '/?loja=' + encodeURIComponent(FILIAL_SLUG) + '&ref=' + encodeURIComponent(code);
+  const done = () => alert('Link copiado! ✦ Compartilha com quem vai indicar:\n\n' + link);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('Copie o link:', link));
+    else prompt('Copie o link:', link);
+  } catch (e) { prompt('Copie o link:', link); }
 }
 async function deleteFuncionario(id) {
   if (!confirm('Excluir esse funcionário?')) return;

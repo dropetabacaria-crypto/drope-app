@@ -6671,6 +6671,15 @@ async function handleFilialFuncionarioSave(req, res) {
       let f = funcs.find(x => x.id === body.id);
       if (!f) { f = { id: 'fn-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000) }; funcs.push(f); }
       f.nome = nome; f.tipo = tipo; f.valor = valor; f.operador = operador;
+      // Código de indicação (link) do colaborador — quem comprar pelo link conta
+      // a comissão pra ele. Gera 1x, único dentro da loja.
+      if (!f.ref_code) {
+        const base = nome.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'REF';
+        let code = base + Math.floor(Math.random() * 90 + 10);
+        let guard = 0;
+        while (funcs.some(x => x.id !== f.id && x.ref_code === code) && guard++ < 20) code = base + Math.floor(Math.random() * 900 + 100);
+        f.ref_code = code;
+      }
       if (operador) funcs.forEach(x => { if (x.id !== f.id) x.operador = false; }); // só 1 operador
     }
     md.funcionarios = funcs;
