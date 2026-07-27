@@ -4950,6 +4950,7 @@
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('favorites')">Favoritos <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="sejaParceiro()">Seja parceiro de uma loja ✦ <span class="arrow">›</span></div>
         <div class="profile-row" onclick="shareDrope()">Compartilhar app <span class="arrow">›</span></div>
         <div class="profile-row" onclick="openHelpWhats()">Ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
@@ -8050,7 +8051,6 @@
         </div>
         ${bio ? `<div style="font-size:12.5px;color:var(--text-dim);line-height:1.35;margin-top:3px">${escapeHtml(bio)}</div>` : ''}
         <div style="font-size:12px;color:var(--text-dim);margin-top:3px">${statusLine}</div>
-        <div style="margin-top:6px"><span onclick="event.stopPropagation();sejaParceiro()" style="color:var(--store-accent,var(--lime));font-weight:700;font-size:11.5px;cursor:pointer">✦ seja parceiro da loja</span></div>
       </div>`;
   }
   // Cliente pede pra ser parceiro/indicador da loja (precisa estar logado).
