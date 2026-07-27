@@ -10509,7 +10509,9 @@
     if (/\b(azed|sour|tang)/i.test(lower)) perfilTags.push({ label: 'azedinho', cls: 'pink' });
     if (/\b(tropic|exotic)/i.test(lower)) perfilTags.push({ label: 'tropical', cls: '' });
 
-    const card2 = `<div class="info-card">
+    // Só mostra o card "perfil do sabor" se tiver conteúdo (sabor OU tags) —
+    // senão fica uma seção vazia (ex.: produto sem sabor cadastrado).
+    const card2 = (sabor || perfilTags.length) ? `<div class="info-card">
       <div class="info-card-title">perfil do sabor</div>
       ${sabor ? `<div class="info-card-row">
         <span class="info-card-label">sabor</span>
@@ -10518,7 +10520,7 @@
       ${perfilTags.length ? `<div class="info-card-tags">
         ${perfilTags.map(t => `<span class="info-card-tag ${t.cls || ''}">${escapeHtml(t.label)}</span>`).join('')}
       </div>` : ''}
-    </div>`;
+    </div>` : '';
 
     // Card 3 — Vibe (storytelling do Vision)
     const vibe = p.desc || '';
