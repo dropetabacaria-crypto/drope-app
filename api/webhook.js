@@ -3638,8 +3638,17 @@ async function uploadToStorage(slug, imageData, contentType = 'image/png') {
 }
 
 async function downloadImage(url) {
+  if (!url) return null;
   if (url.startsWith('data:')) {
-    return url; // já é base64 inline
+    // data URL (ex.: OpenAI gpt-image-1 retorna base64). Decodifica pra BUFFER —
+    // todos os callers (Vision QC, sharp/composição, upload) esperam Buffer.
+    try {
+      const b64 = url.replace(/^data:image\/\w+;base64,/, '');
+      return Buffer.from(b64, 'base64');
+    } catch (e) {
+      console.error('[Download] data url decode fail:', e.message);
+      return null;
+    }
   }
   const r = await fetch(url);
   if (!r.ok) {
