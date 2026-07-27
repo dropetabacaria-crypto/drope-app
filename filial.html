@@ -220,7 +220,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="status-bar">
     <div class="dot"></div>
     <span id="last-update">atualizando...</span>
-    <button class="refresh-btn" style="margin-left:auto" onclick="verLojaCliente()">Ver como cliente</button>
+    <button class="refresh-btn" style="margin-left:auto;position:relative" onclick="openNotifs()" title="Avisos">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px">0</span></button>
+    <button class="refresh-btn" onclick="verLojaCliente()">Ver como cliente</button>
     <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
   </div>
 
@@ -519,6 +520,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 </div>
 
 <!-- Overlay: PDV (vender no balcão) -->
+<div class="sheet-ov" id="notif-ov">
+  <div class="sheet-hd">
+    <button class="sheet-x" onclick="closeNotifs()">←</button>
+    <h3>Avisos</h3>
+    <span></span>
+  </div>
+  <div class="sheet-scroll" id="notif-list" style="padding:12px 16px"></div>
+</div>
+
 <div class="sheet-ov" id="pdv-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closePDV()">←</button>
@@ -756,6 +766,7 @@ async function loadData(showLoading) {
     document.getElementById('painel').style.display = 'block';
     render(data);
     document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    try { loadNotifs(); } catch (e) {}
   } catch (e) {
     console.error('[load]', e);
     document.getElementById('last-update').textContent = 'erro ✦ tentando de novo';
@@ -1413,6 +1424,27 @@ async function _parceiroManage(payload) {
     else alert(d.error || ('erro ' + r.status));
   } catch (e) { alert('erro de rede'); }
 }
+
+// ===== Avisos (notificações in-app do lojista) =====
+let _notifs = [];
+async function loadNotifs() {
+  if (!FILIAL_SLUG || !ACCESS_CODE) return;
+  try {
+    const r = await fetch(`/api/webhook?action=notifications&role=filial&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (d && d.ok) { _notifs = d.notifications || []; _renderNotifBadge(d.unread || 0); }
+  } catch (e) {}
+}
+function _renderNotifBadge(n) { const b = document.getElementById('notif-badge'); if (!b) return; if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'inline'; } else b.style.display = 'none'; }
+function _notifTime(iso) { try { const d = new Date(iso); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+function openNotifs() {
+  const list = document.getElementById('notif-list'); const ns = _notifs || [];
+  list.innerHTML = ns.length ? ns.map(n => `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;${n.read ? 'opacity:.65' : ''}"><div style="font-weight:800;font-size:14px">${esc(n.title)}</div>${n.body ? `<div style="font-size:12.5px;color:var(--fg-dim);margin-top:2px">${esc(n.body)}</div>` : ''}<div style="font-size:10.5px;color:var(--fg-dim);margin-top:4px">${_notifTime(n.created_at)}</div></div>`).join('') : '<div class="empty">Nenhum aviso ainda.</div>';
+  document.getElementById('notif-ov').classList.add('open');
+  fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'filial', filial: FILIAL_SLUG, token: ACCESS_CODE }) }).then(() => _renderNotifBadge(0)).catch(() => {});
+}
+function closeNotifs() { document.getElementById('notif-ov').classList.remove('open'); }
+setInterval(() => { try { const p = document.getElementById('painel'); if (p && p.style.display !== 'none') loadNotifs(); } catch (e) {} }, 45000);
 
 async function deleteFuncionario(id) {
   if (!confirm('Excluir esse funcionário?')) return;

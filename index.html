@@ -4292,6 +4292,10 @@
     <div class="header">
       <div class="avatar avatar-emoji" id="home-avatar" onclick="go('inicio')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
       <div class="greet" id="home-greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
+      <div class="cart-btn" onclick="openNotifsApp()" style="position:relative;margin-right:8px" title="Avisos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div class="cart-badge" id="app-notif-badge" style="display:none">0</div>
+      </div>
       <div class="cart-btn" onclick="goCartSafe()">
         <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
         <div class="cart-badge" id="cart-badge">0</div>
@@ -4964,6 +4968,14 @@
   </div>
 
   <!-- ============ LOGIN DO CLIENTE (OTP WhatsApp) ============ -->
+  <div id="app-notif-ov" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border)">
+      <div class="icon-btn" onclick="closeNotifsApp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="brand-small">Avisos</div>
+    </div>
+    <div id="app-notif-list" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
+  </div>
+
   <div id="clogin-ov" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column">
     <div class="top-bar">
       <div class="icon-btn" onclick="closeCustomerLogin()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
@@ -8427,6 +8439,30 @@
   let _custSession = null;
   try { _custSession = JSON.parse(localStorage.getItem(CUST_SESSION_KEY) || 'null'); } catch (e) {}
   function _custToken() { return PREVIEW_MODE ? '' : ((_custSession && _custSession.token) || ''); }
+
+  // ===== Avisos in-app do cliente =====
+  let _appNotifs = [];
+  async function loadAppNotifs() {
+    try {
+      if (typeof isGuest === 'function' && isGuest()) { _renderAppNotifBadge(0); return; }
+      if (!profile.phone || !_custToken()) return;
+      const r = await fetch(`/api/webhook?action=notifications&role=customer&phone=${encodeURIComponent(profile.phone)}&token=${encodeURIComponent(_custToken())}`, { cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.ok) { _appNotifs = d.notifications || []; _renderAppNotifBadge(d.unread || 0); }
+    } catch (e) {}
+  }
+  function _renderAppNotifBadge(n) { const b = document.getElementById('app-notif-badge'); if (!b) return; if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'flex'; } else b.style.display = 'none'; }
+  function _appNotifTime(iso) { try { const d = new Date(iso); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+  function openNotifsApp() {
+    if (typeof isGuest === 'function' && isGuest()) { toast('entra na sua conta pra ver seus avisos ✦'); try { openCustomerLogin(); } catch (e) {} return; }
+    const list = document.getElementById('app-notif-list'); const ns = _appNotifs || [];
+    list.innerHTML = ns.length ? ns.map(n => `<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;${n.read ? 'opacity:.6' : ''}"><div style="font-weight:700;font-size:15px">${escapeHtml(n.title)}</div>${n.body ? `<div style="font-size:13px;color:var(--text-dim);margin-top:3px">${escapeHtml(n.body)}</div>` : ''}<div style="font-size:11px;color:var(--text-dim);margin-top:5px">${_appNotifTime(n.created_at)}</div></div>`).join('') : '<div style="text-align:center;color:var(--text-dim);padding:50px 0">nenhum aviso ainda ✦</div>';
+    document.getElementById('app-notif-ov').style.display = 'flex';
+    fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'customer', phone: profile.phone, token: _custToken() }) }).then(() => _renderAppNotifBadge(0)).catch(() => {});
+  }
+  function closeNotifsApp() { document.getElementById('app-notif-ov').style.display = 'none'; }
+  setTimeout(() => { try { loadAppNotifs(); } catch (e) {} }, 2500);
+  setInterval(() => { try { loadAppNotifs(); } catch (e) {} }, 45000);
   function _isLoggedIn() { return !PREVIEW_MODE && !!_custToken(); }
   function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }

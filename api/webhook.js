@@ -6715,6 +6715,7 @@ async function handleFilialParceiroRequest(req, res) {
     parceiros.push({ id: 'pc-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), nome, phone, email, status: 'pending', requested_at: new Date().toISOString() });
     md.parceiros = parceiros;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    _notify('filial', filial.id, 'partner_request', 'Novo pedido de parceria ✦', `${nome} quer divulgar a sua loja`).catch(() => {});
     return res.status(200).json({ ok: true, status: 'pending' });
   } catch (e) { console.error('[filial_parceiro_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
@@ -6751,6 +6752,8 @@ async function handleFilialParceiroManage(req, res) {
         }
       }
     }
+    if (op === 'approve' && p) _notify('customer', p.phone, 'partner_result', 'Parceria aprovada! ✦', `Você virou parceiro da ${filial.name}. Pega seu link de indicação no app.`).catch(() => {});
+    if (op === 'reject' && p) _notify('customer', p.phone, 'partner_result', 'Parceria não aprovada', `Seu pedido de parceria com a ${filial.name} não foi aceito dessa vez.`).catch(() => {});
     md.parceiros = parceiros;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, parceiros });
@@ -13468,6 +13471,58 @@ async function handleMyStore(req, res) {
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// ===== NOTIFICAÇÕES IN-APP (central de avisos) =====
+// recipient_type 'filial' (recipient_key = filial.id) ou 'customer' (recipient_key = telefone).
+function _phoneKey(phone) { return String(phone || '').replace(/\D/g, '').slice(-11); }
+async function _notify(recipientType, recipientKey, type, title, body, link) {
+  const key = recipientType === 'customer' ? _phoneKey(recipientKey) : String(recipientKey || '').trim();
+  if (!key || !SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/drope_notifications`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_type: recipientType, recipient_key: key, type, title: String(title).slice(0, 120), body: body ? String(body).slice(0, 240) : null, link: link || null }),
+    });
+  } catch (e) { console.error('[_notify]', e.message); }
+}
+async function _notifResolveRecipient(url, body) {
+  const role = (url ? url.searchParams.get('role') : body.role) || 'customer';
+  const token = (url ? url.searchParams.get('token') : body.token) || '';
+  if (role === 'filial') {
+    const slug = String((url ? url.searchParams.get('filial') : body.filial) || '').toLowerCase().trim();
+    const filial = await _filialAuthBySlug(slug, token);
+    if (!filial) return null;
+    return { type: 'filial', key: String(filial.id) };
+  }
+  const phone = (url ? url.searchParams.get('phone') : body.phone) || '';
+  if (!(await _customerSessionOk(phone, token))) return null;
+  return { type: 'customer', key: _phoneKey(phone) };
+}
+async function handleNotifications(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const rec = await _notifResolveRecipient(url, {});
+    if (!rec) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const rows = await sbGet('drope_notifications', `recipient_type=eq.${rec.type}&recipient_key=eq.${encodeURIComponent(rec.key)}&order=created_at.desc&limit=30`);
+    const list = Array.isArray(rows) ? rows : [];
+    return res.status(200).json({ ok: true, notifications: list, unread: list.filter(n => !n.read).length });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+async function handleNotificationsRead(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const rec = await _notifResolveRecipient(null, body);
+    if (!rec) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    await sbUpdate('drope_notifications', `recipient_type=eq.${rec.type}&recipient_key=eq.${encodeURIComponent(rec.key)}&read=eq.false`, { read: true });
+    return res.status(200).json({ ok: true });
+  } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // GET /api/webhook?action=customer_orders&phone=<phone>&token=<sessao>
 // Retorna os pedidos do cliente (casados por telefone) com o status real do backend.
 // Segurança: exige token de sessão do próprio cliente (OTP) — sem lookup anônimo por telefone.
@@ -15721,6 +15776,12 @@ async function handleInfinitePayWebhook(req, res) {
           updatedOrderId = updated[0].id || null;
           updatedAmbassadorId = updated[0].ambassador_id || null;
           updatedAmbassadorRef = updated[0].ambassador_ref || '';
+          if (updated[0].filial_id) {
+            const _cn2 = (updated[0].customer_snapshot || {}).name || 'cliente';
+            _notify('filial', updated[0].filial_id, 'order_new', 'Novo pedido pago ✦', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2}`, null).catch(() => {});
+          }
+          const _cph2 = (updated[0].customer_snapshot || {}).phone;
+          if (_cph2) _notify('customer', _cph2, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
           // ✅ Pagamento confirmado → AGORA baixa o estoque (só na transição created→paid).
           const _its = Array.isArray(updated[0].items) ? updated[0].items : [];
           for (const it of _its) {
@@ -16162,6 +16223,12 @@ async function handleMPWebhook(req, res) {
           mpAmbassadorId = upd[0].ambassador_id || null;
           mpAmbassadorRef = upd[0].ambassador_ref || '';
           console.log('[MP Webhook] order paid:', orderNsu);
+          if (upd[0].filial_id) {
+            const _cn = (upd[0].customer_snapshot || {}).name || 'cliente';
+            _notify('filial', upd[0].filial_id, 'order_new', 'Novo pedido pago ✦', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn}`, null).catch(() => {});
+          }
+          const _cph = (upd[0].customer_snapshot || {}).phone;
+          if (_cph) _notify('customer', _cph, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
         } else {
           console.log('[MP Webhook] order já estava paga (idempotente):', orderNsu);
         }
@@ -19220,6 +19287,13 @@ async function generateAll(){
   // action=filial_parceiro_manage — POST: lojista aprova/recusa/edita parceiro
   if (req.url && req.url.indexOf('action=filial_parceiro_manage') >= 0) {
     return await handleFilialParceiroManage(req, res);
+  }
+  // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
+  if (req.url && req.url.indexOf('action=notifications_read') >= 0) {
+    return await handleNotificationsRead(req, res);
+  }
+  if (req.url && req.url.indexOf('action=notifications') >= 0) {
+    return await handleNotifications(req, res);
   }
   // action=filial_filtro_art — POST: lojista gera a imagem do filtro por IA
   if (req.url && req.url.indexOf('action=filial_filtro_art') >= 0) {
