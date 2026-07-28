@@ -135,9 +135,21 @@
   .door { display:flex; flex-direction:column; gap:6px; }
   .door.cli { background:linear-gradient(135deg, rgba(140,80,255,0.12), rgba(255,45,111,0.07)); }
   .door.loj { background:linear-gradient(135deg, rgba(212,255,46,0.09), rgba(140,80,255,0.07)); }
+  .door.ent { background:linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.08)); }
+  .ref-strip { margin-top:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; cursor:pointer; background:linear-gradient(135deg, rgba(140,80,255,0.12), rgba(255,45,111,0.08)); border:1px solid var(--border); border-radius:16px; padding:16px 20px; transition:border-color .15s; }
+  .ref-strip:hover { border-color:rgba(212,255,46,0.4); }
+  .ref-strip b { font-family:'Space Grotesk'; font-size:16px; }
+  .ref-strip span { color:var(--dim); font-size:14px; margin-left:8px; }
+  .ref-soon { color:var(--lime) !important; font-weight:800; font-size:13px; white-space:nowrap; }
 
   /* AUDIENCE */
   .audience { background:linear-gradient(135deg, rgba(212,255,46,0.08), rgba(140,80,255,0.06)); border:1px solid var(--border); border-radius:24px; padding:34px; }
+  .ia-hero { display:grid; grid-template-columns:1.3fr 0.7fr; gap:24px; align-items:center; background:linear-gradient(135deg, rgba(212,255,46,0.10), rgba(140,80,255,0.10)); border:1px solid rgba(212,255,46,0.28); border-radius:24px; padding:32px; box-shadow:0 0 40px rgba(212,255,46,0.06); }
+  .ia-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+  .ia-chips span { font-size:12px; font-weight:700; color:var(--fg); background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:999px; padding:6px 13px; }
+  .ia-art { display:flex; justify-content:center; }
+  .ia-art img { width:min(200px,80%); filter:drop-shadow(0 20px 40px rgba(255,45,111,0.3)); }
+  @media(max-width:720px){ .ia-hero{ grid-template-columns:1fr; text-align:center; } .ia-chips{ justify-content:center; } .ia-art{ order:-1; } .ia-art img{ width:140px; } }
   .chk { list-style:none; margin-top:16px; display:grid; gap:10px; }
   .chk li { display:flex; gap:10px; align-items:flex-start; font-size:15px; color:var(--fg); }
   .chk li span { color:var(--lime); font-weight:800; flex:0 0 auto; }
@@ -196,9 +208,11 @@
     <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">☰</button>
     <nav class="nav-links" id="navlinks">
       <a data-r="/" onclick="nav('/')">Início</a>
-      <a data-r="/voce" onclick="nav('/voce')">Para você</a>
-      <a data-r="/loja" onclick="nav('/loja')">Para lojistas</a>
-      <a data-r="/sobre" onclick="nav('/sobre')">Quem somos</a>
+      <a data-r="/voce" onclick="nav('/voce')">Cliente</a>
+      <a data-r="/loja" onclick="nav('/loja')">Lojista</a>
+      <a data-r="/entregador" onclick="nav('/entregador')">Entregador</a>
+      <a data-r="/indica" onclick="nav('/indica')">Indicação</a>
+      <a data-r="/sobre" onclick="nav('/sobre')">Sobre</a>
       <button class="btn btn-lime" onclick="installApp()">Instalar o app</button>
     </nav>
   </div>
@@ -262,21 +276,31 @@
     </div>
   </section>
 
-  <!-- duas portas -->
+  <!-- três portas -->
   <section class="wrap" style="padding-top:20px">
-    <div class="grid g2">
+    <div class="grid g3">
       <div class="card link door cli" onclick="nav('/voce')">
         <div class="ico">🛍️</div>
-        <h3>Sou cliente</h3>
+        <h3>Quero pedir</h3>
         <p>Peça das tabacarias e adegas perto de você e receba em minutos, no Pix.</p>
-        <span class="go">Ver como funciona →</span>
+        <span class="go">Sou cliente →</span>
       </div>
       <div class="card link door loj" onclick="nav('/loja')">
         <div class="ico">🏪</div>
         <h3>Tenho uma loja</h3>
-        <p>Coloque sua loja no DROPE: app pronto, comissão baixa e entrega resolvida.</p>
+        <p>Seu app pronto: cadastro por foto com IA, comissão baixa e entrega resolvida.</p>
         <span class="go">Vender no DROPE →</span>
       </div>
+      <div class="card link door ent" onclick="nav('/entregador')">
+        <div class="ico">🛵</div>
+        <h3>Quero entregar</h3>
+        <p>Cadastre-se no app, atenda lojas fixas ou corridas avulsas e receba no Pix.</p>
+        <span class="go">Ser entregador →</span>
+      </div>
+    </div>
+    <div class="ref-strip" onclick="nav('/indica')">
+      <div><b>🔗 Indique e ganhe</b><span>Compartilhe o DROPE e ganhe comissão pelas indicações.</span></div>
+      <span class="ref-soon">Em breve →</span>
     </div>
   </section>
 
@@ -305,11 +329,13 @@
   </section>
 
   <section class="wrap" style="padding-top:20px">
-    <div class="grid g4">
+    <div class="grid g3">
       <div class="card"><div class="ico">⚡</div><h3>Em minutos</h3><p>Escolha a loja, monte o pedido e receba rapidinho, sem sair de casa.</p></div>
-      <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Pagamento na hora, aprovação instantânea. Simples e seguro.</p></div>
-      <div class="card"><div class="ico">🛵</div><h3>Acompanhe a entrega</h3><p>Saiba quando saiu pra entrega e quando chega — avisos no app.</p></div>
-      <div class="card"><div class="ico">❤️</div><h3>Seus favoritos</h3><p>Salve lojas e drops, repita o pedido com um toque.</p></div>
+      <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Aprovação na hora, sem precisar mandar comprovante. Simples e seguro.</p></div>
+      <div class="card"><div class="ico">🛵</div><h3>Acompanhe em tempo real</h3><p>Avisos de "separando", "saiu pra entrega" e "chegou", direto no app.</p></div>
+      <div class="card"><div class="ico">🏠</div><h3>Entrega ou retirada</h3><p>Receba em casa ou retire na loja — você escolhe no checkout.</p></div>
+      <div class="card"><div class="ico">✨</div><h3>Recomendado pra você</h3><p>A vitrine se organiza pelo seu gosto, com sugestões que combinam com você.</p></div>
+      <div class="card"><div class="ico">🔁</div><h3>Repita em 1 toque</h3><p>Salve favoritos e refaça seu último pedido com um único toque.</p></div>
     </div>
   </section>
 
@@ -356,6 +382,40 @@
     </div>
   </section>
 
+  <!-- IA carro-chefe -->
+  <section class="wrap">
+    <div class="ia-hero">
+      <div class="ia-txt">
+        <div class="eyebrow" style="color:var(--lime)">✦ Inteligência artificial</div>
+        <h2 class="sec-title" style="font-size:30px">Cadastre por foto. A IA faz o resto.</h2>
+        <p class="sec-sub" style="max-width:560px">Fotografe o produto e a IA identifica e preenche marca, variação e código de barras — e ainda gera a arte pra sua vitrine. Catálogo pronto em minutos, sem digitação.</p>
+        <div class="ia-chips">
+          <span>📸 Preenche sozinho</span>
+          <span>🎨 Arte automática</span>
+          <span>📷 Lê o código de barras</span>
+        </div>
+      </div>
+      <div class="ia-art"><img src="icons/1.png" alt=""></div>
+    </div>
+  </section>
+
+  <!-- recursos -->
+  <section class="wrap" style="padding-top:20px">
+    <div class="eyebrow">Tudo num app só</div>
+    <h2 class="sec-title">Ferramentas de gente grande</h2>
+    <div class="grid g3">
+      <div class="card"><div class="ico">📸</div><h3>Cadastro por foto</h3><p>A IA identifica e preenche os dados do produto a partir de uma foto.</p></div>
+      <div class="card"><div class="ico">🎨</div><h3>Arte automática</h3><p>Imagens de vitrine geradas por IA, com a cara do DROPE.</p></div>
+      <div class="card"><div class="ico">🧮</div><h3>Preço certo</h3><p>A calculadora já embute a comissão: você vê exatamente quanto recebe.</p></div>
+      <div class="card"><div class="ico">🧾</div><h3>PDV de balcão</h3><p>Venda presencial com leitor de código de barras pela câmera.</p></div>
+      <div class="card"><div class="ico">💸</div><h3>Pix com split</h3><p>Recebe direto na sua conta, com a comissão descontada na hora.</p></div>
+      <div class="card"><div class="ico">📊</div><h3>Dashboard</h3><p>Vendas de 7 dias, top produtos, faturamento e recebido líquido.</p></div>
+      <div class="card"><div class="ico">👥</div><h3>Funcionários & comissão</h3><p>Comissão por % ou fixa, semanal ou mensal, marcar como pago e histórico.</p></div>
+      <div class="card"><div class="ico">🛵</div><h3>Entrega resolvida</h3><p>Entregadores fixos ou o pool DROPE, com tabela de frete configurável.</p></div>
+      <div class="card"><div class="ico">🏷️</div><h3>Cupons & destaque</h3><p>Promoções, vitrine em destaque e QR code pra usar no balcão.</p></div>
+    </div>
+  </section>
+
   <section class="wrap">
     <div class="eyebrow">Planos</div>
     <h2 class="sec-title">Escolha do seu tamanho</h2>
@@ -374,6 +434,86 @@
       <div class="hero-cta">
         <a class="btn btn-lime btn-lg" href="/lojista-signup">Cadastrar minha loja</a>
       </div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== ENTREGADOR ===================== -->
+<main class="view" data-v="/entregador">
+  <section class="wrap" style="padding-bottom:0">
+    <div class="grid g2" style="align-items:center">
+      <div class="audience" style="background:linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.08))">
+        <div class="eyebrow">Para entregadores</div>
+        <h2 class="sec-title" style="font-size:32px">Rode com o DROPE 🛵</h2>
+        <p class="sec-sub">Cadastre-se no app (é seu, não da loja) e escolha como ganhar: atenda uma loja fixa ou pegue corridas avulsas de qualquer loja da plataforma.</p>
+        <ul class="chk">
+          <li><span>✓</span> Loja fixa ou corridas avulsas — você decide</li>
+          <li><span>✓</span> Ganho base + km, você vê o valor antes de aceitar</li>
+          <li><span>✓</span> Aceite justo: nada de corrida "roubada" no último segundo</li>
+          <li><span>✓</span> Recebe no Pix, na sua chave</li>
+          <li><span>✓</span> "A receber" ao vivo e extrato das suas entregas</li>
+        </ul>
+        <div style="margin-top:24px"><a class="btn btn-lime btn-lg" href="/entregador">Quero ser entregador</a></div>
+      </div>
+      <div class="hero-art"><img src="icons/drope-moto.png" alt="Entregador DROPE" style="width:min(320px,88%);filter:drop-shadow(0 24px 50px rgba(255,45,111,0.35))"></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">Por que rodar com o DROPE</div>
+    <h2 class="sec-title">Justo com quem entrega</h2>
+    <div class="grid g4">
+      <div class="card"><div class="ico">🔀</div><h3>Fixo + avulso</h3><p>Ganhe estabilidade numa loja fixa e complete a renda com corridas avulsas.</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>Aceite justo</h3><p>A corrida é de quem aceita primeiro — trava no sistema, sem disputa injusta.</p></div>
+      <div class="card"><div class="ico">💸</div><h3>Pix na sua conta</h3><p>Nas corridas avulsas, o DROPE garante o pagamento na sua chave Pix.</p></div>
+      <div class="card"><div class="ico">📈</div><h3>Tudo transparente</h3><p>Valor por corrida claro antes de aceitar, "a receber" ao vivo e extrato.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">Como funciona</div>
+    <h2 class="sec-title">Comece hoje</h2>
+    <div class="grid g3">
+      <div class="card step"><div class="n">1</div><div><h3>Cadastre-se no app</h3><p>Nome, WhatsApp, senha e sua chave Pix. Rapidinho.</p></div></div>
+      <div class="card step"><div class="n">2</div><div><h3>Aceite corridas</h3><p>Veja o valor, aceite e saia pra entrega. Fixas ou avulsas.</p></div></div>
+      <div class="card step"><div class="n">3</div><div><h3>Receba no Pix</h3><p>Acompanhe o "a receber" e receba direto na sua chave.</p></div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="cta-band">
+      <h2>Bora rodar? 🛵</h2>
+      <p>Cadastre-se no app do entregador e comece a ganhar.</p>
+      <div class="hero-cta">
+        <a class="btn btn-lime btn-lg" href="/entregador">Quero ser entregador</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== INDIQUE E GANHE ===================== -->
+<main class="view" data-v="/indica">
+  <section class="wrap">
+    <div class="grid g2" style="align-items:center">
+      <div>
+        <div class="eyebrow" style="color:var(--lime)">🔗 Indique e ganhe · Em breve</div>
+        <h2 class="sec-title" style="font-size:32px">Indique o DROPE e ganhe comissão ✦</h2>
+        <p class="sec-sub" style="max-width:560px">Você compartilha seu link, as pessoas pedem no DROPE e você ganha uma comissão por cada indicação. Um jeito simples de faturar divulgando o que já é bom.</p>
+        <p class="note">✦ Programa em fase final de ajustes. Em breve com pagamento automático — se quiser participar desde o começo, é só avisar a gente.</p>
+        <div class="hero-cta" style="margin-top:22px">
+          <a class="btn btn-lime btn-lg" href="/lojista-signup">Tenho uma loja</a>
+          <button class="btn btn-ghost btn-lg" onclick="installApp()">Instalar o app</button>
+        </div>
+      </div>
+      <div class="hero-art"><img src="icons/1.png" alt="Indique o DROPE" style="width:min(280px,80%);filter:drop-shadow(0 24px 50px rgba(140,80,255,0.35))"></div>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-top:0">
+    <div class="grid g3">
+      <div class="card"><div class="ico">1️⃣</div><h3>Pegue seu link</h3><p>Cada indicador tem um link único de indicação.</p></div>
+      <div class="card"><div class="ico">2️⃣</div><h3>Divulgue</h3><p>Compartilhe com clientes, amigos e nas suas redes.</p></div>
+      <div class="card"><div class="ico">3️⃣</div><h3>Ganhe comissão</h3><p>Cada pedido feito pelo seu link vira comissão pra você.</p></div>
     </div>
   </section>
 </main>
@@ -417,9 +557,11 @@
     <div class="brand" style="font-size:17px"><img src="icons/drope-avatar.png" alt=""><span>DRO<b>PE</b> ✦</span></div>
     <div class="foot-links">
       <a onclick="nav('/')">Início</a>
-      <a onclick="nav('/voce')">Para você</a>
-      <a onclick="nav('/loja')">Para lojistas</a>
-      <a onclick="nav('/sobre')">Quem somos</a>
+      <a onclick="nav('/voce')">Cliente</a>
+      <a onclick="nav('/loja')">Lojista</a>
+      <a onclick="nav('/entregador')">Entregador</a>
+      <a onclick="nav('/indica')">Indicação</a>
+      <a onclick="nav('/sobre')">Sobre</a>
       <a href="/">Abrir o app</a>
     </div>
     <div>© 2026 DROPE ✦ drops em minutos · +18</div>
@@ -441,7 +583,7 @@
 
 <script>
   /* ---------- roteamento por hash (páginas clicáveis) ---------- */
-  var ROUTES = ['/','/voce','/loja','/sobre'];
+  var ROUTES = ['/','/voce','/loja','/entregador','/indica','/sobre'];
   function currentRoute(){
     var h = (location.hash || '').replace(/^#/, '');
     return ROUTES.indexOf(h) >= 0 ? h : '/';
