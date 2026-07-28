@@ -182,7 +182,6 @@
   .pay-badge::first-letter,
   .cart-total .lbl::first-letter,
   .co-total-lbl::first-letter,
-  .co-section-lbl::first-letter,
   .filter-cta-text::first-letter,
   .hero-muted::first-letter,
   .see-all-link::first-letter,
@@ -4151,10 +4150,10 @@
 <div id="install-banner" class="install-banner">
   <div class="ib-icon">⬇</div>
   <div class="ib-body">
-    <div class="ib-title">instalar drope</div>
-    <div class="ib-sub">fica na tela de início ✦ abre igual app</div>
+    <div class="ib-title">Instalar o DROPE</div>
+    <div class="ib-sub">Fica na tela de início ✦ abre igual um app</div>
   </div>
-  <button class="ib-btn" onclick="triggerInstall()">instalar</button>
+  <button class="ib-btn" onclick="triggerInstall()">Instalar</button>
   <button class="ib-close" onclick="dismissInstall()" aria-label="fechar">×</button>
 </div>
 
@@ -4162,13 +4161,13 @@
 <div id="ios-install-tip" class="ios-tip">
   <div class="iot-card">
     <button class="iot-close" onclick="dismissIOSTip()" aria-label="fechar">×</button>
-    <div class="iot-title">instalar no iphone ✦</div>
+    <div class="iot-title">Instalar no iPhone ✦</div>
     <div class="iot-body">
-      toca no botão <b>compartilhar</b>
+      Toque no botão <b>compartilhar</b>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M8 8l4-4 4 4M4 14v6h16v-6"/></svg>
-      lá embaixo do Safari e escolhe <b>"adicionar à tela de início"</b>. o drope vira ícone igual um app.
+      lá embaixo do Safari e escolha <b>"Adicionar à tela de início"</b>. O DROPE vira ícone igual um app.
     </div>
-    <button class="iot-btn" onclick="dismissIOSTip()">beleza</button>
+    <button class="iot-btn" onclick="dismissIOSTip()">Beleza</button>
   </div>
 </div>
 
@@ -4219,7 +4218,7 @@
       <!-- Step 2: Welcome + cadastro -->
       <div id="onboard-step-2" class="onboard-step" style="display:none">
         <div class="onboard-body">
-          <div class="onboard-title">boas-vindas ✦</div>
+          <div class="onboard-title">Boas-vindas ✦</div>
           <div class="onboard-sub">Só 3 coisinhas e você tá dentro</div>
         </div>
         <div class="welcome-form">
@@ -4293,7 +4292,7 @@
   <div class="guest-gate-backdrop" id="guest-gate-bd" onclick="closeGuestGate()"></div>
   <div class="guest-gate" id="guest-gate">
     <div class="guest-gate-handle"></div>
-    <div class="onboard-title" style="margin-bottom:4px">antes de dropar ✦</div>
+    <div class="onboard-title" style="margin-bottom:4px">Antes de dropar ✦</div>
     <div class="onboard-sub" style="margin-bottom:16px">Pra fechar o pedido, a gente precisa saber quem é você</div>
     <div class="welcome-form">
       <input type="text" id="gate-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateGateBtn()">
@@ -4301,8 +4300,8 @@
       <input type="email" id="gate-email" class="card-input" placeholder="email (obrigatório)" autocomplete="email" inputmode="email" oninput="updateGateBtn()" required>
       <div class="welcome-privacy">zero spam, zero venda pra terceiros.</div>
     </div>
-    <button class="btn-primary" id="gate-btn" onclick="finishGateRegister()" disabled style="opacity:0.4; margin-top:12px; width:100%">cadastrar e dropar ✦</button>
-    <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-dim)">já tem conta? <span style="color:var(--lime);font-weight:700;cursor:pointer" onclick="closeGuestGate(); openCustomerLogin();">entrar com telefone e senha ✦</span></div>
+    <button class="btn-primary" id="gate-btn" onclick="finishGateRegister()" disabled style="opacity:0.4; margin-top:12px; width:100%">Cadastrar e dropar ✦</button>
+    <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-dim)">Já tem conta? <span style="color:var(--lime);font-weight:700;cursor:pointer" onclick="closeGuestGate(); openCustomerLogin();">Entrar com telefone e senha ✦</span></div>
   </div>
 
   <!-- ============ EDITAR ESTOQUE (modal admin) ============ -->
@@ -4459,7 +4458,7 @@
       <div class="icon-btn" onclick="go('home')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Seja parceiro</div>
+      <div class="brand-small">Cadastrar loja</div>
       <div style="width:40px"></div>
     </div>
     <div id="lojista-form-wrap" style="padding: 0 20px 40px">
@@ -4558,7 +4557,7 @@
       <div class="icon-btn" onclick="go('profile')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
-      <div class="brand-small">Seja parceiro</div>
+      <div class="brand-small">Divulgar e ganhar</div>
       <div style="width:40px"></div>
     </div>
     <div style="padding:0 16px 40px">
@@ -5081,7 +5080,7 @@
         <div class="profile-row" id="pr-login" onclick="openCustomerLogin()" style="color: var(--lime); display:none">Entrar / criar conta <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Criar / trocar senha <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="sejaParceiro()">Seja parceiro de uma loja ✦ <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="sejaParceiro()">Divulgar e ganhar ✦ <span class="arrow">›</span></div>
         <div class="profile-row" onclick="shareDrope()">Compartilhar app <span class="arrow">›</span></div>
         <div class="profile-row" onclick="openHelpWhats()">Ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
@@ -5089,7 +5088,7 @@
       <!-- CTA lojista: vira texto (não botão) embaixo do menu -->
       <div style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
         Tem tabacaria?<br>
-        <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Seja parceiro DROPE ✦</span>
+        <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Cadastrar minha loja ✦</span>
       </div>
     </div>
   </div>
