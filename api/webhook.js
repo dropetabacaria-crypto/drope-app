@@ -13792,6 +13792,70 @@ async function handleFilialLogin(req, res) {
 function _normPhone(s) { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; }
 function _phone55(d) { d = _normPhone(d); return d.startsWith('55') ? d : '55' + d; }
 
+// POST action=filial_reset_request { email } → envia código de redefinição pro WhatsApp da loja.
+async function handleFilialResetRequest(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,founder_phone,metadata');
+    const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
+    if (!filial || !filial.founder_phone) return res.status(404).json({ ok: false, error: 'não achei uma loja com esse email' });
+    const phone = _normPhone(filial.founder_phone);
+    if (phone.length < 10) return res.status(400).json({ ok: false, error: 'a loja não tem um WhatsApp válido cadastrado' });
+    const now = Date.now();
+    const ex = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=last_sent_at&limit=1`);
+    if (ex && ex[0] && ex[0].last_sent_at && (now - new Date(ex[0].last_sent_at).getTime()) < 45000) {
+      return res.status(429).json({ ok: false, error: 'espera alguns segundos pra pedir outro código' });
+    }
+    const code = String(crypto.randomInt(100000, 1000000));
+    const rec = { phone, code_hash: _sha256hex(code), expires_at: new Date(now + 10 * 60000).toISOString(), attempts: 0, last_sent_at: new Date(now).toISOString() };
+    if (ex && ex[0]) await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, rec);
+    else await sbInsert('drope_otp', rec);
+    let sent = false;
+    try { const r = await sendText(_phone55(phone), `DROPE ✦ código pra redefinir a senha do seu painel: ${code}\n\nVale por 10 minutos. Se não foi você, ignore.`); sent = !!(r && r.ok); }
+    catch (e) { console.warn('[filial_reset_request] whats:', e.message); }
+    if (!sent) return res.status(502).json({ ok: false, error: 'não conseguimos enviar o código pelo WhatsApp agora. Tente de novo em instantes.' });
+    return res.status(200).json({ ok: true, phone_masked: '(••) •••••-' + phone.slice(-4) });
+  } catch (e) { console.error('[filial_reset_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=filial_reset_confirm { email, code, password } → valida o código e grava a nova senha.
+async function handleFilialResetConfirm(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').replace(/\D/g, '');
+    const password = String(body.password || '');
+    if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+    if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,founder_phone,metadata');
+    const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
+    if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
+    const phone = _normPhone(filial.founder_phone);
+    const orows = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=*&limit=1`);
+    const otp = orows && orows[0];
+    if (!otp || !otp.code_hash) return res.status(400).json({ ok: false, error: 'peça um código primeiro' });
+    if (new Date(otp.expires_at).getTime() < Date.now()) return res.status(400).json({ ok: false, error: 'código expirado, peça outro' });
+    if ((otp.attempts || 0) >= 5) return res.status(429).json({ ok: false, error: 'muitas tentativas, peça outro código' });
+    if (_sha256hex(code) !== otp.code_hash) {
+      await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { attempts: (otp.attempts || 0) + 1 });
+      return res.status(401).json({ ok: false, error: 'código incorreto' });
+    }
+    await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { code_hash: '', expires_at: new Date(Date.now() - 1000).toISOString() });
+    const pass = _ljHashPassword(password);
+    const md = filial.metadata || {};
+    md.login = { ...(md.login || {}), pass_salt: pass.salt, pass_hash: pass.hash, session_hash: null };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[filial_reset_confirm] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // Verifica a sessão do cliente (token emitido no otp_verify). Fecha o lookup por telefone.
 async function _customerSessionOk(phone, token) {
   const p = _normPhone(phone);
@@ -17041,6 +17105,12 @@ module.exports = async function handler(req, res) {
     return await handleFilialRegister(req, res);
   }
   // POST /api/webhook?action=filial_login → login do lojista (email+senha) → token de sessão
+  if (req.url && req.url.indexOf('action=filial_reset_request') >= 0) {
+    return await handleFilialResetRequest(req, res);
+  }
+  if (req.url && req.url.indexOf('action=filial_reset_confirm') >= 0) {
+    return await handleFilialResetConfirm(req, res);
+  }
   if (req.url && req.url.indexOf('action=filial_login') >= 0) {
     return await handleFilialLogin(req, res);
   }

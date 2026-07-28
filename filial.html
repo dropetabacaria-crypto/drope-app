@@ -210,14 +210,34 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="auth-overlay" id="auth-overlay">
   <div class="auth-box">
     <h1 id="auth-title">Painel da loja</h1>
-    <p>Entre com seu email e senha</p>
-    <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
-    <div style="position:relative">
-      <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" style="padding-right:60px;width:100%" onkeydown="if(event.key==='Enter')login()">
-      <button type="button" onclick="_togglePw('login-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+    <!-- LOGIN -->
+    <div id="login-view">
+      <p>Entre com seu email e senha</p>
+      <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
+      <div style="position:relative">
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" style="padding-right:60px;width:100%" onkeydown="if(event.key==='Enter')login()">
+        <button type="button" onclick="_togglePw('login-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+      </div>
+      <button onclick="login()">Entrar</button>
+      <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
+      <div style="text-align:center;margin-top:10px"><span onclick="showReset()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">Esqueci a senha</span></div>
     </div>
-    <button onclick="login()">Entrar</button>
-    <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
+    <!-- REDEFINIR SENHA -->
+    <div id="reset-view" style="display:none">
+      <p>A gente manda um código pro WhatsApp cadastrado da loja pra você criar uma senha nova.</p>
+      <input type="email" id="reset-email" inputmode="email" autocomplete="email" placeholder="Email da loja">
+      <button id="reset-send-btn" onclick="resetRequest()">Enviar código</button>
+      <div id="reset-step2" style="display:none;margin-top:10px">
+        <input id="reset-code" inputmode="numeric" maxlength="6" placeholder="Código (6 dígitos)">
+        <div style="position:relative">
+          <input type="password" id="reset-pass" placeholder="Nova senha (mín. 6)" style="padding-right:60px;width:100%">
+          <button type="button" onclick="_togglePw('reset-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+        </div>
+        <button onclick="resetConfirm()">Redefinir senha ✦</button>
+      </div>
+      <div id="reset-msg" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
+      <div style="text-align:center;margin-top:10px"><span onclick="showLoginView()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">‹ Voltar pro login</span></div>
+    </div>
   </div>
 </div>
 
@@ -811,6 +831,51 @@ function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', {
 
 // Mostrar/ocultar senha (útil no mobile)
 function _togglePw(id, btn) { const i = document.getElementById(id); if (!i) return; const show = i.type === 'password'; i.type = show ? 'text' : 'password'; if (btn) btn.textContent = show ? 'ocultar' : 'ver'; }
+// Esqueci a senha → redefinir com código no WhatsApp da loja
+function showReset() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('reset-view').style.display = 'block';
+  const e = document.getElementById('reset-email'), le = document.getElementById('login-email');
+  if (e && le && le.value) e.value = le.value;
+  document.getElementById('reset-msg').textContent = '';
+}
+function showLoginView() {
+  document.getElementById('reset-view').style.display = 'none';
+  document.getElementById('login-view').style.display = 'block';
+}
+async function resetRequest() {
+  const email = (document.getElementById('reset-email').value || '').trim().toLowerCase();
+  const msg = document.getElementById('reset-msg');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.style.color = 'var(--pink)'; msg.textContent = 'email inválido'; return; }
+  const b = document.getElementById('reset-send-btn'); b.disabled = true; b.textContent = 'enviando...';
+  try {
+    const r = await fetch('/api/webhook?action=filial_reset_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      document.getElementById('reset-step2').style.display = 'block';
+      msg.style.color = 'var(--green)'; msg.textContent = 'código enviado pro WhatsApp ' + (d.phone_masked || 'da loja') + ' ✦';
+      b.textContent = 'Reenviar código';
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); b.textContent = 'Enviar código'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; b.textContent = 'Enviar código'; }
+  b.disabled = false;
+}
+async function resetConfirm() {
+  const email = (document.getElementById('reset-email').value || '').trim().toLowerCase();
+  const code = (document.getElementById('reset-code').value || '').replace(/\D/g, '');
+  const password = (document.getElementById('reset-pass').value || '');
+  const msg = document.getElementById('reset-msg');
+  if (code.length < 4) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o código'; return; }
+  if (password.length < 6) { msg.style.color = 'var(--pink)'; msg.textContent = 'senha precisa de 6+ caracteres'; return; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_reset_confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      showLoginView();
+      const le = document.getElementById('login-email'); if (le) le.value = email;
+      const ae = document.getElementById('auth-err'); if (ae) { ae.style.color = 'var(--green)'; ae.textContent = 'senha redefinida ✦ entre com a nova senha'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+}
 async function login() {
   const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
   const pass = (document.getElementById('login-pass').value || '');
