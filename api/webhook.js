@@ -13590,12 +13590,13 @@ async function handleFilialPlanSubscribe(req, res) {
     const tier = String(body.tier || '').toLowerCase().trim();
     const plan = DROPE_PLANS[tier];
     if (!plan || !plan.monthly_fee_cents) return res.status(400).json({ ok: false, error: 'plano inválido' });
-    if (!MP_ACCESS_TOKEN) return res.status(500).json({ ok: false, error: 'pagamento não configurado' });
+    const mpTok = (await _mpAppToken()) || MP_ACCESS_TOKEN;
+    if (!mpTok) return res.status(500).json({ ok: false, error: 'pagamento não configurado' });
     const md = filial.metadata || {};
     const email = ((md.login || {}).email) || '';
     if (!email) return res.status(400).json({ ok: false, error: 'cadastre um email de acesso primeiro' });
     const pre = await fetch('https://api.mercadopago.com/preapproval', {
-      method: 'POST', headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+      method: 'POST', headers: { Authorization: `Bearer ${mpTok}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reason: `DROPE ${plan.label} — ${filial.name || filial.slug}`,
         external_reference: `${filial.slug}:${tier}`,
@@ -13617,8 +13618,9 @@ async function handleFilialPlanSubscribe(req, res) {
 
 // Aplica o resultado de uma assinatura MP (preapproval) no plano da loja.
 async function _mpApplyPreapproval(preapprovalId) {
-  if (!preapprovalId || !MP_ACCESS_TOKEN) return;
-  const r = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } });
+  const mpTok = (await _mpAppToken()) || MP_ACCESS_TOKEN;
+  if (!preapprovalId || !mpTok) return;
+  const r = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, { headers: { Authorization: `Bearer ${mpTok}` } });
   if (!r.ok) return;
   const p = await r.json().catch(() => ({}));
   const [slug, tier] = String(p.external_reference || '').split(':');
@@ -16635,8 +16637,9 @@ async function handleMPWebhook(req, res) {
     if (_topic.includes('authorized_payment')) { // cobrança recorrente da assinatura
       const id = body.data && body.data.id;
       try {
-        if (id && MP_ACCESS_TOKEN) {
-          const ar = await fetch(`https://api.mercadopago.com/authorized_payments/${id}`, { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } });
+        const mpTok = (await _mpAppToken()) || MP_ACCESS_TOKEN;
+        if (id && mpTok) {
+          const ar = await fetch(`https://api.mercadopago.com/authorized_payments/${id}`, { headers: { Authorization: `Bearer ${mpTok}` } });
           if (ar.ok) { const ap = await ar.json(); if (ap.preapproval_id) await _mpApplyPreapproval(ap.preapproval_id); }
         }
       } catch (e) { console.error('[MP authpay]', e.message); }
