@@ -8399,7 +8399,7 @@
     const label = f.name || f.city || '';
     const cityTc = (f.city || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
     const cover = f.cover
-      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" style="cursor:zoom-in" onclick="event.stopPropagation();openStorePhoto('${escapeHtml(f.cover)}')" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
+      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
       : `<div class="loja-cover-ph"></div>`;
     const kmTxt = (typeof f._km === 'number') ? (f._km < 1 ? Math.round(f._km * 1000) + ' m' : f._km.toFixed(1).replace('.', ',') + ' km') : '';
     const etaTxt = _etaFromKm(f._km);
