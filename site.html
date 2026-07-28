@@ -142,6 +142,12 @@
   .ref-strip span { color:var(--dim); font-size:14px; margin-left:8px; }
   .ref-soon { color:var(--lime) !important; font-weight:800; font-size:13px; white-space:nowrap; }
 
+  /* SUB-ABAS DO PARCEIRO */
+  .ptabs { display:flex; gap:8px; flex-wrap:wrap; margin:22px 0 4px; }
+  .ptab { display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:700; color:var(--dim); background:var(--bg2); border:1px solid var(--border); border-radius:999px; padding:9px 16px; transition:color .15s, border-color .15s; }
+  .ptab:hover { color:var(--fg); }
+  .ptab.on { color:var(--lime); border-color:var(--lime); background:rgba(212,255,46,0.06); }
+
   /* AUDIENCE */
   .audience { background:linear-gradient(135deg, rgba(212,255,46,0.08), rgba(140,80,255,0.06)); border:1px solid var(--border); border-radius:24px; padding:34px; }
   .ia-hero { display:grid; grid-template-columns:1.3fr 0.7fr; gap:24px; align-items:center; background:linear-gradient(135deg, rgba(212,255,46,0.10), rgba(140,80,255,0.10)); border:1px solid rgba(212,255,46,0.28); border-radius:24px; padding:32px; box-shadow:0 0 40px rgba(212,255,46,0.06); }
@@ -209,9 +215,7 @@
     <nav class="nav-links" id="navlinks">
       <a data-r="/" onclick="nav('/')">Início</a>
       <a data-r="/voce" onclick="nav('/voce')">Cliente</a>
-      <a data-r="/loja" onclick="nav('/loja')">Lojista</a>
-      <a data-r="/entregador" onclick="nav('/entregador')">Entregador</a>
-      <a data-r="/indica" onclick="nav('/indica')">Indicação</a>
+      <a data-r="/parceiro" onclick="nav('/parceiro')">Parceiro</a>
       <a data-r="/sobre" onclick="nav('/sobre')">Sobre</a>
       <button class="btn btn-lime" onclick="installApp()">Instalar o app</button>
     </nav>
@@ -361,8 +365,44 @@
   </section>
 </main>
 
+<!-- ===================== PARCEIRO (HUB) ===================== -->
+<main class="view" data-v="/parceiro">
+  <section class="wrap" style="padding-bottom:10px">
+    <div class="eyebrow">Seja parceiro</div>
+    <h2 class="sec-title">Faça parte do DROPE ✦</h2>
+    <p class="sec-sub">Tem uma loja, quer entregar ou quer ganhar divulgando? Escolha como você entra no DROPE.</p>
+  </section>
+  <section class="wrap" style="padding-top:16px">
+    <div class="grid g3">
+      <div class="card link door loj" onclick="nav('/loja')">
+        <div class="ico">🏪</div>
+        <h3>Sou lojista</h3>
+        <p>Seu app pronto: cadastro por foto com IA, recebe no Pix com comissão baixa e entrega resolvida.</p>
+        <span class="go">Vender no DROPE →</span>
+      </div>
+      <div class="card link door ent" onclick="nav('/entregador')">
+        <div class="ico">🛵</div>
+        <h3>Sou entregador</h3>
+        <p>Cadastre-se no app, atenda lojas fixas ou corridas avulsas e receba no Pix.</p>
+        <span class="go">Ser entregador →</span>
+      </div>
+      <div class="card link door cli" onclick="nav('/indica')">
+        <div class="ico">🔗</div>
+        <h3>Quero divulgar</h3>
+        <p>Compartilhe o DROPE e ganhe comissão por cada indicação. <b class="lime">Em breve</b>.</p>
+        <span class="go">Indique e ganhe →</span>
+      </div>
+    </div>
+  </section>
+</main>
+
 <!-- ===================== PARA LOJISTAS ===================== -->
 <main class="view" data-v="/loja">
+  <div class="wrap"><div class="ptabs">
+    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+  </div></div>
   <section class="wrap" style="padding-bottom:0">
     <div class="grid g2" style="align-items:center">
       <div class="audience">
@@ -440,6 +480,11 @@
 
 <!-- ===================== ENTREGADOR ===================== -->
 <main class="view" data-v="/entregador">
+  <div class="wrap"><div class="ptabs">
+    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+  </div></div>
   <section class="wrap" style="padding-bottom:0">
     <div class="grid g2" style="align-items:center">
       <div class="audience" style="background:linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.08))">
@@ -493,6 +538,11 @@
 
 <!-- ===================== INDIQUE E GANHE ===================== -->
 <main class="view" data-v="/indica">
+  <div class="wrap"><div class="ptabs">
+    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+  </div></div>
   <section class="wrap">
     <div class="grid g2" style="align-items:center">
       <div>
@@ -558,9 +608,7 @@
     <div class="foot-links">
       <a onclick="nav('/')">Início</a>
       <a onclick="nav('/voce')">Cliente</a>
-      <a onclick="nav('/loja')">Lojista</a>
-      <a onclick="nav('/entregador')">Entregador</a>
-      <a onclick="nav('/indica')">Indicação</a>
+      <a onclick="nav('/parceiro')">Parceiro</a>
       <a onclick="nav('/sobre')">Sobre</a>
       <a href="/">Abrir o app</a>
     </div>
@@ -583,7 +631,8 @@
 
 <script>
   /* ---------- roteamento por hash (páginas clicáveis) ---------- */
-  var ROUTES = ['/','/voce','/loja','/entregador','/indica','/sobre'];
+  var ROUTES = ['/','/voce','/parceiro','/loja','/entregador','/indica','/sobre'];
+  var PARTNER = ['/parceiro','/loja','/entregador','/indica'];
   function currentRoute(){
     var h = (location.hash || '').replace(/^#/, '');
     return ROUTES.indexOf(h) >= 0 ? h : '/';
@@ -591,7 +640,11 @@
   function render(){
     var r = currentRoute();
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('on', v.getAttribute('data-v') === r); });
-    document.querySelectorAll('.nav-links a[data-r]').forEach(function(a){ a.classList.toggle('on', a.getAttribute('data-r') === r); });
+    document.querySelectorAll('.nav-links a[data-r]').forEach(function(a){
+      var dr = a.getAttribute('data-r');
+      a.classList.toggle('on', dr === r || (dr === '/parceiro' && PARTNER.indexOf(r) >= 0));
+    });
+    document.querySelectorAll('.ptab').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-p') === r); });
     window.scrollTo(0, 0);
     document.getElementById('navlinks').classList.remove('open');
   }
