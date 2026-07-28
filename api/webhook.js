@@ -4694,7 +4694,7 @@ async function handleFilialPainel(req, res) {
         filtros: (filial.metadata || {}).filtros || [],
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
-        entregadores: (filial.metadata || {}).entregadores || [],
+        entregadores_fixos: (filial.metadata || {}).entregadores_fixos || [],
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
         accepts_partners: !!((filial.metadata || {}).accepts_partners),
@@ -6751,9 +6751,9 @@ async function handleFilialFuncionarioSave(req, res) {
   } catch (e) { console.error('[filial_funcionario_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
-// POST action=filial_entregador_save — LOJISTA cadastra/edita/remove entregador da loja.
-// Guarda em drope_filiais.metadata.entregadores. Cada um ganha um access_code (4 díg)
-// pra entrar no mini-app do entregador. op: 'save' | 'delete' | 'toggle'.
+// POST action=filial_entregador_save — LOJISTA vincula/desvincula um entregador FIXO.
+// O entregador precisa já ter conta no app (drope_entregadores). Guarda a lista de
+// fixos em drope_filiais.metadata.entregadores_fixos. op: 'link' (por telefone) | 'unlink'.
 async function handleFilialEntregadorSave(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -6765,28 +6765,22 @@ async function handleFilialEntregadorSave(req, res) {
     const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     const md = filial.metadata || {};
-    let ents = Array.isArray(md.entregadores) ? md.entregadores : [];
-    const op = body.op || 'save';
-    if (op === 'delete') {
-      ents = ents.filter(e => e.id !== body.id);
-    } else if (op === 'toggle') {
-      const e = ents.find(x => x.id === body.id);
-      if (e) e.ativo = !e.ativo;
+    let fixos = Array.isArray(md.entregadores_fixos) ? md.entregadores_fixos : [];
+    const op = body.op || 'link';
+    if (op === 'unlink') {
+      fixos = fixos.filter(e => e.id !== body.id);
     } else {
-      const nome = String(body.nome || '').trim().slice(0, 40);
-      const phone = String(body.phone || '').replace(/\D/g, '').slice(0, 13);
-      if (nome.length < 2) return res.status(400).json({ ok: false, error: 'nome do entregador inválido' });
+      const phone = _entNormPhone(body.phone);
       if (phone.length < 10) return res.status(400).json({ ok: false, error: 'telefone inválido' });
-      // telefone único dentro da loja
-      if (ents.some(x => x.id !== body.id && x.phone === phone)) return res.status(409).json({ ok: false, error: 'já existe um entregador com esse telefone' });
-      let e = ents.find(x => x.id === body.id);
-      if (!e) { e = { id: 'ent-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), ativo: true, corridas_entregues: 0, created_at: new Date().toISOString() }; ents.push(e); }
-      e.nome = nome; e.phone = phone;
-      if (!e.access_code) e.access_code = String(Math.floor(1000 + Math.random() * 9000)); // código de 4 dígitos
+      const rows = await sbGet('drope_entregadores', `phone=eq.${encodeURIComponent(phone)}&ativo=eq.true&select=id,nome,phone&limit=1`);
+      const ent = Array.isArray(rows) && rows[0];
+      if (!ent) return res.status(404).json({ ok: false, error: 'esse entregador ainda não tem conta no app — peça pra ele se cadastrar em /entregador primeiro' });
+      if (fixos.some(f => f.id === ent.id)) return res.status(200).json({ ok: true, entregadores_fixos: fixos, already: true });
+      fixos.push({ id: ent.id, nome: ent.nome, phone: ent.phone });
     }
-    md.entregadores = ents;
+    md.entregadores_fixos = fixos;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
-    return res.status(200).json({ ok: true, entregadores: ents });
+    return res.status(200).json({ ok: true, entregadores_fixos: fixos });
   } catch (e) { console.error('[filial_entregador_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
@@ -6812,11 +6806,10 @@ async function handleFilialCorridaCreate(req, res) {
     // já existe corrida ativa pra esse pedido?
     const exist = await sbGet('drope_corridas', `order_id=eq.${orderId}&status=in.(aberta,aceita,em_rota)&select=id&limit=1`);
     if (Array.isArray(exist) && exist[0]) return res.status(409).json({ ok: false, error: 'esse pedido já tem uma entrega em andamento' });
-    // entregador atribuído (opcional) precisa existir e estar ativo
-    const ents = Array.isArray((filial.metadata || {}).entregadores) ? filial.metadata.entregadores : [];
+    // atribuir a um FIXO (opcional) — precisa estar vinculado à loja. Sem assigned = avulso (pool).
+    const fixos = Array.isArray((filial.metadata || {}).entregadores_fixos) ? filial.metadata.entregadores_fixos : [];
     const assignedTo = body.assigned_to ? String(body.assigned_to) : null;
-    if (assignedTo && !ents.some(e => e.id === assignedTo && e.ativo !== false)) return res.status(400).json({ ok: false, error: 'entregador inválido' });
-    if (!assignedTo && !ents.some(e => e.ativo !== false)) return res.status(400).json({ ok: false, error: 'cadastre um entregador ativo primeiro' });
+    if (assignedTo && !fixos.some(e => e.id === assignedTo)) return res.status(400).json({ ok: false, error: 'entregador fixo inválido' });
     const addr = order.address || {};
     const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento].filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço)';
     const clientePhone = (order.customer_snapshot || {}).phone || addr.phone || null;
@@ -6830,103 +6823,117 @@ async function handleFilialCorridaCreate(req, res) {
     });
     const corrida = Array.isArray(inserted) ? inserted[0] : inserted;
     if (!corrida) return res.status(502).json({ ok: false, error: 'falha ao criar a corrida' });
-    // avisa o(s) entregador(es) no app — se atribuída, só ele; senão, todos ativos
+    // avisa o fixo atribuído no app (avulso aparece pra todos via polling)
     try {
-      const alvo = assignedTo ? ents.filter(e => e.id === assignedTo) : ents.filter(e => e.ativo !== false);
-      for (const e of alvo) _notify('entregador', e.id, 'corrida_nova', 'Nova corrida ✦', `Pedido #${order.order_nsu || order.id} disponível pra entrega`).catch(() => {});
+      if (assignedTo) _notify('entregador', assignedTo, 'corrida_nova', 'Nova corrida ✦', `Pedido #${order.order_nsu || order.id} disponível pra entrega`).catch(() => {});
     } catch (e) {}
     return res.status(200).json({ ok: true, corrida });
   } catch (e) { console.error('[filial_corrida_create] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
-// ===== Mini-app do entregador (por loja) =====
+// ===== Entregadores (cadastro GLOBAL no app — modelo iFood) =====
 const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
-async function _entregadorAuth(slug, entregadorId, token) {
-  if (!slug || !entregadorId || !token) return null;
-  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(String(slug).toLowerCase())}&status=eq.active&select=id,slug,name,metadata&limit=1`);
-  const filial = Array.isArray(fr) && fr[0];
-  if (!filial) return null;
-  const ents = Array.isArray((filial.metadata || {}).entregadores) ? filial.metadata.entregadores : [];
-  const ent = ents.find(e => e.id === entregadorId);
+async function _entregadorAuth(entregadorId, token) {
+  if (!entregadorId || !token) return null;
+  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,ativo,session_hash&limit=1`);
+  const ent = Array.isArray(rows) && rows[0];
   if (!ent || ent.ativo === false || !ent.session_hash) return null;
   if (_sha256hex(token) !== ent.session_hash) return null;
-  return { filial, entregador: ent };
+  return ent;
 }
-// POST action=entregador_login { loja, phone, code } → sessão do entregador
+// POST action=entregador_signup { nome, phone, password, pix_key, doc } → cria conta global
+async function handleEntregadorSignup(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const nome = String(body.nome || '').trim().slice(0, 40);
+    const phone = _entNormPhone(body.phone);
+    const password = String(body.password || '');
+    const pix_key = String(body.pix_key || '').trim().slice(0, 80);
+    const doc = String(body.doc || '').replace(/\D/g, '');
+    if (nome.length < 2) return res.status(400).json({ ok: false, error: 'nome inválido' });
+    if (phone.length < 10 || phone.length > 13) return res.status(400).json({ ok: false, error: 'telefone inválido' });
+    if (password.length < 4) return res.status(400).json({ ok: false, error: 'senha muito curta (mín. 4)' });
+    const ex = await sbGet('drope_entregadores', `phone=eq.${encodeURIComponent(phone)}&select=id&limit=1`);
+    if (Array.isArray(ex) && ex[0]) return res.status(409).json({ ok: false, error: 'já existe conta com esse telefone — faça login' });
+    const pass = _ljHashPassword(password);
+    const token = crypto.randomBytes(24).toString('hex');
+    const id = 'ent-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000);
+    const ins = await sbInsert('drope_entregadores', { id, nome, phone, pix_key: pix_key || null, doc: doc || null, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _sha256hex(token), session_at: new Date().toISOString(), ativo: true });
+    if (!ins) return res.status(502).json({ ok: false, error: 'falha ao cadastrar' });
+    return res.status(200).json({ ok: true, token, entregador: { id, nome } });
+  } catch (e) { console.error('[entregador_signup] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=entregador_login { phone, password } → sessão (app-level, sem loja)
 async function handleEntregadorLogin(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const slug = String(body.loja || '').toLowerCase().trim();
     const phone = _entNormPhone(body.phone);
-    const code = String(body.code || '').replace(/\D/g, '');
-    if (!slug || phone.length < 10 || code.length < 4) return res.status(400).json({ ok: false, error: 'informe loja, telefone e código' });
-    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(slug)}&status=eq.active&select=id,slug,name,metadata&limit=1`);
-    const filial = Array.isArray(fr) && fr[0];
-    if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
-    const md = filial.metadata || {};
-    const ents = Array.isArray(md.entregadores) ? md.entregadores : [];
-    const ent = ents.find(e => e.ativo !== false && _entNormPhone(e.phone) === phone && String(e.access_code) === code);
-    if (!ent) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'telefone ou código incorretos' }); }
+    const password = String(body.password || '');
+    if (phone.length < 10 || !password) return res.status(400).json({ ok: false, error: 'informe telefone e senha' });
+    const rows = await sbGet('drope_entregadores', `phone=eq.${encodeURIComponent(phone)}&select=id,nome,ativo,pass_salt,pass_hash&limit=1`);
+    const ent = Array.isArray(rows) && rows[0];
+    if (!ent || ent.ativo === false || !_ljVerifyPassword(password, ent.pass_salt, ent.pass_hash)) {
+      await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'telefone ou senha incorretos' });
+    }
     const token = crypto.randomBytes(24).toString('hex');
-    ent.session_hash = _sha256hex(token); ent.session_at = new Date().toISOString();
-    md.entregadores = ents;
-    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
-    return res.status(200).json({ ok: true, token, entregador: { id: ent.id, nome: ent.nome }, loja: { slug: filial.slug, name: filial.name } });
+    await sbUpdate('drope_entregadores', `id=eq.${ent.id}`, { session_hash: _sha256hex(token), session_at: new Date().toISOString() });
+    return res.status(200).json({ ok: true, token, entregador: { id: ent.id, nome: ent.nome } });
   } catch (e) { console.error('[entregador_login] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
-// GET action=entregador_corridas&loja=&entregador=&token= → corridas disponíveis + minhas
+// GET action=entregador_corridas&entregador=&token= → avulsas (qualquer loja) + minhas fixas + ativas
 async function handleEntregadorCorridas(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
   try {
     const u = new URL(req.url, 'http://x');
-    const auth = await _entregadorAuth(u.searchParams.get('loja'), u.searchParams.get('entregador'), u.searchParams.get('token'));
-    if (!auth) return res.status(401).json({ ok: false, error: 'unauthorized' });
-    const fid = auth.filial.id, me = auth.entregador.id;
-    const rows = await sbGet('drope_corridas', `filial_id=eq.${fid}&status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,accepted_at&limit=60`);
+    const ent = await _entregadorAuth(u.searchParams.get('entregador'), u.searchParams.get('token'));
+    if (!ent) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const me = ent.id;
+    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone&limit=80`);
     const list = (rows || []).filter(c =>
       (c.status === 'aberta' && (!c.assigned_to || c.assigned_to === me)) ||
       ((c.status === 'aceita' || c.status === 'em_rota') && c.entregador_id === me));
+    const fids = [...new Set(list.map(c => c.filial_id).filter(Boolean))];
     const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
-    const omap = {};
-    if (oids.length) {
-      const ords = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot&limit=100`);
-      (ords || []).forEach(o => { omap[o.id] = o; });
-    }
+    const fmap = {}, omap = {};
+    if (fids.length) { const fr = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name&limit=100`); (fr || []).forEach(f => { fmap[f.id] = f.name; }); }
+    if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
     const corridas = list.map(c => {
       const o = omap[c.order_id] || {};
       return {
-        id: c.id, status: c.status, mine: c.entregador_id === me,
-        order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
+        id: c.id, status: c.status, mine: c.entregador_id === me, avulso: !c.assigned_to,
+        loja: fmap[c.filial_id] || 'Loja', order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
       };
     });
-    return res.status(200).json({ ok: true, corridas, entregador: { nome: auth.entregador.nome }, loja: { name: auth.filial.name } });
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome } });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
-// POST action=entregador_corrida_action { loja, entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
+// POST action=entregador_corrida_action { entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
 async function handleEntregadorCorridaAction(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const auth = await _entregadorAuth(body.loja, body.entregador, body.token);
-    if (!auth) return res.status(401).json({ ok: false, error: 'unauthorized' });
-    const me = auth.entregador, fid = auth.filial.id;
+    const me = await _entregadorAuth(body.entregador, body.token);
+    if (!me) return res.status(401).json({ ok: false, error: 'unauthorized' });
     const corridaId = parseInt(body.corrida_id);
     const action = String(body.action || '');
     if (!corridaId) return res.status(400).json({ ok: false, error: 'corrida_id obrigatório' });
     const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const nowIso = new Date().toISOString();
     if (action === 'accept') {
-      // TRAVA ATÔMICA: só pega se ainda 'aberta' e (sem dono OU atribuída a mim). 1 vencedor.
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&filial_id=eq.${fid}&status=eq.aberta&or=(assigned_to.is.null,assigned_to.eq.${encodeURIComponent(me.id)})`, {
+      // TRAVA ATÔMICA global: só pega se ainda 'aberta' e (sem dono OU atribuída a mim). 1 vencedor.
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&status=eq.aberta&or=(assigned_to.is.null,assigned_to.eq.${encodeURIComponent(me.id)})`, {
         method: 'PATCH', headers: H,
         body: JSON.stringify({ status: 'aceita', entregador_id: me.id, motoboy_nome: me.nome, motoboy_phone: me.phone, accepted_at: nowIso, updated_at: nowIso }),
       });
@@ -6940,13 +6947,12 @@ async function handleEntregadorCorridaAction(req, res) {
       let patch = { status: newStatus, updated_at: nowIso };
       if (action === 'entregue') patch.delivered_at = nowIso;
       if (action === 'cancelar') patch = Object.assign(patch, { entregador_id: null, motoboy_nome: null, motoboy_phone: null, accepted_at: null });
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&filial_id=eq.${fid}&entregador_id=eq.${encodeURIComponent(me.id)}&status=in.(${fromStatuses})`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&entregador_id=eq.${encodeURIComponent(me.id)}&status=in.(${fromStatuses})`, {
         method: 'PATCH', headers: H, body: JSON.stringify(patch),
       });
       const upd = await r.json();
       if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Não deu pra atualizar (o status mudou?)' });
       const corrida = upd[0];
-      // atualiza o pedido + avisa o cliente nos marcos
       try {
         if (action === 'sai' || action === 'entregue') {
           const oStatus = action === 'sai' ? 'dispatched' : 'delivered';
@@ -19643,7 +19649,10 @@ async function generateAll(){
   if (req.url && req.url.indexOf('action=filial_corrida_create') >= 0) {
     return await handleFilialCorridaCreate(req, res);
   }
-  // Mini-app do entregador: login, listar corridas, agir (aceitar/saí/entregue)
+  // Mini-app do entregador: signup, login, listar corridas, agir (aceitar/saí/entregue)
+  if (req.url && req.url.indexOf('action=entregador_signup') >= 0) {
+    return await handleEntregadorSignup(req, res);
+  }
   if (req.url && req.url.indexOf('action=entregador_login') >= 0) {
     return await handleEntregadorLogin(req, res);
   }

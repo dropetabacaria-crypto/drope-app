@@ -19,7 +19,10 @@
   .brand { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:20px; }
   .brand b { color:var(--lime); }
   h1 { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:26px; margin:6px 4px 2px; letter-spacing:-0.5px; }
-  .sub { color:var(--fg-dim); font-size:14px; margin:0 4px 18px; line-height:1.4; }
+  .sub { color:var(--fg-dim); font-size:14px; margin:0 4px 12px; line-height:1.4; }
+  .tabs { display:flex; gap:8px; margin:8px 4px 6px; }
+  .tab { flex:1; padding:11px; border-radius:12px; border:1px solid var(--border); background:var(--bg2); color:var(--fg-dim); font-family:inherit; font-weight:800; font-size:14px; cursor:pointer; }
+  .tab.active { background:var(--lime); color:#0A0A14; border-color:var(--lime); }
   label { display:block; font-size:12px; color:var(--fg-dim); font-weight:700; margin:14px 4px 6px; }
   input { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:15px; color:var(--fg); font-size:16px; font-family:inherit; outline:none; }
   input:focus { border-color:var(--purple); }
@@ -30,19 +33,22 @@
   .btn:disabled { opacity:.5; }
   .msg { font-size:13px; color:var(--pink); margin:12px 4px 0; min-height:16px; text-align:center; }
   .hidden { display:none; }
+  .hint { font-size:11px; color:var(--fg-dim); margin:4px 4px 0; }
   .hdr-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 4px 16px; }
   .hdr-name { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:18px; }
-  .hdr-loja { font-size:12px; color:var(--fg-dim); }
   .sair { font-size:12px; color:var(--pink); font-weight:700; cursor:pointer; flex:0 0 auto; }
   .card { background:var(--bg2); border:1px solid var(--border); border-radius:18px; padding:15px; margin-bottom:12px; box-shadow:0 8px 22px rgba(0,0,0,0.30); }
   .card.mine { border-color:rgba(212,255,46,0.35); }
   .c-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .c-nsu { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:16px; }
+  .c-loja { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:16px; }
   .c-valor { font-weight:800; color:var(--lime); font-size:16px; }
+  .c-badges { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
   .c-badge { font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
   .b-aberta { background:rgba(255,184,0,0.16); color:#ffcf4d; }
   .b-aceita { background:rgba(140,80,255,0.18); color:#c8b6ff; }
   .b-rota { background:rgba(212,255,46,0.16); color:var(--lime); }
+  .b-avulso { background:rgba(45,212,255,0.16); color:#7fe3ff; }
+  .b-fixo { background:rgba(74,222,128,0.16); color:var(--green); }
   .c-line { font-size:13px; color:var(--fg-dim); margin-top:8px; line-height:1.4; }
   .c-line b { color:var(--fg); font-weight:700; }
   .c-acts { display:flex; gap:8px; margin-top:12px; }
@@ -58,27 +64,42 @@
     <div class="brand">DRO<b>PE</b> ✦ entregas</div>
   </div>
 
-  <!-- LOGIN -->
-  <div id="login-screen">
+  <!-- AUTH -->
+  <div id="auth-screen">
     <h1>App do entregador</h1>
-    <div class="sub">Entre com o telefone e o código que a loja te passou.</div>
-    <label>Loja</label>
-    <input id="in-loja" placeholder="ex: santos" autocapitalize="off" autocomplete="off">
-    <label>Seu telefone (WhatsApp)</label>
-    <input id="in-phone" type="tel" inputmode="tel" placeholder="(11) 91234-5678">
-    <label>Código (4 dígitos)</label>
-    <input id="in-code" inputmode="numeric" maxlength="4" placeholder="0000">
-    <button class="btn" id="btn-login" onclick="doLogin()">Entrar ✦</button>
-    <div class="msg" id="login-msg"></div>
+    <div class="sub">Faça entregas das lojas DROPE e ganhe por corrida.</div>
+    <div class="tabs">
+      <button class="tab active" id="tab-login" onclick="setTab('login')">Entrar</button>
+      <button class="tab" id="tab-signup" onclick="setTab('signup')">Criar conta</button>
+    </div>
+
+    <div id="form-login">
+      <label>Telefone (WhatsApp)</label>
+      <input id="lg-phone" type="tel" inputmode="tel" placeholder="(11) 91234-5678">
+      <label>Senha</label>
+      <input id="lg-pass" type="password" placeholder="sua senha">
+      <button class="btn" id="btn-login" onclick="doLogin()">Entrar ✦</button>
+    </div>
+
+    <div id="form-signup" class="hidden">
+      <label>Seu nome</label>
+      <input id="sg-nome" placeholder="ex: João Silva" maxlength="40">
+      <label>Telefone (WhatsApp)</label>
+      <input id="sg-phone" type="tel" inputmode="tel" placeholder="(11) 91234-5678">
+      <label>Chave Pix (pra receber)</label>
+      <input id="sg-pix" placeholder="CPF, telefone, email ou aleatória">
+      <label>Crie uma senha</label>
+      <input id="sg-pass" type="password" placeholder="mín. 4 caracteres">
+      <button class="btn" id="btn-signup" onclick="doSignup()">Criar conta ✦</button>
+      <div class="hint">Sua chave Pix é usada pro repasse das entregas avulsas.</div>
+    </div>
+    <div class="msg" id="auth-msg"></div>
   </div>
 
   <!-- CORRIDAS -->
   <div id="corridas-screen" class="hidden">
     <div class="hdr-row">
-      <div>
-        <div class="hdr-name" id="ent-nome">—</div>
-        <div class="hdr-loja" id="ent-loja">—</div>
-      </div>
+      <div class="hdr-name" id="ent-nome">—</div>
       <span class="sair" onclick="sair()">sair</span>
     </div>
     <div id="corridas-list"></div>
@@ -96,73 +117,88 @@ function fmtBRL(c){ return 'R$ ' + ((c||0)/100).toFixed(2).replace('.', ','); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtPhoneStr(d){ d=String(d||'').replace(/\D/g,'').slice(0,11); if(d.length>=8)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7); if(d.length>=3)return '('+d.slice(0,2)+') '+d.slice(2); return d; }
 
-// prefill loja do ?loja=
-(function(){
-  const p = new URLSearchParams(location.search);
-  const loja = p.get('loja');
-  if (loja && _q('in-loja')) _q('in-loja').value = loja;
-})();
-_q('in-phone').addEventListener('input', e => { e.target.value = fmtPhoneStr(e.target.value); });
+function setTab(t){
+  _q('tab-login').classList.toggle('active', t==='login');
+  _q('tab-signup').classList.toggle('active', t==='signup');
+  _q('form-login').classList.toggle('hidden', t!=='login');
+  _q('form-signup').classList.toggle('hidden', t!=='signup');
+  _q('auth-msg').textContent='';
+}
+['lg-phone','sg-phone'].forEach(id=>{ const e=_q(id); if(e) e.addEventListener('input', ev=>{ ev.target.value=fmtPhoneStr(ev.target.value); }); });
 
+async function doSignup(){
+  const nome=(_q('sg-nome').value||'').trim();
+  const phone=(_q('sg-phone').value||'').replace(/\D/g,'');
+  const pix_key=(_q('sg-pix').value||'').trim();
+  const password=(_q('sg-pass').value||'');
+  const msg=_q('auth-msg');
+  if(nome.length<2){ msg.textContent='põe seu nome'; return; }
+  if(phone.length<10){ msg.textContent='telefone inválido'; return; }
+  if(password.length<4){ msg.textContent='senha muito curta (mín. 4)'; return; }
+  const b=_q('btn-signup'); b.disabled=true; b.textContent='criando...';
+  try{
+    const r=await fetch(API+'?action=entregador_signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,phone,password,pix_key})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.ok){ SESS={entregador_id:d.entregador.id,nome:d.entregador.nome,token:d.token}; localStorage.setItem(SK,JSON.stringify(SESS)); showCorridas(); }
+    else { msg.textContent=d.error||'não deu pra cadastrar'; }
+  }catch(e){ msg.textContent='erro de rede'; }
+  b.disabled=false; b.textContent='Criar conta ✦';
+}
 async function doLogin(){
-  const loja = (_q('in-loja').value||'').toLowerCase().trim();
-  const phone = (_q('in-phone').value||'').replace(/\D/g,'');
-  const code = (_q('in-code').value||'').replace(/\D/g,'');
-  const msg = _q('login-msg');
-  if (!loja || phone.length<10 || code.length<4){ msg.textContent='preencha loja, telefone e código'; return; }
-  const b = _q('btn-login'); b.disabled=true; b.textContent='entrando...';
-  try {
-    const r = await fetch(API+'?action=entregador_login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({loja, phone, code}) });
-    const d = await r.json().catch(()=>({}));
-    if (r.ok && d.ok){
-      SESS = { loja: d.loja.slug, loja_name: d.loja.name, entregador_id: d.entregador.id, nome: d.entregador.nome, token: d.token };
-      localStorage.setItem(SK, JSON.stringify(SESS));
-      showCorridas();
-    } else { msg.textContent = d.error || 'não deu pra entrar'; }
-  } catch(e){ msg.textContent='erro de rede'; }
+  const phone=(_q('lg-phone').value||'').replace(/\D/g,'');
+  const password=(_q('lg-pass').value||'');
+  const msg=_q('auth-msg');
+  if(phone.length<10||!password){ msg.textContent='preencha telefone e senha'; return; }
+  const b=_q('btn-login'); b.disabled=true; b.textContent='entrando...';
+  try{
+    const r=await fetch(API+'?action=entregador_login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,password})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.ok){ SESS={entregador_id:d.entregador.id,nome:d.entregador.nome,token:d.token}; localStorage.setItem(SK,JSON.stringify(SESS)); showCorridas(); }
+    else { msg.textContent=d.error||'não deu pra entrar'; }
+  }catch(e){ msg.textContent='erro de rede'; }
   b.disabled=false; b.textContent='Entrar ✦';
 }
 function sair(){ localStorage.removeItem(SK); SESS=null; location.reload(); }
 
 function showCorridas(){
-  _q('login-screen').classList.add('hidden');
+  _q('auth-screen').classList.add('hidden');
   _q('corridas-screen').classList.remove('hidden');
-  _q('ent-nome').textContent = 'Oi, ' + (SESS.nome||'entregador') + ' ✦';
-  _q('ent-loja').textContent = SESS.loja_name || SESS.loja;
+  _q('ent-nome').textContent='Oi, '+(SESS.nome||'entregador')+' ✦';
   loadCorridas();
 }
 
-let _polling = null;
+let _polling=null;
 async function loadCorridas(){
-  if (!SESS) return;
-  try {
-    const url = API+'?action=entregador_corridas&loja='+encodeURIComponent(SESS.loja)+'&entregador='+encodeURIComponent(SESS.entregador_id)+'&token='+encodeURIComponent(SESS.token);
-    const r = await fetch(url, {cache:'no-store'});
-    if (r.status===401){ sair(); return; }
-    const d = await r.json().catch(()=>({}));
+  if(!SESS) return;
+  try{
+    const url=API+'?action=entregador_corridas&entregador='+encodeURIComponent(SESS.entregador_id)+'&token='+encodeURIComponent(SESS.token);
+    const r=await fetch(url,{cache:'no-store'});
+    if(r.status===401){ sair(); return; }
+    const d=await r.json().catch(()=>({}));
     renderCorridas(d.corridas||[]);
-  } catch(e){}
-  if (!_polling) _polling = setInterval(loadCorridas, 20000);
+  }catch(e){}
+  if(!_polling) _polling=setInterval(loadCorridas,20000);
 }
 
 function renderCorridas(list){
-  const el = _q('corridas-list');
-  if (!list.length){ el.innerHTML = '<div class="empty">🛵 Nenhuma corrida agora.<br>Assim que a loja chamar, aparece aqui ✦</div>'; return; }
-  // minhas ativas primeiro
-  list.sort((a,b)=> (b.mine?1:0)-(a.mine?1:0));
-  el.innerHTML = list.map(c => {
-    const badge = c.status==='aberta' ? '<span class="c-badge b-aberta">Disponível</span>'
+  const el=_q('corridas-list');
+  if(!list.length){ el.innerHTML='<div class="empty">🛵 Nenhuma corrida agora.<br>Assim que rolar uma entrega, aparece aqui ✦</div>'; return; }
+  list.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0));
+  el.innerHTML=list.map(c=>{
+    const st = c.status==='aberta' ? '<span class="c-badge b-aberta">Disponível</span>'
       : c.status==='aceita' ? '<span class="c-badge b-aceita">Aceita</span>'
       : '<span class="c-badge b-rota">Saiu pra entrega</span>';
-    const maps = c.endereco ? `<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ abrir no mapa</a>` : '';
-    const zap = c.cliente_phone ? ` · <a class="maps" style="color:var(--green)" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">whats</a>` : '';
-    let acts = '';
-    if (c.status==='aberta') acts = `<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
-    else if (c.status==='aceita') acts = `<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega 🛵</button><button class="btn sec" onclick="act(${c.id},'cancelar',this)" style="flex:0 0 auto;width:auto">Devolver</button>`;
-    else if (c.status==='em_rota') acts = `<button class="btn pink" onclick="act(${c.id},'entregue',this)">Entreguei ✅</button>`;
+    const tipo = c.avulso ? '<span class="c-badge b-avulso">Avulso</span>' : '<span class="c-badge b-fixo">Loja fixa</span>';
+    const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ abrir no mapa</a>`:'';
+    const zap=c.cliente_phone?` · <a class="maps" style="color:var(--green)" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">whats</a>`:'';
+    let acts='';
+    if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
+    else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega 🛵</button><button class="btn sec" onclick="act(${c.id},'cancelar',this)" style="flex:0 0 auto;width:auto">Devolver</button>`;
+    else if(c.status==='em_rota') acts=`<button class="btn pink" onclick="act(${c.id},'entregue',this)">Entreguei ✅</button>`;
     return `<div class="card ${c.mine?'mine':''}">
-      <div class="c-top"><span class="c-nsu">Pedido #${esc(c.order_nsu)}</span><span class="c-valor">${fmtBRL(c.valor_cents)}</span></div>
-      <div style="margin-top:6px">${badge}</div>
+      <div class="c-top"><span class="c-loja">${esc(c.loja)}</span><span class="c-valor">${fmtBRL(c.valor_cents)}</span></div>
+      <div class="c-badges">${tipo}${st}</div>
+      <div class="c-line">📦 Pedido #${esc(c.order_nsu)}</div>
       ${c.itens?`<div class="c-line">🛒 ${esc(c.itens)}</div>`:''}
       <div class="c-line">📍 <b>${esc(c.endereco||'sem endereço')}</b></div>
       <div class="c-line">👤 ${esc(c.cliente_nome||'cliente')} ${maps}${zap}</div>
@@ -172,20 +208,18 @@ function renderCorridas(list){
 }
 
 async function act(corridaId, action, btn){
-  if (action==='cancelar' && !confirm('Devolver essa corrida pra loja?')) return;
-  if (btn){ btn.disabled=true; const old=btn.textContent; btn.textContent='...'; btn._old=old; }
-  try {
-    const r = await fetch(API+'?action=entregador_corrida_action', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ loja:SESS.loja, entregador:SESS.entregador_id, token:SESS.token, corrida_id:corridaId, action }) });
-    const d = await r.json().catch(()=>({}));
-    if (!(r.ok && d.ok)) { alert(d.error || 'não deu pra atualizar'); }
-  } catch(e){ alert('erro de rede'); }
-  if (btn){ btn.disabled=false; btn.textContent=btn._old||'ok'; }
+  if(action==='cancelar' && !confirm('Devolver essa corrida?')) return;
+  if(btn){ btn.disabled=true; btn._old=btn.textContent; btn.textContent='...'; }
+  try{
+    const r=await fetch(API+'?action=entregador_corrida_action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,corrida_id:corridaId,action})});
+    const d=await r.json().catch(()=>({}));
+    if(!(r.ok&&d.ok)) alert(d.error||'não deu pra atualizar');
+  }catch(e){ alert('erro de rede'); }
+  if(btn){ btn.disabled=false; btn.textContent=btn._old||'ok'; }
   loadCorridas();
 }
 
-// Boot
-if (SESS && SESS.token) showCorridas();
+if(SESS && SESS.token) showCorridas();
 </script>
 </body>
 </html>

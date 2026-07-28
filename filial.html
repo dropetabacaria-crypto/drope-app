@@ -529,15 +529,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="cfg-sec" id="cfg-entregadores" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
-          <h2>Entregadores<span class="help-q" onclick="helpShow('entregadores',true)" title="O que é isso?">?</span></h2>
-          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Cadastre quem faz as entregas da sua loja. Cada entregador recebe um link e um código pra entrar no app do entregador e pegar as corridas.</p>
+          <h2>Entregadores fixos<span class="help-q" onclick="helpShow('entregadores',true)" title="O que é isso?">?</span></h2>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Vincule aqui os entregadores fixos da sua loja. Eles precisam ter conta no app do entregador (<b>/entregador</b>). Ao chamar entrega, você escolhe um fixo ou abre pra qualquer entregador da plataforma pegar.</p>
           <div id="ent-list" style="margin-bottom:14px"></div>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px">
-            <label class="pf-lbl">Nome do entregador</label>
-            <input class="pf-input" id="ent-nome" placeholder="ex: João" maxlength="40">
-            <label class="pf-lbl" style="margin-top:8px">WhatsApp / telefone</label>
+            <label class="pf-lbl">Telefone do entregador (já cadastrado no app)</label>
             <input class="pf-input" id="ent-phone" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 91234-5678" oninput="_fmtEntPhone(this)">
-            <button class="pf-btn" style="margin-top:12px" onclick="saveEntregador()">Adicionar entregador ✦</button>
+            <button class="pf-btn" style="margin-top:12px" onclick="linkEntregador()">Vincular entregador ✦</button>
             <div id="ent-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
           </div>
         </div>
@@ -876,7 +874,7 @@ function render(d) {
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
   _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
-  _entregadores = Array.isArray(f.entregadores) ? f.entregadores : [];
+  _entregadoresFixos = Array.isArray(f.entregadores_fixos) ? f.entregadores_fixos : [];
   _acceptsPartners = !!f.accepts_partners;
   _commPeriod = (f.commission_period === 'week') ? 'week' : 'month';
   _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
@@ -1438,79 +1436,52 @@ async function toggleAcceptPartners() {
 }
 
 // ===== Entregadores (mini-app de entrega, por loja) =====
-let _entregadores = [];
+let _entregadoresFixos = [];
 function _fmtEntPhone(el) { el.value = _fmtWhatsStr(el.value); }
-function _entLink(code) {
-  const base = (location.origin && location.origin !== 'null') ? location.origin : 'https://drope-app.vercel.app';
-  return base + '/entregador?loja=' + encodeURIComponent(FILIAL_SLUG);
-}
 function renderEntregadores() {
   const el = document.getElementById('ent-list'); if (!el) return;
-  const list = _entregadores || [];
-  if (!list.length) { el.innerHTML = '<div style="font-size:13px;color:var(--fg-dim);padding:8px 0">Nenhum entregador cadastrado ainda.</div>'; return; }
+  const list = _entregadoresFixos || [];
+  if (!list.length) { el.innerHTML = '<div style="font-size:13px;color:var(--fg-dim);padding:8px 0">Nenhum entregador fixo vinculado ainda.</div>'; return; }
   el.innerHTML = list.map(e => {
     const tel = _fmtWhatsStr(String(e.phone || '').replace(/^55/, ''));
-    const off = e.ativo === false;
-    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px${off ? ';opacity:.6' : ''}">
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:14px">${esc(e.nome)}${off ? ' <span style="font-size:10px;color:var(--fg-dim)">(inativo)</span>' : ''}</div>
-          <div style="font-size:12px;color:var(--fg-dim)">${esc(tel)} · código <b style="color:var(--fg)">${esc(e.access_code || '----')}</b></div>
+          <div style="font-weight:800;font-size:14px">${esc(e.nome)} <span style="font-size:10px;color:var(--lime)">✦ fixo</span></div>
+          <div style="font-size:12px;color:var(--fg-dim)">${esc(tel)}</div>
         </div>
-        <span class="mini-link" onclick="toggleEntregador('${e.id}')">${off ? 'ativar' : 'pausar'}</span>
-        <span class="mini-link" style="color:var(--pink)" onclick="deleteEntregador('${e.id}')">excluir</span>
-      </div>
-      <div style="font-size:11px;color:var(--fg-dim);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span>app do entregador:</span>
-        <span class="mini-link" onclick="copyEntregadorLink()">copiar link ✦</span>
+        <span class="mini-link" style="color:var(--pink)" onclick="unlinkEntregador('${e.id}')">desvincular</span>
       </div>
     </div>`;
   }).join('');
 }
-function copyEntregadorLink() {
-  const url = _entLink();
-  try { navigator.clipboard.writeText(url); } catch (e) {}
-  const m = document.getElementById('ent-msg'); if (m) { m.style.color = 'var(--green)'; m.textContent = 'link copiado ✦ manda pro entregador (ele entra com telefone + código)'; }
-}
-async function saveEntregador() {
-  const nome = (document.getElementById('ent-nome').value || '').trim();
+async function linkEntregador() {
   const phone = (document.getElementById('ent-phone').value || '').replace(/\D/g, '');
   const msg = document.getElementById('ent-msg');
-  if (nome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do entregador'; return; }
   if (phone.length < 10) { msg.style.color = 'var(--pink)'; msg.textContent = 'telefone inválido'; return; }
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'vinculando...';
   try {
     const r = await fetch('/api/webhook?action=filial_entregador_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'save', nome, phone }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'link', phone }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
-      _entregadores = d.entregadores || []; renderEntregadores();
-      document.getElementById('ent-nome').value = ''; document.getElementById('ent-phone').value = '';
-      msg.style.color = 'var(--green)'; msg.textContent = 'entregador adicionado ✦';
+      _entregadoresFixos = d.entregadores_fixos || []; renderEntregadores();
+      document.getElementById('ent-phone').value = '';
+      msg.style.color = 'var(--green)'; msg.textContent = d.already ? 'esse entregador já é fixo ✦' : 'entregador vinculado ✦';
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
 }
-async function deleteEntregador(id) {
-  if (!confirm('Excluir esse entregador?')) return;
+async function unlinkEntregador(id) {
+  if (!confirm('Desvincular esse entregador fixo?')) return;
   try {
     const r = await fetch('/api/webhook?action=filial_entregador_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'delete', id }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'unlink', id }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { _entregadores = d.entregadores || []; renderEntregadores(); }
-  } catch (e) {}
-}
-async function toggleEntregador(id) {
-  try {
-    const r = await fetch('/api/webhook?action=filial_entregador_save', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'toggle', id }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { _entregadores = d.entregadores || []; renderEntregadores(); }
+    if (r.ok && d.ok) { _entregadoresFixos = d.entregadores_fixos || []; renderEntregadores(); }
   } catch (e) {}
 }
 
@@ -2164,7 +2135,7 @@ const HELP = {
   qr: { emoji: '📱', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
   func: { emoji: '🕐', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
   pagamento: { emoji: '💳', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
-  entregadores: { emoji: '🛵', title: 'Entregadores', body: 'Cadastre quem faz as entregas da sua loja (nome + telefone). Cada um recebe um <b>código de 4 dígitos</b> e um <b>link do app do entregador</b>.<br><br>No app, o entregador entra com o telefone + código, vê as corridas da sua loja e toca em <b>Aceitar → Saí → Entreguei</b>. O status do pedido e o aviso pro cliente andam sozinhos ✦' },
+  entregadores: { emoji: '🛵', title: 'Entregadores fixos', body: 'O entregador se cadastra sozinho no app (<b>/entregador</b>) com telefone e senha. Aqui você <b>vincula pelo telefone</b> os que são fixos da sua loja.<br><br>Ao chamar uma entrega, você escolhe um fixo (o frete fica com você, que paga ele) OU abre <b>pra qualquer entregador da plataforma</b> pegar (avulso — o DROPE paga o entregador). O status do pedido e o aviso pro cliente andam sozinhos ✦' },
   funcionarios: { emoji: '🧑‍💼', title: 'Funcionários', body: 'Cadastre quem vende na sua loja e defina a comissão: <b>% do lucro</b> ou <b>R$ fixo por venda</b> (nunca % da venda).<br><br>O sistema calcula quanto pagar pra cada um; o pagamento é feito por você.' },
   parceiros: { emoji: '🤝', title: 'Parceiros / Indicadores', body: 'Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem.<br><br>O cliente pede pra ser parceiro, <b>você aprova</b> e define a comissão dele.' },
   plano: { emoji: '⭐', title: 'Meu plano', body: 'Seu plano define a comissão por venda e os recursos disponíveis. Veja os detalhes e troque de plano aqui.' },
@@ -2513,7 +2484,7 @@ function renderPedidoCard(p, isEntregue) {
 // Rótulo legível do estado da corrida (entrega)
 function _corridaLabel(c) {
   if (!c) return '';
-  const nome = c.motoboy_nome || ((_entregadores || []).find(e => e.id === c.assigned_to) || {}).nome || '';
+  const nome = c.motoboy_nome || ((_entregadoresFixos || []).find(e => e.id === c.assigned_to) || {}).nome || '';
   if (c.status === 'aberta') return c.assigned_to ? `⏳ Oferecida a ${esc(nome)} — aguardando aceite` : '⏳ Aberta — aguardando um entregador pegar';
   if (c.status === 'aceita') return `🛵 ${esc(nome || 'Entregador')} aceitou a corrida`;
   if (c.status === 'em_rota') return `🛵 ${esc(nome || 'Entregador')} saiu pra entrega`;
@@ -2523,13 +2494,9 @@ function _corridaLabel(c) {
 let _chamarOrderId = null;
 function openChamarEntregador(orderId) {
   _chamarOrderId = orderId;
-  const ativos = (_entregadores || []).filter(e => e.ativo !== false);
+  const fixos = _entregadoresFixos || [];
   const sel = document.getElementById('chamar-ent');
-  if (!ativos.length) {
-    alert('Cadastre um entregador ativo primeiro (Config → Entregadores).');
-    return;
-  }
-  sel.innerHTML = '<option value="">Abrir pra todos pegarem</option>' + ativos.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join('');
+  sel.innerHTML = '<option value="">Abrir pra todos os entregadores</option>' + fixos.map(e => `<option value="${e.id}">Fixo: ${esc(e.nome)}</option>`).join('');
   document.getElementById('chamar-valor').value = '';
   document.getElementById('chamar-msg').textContent = '';
   document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido #' + orderId;
