@@ -1110,6 +1110,15 @@
   .lj-hd-chip { font-size: 11px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
   .lj-hd-chip.open { color: #4ADE80; border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.1); }
   .lj-hd-chip.closed { color: #FF6B6B; border-color: rgba(255,107,107,0.35); background: rgba(255,107,107,0.1); }
+  /* Peça também (upsell no carrinho) */
+  .upsell-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 0 20px 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .upsell-scroll::-webkit-scrollbar { display: none; }
+  .upsell-card { flex: 0 0 auto; width: 132px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 10px; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+  .upsell-card:active { transform: scale(0.98); }
+  .upsell-card img { width: 100%; height: 92px; object-fit: cover; border-radius: 11px; display: block; }
+  .upsell-card .un { font-size: 12.5px; font-weight: 700; color: var(--text); margin-top: 7px; line-height: 1.25; height: 31px; overflow: hidden; }
+  .upsell-card .up { font-size: 13px; font-weight: 800; color: var(--lime); margin-top: 4px; }
+  .upsell-card .uadd { margin-top: 8px; text-align: center; background: rgba(212,255,46,0.13); color: var(--lime); border: 1px solid rgba(212,255,46,0.3); border-radius: 999px; padding: 6px; font-size: 12px; font-weight: 800; }
   /* Barra "Ver sacola" fixa (resumo do carrinho, estilo iFood) */
   .cart-fab { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: linear-gradient(135deg,#8C50FF 0%, #FF2D6F 100%); box-shadow: 0 12px 32px rgba(176,38,255,0.42); cursor: pointer; border: 1px solid rgba(255,255,255,0.14); }
   .cart-fab.show { display: flex; }
@@ -4627,11 +4636,17 @@
     <div id="cart-scheduled-banner" class="sched-banner" style="display:none"></div>
     <div class="cart-list" id="cart-list"></div>
 
+    <!-- Peça também (sugestões da loja, estilo iFood) -->
+    <div id="cart-upsell" style="display:none">
+      <div class="section-title display" style="margin:18px 20px 10px">Peça também</div>
+      <div class="upsell-scroll" id="cart-upsell-scroll"></div>
+    </div>
+
     <div class="cart-empty" id="cart-empty" style="display:none">
-      
+
       <div class="t">Seu carrinho tá seco</div>
       <div class="s">Bora dropar algum sabor?</div>
-      <button class="btn-primary" onclick="go('home')" style="max-width: 220px">ver catálogo</button>
+      <button class="btn-primary" onclick="go('home')" style="max-width: 220px">Ver catálogo</button>
     </div>
 
     <!-- Cupom no carrinho (antes do total) -->
@@ -12108,8 +12123,10 @@
       empty.style.display = 'block';
       total.style.display = 'none';
       cta.style.display = 'none';
+      const up = document.getElementById('cart-upsell'); if (up) up.style.display = 'none';
       return;
     }
+    try { renderCartUpsell(); } catch (e) {}
 
     empty.style.display = 'none';
     total.style.display = 'flex';
@@ -12172,6 +12189,29 @@
     _syncCouponMsg('cart-coupon-msg');
   }
 
+  // "Peça também" — sugestões da loja que não estão no carrinho
+  function renderCartUpsell() {
+    const wrap = document.getElementById('cart-upsell');
+    const sc = document.getElementById('cart-upsell-scroll');
+    if (!wrap || !sc) return;
+    const inCart = new Set(cart.map(i => i.slug || i.name));
+    const sugg = (products || []).filter(p => !inCart.has(p.slug || p.name) && !_soldOut(p) && typeof p.price === 'number' && p.price > 0).slice(0, 10);
+    if (!sugg.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    sc.innerHTML = sugg.map(p => {
+      const idx = products.findIndex(x => x.slug === p.slug);
+      const img = p.img
+        ? `<img src="${p.img}" alt="" draggable="false">`
+        : `<div style="width:100%;height:92px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg3)">${p.emoji || ''}</div>`;
+      const nome = (productLabels(p).hero) || p.name || '';
+      return `<div class="upsell-card" onclick="openProduct(${idx})">
+        ${img}
+        <div class="un">${escapeHtml(nome)}</div>
+        <div class="up">${money(p.price)}</div>
+        <div class="uadd">Adicionar +</div>
+      </div>`;
+    }).join('');
+  }
   function cartQty(idx, delta) {
     if (!cart[idx]) return;
     cart[idx].qty += delta;
