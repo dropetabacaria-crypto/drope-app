@@ -1073,14 +1073,15 @@
   .loja-card:active { transform: scale(0.985); }
   .loja-card::after { content: ''; position: absolute; inset: 0; border-radius: 20px; background: linear-gradient(120deg, transparent 55%, rgba(176,38,255,0.08)); pointer-events: none; }
   /* ===== Seja parceiro (hero + cards de loja) ===== */
-  .parc-hero { position: relative; overflow: hidden; border-radius: 22px; padding: 22px 20px; margin: 8px 0 22px; background: linear-gradient(130deg,#8C50FF 0%, #FF2D6F 60%, #FF8533 118%); box-shadow: 0 14px 34px rgba(176,38,255,0.30); }
-  .parc-hero::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.20), transparent 60%); pointer-events: none; }
-  .parc-hero-emoji { font-size: 34px; line-height: 1; }
-  .parc-hero-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 26px; color: #fff; margin-top: 8px; letter-spacing: -0.5px; }
-  .parc-hero-sub { font-size: 13.5px; color: rgba(255,255,255,0.92); line-height: 1.45; margin-top: 6px; max-width: 94%; }
-  .parc-hero-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
-  .parc-step { font-size: 11.5px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 5px 11px; backdrop-filter: blur(4px); }
-  .parc-sec-label { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-dim); margin: 0 2px 12px; }
+  .parc-hero { position: relative; display: flex; align-items: center; gap: 14px; overflow: hidden; border-radius: 22px; padding: 20px 18px; margin: 8px 0 22px; background: linear-gradient(135deg, #241046 0%, #4A1A6E 52%, #8A2A6B 100%); box-shadow: 0 14px 34px rgba(74,26,110,0.40); }
+  .parc-hero::after { content: ''; position: absolute; inset: 0; background: radial-gradient(80% 70% at 100% 40%, rgba(255,45,111,0.22), transparent 62%); pointer-events: none; }
+  .parc-hero-txt { position: relative; z-index: 2; flex: 1; min-width: 0; }
+  .parc-hero-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 23px; color: #fff; letter-spacing: -0.5px; }
+  .parc-hero-sub { font-size: 13px; color: rgba(255,255,255,0.90); line-height: 1.45; margin-top: 6px; }
+  .parc-hero-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+  .parc-step { font-size: 11.5px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.26); border: 1px solid rgba(255,255,255,0.20); border-radius: 999px; padding: 5px 11px; }
+  .parc-hero-img { position: relative; z-index: 2; flex: 0 0 auto; width: 96px; height: 96px; border-radius: 50%; object-fit: cover; box-shadow: 0 10px 24px rgba(0,0,0,0.45), 0 0 0 3px rgba(255,255,255,0.14), 0 0 26px rgba(255,45,111,0.35); }
+  .parc-sec-label { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; color: var(--text-dim); margin: 0 2px 12px; }
   .parc-card { position: relative; display: flex; align-items: center; gap: 13px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 12px; margin-bottom: 12px; box-shadow: 0 8px 22px rgba(0,0,0,0.30), 0 0 18px rgba(91,33,182,0.08); overflow: hidden; }
   .parc-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 58%, rgba(212,255,46,0.06)); pointer-events: none; }
   .parc-card-cover { width: 58px; height: 58px; border-radius: 15px; object-fit: cover; flex: 0 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
@@ -4539,14 +4540,16 @@
     </div>
     <div style="padding:0 16px 40px">
       <div class="parc-hero">
-        <div class="parc-hero-emoji">🤝</div>
-        <div class="parc-hero-title">Divulgue e ganhe ✦</div>
-        <div class="parc-hero-sub">Escolha uma loja, divulgue pelo seu link e ganhe comissão nas vendas que você trouxer.</div>
-        <div class="parc-hero-steps">
-          <span class="parc-step">💸 comissão por venda</span>
-          <span class="parc-step">🔗 link só seu</span>
-          <span class="parc-step">✅ a loja aprova</span>
+        <div class="parc-hero-txt">
+          <div class="parc-hero-title">Divulgue e ganhe ✦</div>
+          <div class="parc-hero-sub">Escolha uma loja, divulgue pelo seu link e ganhe comissão nas vendas que você trouxer.</div>
+          <div class="parc-hero-steps">
+            <span class="parc-step">💸 Comissão por venda</span>
+            <span class="parc-step">🔗 Link só seu</span>
+            <span class="parc-step">✅ A loja aprova</span>
+          </div>
         </div>
+        <img class="parc-hero-img" src="icons/1.png" alt="" draggable="false">
       </div>
       <div class="parc-sec-label">Lojas que aceitam parceiros</div>
       <div id="parceiro-lojas-list"></div>
@@ -8213,13 +8216,13 @@
   async function renderParceiroLojas() {
     const list = document.getElementById('parceiro-lojas-list');
     if (!list) return;
-    list.innerHTML = '<div class="parc-empty">carregando lojas ✦</div>';
+    list.innerHTML = '<div class="parc-empty">Carregando lojas ✦</div>';
     try {
       const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
       const d = await r.json();
       const lojas = (d && Array.isArray(d.filiais) ? d.filiais : []).filter(f => f.accepts_partners);
       if (!lojas.length) {
-        list.innerHTML = '<div class="parc-empty">🔍 nenhuma loja está aceitando parceiros agora.<br>volta mais tarde ✦</div>';
+        list.innerHTML = '<div class="parc-empty">🔍 Nenhuma loja está aceitando parceiros agora.<br>Volta mais tarde ✦</div>';
         return;
       }
       list.innerHTML = lojas.map(f => {
@@ -8234,10 +8237,10 @@
             <div class="parc-card-name">${escapeHtml(f.name || '')}</div>
             <div class="parc-card-meta">${escapeHtml(meta)}</div>
           </div>
-          <button class="parc-card-btn" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">quero ✦</button>
+          <button class="parc-card-btn" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">Quero ✦</button>
         </div>`;
       }).join('');
-    } catch (e) { list.innerHTML = '<div class="parc-empty">erro ao carregar ✦ tenta de novo</div>'; }
+    } catch (e) { list.innerHTML = '<div class="parc-empty">Erro ao carregar ✦ Tenta de novo</div>'; }
   }
   async function requestParceiro(slug, name) {
     if (!slug) return;
@@ -8249,11 +8252,11 @@
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
-        if (d.already === 'approved') toast('você já é parceiro dessa loja ✦');
-        else if (d.already === 'pending') toast('seu pedido já está aguardando aprovação ✦');
-        else toast('pedido enviado! ✦ a loja vai aprovar');
-      } else { toast(d.error || 'não deu pra enviar ✦ tenta de novo'); }
-    } catch (e) { toast('erro de rede ✦ tenta de novo'); }
+        if (d.already === 'approved') toast('Você já é parceiro dessa loja ✦');
+        else if (d.already === 'pending') toast('Seu pedido já está aguardando aprovação ✦');
+        else toast('Pedido enviado! ✦ A loja vai aprovar');
+      } else { toast(d.error || 'Não deu pra enviar ✦ tenta de novo'); }
+    } catch (e) { toast('Erro de rede ✦ tenta de novo'); }
   }
   // ===== Pedido agendado (loja fechada) =====
   // A compra é sempre permitida; quando a loja está fechada, o pedido entra na fila
