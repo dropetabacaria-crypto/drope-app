@@ -59,7 +59,7 @@
   @keyframes fade { from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none;} }
 
   /* HERO */
-  .hero { display:grid; grid-template-columns:1.05fr 0.95fr; gap:44px; align-items:center; padding:66px 0 40px; }
+  .hero { display:grid; grid-template-columns:1.05fr 0.95fr; gap:44px; align-items:center; padding:56px 0 46px; }
   .hero-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--lime); background:rgba(212,255,46,0.1); border:1px solid rgba(212,255,46,0.3); border-radius:999px; padding:5px 13px; margin-bottom:18px; }
   .hero h1 { font-size:clamp(34px,5.4vw,56px); }
   .hero p.sub { color:var(--dim); font-size:clamp(16px,2.2vw,19px); margin:18px 0 26px; max-width:520px; }
@@ -113,7 +113,9 @@
   @media(max-width:860px){ .qr-box{ justify-content:center; } .qr-hide-mobile{ display:none; } }
 
   /* SECTIONS */
-  section { padding:52px 0; position:relative; z-index:1; }
+  section { padding:46px 0; position:relative; z-index:1; }
+  .view > section:first-child:not(.hero) { padding-top:42px; }
+  .view > section:last-child { padding-bottom:56px; }
   .eyebrow { font-family:'Space Grotesk'; font-weight:700; font-size:13px; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); }
   .sec-title { font-size:clamp(26px,4vw,38px); margin:8px 0 10px; }
   .sec-sub { color:var(--dim); font-size:16px; max-width:600px; }
@@ -127,12 +129,12 @@
   .card .ico { font-size:28px; }
   .card h3 { font-size:17px; margin:12px 0 6px; }
   .card p { color:var(--dim); font-size:14px; }
-  .card.link { cursor:pointer; transition:border-color .15s, transform .15s; }
+  .card.link { cursor:pointer; display:flex; flex-direction:column; transition:border-color .15s, transform .15s; }
   .card.link:hover { border-color:rgba(212,255,46,0.4); transform:translateY(-3px); }
-  .card.link .go { color:var(--lime); font-weight:800; font-size:13px; margin-top:12px; display:inline-block; }
+  .card.link .go { color:var(--lime); font-weight:800; font-size:13px; margin-top:auto; padding-top:14px; display:inline-block; }
 
   /* DOORS (cliente/lojista na home) */
-  .door { display:flex; flex-direction:column; gap:6px; }
+  .door { display:flex; flex-direction:column; }
   .door.cli { background:linear-gradient(135deg, rgba(140,80,255,0.12), rgba(255,45,111,0.07)); }
   .door.loj { background:linear-gradient(135deg, rgba(212,255,46,0.09), rgba(140,80,255,0.07)); }
   .door.ent { background:linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.08)); }
@@ -143,13 +145,14 @@
   .ref-soon { color:var(--lime) !important; font-weight:800; font-size:13px; white-space:nowrap; }
 
   /* SUB-ABAS DO PARCEIRO */
-  .ptabs { display:flex; gap:8px; flex-wrap:wrap; margin:22px 0 4px; }
+  .ptabs { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 28px; }
   .ptab { display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; font-weight:700; color:var(--dim); background:var(--bg2); border:1px solid var(--border); border-radius:999px; padding:9px 16px; transition:color .15s, border-color .15s; }
   .ptab:hover { color:var(--fg); }
   .ptab.on { color:var(--lime); border-color:var(--lime); background:rgba(212,255,46,0.06); }
 
   /* AUDIENCE */
   .audience { background:linear-gradient(135deg, rgba(212,255,46,0.08), rgba(140,80,255,0.06)); border:1px solid var(--border); border-radius:24px; padding:34px; }
+  .audience .sec-title, .ia-hero .sec-title { font-size:30px; }
   .ia-hero { display:grid; grid-template-columns:1.3fr 0.7fr; gap:24px; align-items:center; background:linear-gradient(135deg, rgba(212,255,46,0.10), rgba(140,80,255,0.10)); border:1px solid rgba(212,255,46,0.28); border-radius:24px; padding:32px; box-shadow:0 0 40px rgba(212,255,46,0.06); }
   .ia-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
   .ia-chips span { font-size:12px; font-weight:700; color:var(--fg); background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:999px; padding:6px 13px; }
@@ -281,7 +284,7 @@
   </section>
 
   <!-- três portas -->
-  <section class="wrap" style="padding-top:20px">
+  <section class="wrap">
     <div class="grid g3">
       <div class="card link door cli" onclick="nav('/voce')">
         <div class="ico">🛍️</div>
@@ -323,17 +326,14 @@
 
 <!-- ===================== PARA VOCÊ (CLIENTE) ===================== -->
 <main class="view" data-v="/voce">
-  <section class="wrap" style="padding-bottom:10px">
+  <section class="wrap">
     <div class="eyebrow">Para você</div>
     <h2 class="sec-title">Peça e receba em minutos ✦</h2>
     <p class="sec-sub">Tudo que você curte, das lojas perto de você, na palma da mão — pagando no Pix, sem complicação.</p>
     <div class="hero-cta" style="margin-top:22px">
       <button class="btn btn-lime btn-lg" onclick="installApp()">⬇ Instalar o DROPE</button>
     </div>
-  </section>
-
-  <section class="wrap" style="padding-top:20px">
-    <div class="grid g3">
+    <div class="grid g3" style="margin-top:34px">
       <div class="card"><div class="ico">⚡</div><h3>Em minutos</h3><p>Escolha a loja, monte o pedido e receba rapidinho, sem sair de casa.</p></div>
       <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Aprovação na hora, sem precisar mandar comprovante. Simples e seguro.</p></div>
       <div class="card"><div class="ico">🛵</div><h3>Acompanhe em tempo real</h3><p>Avisos de "separando", "saiu pra entrega" e "chegou", direto no app.</p></div>
@@ -367,13 +367,11 @@
 
 <!-- ===================== PARCEIRO (HUB) ===================== -->
 <main class="view" data-v="/parceiro">
-  <section class="wrap" style="padding-bottom:10px">
+  <section class="wrap">
     <div class="eyebrow">Seja parceiro</div>
     <h2 class="sec-title">Faça parte do DROPE ✦</h2>
     <p class="sec-sub">Tem uma loja, quer entregar ou quer ganhar divulgando? Escolha como você entra no DROPE.</p>
-  </section>
-  <section class="wrap" style="padding-top:16px">
-    <div class="grid g3">
+    <div class="grid g3" style="margin-top:34px">
       <div class="card link door loj" onclick="nav('/loja')">
         <div class="ico">🏪</div>
         <h3>Sou lojista</h3>
@@ -398,16 +396,16 @@
 
 <!-- ===================== PARA LOJISTAS ===================== -->
 <main class="view" data-v="/loja">
-  <div class="wrap"><div class="ptabs">
-    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
-    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
-    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
-  </div></div>
-  <section class="wrap" style="padding-bottom:0">
+  <section class="wrap">
+    <div class="ptabs">
+      <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+      <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+      <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+    </div>
     <div class="grid g2" style="align-items:center">
       <div class="audience">
         <div class="eyebrow">Para lojistas</div>
-        <h2 class="sec-title" style="font-size:32px">Venda no DROPE ✦</h2>
+        <h2 class="sec-title">Venda no DROPE ✦</h2>
         <p class="sec-sub">Seu delivery pronto, sem taxa de entrada. Você recebe direto na sua conta e a gente cuida do app, do catálogo e da logística.</p>
         <ul class="chk">
           <li><span>✓</span> App e catálogo prontos, com a cara da sua loja</li>
@@ -427,7 +425,7 @@
     <div class="ia-hero">
       <div class="ia-txt">
         <div class="eyebrow" style="color:var(--lime)">✦ Inteligência artificial</div>
-        <h2 class="sec-title" style="font-size:30px">Cadastre por foto. A IA faz o resto.</h2>
+        <h2 class="sec-title">Cadastre por foto. A IA faz o resto.</h2>
         <p class="sec-sub" style="max-width:560px">Fotografe o produto e a IA identifica e preenche marca, variação e código de barras — e ainda gera a arte pra sua vitrine. Catálogo pronto em minutos, sem digitação.</p>
         <div class="ia-chips">
           <span>📸 Preenche sozinho</span>
@@ -440,7 +438,7 @@
   </section>
 
   <!-- recursos -->
-  <section class="wrap" style="padding-top:20px">
+  <section class="wrap">
     <div class="eyebrow">Tudo num app só</div>
     <h2 class="sec-title">Ferramentas de gente grande</h2>
     <div class="grid g3">
@@ -480,16 +478,16 @@
 
 <!-- ===================== ENTREGADOR ===================== -->
 <main class="view" data-v="/entregador">
-  <div class="wrap"><div class="ptabs">
-    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
-    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
-    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
-  </div></div>
-  <section class="wrap" style="padding-bottom:0">
+  <section class="wrap">
+    <div class="ptabs">
+      <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+      <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+      <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+    </div>
     <div class="grid g2" style="align-items:center">
       <div class="audience" style="background:linear-gradient(135deg, rgba(255,45,111,0.10), rgba(140,80,255,0.08))">
         <div class="eyebrow">Para entregadores</div>
-        <h2 class="sec-title" style="font-size:32px">Rode com o DROPE 🛵</h2>
+        <h2 class="sec-title">Rode com o DROPE 🛵</h2>
         <p class="sec-sub">Cadastre-se no app (é seu, não da loja) e escolha como ganhar: atenda uma loja fixa ou pegue corridas avulsas de qualquer loja da plataforma.</p>
         <ul class="chk">
           <li><span>✓</span> Loja fixa ou corridas avulsas — você decide</li>
@@ -538,16 +536,16 @@
 
 <!-- ===================== INDIQUE E GANHE ===================== -->
 <main class="view" data-v="/indica">
-  <div class="wrap"><div class="ptabs">
-    <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
-    <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
-    <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
-  </div></div>
   <section class="wrap">
+    <div class="ptabs">
+      <a class="ptab" data-p="/loja" onclick="nav('/loja')">🏪 Lojista</a>
+      <a class="ptab" data-p="/entregador" onclick="nav('/entregador')">🛵 Entregador</a>
+      <a class="ptab" data-p="/indica" onclick="nav('/indica')">🔗 Divulgação</a>
+    </div>
     <div class="grid g2" style="align-items:center">
       <div>
         <div class="eyebrow" style="color:var(--lime)">🔗 Indique e ganhe · Em breve</div>
-        <h2 class="sec-title" style="font-size:32px">Indique o DROPE e ganhe comissão ✦</h2>
+        <h2 class="sec-title">Indique o DROPE e ganhe comissão ✦</h2>
         <p class="sec-sub" style="max-width:560px">Você compartilha seu link, as pessoas pedem no DROPE e você ganha uma comissão por cada indicação. Um jeito simples de faturar divulgando o que já é bom.</p>
         <p class="note">✦ Programa em fase final de ajustes. Em breve com pagamento automático — se quiser participar desde o começo, é só avisar a gente.</p>
         <div class="hero-cta" style="margin-top:22px">
@@ -557,10 +555,7 @@
       </div>
       <div class="hero-art"><img src="icons/1.png" alt="Indique o DROPE" style="width:min(280px,80%);filter:drop-shadow(0 24px 50px rgba(140,80,255,0.35))"></div>
     </div>
-  </section>
-
-  <section class="wrap" style="padding-top:0">
-    <div class="grid g3">
+    <div class="grid g3" style="margin-top:34px">
       <div class="card"><div class="ico">1️⃣</div><h3>Pegue seu link</h3><p>Cada indicador tem um link único de indicação.</p></div>
       <div class="card"><div class="ico">2️⃣</div><h3>Divulgue</h3><p>Compartilhe com clientes, amigos e nas suas redes.</p></div>
       <div class="card"><div class="ico">3️⃣</div><h3>Ganhe comissão</h3><p>Cada pedido feito pelo seu link vira comissão pra você.</p></div>
@@ -574,16 +569,13 @@
     <div class="grid g2" style="align-items:center">
       <div>
         <div class="eyebrow">Quem somos</div>
-        <h2 class="sec-title" style="font-size:32px">Nascemos pra facilitar ✦</h2>
+        <h2 class="sec-title">Nascemos pra facilitar ✦</h2>
         <p class="sec-sub" style="max-width:none">O DROPE conecta você às tabacarias e adegas da sua região com a fluidez de um app de delivery de verdade — e dá pros lojistas as ferramentas pra vender online sem dor de cabeça.</p>
         <p class="note">✍️ Espaço reservado pra contar a história do DROPE, a equipe e os valores. É só me passar o texto e as fotos que eu encaixo aqui.</p>
       </div>
       <div class="mock"><img src="icons/camaleao-olho.webp" alt="DROPE"></div>
     </div>
-  </section>
-
-  <section class="wrap" style="padding-top:0">
-    <div class="grid g3">
+    <div class="grid g3" style="margin-top:34px">
       <div class="card"><div class="ico">🎯</div><h3>Propósito</h3><p>Levar praticidade real pra tabacarias e adegas — e pra quem compra nelas.</p></div>
       <div class="card"><div class="ico">🤝</div><h3>Justo com o lojista</h3><p>Comissão baixa, dinheiro caindo direto na conta e ferramentas de gente grande.</p></div>
       <div class="card"><div class="ico">🦎</div><h3>Do nosso jeito</h3><p>Rápido, bonito e sem burocracia. Um app com identidade — o camaleão é a nossa cara.</p></div>
