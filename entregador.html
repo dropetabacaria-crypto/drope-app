@@ -7,54 +7,88 @@
 <meta name="theme-color" content="#0A0A14">
 <title>DROPE ✦ Entregador</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
 <style>
   :root { --bg:#0A0A14; --bg2:#12121f; --bg3:#1b1b2b; --fg:#F5F3FF; --fg-dim:#9a97b5; --border:rgba(255,255,255,0.10); --lime:#D4FF2E; --pink:#FF2D6F; --purple:#8C50FF; --green:#4ADE80; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,sans-serif; font-weight:500; min-height:100vh; }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,sans-serif; font-weight:500; min-height:100vh; overflow-x:hidden; }
   body { display:flex; justify-content:center; }
-  .app { width:100%; max-width:480px; min-height:100vh; padding:0 16px 40px; }
-  .top { display:flex; align-items:center; gap:12px; padding:18px 4px 14px; }
-  .logo { width:40px; height:40px; border-radius:12px; object-fit:cover; }
-  .brand { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:20px; }
+  /* aurora de fundo, igual o app */
+  body::before { content:''; position:fixed; inset:0; z-index:0; background:
+    radial-gradient(50% 40% at 15% 0%, rgba(140,80,255,0.20), transparent 60%),
+    radial-gradient(45% 35% at 100% 12%, rgba(255,45,111,0.16), transparent 60%),
+    radial-gradient(50% 40% at 60% 100%, rgba(212,255,46,0.06), transparent 60%); pointer-events:none; }
+  .app { position:relative; z-index:1; width:100%; max-width:480px; min-height:100vh; padding:0 16px 40px; }
+  .top { display:flex; align-items:center; gap:11px; padding:18px 4px 12px; }
+  .logo { width:38px; height:38px; border-radius:11px; object-fit:cover; box-shadow:0 4px 14px rgba(255,45,111,0.3); }
+  .brand { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:19px; }
   .brand b { color:var(--lime); }
-  h1 { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:26px; margin:6px 4px 2px; letter-spacing:-0.5px; }
-  .sub { color:var(--fg-dim); font-size:14px; margin:0 4px 12px; line-height:1.4; }
-  .tabs { display:flex; gap:8px; margin:8px 4px 6px; }
-  .tab { flex:1; padding:11px; border-radius:12px; border:1px solid var(--border); background:var(--bg2); color:var(--fg-dim); font-family:inherit; font-weight:800; font-size:14px; cursor:pointer; }
-  .tab.active { background:var(--lime); color:#0A0A14; border-color:var(--lime); }
-  label { display:block; font-size:12px; color:var(--fg-dim); font-weight:700; margin:14px 4px 6px; }
-  input { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:15px; color:var(--fg); font-size:16px; font-family:inherit; outline:none; }
+
+  /* ===== Hero (auth) ===== */
+  .hero { position:relative; overflow:hidden; border-radius:22px; padding:20px 18px; margin:6px 0 16px; display:flex; align-items:center; gap:14px;
+    background:linear-gradient(135deg,#241046 0%, #4A1A6E 52%, #8A2A6B 100%); box-shadow:0 14px 34px rgba(74,26,110,0.40); }
+  .hero::after { content:''; position:absolute; inset:0; background:radial-gradient(80% 70% at 100% 40%, rgba(255,45,111,0.22), transparent 62%); pointer-events:none; }
+  .hero-txt { position:relative; z-index:2; flex:1; min-width:0; }
+  .hero-title { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:23px; color:#fff; letter-spacing:-0.5px; }
+  .hero-sub { font-size:13px; color:rgba(255,255,255,0.9); line-height:1.4; margin-top:5px; }
+  .hero-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .hero-chip { font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,0.26); border:1px solid rgba(255,255,255,0.20); border-radius:999px; padding:5px 10px; }
+  .hero-img { position:relative; z-index:2; flex:0 0 auto; width:88px; height:88px; border-radius:50%; object-fit:cover; box-shadow:0 10px 24px rgba(0,0,0,0.45), 0 0 0 3px rgba(255,255,255,0.16), 0 0 26px rgba(255,45,111,0.4); }
+
+  .tabs { display:flex; gap:8px; margin:4px 0 8px; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:5px; }
+  .tab { flex:1; padding:11px; border-radius:10px; border:0; background:transparent; color:var(--fg-dim); font-family:inherit; font-weight:800; font-size:14px; cursor:pointer; transition:.15s; }
+  .tab.active { background:var(--lime); color:#0A0A14; }
+  label { display:block; font-size:12px; color:var(--fg-dim); font-weight:700; margin:13px 4px 6px; }
+  input { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:15px; color:var(--fg); font-size:16px; font-family:inherit; outline:none; transition:border-color .15s; }
   input:focus { border-color:var(--purple); }
-  .btn { width:100%; background:var(--lime); color:#0A0A14; border:0; border-radius:14px; padding:16px; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; margin-top:18px; }
+  .btn { width:100%; background:var(--lime); color:#0A0A14; border:0; border-radius:14px; padding:16px; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; margin-top:18px; box-shadow:0 6px 18px rgba(212,255,46,0.25); transition:transform .12s; }
   .btn:active { transform:scale(0.98); }
-  .btn.sec { background:var(--bg3); color:var(--fg-dim); margin-top:8px; }
-  .btn.pink { background:var(--pink); color:#fff; }
+  .btn.sec { background:var(--bg3); color:var(--fg-dim); box-shadow:none; }
+  .btn.pink { background:var(--pink); color:#fff; box-shadow:0 6px 18px rgba(255,45,111,0.3); }
   .btn:disabled { opacity:.5; }
   .msg { font-size:13px; color:var(--pink); margin:12px 4px 0; min-height:16px; text-align:center; }
+  .hint { font-size:11px; color:var(--fg-dim); margin:6px 4px 0; line-height:1.4; }
   .hidden { display:none; }
-  .hint { font-size:11px; color:var(--fg-dim); margin:4px 4px 0; }
-  .hdr-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 4px 16px; }
-  .hdr-name { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:18px; }
-  .sair { font-size:12px; color:var(--pink); font-weight:700; cursor:pointer; flex:0 0 auto; }
-  .card { background:var(--bg2); border:1px solid var(--border); border-radius:18px; padding:15px; margin-bottom:12px; box-shadow:0 8px 22px rgba(0,0,0,0.30); }
-  .card.mine { border-color:rgba(212,255,46,0.35); }
+
+  /* ===== Corridas ===== */
+  .hdr-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 4px 14px; }
+  .hdr-name { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:19px; }
+  .sair { font-size:12px; color:var(--pink); font-weight:800; cursor:pointer; flex:0 0 auto; }
+  /* card de ganhos */
+  .earn { position:relative; overflow:hidden; border-radius:20px; padding:18px; margin-bottom:14px;
+    background:linear-gradient(135deg,#143d2a 0%, #1c5c3a 55%, #2b7d4a 100%); box-shadow:0 12px 30px rgba(28,92,58,0.35); }
+  .earn::after { content:''; position:absolute; inset:0; background:radial-gradient(80% 80% at 100% 0%, rgba(212,255,46,0.22), transparent 60%); pointer-events:none; }
+  .earn-lbl { position:relative; z-index:2; font-size:12px; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1px; }
+  .earn-big { position:relative; z-index:2; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:34px; color:#fff; margin-top:2px; letter-spacing:-1px; }
+  .earn-row { position:relative; z-index:2; display:flex; gap:16px; margin-top:8px; font-size:13px; color:rgba(255,255,255,0.92); }
+  .earn-row b { color:#fff; }
+  .seg { display:flex; gap:8px; margin-bottom:14px; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:5px; }
+  .seg button { flex:1; padding:10px; border-radius:10px; border:0; background:transparent; color:var(--fg-dim); font-family:inherit; font-weight:800; font-size:13.5px; cursor:pointer; transition:.15s; }
+  .seg button.active { background:var(--bg3); color:var(--fg); box-shadow:inset 0 0 0 1px var(--border); }
+  .card { position:relative; overflow:hidden; background:var(--bg2); border:1px solid var(--border); border-radius:18px; padding:15px; margin-bottom:12px; box-shadow:0 8px 22px rgba(0,0,0,0.30); }
+  .card.mine { border-color:rgba(212,255,46,0.4); box-shadow:0 8px 22px rgba(0,0,0,0.30), 0 0 20px rgba(212,255,46,0.08); }
   .c-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .c-loja { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:16px; }
-  .c-valor { font-weight:800; color:var(--lime); font-size:16px; }
-  .c-badges { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
-  .c-badge { font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
+  .c-loja { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:17px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .c-valor { font-family:'Space Grotesk',sans-serif; font-weight:800; color:var(--lime); font-size:18px; flex:0 0 auto; }
+  .c-badges { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .c-badge { font-size:11px; font-weight:800; padding:4px 10px; border-radius:999px; }
   .b-aberta { background:rgba(255,184,0,0.16); color:#ffcf4d; }
-  .b-aceita { background:rgba(140,80,255,0.18); color:#c8b6ff; }
+  .b-aceita { background:rgba(140,80,255,0.2); color:#c8b6ff; }
   .b-rota { background:rgba(212,255,46,0.16); color:var(--lime); }
   .b-avulso { background:rgba(45,212,255,0.16); color:#7fe3ff; }
   .b-fixo { background:rgba(74,222,128,0.16); color:var(--green); }
-  .c-line { font-size:13px; color:var(--fg-dim); margin-top:8px; line-height:1.4; }
+  .c-line { font-size:13px; color:var(--fg-dim); margin-top:9px; line-height:1.4; display:flex; gap:7px; align-items:flex-start; }
   .c-line b { color:var(--fg); font-weight:700; }
-  .c-acts { display:flex; gap:8px; margin-top:12px; }
+  .c-acts { display:flex; gap:8px; margin-top:13px; }
   .c-acts .btn { margin-top:0; padding:13px; font-size:14px; }
-  .maps { display:inline-block; margin-top:6px; color:var(--purple); font-weight:700; font-size:13px; text-decoration:none; }
-  .empty { text-align:center; color:var(--fg-dim); font-size:14px; padding:40px 12px; line-height:1.6; }
+  .maps { color:var(--purple); font-weight:700; text-decoration:none; }
+  .zap { color:var(--green); font-weight:700; text-decoration:none; }
+  .empty { text-align:center; color:var(--fg-dim); font-size:14px; padding:44px 12px; line-height:1.6; }
+  /* extrato */
+  .hist-item { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--bg2); border:1px solid var(--border); border-radius:13px; padding:12px 14px; margin-bottom:8px; }
+  .hist-loja { font-weight:700; font-size:14px; }
+  .hist-when { font-size:11px; color:var(--fg-dim); margin-top:2px; }
+  .hist-val { font-family:'Space Grotesk',sans-serif; font-weight:800; color:var(--green); font-size:15px; }
 </style>
 </head>
 <body>
@@ -66,8 +100,18 @@
 
   <!-- AUTH -->
   <div id="auth-screen">
-    <h1>App do entregador</h1>
-    <div class="sub">Faça entregas das lojas DROPE e ganhe por corrida.</div>
+    <div class="hero">
+      <div class="hero-txt">
+        <div class="hero-title">App do entregador ✦</div>
+        <div class="hero-sub">Faça entregas das lojas DROPE e ganhe por corrida.</div>
+        <div class="hero-chips">
+          <span class="hero-chip">💸 Ganhe por corrida</span>
+          <span class="hero-chip">🛵 Fixo + avulso</span>
+          <span class="hero-chip">⚡ Pix</span>
+        </div>
+      </div>
+      <img class="hero-img" src="icons/camaleao-olho.webp" alt="">
+    </div>
     <div class="tabs">
       <button class="tab active" id="tab-login" onclick="setTab('login')">Entrar</button>
       <button class="tab" id="tab-signup" onclick="setTab('signup')">Criar conta</button>
@@ -102,20 +146,37 @@
       <div class="hdr-name" id="ent-nome">—</div>
       <span class="sair" onclick="sair()">sair</span>
     </div>
-    <div id="corridas-list"></div>
+
+    <div class="earn">
+      <div class="earn-lbl">Você ganhou esta semana</div>
+      <div class="earn-big" id="earn-week">R$ 0,00</div>
+      <div class="earn-row">
+        <span>Hoje <b id="earn-today">R$ 0,00</b></span>
+        <span>Entregas <b id="earn-count">0</b></span>
+      </div>
+    </div>
+
+    <div class="seg">
+      <button class="active" id="seg-corridas" onclick="setSeg('corridas')">Corridas</button>
+      <button id="seg-ganhos" onclick="setSeg('ganhos')">Ganhos</button>
+    </div>
+
+    <div id="view-corridas"><div id="corridas-list"></div></div>
+    <div id="view-ganhos" class="hidden"><div id="ganhos-list"></div></div>
   </div>
 </div>
 
 <script>
 const API = '/api/webhook';
 const SK = 'drope_ent_session_v1';
-let SESS = null;
+let SESS = null; let _ganhos = null;
 try { SESS = JSON.parse(localStorage.getItem(SK) || 'null'); } catch(e) {}
 
 function _q(id){ return document.getElementById(id); }
 function fmtBRL(c){ return 'R$ ' + ((c||0)/100).toFixed(2).replace('.', ','); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtPhoneStr(d){ d=String(d||'').replace(/\D/g,'').slice(0,11); if(d.length>=8)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7); if(d.length>=3)return '('+d.slice(0,2)+') '+d.slice(2); return d; }
+function fmtDay(iso){ try{ const d=new Date(iso); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }catch(e){ return ''; } }
 
 function setTab(t){
   _q('tab-login').classList.toggle('active', t==='login');
@@ -123,6 +184,13 @@ function setTab(t){
   _q('form-login').classList.toggle('hidden', t!=='login');
   _q('form-signup').classList.toggle('hidden', t!=='signup');
   _q('auth-msg').textContent='';
+}
+function setSeg(s){
+  _q('seg-corridas').classList.toggle('active', s==='corridas');
+  _q('seg-ganhos').classList.toggle('active', s==='ganhos');
+  _q('view-corridas').classList.toggle('hidden', s!=='corridas');
+  _q('view-ganhos').classList.toggle('hidden', s!=='ganhos');
+  if(s==='ganhos') renderGanhos();
 }
 ['lg-phone','sg-phone'].forEach(id=>{ const e=_q(id); if(e) e.addEventListener('input', ev=>{ ev.target.value=fmtPhoneStr(ev.target.value); }); });
 
@@ -175,9 +243,19 @@ async function loadCorridas(){
     const r=await fetch(url,{cache:'no-store'});
     if(r.status===401){ sair(); return; }
     const d=await r.json().catch(()=>({}));
+    _ganhos=d.ganhos||null;
+    renderGanhosSummary();
     renderCorridas(d.corridas||[]);
+    if(!_q('view-ganhos').classList.contains('hidden')) renderGanhos();
   }catch(e){}
   if(!_polling) _polling=setInterval(loadCorridas,20000);
+}
+
+function renderGanhosSummary(){
+  const g=_ganhos||{};
+  _q('earn-week').textContent=fmtBRL(g.semana_cents);
+  _q('earn-today').textContent=fmtBRL(g.hoje_cents);
+  _q('earn-count').textContent=(g.entregas_semana||0);
 }
 
 function renderCorridas(list){
@@ -189,22 +267,32 @@ function renderCorridas(list){
       : c.status==='aceita' ? '<span class="c-badge b-aceita">Aceita</span>'
       : '<span class="c-badge b-rota">Saiu pra entrega</span>';
     const tipo = c.avulso ? '<span class="c-badge b-avulso">Avulso</span>' : '<span class="c-badge b-fixo">Loja fixa</span>';
-    const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ abrir no mapa</a>`:'';
-    const zap=c.cliente_phone?` · <a class="maps" style="color:var(--green)" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">whats</a>`:'';
+    const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ mapa</a>`:'';
+    const zap=c.cliente_phone?` · <a class="zap" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">whats</a>`:'';
     let acts='';
     if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
-    else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega 🛵</button><button class="btn sec" onclick="act(${c.id},'cancelar',this)" style="flex:0 0 auto;width:auto">Devolver</button>`;
+    else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega 🛵</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
     else if(c.status==='em_rota') acts=`<button class="btn pink" onclick="act(${c.id},'entregue',this)">Entreguei ✅</button>`;
     return `<div class="card ${c.mine?'mine':''}">
       <div class="c-top"><span class="c-loja">${esc(c.loja)}</span><span class="c-valor">${fmtBRL(c.valor_cents)}</span></div>
       <div class="c-badges">${tipo}${st}</div>
-      <div class="c-line">📦 Pedido #${esc(c.order_nsu)}</div>
-      ${c.itens?`<div class="c-line">🛒 ${esc(c.itens)}</div>`:''}
-      <div class="c-line">📍 <b>${esc(c.endereco||'sem endereço')}</b></div>
-      <div class="c-line">👤 ${esc(c.cliente_nome||'cliente')} ${maps}${zap}</div>
+      <div class="c-line"><span>📦</span><span>Pedido #${esc(c.order_nsu)}</span></div>
+      ${c.itens?`<div class="c-line"><span>🛒</span><span>${esc(c.itens)}</span></div>`:''}
+      <div class="c-line"><span>📍</span><span><b>${esc(c.endereco||'sem endereço')}</b></span></div>
+      <div class="c-line"><span>👤</span><span>${esc(c.cliente_nome||'cliente')} ${maps}${zap}</span></div>
       <div class="c-acts">${acts}</div>
     </div>`;
   }).join('');
+}
+
+function renderGanhos(){
+  const el=_q('ganhos-list'); const g=_ganhos||{};
+  const hist=g.historico||[];
+  if(!hist.length){ el.innerHTML='<div class="empty">💸 Suas entregas concluídas vão aparecer aqui com o valor de cada uma ✦</div>'; return; }
+  el.innerHTML=hist.map(h=>`<div class="hist-item">
+    <div style="min-width:0"><div class="hist-loja">${esc(h.loja)}</div><div class="hist-when">${fmtDay(h.delivered_at)}</div></div>
+    <div class="hist-val">+ ${fmtBRL(h.valor_cents)}</div>
+  </div>`).join('');
 }
 
 async function act(corridaId, action, btn){

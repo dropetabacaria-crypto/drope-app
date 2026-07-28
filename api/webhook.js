@@ -4695,6 +4695,7 @@ async function handleFilialPainel(req, res) {
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
         entregadores_fixos: (filial.metadata || {}).entregadores_fixos || [],
+        entrega: (filial.metadata || {}).entrega || { base: 6, km: 1.5 },
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
         accepts_partners: !!((filial.metadata || {}).accepts_partners),
@@ -4985,6 +4986,12 @@ async function handleFilialProfileSave(req, res) {
     if (typeof body.accepts_partners === 'boolean') md.accepts_partners = body.accepts_partners;
     // cadência de pagamento das comissões: semanal ou mensal (escolha do dono)
     if (body.commission_period && ['week', 'month'].includes(body.commission_period)) md.commission_period = body.commission_period;
+    // tabela de frete do entregador: base + por km (reais)
+    if (body.entrega && typeof body.entrega === 'object') {
+      const base = Math.max(0, Number(body.entrega.base) || 0);
+      const km = Math.max(0, Number(body.entrega.km) || 0);
+      md.entrega = { base, km };
+    }
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
@@ -6814,7 +6821,12 @@ async function handleFilialCorridaCreate(req, res) {
     const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento].filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço)';
     const clientePhone = (order.customer_snapshot || {}).phone || addr.phone || null;
     let valorCents = Math.round(Number(body.valor) * 100);
-    if (!isFinite(valorCents) || valorCents <= 0) valorCents = _motoboyCalcValorCents(null);
+    if (!isFinite(valorCents) || valorCents <= 0) {
+      // default pela tabela de frete da loja: base + km*distância (distância se conhecida)
+      const tab = (filial.metadata || {}).entrega || { base: 6, km: 1.5 };
+      const km = Number(body.distancia_km) || 0;
+      valorCents = Math.round(((Number(tab.base) || 0) + (Number(tab.km) || 0) * km) * 100) || _motoboyCalcValorCents(null);
+    }
     const inserted = await sbInsert('drope_corridas', {
       order_id: order.id, filial_id: filial.id, status: 'aberta',
       assigned_to: assignedTo, valor_motoboy_cents: valorCents,
@@ -6914,7 +6926,21 @@ async function handleEntregadorCorridas(req, res) {
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
       };
     });
-    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome } });
+    // Ganhos (extrato) — corridas entregues por mim
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const dow = (now.getDay() + 6) % 7;
+    const wk = new Date(now.getFullYear(), now.getMonth(), now.getDate()); wk.setDate(wk.getDate() - dow);
+    const startWeek = wk.toISOString();
+    const done = await sbGet('drope_corridas', `entregador_id=eq.${encodeURIComponent(me)}&status=eq.entregue&order=delivered_at.desc&select=id,filial_id,valor_motoboy_cents,delivered_at&limit=40`);
+    let hoje = 0, semana = 0, nHoje = 0, nSemana = 0;
+    const dfids = [...new Set((done || []).map(c => c.filial_id).filter(Boolean))];
+    const dfmap = {};
+    if (dfids.length) { const fr = await sbGet('drope_filiais', `id=in.(${dfids.join(',')})&select=id,name&limit=100`); (fr || []).forEach(f => { dfmap[f.id] = f.name; }); }
+    (done || []).forEach(c => { const v = c.valor_motoboy_cents || 0; const at = c.delivered_at || ''; if (at >= startToday) { hoje += v; nHoje++; } if (at >= startWeek) { semana += v; nSemana++; } });
+    const historico = (done || []).slice(0, 15).map(c => ({ loja: dfmap[c.filial_id] || 'Loja', valor_cents: c.valor_motoboy_cents, delivered_at: c.delivered_at }));
+    const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, historico };
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // POST action=entregador_corrida_action { entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
