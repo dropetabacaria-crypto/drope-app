@@ -517,9 +517,18 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
           <h2>Parceiros / Indicadores<span class="help-q" onclick="helpShow('parceiros',true)" title="O que é isso?">?</span></h2>
-          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem. O cliente pede pelo app (botão "Seja parceiro" na sua loja); você aprova aqui e define a comissão de cada um.</p>
-          <div id="parc-pend-wrap" style="margin-bottom:14px"></div>
-          <div id="parc-aprov-wrap"></div>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem. O cliente pede pelo app; você aprova aqui e define a comissão de cada um.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;color:var(--fg)">Aceitar parceiros</div>
+              <div id="parc-accept-hint" style="font-size:11.5px;color:var(--fg-dim);margin-top:2px">Quando ligado, sua loja aparece na lista de "Seja parceiro" do app.</div>
+            </div>
+            <button id="parc-accept-toggle" onclick="toggleAcceptPartners()" style="flex:0 0 auto;min-width:74px;padding:9px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--fg-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Desligado</button>
+          </div>
+          <div id="parc-body" style="opacity:.5;pointer-events:none">
+            <div id="parc-pend-wrap" style="margin-bottom:14px"></div>
+            <div id="parc-aprov-wrap"></div>
+          </div>
         </div>
       </div>
 
@@ -820,8 +829,9 @@ function render(d) {
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
   _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
+  _acceptsPartners = !!f.accepts_partners;
   _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
-  try { _updateParcBadge(); } catch (e) {}
+  try { _updateParcBadge(); renderAcceptPartners(); } catch (e) {}
   document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
   // Modelo antigo mostrava "ganha R$X por venda" (founder_share fixo). Com o split,
   // o ganho é o líquido por pedido (mostrado em cada card). No topo, só o nome + plano.
@@ -1343,6 +1353,39 @@ function epRecebe(id) {
     html += ` Lucro: <b style="color:${cor}">${_brl(lucro)}</b>.`;
   }
   el.innerHTML = html;
+}
+
+// ===== Parceria: loja liga/desliga se aceita parceiros =====
+let _acceptsPartners = false;
+function renderAcceptPartners() {
+  const btn = document.getElementById('parc-accept-toggle');
+  const hint = document.getElementById('parc-accept-hint');
+  const body = document.getElementById('parc-body');
+  if (btn) {
+    btn.textContent = _acceptsPartners ? 'Ligado' : 'Desligado';
+    btn.style.background = _acceptsPartners ? 'var(--lime)' : 'var(--bg3)';
+    btn.style.color = _acceptsPartners ? '#000' : 'var(--fg-dim)';
+    btn.style.borderColor = _acceptsPartners ? 'var(--lime)' : 'var(--border)';
+  }
+  if (hint) hint.textContent = _acceptsPartners
+    ? 'Sua loja aparece na lista de "Seja parceiro" do app. Aprove os pedidos abaixo.'
+    : 'Quando ligado, sua loja aparece na lista de "Seja parceiro" do app.';
+  if (body) { body.style.opacity = _acceptsPartners ? '1' : '.5'; body.style.pointerEvents = _acceptsPartners ? 'auto' : 'none'; }
+}
+async function toggleAcceptPartners() {
+  const novo = !_acceptsPartners;
+  const btn = document.getElementById('parc-accept-toggle');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_profile_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, accepts_partners: novo }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _acceptsPartners = novo; if (_painelData && _painelData.filial) _painelData.filial.accepts_partners = novo; }
+  } catch (e) {}
+  if (btn) btn.disabled = false;
+  renderAcceptPartners();
 }
 
 // ===== Funcionários (comissão por venda) =====
@@ -1910,7 +1953,7 @@ function openCfg(name) {
     if (name === 'qr') renderQR();
     if (name === 'pagamento') mpRefreshStatus();
     if (name === 'funcionarios') { _fnTipoHint(); renderFuncionarios(); }
-    if (name === 'parceiros') renderParceiros();
+    if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
   } catch (e) {}
   const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
   try { helpShow(name); } catch (e) {} // explicação automática na 1ª vez que abre a seção

@@ -4650,6 +4650,7 @@ async function handleFilialPainel(req, res) {
         parceiros: (filial.metadata || {}).parceiros || [],
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
+        accepts_partners: !!((filial.metadata || {}).accepts_partners),
       },
       plans_catalog: DROPE_PLANS_CATALOG(),
       saldo_pendente_cents: saldoPendenteCents,
@@ -4932,6 +4933,8 @@ async function handleFilialProfileSave(req, res) {
     }
     // modo de destaque da vitrine: 'auto' (mais vendidos) | 'manual' (loja escolhe)
     if (body.featured_mode && ['auto', 'manual'].includes(body.featured_mode)) md.featured_mode = body.featured_mode;
+    // programa de parceria/indicação: loja liga/desliga se aceita parceiros
+    if (typeof body.accepts_partners === 'boolean') md.accepts_partners = body.accepts_partners;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
@@ -6711,6 +6714,7 @@ async function handleFilialParceiroRequest(req, res) {
     const slug = String(body.filial || body.filial_slug || '').toLowerCase().trim();
     const filial = await _filialBySlugRead(slug);
     if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
+    if (!((filial.metadata || {}).accepts_partners)) return res.status(403).json({ ok: false, error: 'essa loja não está aceitando parceiros no momento' });
     const nome = String(body.nome || '').trim().slice(0, 40);
     const phone = String(body.phone || '').replace(/\D/g, '').slice(0, 13);
     const email = String(body.email || '').trim().slice(0, 80);
@@ -12940,6 +12944,7 @@ async function handleFiliaisList(req, res) {
           open_now: _storeOpenNow(hours),
           whats: prof.whats || null, // WhatsApp de atendimento da loja (contato público, definido pela loja)
           pending: ((f.metadata || {}).onboarding) === 'pending_payment',
+          accepts_partners: !!((f.metadata || {}).accepts_partners), // loja aceita programa de parceria/indicação
         };
       })
     // Mostra todas as tabacarias cadastradas (a Drope também é uma loja aqui).
