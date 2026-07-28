@@ -11234,7 +11234,13 @@
       if (r.ok) {
         const d = await r.json();
         if (d && Array.isArray(d.orders)) {
-          orders = d.orders.map(_mapBackendOrder);
+          // MERGE — nunca apaga pedido do device. União por `num`; o backend é a
+          // fonte de verdade do status (sobrescreve), mas pedidos que só existem
+          // localmente (backend não retornou) são preservados.
+          const byNum = new Map();
+          (orders || []).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
+          d.orders.map(_mapBackendOrder).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
+          orders = Array.from(byNum.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           try { saveOrders(); } catch (e) {}
           const active = document.querySelector('.screen.active')?.id;
           if (active === 'orders') renderOrders();
