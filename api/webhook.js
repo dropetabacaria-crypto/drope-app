@@ -2902,11 +2902,12 @@ async function _motoboyHandleAceite(grupoJid, body, motoboy) {
 • "cancelo" — se nao puder ir`;
   await sendText(motoboy.phone, detalhes, body).catch(() => {});
 
-  // Avisa cliente
+  // Avisa cliente (WhatsApp + aviso in-app no app)
   if (corrida.cliente_phone) {
     await sendText(corrida.cliente_phone,
       `🏍️ Seu pedido #${corrida.order_id} saiu pra entrega com *${motoboy.nome}*.\nQualquer coisa, fala com a gente.`,
       body).catch(() => {});
+    _notify('customer', corrida.cliente_phone, 'order_status', 'Saiu pra entrega 🛵', `Seu pedido #${corrida.order_id} saiu pra entrega com ${motoboy.nome} ✦`).catch(() => {});
   }
 
   // Atualiza contador do motoboy
@@ -2962,6 +2963,7 @@ async function _motoboyHandleLifecycle(grupoJid, body, motoboy, cmd, text) {
     await sendText(grupoJid, `🏁 ${motoboy.nome} entregou pedido #${corrida.order_id}. R$ ${(corrida.valor_motoboy_cents/100).toFixed(2)}`, body);
     if (corrida.cliente_phone) {
       await sendText(corrida.cliente_phone, `✅ Pedido #${corrida.order_id} entregue!\n\nValeu pela compra 🦎`, body).catch(() => {});
+      _notify('customer', corrida.cliente_phone, 'order_status', 'Pedido entregue ✅', `Seu pedido #${corrida.order_id} chegou! Valeu pela compra 🦎`).catch(() => {});
     }
     return;
   }
@@ -17411,6 +17413,20 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       if (new_status === 'delivered') update.delivered_at = nowIso;
       if (new_status === 'picked_up') update.picked_up_at = nowIso;
       await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}`, update);
+      // Avisa o cliente no app nos marcos de entrega (saiu / chegou)
+      try {
+        if (['dispatched', 'delivered', 'picked_up'].includes(new_status)) {
+          const rows = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&select=order_nsu,customer_snapshot&limit=1`);
+          const ord = Array.isArray(rows) && rows[0];
+          const phone = ord && ord.customer_snapshot && ord.customer_snapshot.phone;
+          if (phone) {
+            const nsu = ord.order_nsu ? ('#' + ord.order_nsu) : 'Seu pedido';
+            if (new_status === 'dispatched') _notify('customer', phone, 'order_status', 'Saiu pra entrega 🛵', `${nsu} saiu pra entrega e já tá indo até você ✦`).catch(() => {});
+            else if (new_status === 'delivered') _notify('customer', phone, 'order_status', 'Pedido entregue ✅', `${nsu} chegou! Bom proveito ✦`).catch(() => {});
+            else if (new_status === 'picked_up') _notify('customer', phone, 'order_status', 'Pedido pronto ✅', `${nsu} está pronto pra retirada ✦`).catch(() => {});
+          }
+        }
+      } catch (e) { console.warn('[orders_update_status notify]', e.message); }
       return res.status(200).json({ ok: true });
     } catch (e) { return res.status(500).json({ error: e.message }); }
   }
