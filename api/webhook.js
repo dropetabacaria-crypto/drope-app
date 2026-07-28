@@ -4609,6 +4609,9 @@ async function handleFilialPainel(req, res) {
     const _funcs = Array.isArray((filial.metadata || {}).funcionarios) ? (filial.metadata || {}).funcionarios : [];
     const _parcAll = Array.isArray((filial.metadata || {}).parceiros) ? (filial.metadata || {}).parceiros : [];
     const _parcAprov = _parcAll.filter(p => p && p.status === 'approved');
+    // Período (mês corrente) e pagamentos de comissão já registrados
+    const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const _payments = Array.isArray((filial.metadata || {}).commission_payments) ? (filial.metadata || {}).commission_payments : [];
     const comissoes = _funcs.concat(_parcAprov).map(f => {
       const myOrders = (orders || []).filter(o => ((o.metadata || {}).employee_id) === f.id);
       let comissaoCents = 0;
@@ -4625,11 +4628,16 @@ async function handleFilialPainel(req, res) {
           comissaoCents += Math.round(lucroCents * (Number(f.valor) || 0) / 100);
         }
       }
+      const myPayments = _payments.filter(p => p && p.person_id === f.id && p.period === periodKey);
+      const pagoCents = myPayments.reduce((s, p) => s + (Number(p.amount_cents) || 0), 0);
       return {
         id: f.id, nome: f.nome, tipo: f.tipo, valor: f.valor, operador: !!f.operador,
         vendas: myOrders.length,
         total_vendido_cents: myOrders.reduce((s, o) => s + Number(o.total_cents || 0), 0),
         comissao_cents: comissaoCents,
+        pago_cents: pagoCents,
+        a_pagar_cents: Math.max(0, comissaoCents - pagoCents),
+        pagamentos: myPayments.slice().sort((a, b) => String(b.paid_at || '').localeCompare(String(a.paid_at || ''))),
       };
     });
 
@@ -6729,6 +6737,47 @@ async function handleFilialParceiroRequest(req, res) {
     _notify('filial', filial.id, 'partner_request', 'Novo pedido de parceria ✦', `${nome} quer divulgar a sua loja`).catch(() => {});
     return res.status(200).json({ ok: true, status: 'pending' });
   } catch (e) { console.error('[filial_parceiro_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_commission_pay — lojista marca a comissão de um funcionário/
+// parceiro como PAGA (o sistema calcula, o dono paga por fora e registra aqui).
+// Guarda o histórico em metadata.commission_payments. op: 'pay' | 'undo'.
+async function handleFilialCommissionPay(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    let payments = Array.isArray(md.commission_payments) ? md.commission_payments : [];
+    const op = String(body.op || 'pay');
+    const personId = String(body.person_id || '').trim();
+    if (!personId) return res.status(400).json({ ok: false, error: 'person_id obrigatório' });
+    // valida que a pessoa existe (funcionário OU parceiro aprovado)
+    const funcs = Array.isArray(md.funcionarios) ? md.funcionarios : [];
+    const parc = (Array.isArray(md.parceiros) ? md.parceiros : []).filter(p => p && p.status === 'approved');
+    const person = funcs.concat(parc).find(p => p.id === personId);
+    if (!person) return res.status(404).json({ ok: false, error: 'pessoa não encontrada' });
+    const now = new Date();
+    const periodKey = body.period ? String(body.period) : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (op === 'undo') {
+      // desfaz o último pagamento da pessoa no período (em caso de erro)
+      let lastI = -1, lastAt = '';
+      payments.forEach((p, i) => { if (p.person_id === personId && p.period === periodKey && String(p.paid_at || '') >= lastAt) { lastAt = String(p.paid_at || ''); lastI = i; } });
+      if (lastI >= 0) payments.splice(lastI, 1);
+    } else {
+      const amount = Math.round(Number(body.amount_cents) || 0);
+      if (amount <= 0) return res.status(400).json({ ok: false, error: 'valor inválido' });
+      payments.push({ id: 'pay-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), person_id: personId, nome: person.nome || '', amount_cents: amount, period: periodKey, paid_at: now.toISOString() });
+    }
+    md.commission_payments = payments;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, payments: payments.filter(p => p.person_id === personId && p.period === periodKey) });
+  } catch (e) { console.error('[filial_commission_pay] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_parceiro_manage — LOJISTA aprova/recusa/edita/exclui parceiro.
@@ -19307,6 +19356,10 @@ async function generateAll(){
   // action=filial_parceiro_manage — POST: lojista aprova/recusa/edita parceiro
   if (req.url && req.url.indexOf('action=filial_parceiro_manage') >= 0) {
     return await handleFilialParceiroManage(req, res);
+  }
+  // action=filial_commission_pay — POST: lojista marca comissão como paga (+ histórico)
+  if (req.url && req.url.indexOf('action=filial_commission_pay') >= 0) {
+    return await handleFilialCommissionPay(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {

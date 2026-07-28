@@ -1392,6 +1392,53 @@ async function toggleAcceptPartners() {
 let _funcionarios = [];
 let _parceiros = [];
 let _comissoes = [];
+function _fmtDay(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); } catch (e) { return ''; } }
+// Bloco de comissão do mês (gerado / a pagar / pago) + botão "Marcar como pago".
+function _comissaoBlock(c) {
+  if (!c) return '';
+  const gerou = c.comissao_cents || 0;
+  const temHist = c.pagamentos && c.pagamentos.length;
+  if (gerou <= 0 && !temHist) {
+    return `<div style="font-size:12px;color:var(--fg-dim);margin-top:3px">Este mês: nenhuma venda ainda</div>`;
+  }
+  const aPagar = (c.a_pagar_cents != null) ? c.a_pagar_cents : gerou;
+  let line;
+  if (aPagar > 0) {
+    line = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px">
+      <div style="font-size:12px;color:var(--lime)">Este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · a pagar <b>${fmtBRL(aPagar)}</b></div>
+      <button class="pf-btn sec" style="padding:5px 11px;font-size:12px" onclick="markCommissionPaid('${c.id}',${aPagar})">Marcar como pago</button>
+    </div>`;
+  } else {
+    line = `<div style="font-size:12px;color:var(--green);margin-top:5px">Este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · tudo pago ✦</div>`;
+  }
+  const hist = temHist
+    ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:4px">Pago este mês: ${fmtBRL(c.pago_cents || 0)}${c.pagamentos[0].paid_at ? ' · último em ' + _fmtDay(c.pagamentos[0].paid_at) : ''} <span class="mini-link" onclick="undoCommissionPay('${c.id}')">desfazer</span></div>`
+    : '';
+  return line + hist;
+}
+async function markCommissionPaid(personId, amountCents) {
+  if (!amountCents || amountCents <= 0) return;
+  if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' de comissão?\n\nIsso registra que você já pagou essa pessoa este mês.')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_commission_pay', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'pay', person_id: personId, amount_cents: amountCents }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
+  } catch (e) { alert('erro de rede'); }
+}
+async function undoCommissionPay(personId) {
+  if (!confirm('Desfazer o último pagamento registrado deste mês?')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_commission_pay', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'undo', person_id: personId }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro');
+  } catch (e) { alert('erro de rede'); }
+}
 let _fnEditId = null;
 function _fnTipoHint() {
   const t = ((document.getElementById('fn-tipo') || {}).value) || 'pct_lucro';
@@ -1409,9 +1456,7 @@ function renderFuncionarios() {
       ? ('R$ ' + Number(f.valor || 0).toFixed(2).replace('.', ',') + ' por venda')
       : (String(f.valor || 0).replace('.', ',') + '% do lucro');
     const c = (_comissoes || []).find(x => x.id === f.id);
-    const comLine = c
-      ? `<div style="font-size:12px;color:var(--lime);margin-top:3px">este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · pagar <b>${fmtBRL(c.comissao_cents)}</b></div>`
-      : '';
+    const comLine = _comissaoBlock(c);
     const linkLine = f.ref_code
       ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
            <span>link de indicação:</span>
@@ -1503,7 +1548,7 @@ function renderParceiros() {
   aprovWrap.innerHTML = aprov.length ? ('<div style="font-size:12px;font-weight:800;color:var(--fg-dim);margin-bottom:6px">PARCEIROS ATIVOS</div>' + aprov.map(p => {
     const regra = p.tipo === 'fixo' ? ('R$ ' + Number(p.valor || 0).toFixed(2).replace('.', ',') + ' por venda') : (String(p.valor || 0).replace('.', ',') + '% do lucro');
     const c = (_comissoes || []).find(x => x.id === p.id);
-    const comLine = c ? `<div style="font-size:12px;color:var(--lime);margin-top:3px">este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · pagar <b>${fmtBRL(c.comissao_cents)}</b></div>` : '';
+    const comLine = _comissaoBlock(c);
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px">${esc(p.nome)}</div><div style="font-size:12px;color:var(--fg-dim)">${regra}</div>${comLine}</div>
