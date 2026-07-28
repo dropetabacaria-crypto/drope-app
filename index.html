@@ -8383,6 +8383,7 @@
     if (_favStores.has(slug)) _favStores.delete(slug); else _favStores.add(slug);
     try { localStorage.setItem('drope_fav_stores', JSON.stringify([..._favStores])); } catch (e) {}
     if (el) el.classList.toggle('on', _favStores.has(slug));
+    if (typeof _favSyncPush === 'function') _favSyncPush();
   }
   // ETA de entrega estimado pela distância real (cliente → loja). Sem geo → sem tempo fake.
   function _etaFromKm(km) {
@@ -8622,6 +8623,41 @@
   }
   loadFavorites();
 
+  // ===== Sincronização de favoritos com a CONTA (produtos + lojas) =====
+  // Sobem quando o cliente favorita algo; descem (e unem com o device) ao logar.
+  let _favPushTimer = null;
+  function _favSyncPush() {
+    if (typeof _isLoggedIn === 'function' && !_isLoggedIn()) return;
+    if (!profile || !profile.phone) return;
+    clearTimeout(_favPushTimer);
+    _favPushTimer = setTimeout(() => {
+      fetch('/api/webhook?action=customer_favorites', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: profile.phone, token: _custToken(), products: Array.from(favorites), stores: Array.from(_favStores) }),
+      }).catch(() => {});
+    }, 800);
+  }
+  async function loadFavoritesFromAccount() {
+    if (typeof _isLoggedIn === 'function' && !_isLoggedIn()) return;
+    if (!profile || !profile.phone) return;
+    try {
+      const r = await fetch('/api/webhook?action=customer_favorites&phone=' + encodeURIComponent(profile.phone) + '&token=' + encodeURIComponent(_custToken()), { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json().catch(() => null);
+      if (!d || !d.ok) return;
+      let changed = false;
+      (Array.isArray(d.products) ? d.products : []).forEach(n => { if (!favorites.has(n)) { favorites.add(n); changed = true; } });
+      (Array.isArray(d.stores) ? d.stores : []).forEach(s => { if (!_favStores.has(s)) { _favStores.add(s); changed = true; } });
+      if (changed) {
+        saveFavorites();
+        try { localStorage.setItem('drope_fav_stores', JSON.stringify([..._favStores])); } catch (e) {}
+        if (document.querySelector('.screen.active')?.id === 'favorites') renderFavorites();
+      }
+      // Sempre sobe a UNIÃO: o que o device tinha e a conta não, também vai pra conta.
+      _favSyncPush();
+    } catch (e) {}
+  }
+
   // ===== Carrinho persistente =====
   const CART_KEY = 'drope_cart_v1';
   function saveCart() {
@@ -8738,6 +8774,7 @@
     if (!profile.name) { toast('bem-vindo ✦ adicione seu nome em Editar perfil'); }
     else { toast('bem-vindo ✦ você tá logado'); }
     try { loadMyOrders(); } catch (e) {}
+    try { loadFavoritesFromAccount(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
   }
   // Mostra/oculta o texto de um campo de senha (olho).
@@ -10335,7 +10372,7 @@
     if (screen === 'flavor-profile') renderFlavorProfile();
     if (screen === 'card') renderCardScreen();
     if (screen === 'search') renderSearch();
-    if (screen === 'favorites') renderFavorites();
+    if (screen === 'favorites') { renderFavorites(); loadFavoritesFromAccount(); }
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
     if (screen === 'lojista-signup') _resetLojistaForm();
@@ -11113,6 +11150,7 @@
     }
     document.getElementById('heart-btn').classList.toggle('liked', favorites.has(p.name));
     saveFavorites();
+    _favSyncPush();
   }
 
   function renderSearch() {
