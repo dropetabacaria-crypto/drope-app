@@ -4683,6 +4683,7 @@ async function handleFilialPainel(req, res) {
         filtros: (filial.metadata || {}).filtros || [],
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
+        entregadores: (filial.metadata || {}).entregadores || [],
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
         accepts_partners: !!((filial.metadata || {}).accepts_partners),
@@ -6737,6 +6738,45 @@ async function handleFilialFuncionarioSave(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, funcionarios: funcs });
   } catch (e) { console.error('[filial_funcionario_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_entregador_save — LOJISTA cadastra/edita/remove entregador da loja.
+// Guarda em drope_filiais.metadata.entregadores. Cada um ganha um access_code (4 díg)
+// pra entrar no mini-app do entregador. op: 'save' | 'delete' | 'toggle'.
+async function handleFilialEntregadorSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const md = filial.metadata || {};
+    let ents = Array.isArray(md.entregadores) ? md.entregadores : [];
+    const op = body.op || 'save';
+    if (op === 'delete') {
+      ents = ents.filter(e => e.id !== body.id);
+    } else if (op === 'toggle') {
+      const e = ents.find(x => x.id === body.id);
+      if (e) e.ativo = !e.ativo;
+    } else {
+      const nome = String(body.nome || '').trim().slice(0, 40);
+      const phone = String(body.phone || '').replace(/\D/g, '').slice(0, 13);
+      if (nome.length < 2) return res.status(400).json({ ok: false, error: 'nome do entregador inválido' });
+      if (phone.length < 10) return res.status(400).json({ ok: false, error: 'telefone inválido' });
+      // telefone único dentro da loja
+      if (ents.some(x => x.id !== body.id && x.phone === phone)) return res.status(409).json({ ok: false, error: 'já existe um entregador com esse telefone' });
+      let e = ents.find(x => x.id === body.id);
+      if (!e) { e = { id: 'ent-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), ativo: true, corridas_entregues: 0, created_at: new Date().toISOString() }; ents.push(e); }
+      e.nome = nome; e.phone = phone;
+      if (!e.access_code) e.access_code = String(Math.floor(1000 + Math.random() * 9000)); // código de 4 dígitos
+    }
+    md.entregadores = ents;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, entregadores: ents });
+  } catch (e) { console.error('[filial_entregador_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
@@ -19404,6 +19444,10 @@ async function generateAll(){
   // action=filial_commission_pay — POST: lojista marca comissão como paga (+ histórico)
   if (req.url && req.url.indexOf('action=filial_commission_pay') >= 0) {
     return await handleFilialCommissionPay(req, res);
+  }
+  // action=filial_entregador_save — POST: lojista cadastra/edita/remove entregador
+  if (req.url && req.url.indexOf('action=filial_entregador_save') >= 0) {
+    return await handleFilialEntregadorSave(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {

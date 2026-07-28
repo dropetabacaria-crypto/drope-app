@@ -320,6 +320,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-item" onclick="openCfg('funcionarios')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionários</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão por venda e operador da loja</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
+        <button class="cfg-item" onclick="openCfg('entregadores')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Entregadores</span><br><small style="color:var(--fg-dim);font-weight:400">Cadastrar quem faz as entregas da loja</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
         <button class="cfg-item" onclick="openCfg('parceiros')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Parceiros / Indicadores <span id="parc-badge" style="display:none;background:var(--pink);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;margin-left:4px"></span></span><br><small style="color:var(--fg-dim);font-weight:400">Aprovar quem divulga a loja e ver comissões</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
@@ -518,6 +521,24 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:12px 0"><input type="checkbox" id="fn-operador"> É o operador da loja (pega as vendas do app / balcão sem escolha)</label>
             <button class="pf-btn" onclick="saveFuncionario()">Adicionar funcionário ✦</button>
             <div id="fn-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: Entregadores -->
+      <div class="cfg-sec" id="cfg-entregadores" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
+          <h2>Entregadores<span class="help-q" onclick="helpShow('entregadores',true)" title="O que é isso?">?</span></h2>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Cadastre quem faz as entregas da sua loja. Cada entregador recebe um link e um código pra entrar no app do entregador e pegar as corridas.</p>
+          <div id="ent-list" style="margin-bottom:14px"></div>
+          <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px">
+            <label class="pf-lbl">Nome do entregador</label>
+            <input class="pf-input" id="ent-nome" placeholder="ex: João" maxlength="40">
+            <label class="pf-lbl" style="margin-top:8px">WhatsApp / telefone</label>
+            <input class="pf-input" id="ent-phone" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 91234-5678" oninput="_fmtEntPhone(this)">
+            <button class="pf-btn" style="margin-top:12px" onclick="saveEntregador()">Adicionar entregador ✦</button>
+            <div id="ent-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
           </div>
         </div>
       </div>
@@ -839,6 +860,7 @@ function render(d) {
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
   _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
+  _entregadores = Array.isArray(f.entregadores) ? f.entregadores : [];
   _acceptsPartners = !!f.accepts_partners;
   _commPeriod = (f.commission_period === 'week') ? 'week' : 'month';
   _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
@@ -1397,6 +1419,83 @@ async function toggleAcceptPartners() {
   } catch (e) {}
   if (btn) btn.disabled = false;
   renderAcceptPartners();
+}
+
+// ===== Entregadores (mini-app de entrega, por loja) =====
+let _entregadores = [];
+function _fmtEntPhone(el) { el.value = _fmtWhatsStr(el.value); }
+function _entLink(code) {
+  const base = (location.origin && location.origin !== 'null') ? location.origin : 'https://drope-app.vercel.app';
+  return base + '/entregador?loja=' + encodeURIComponent(FILIAL_SLUG);
+}
+function renderEntregadores() {
+  const el = document.getElementById('ent-list'); if (!el) return;
+  const list = _entregadores || [];
+  if (!list.length) { el.innerHTML = '<div style="font-size:13px;color:var(--fg-dim);padding:8px 0">Nenhum entregador cadastrado ainda.</div>'; return; }
+  el.innerHTML = list.map(e => {
+    const tel = _fmtWhatsStr(String(e.phone || '').replace(/^55/, ''));
+    const off = e.ativo === false;
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px${off ? ';opacity:.6' : ''}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px">${esc(e.nome)}${off ? ' <span style="font-size:10px;color:var(--fg-dim)">(inativo)</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--fg-dim)">${esc(tel)} · código <b style="color:var(--fg)">${esc(e.access_code || '----')}</b></div>
+        </div>
+        <span class="mini-link" onclick="toggleEntregador('${e.id}')">${off ? 'ativar' : 'pausar'}</span>
+        <span class="mini-link" style="color:var(--pink)" onclick="deleteEntregador('${e.id}')">excluir</span>
+      </div>
+      <div style="font-size:11px;color:var(--fg-dim);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>app do entregador:</span>
+        <span class="mini-link" onclick="copyEntregadorLink()">copiar link ✦</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function copyEntregadorLink() {
+  const url = _entLink();
+  try { navigator.clipboard.writeText(url); } catch (e) {}
+  const m = document.getElementById('ent-msg'); if (m) { m.style.color = 'var(--green)'; m.textContent = 'link copiado ✦ manda pro entregador (ele entra com telefone + código)'; }
+}
+async function saveEntregador() {
+  const nome = (document.getElementById('ent-nome').value || '').trim();
+  const phone = (document.getElementById('ent-phone').value || '').replace(/\D/g, '');
+  const msg = document.getElementById('ent-msg');
+  if (nome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do entregador'; return; }
+  if (phone.length < 10) { msg.style.color = 'var(--pink)'; msg.textContent = 'telefone inválido'; return; }
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  try {
+    const r = await fetch('/api/webhook?action=filial_entregador_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'save', nome, phone }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      _entregadores = d.entregadores || []; renderEntregadores();
+      document.getElementById('ent-nome').value = ''; document.getElementById('ent-phone').value = '';
+      msg.style.color = 'var(--green)'; msg.textContent = 'entregador adicionado ✦';
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+}
+async function deleteEntregador(id) {
+  if (!confirm('Excluir esse entregador?')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_entregador_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'delete', id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _entregadores = d.entregadores || []; renderEntregadores(); }
+  } catch (e) {}
+}
+async function toggleEntregador(id) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_entregador_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'toggle', id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _entregadores = d.entregadores || []; renderEntregadores(); }
+  } catch (e) {}
 }
 
 // ===== Funcionários (comissão por venda) =====
@@ -2030,6 +2129,7 @@ function openCfg(name) {
     if (name === 'qr') renderQR();
     if (name === 'pagamento') mpRefreshStatus();
     if (name === 'funcionarios') { _fnTipoHint(); renderCommPeriod(); renderFuncionarios(); }
+    if (name === 'entregadores') renderEntregadores();
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
   } catch (e) {}
   const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -2048,6 +2148,7 @@ const HELP = {
   qr: { emoji: '📱', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
   func: { emoji: '🕐', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
   pagamento: { emoji: '💳', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
+  entregadores: { emoji: '🛵', title: 'Entregadores', body: 'Cadastre quem faz as entregas da sua loja (nome + telefone). Cada um recebe um <b>código de 4 dígitos</b> e um <b>link do app do entregador</b>.<br><br>No app, o entregador entra com o telefone + código, vê as corridas da sua loja e toca em <b>Aceitar → Saí → Entreguei</b>. O status do pedido e o aviso pro cliente andam sozinhos ✦' },
   funcionarios: { emoji: '🧑‍💼', title: 'Funcionários', body: 'Cadastre quem vende na sua loja e defina a comissão: <b>% do lucro</b> ou <b>R$ fixo por venda</b> (nunca % da venda).<br><br>O sistema calcula quanto pagar pra cada um; o pagamento é feito por você.' },
   parceiros: { emoji: '🤝', title: 'Parceiros / Indicadores', body: 'Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem.<br><br>O cliente pede pra ser parceiro, <b>você aprova</b> e define a comissão dele.' },
   plano: { emoji: '⭐', title: 'Meu plano', body: 'Seu plano define a comissão por venda e os recursos disponíveis. Veja os detalhes e troque de plano aqui.' },
