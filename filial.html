@@ -1478,6 +1478,13 @@ function renderEntregadores() {
   if (!list.length) { el.innerHTML = '<div style="font-size:13px;color:var(--fg-dim);padding:8px 0">Nenhum entregador fixo vinculado ainda.</div>'; return; }
   el.innerHTML = list.map(e => {
     const tel = _fmtWhatsStr(String(e.phone || '').replace(/^55/, ''));
+    const aPagar = e.a_pagar_cents || 0;
+    const payLine = aPagar > 0
+      ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+           <div style="font-size:12px;color:var(--lime)">A pagar: <b>${fmtBRL(aPagar)}</b> · ${e.entregas_a_pagar} entrega${e.entregas_a_pagar !== 1 ? 's' : ''}</div>
+           <button class="pf-btn sec" style="padding:5px 11px;font-size:12px" onclick="settleEntregador('${e.id}',${aPagar})">Marcar como pago</button>
+         </div>`
+      : '<div style="font-size:12px;color:var(--green);margin-top:8px">Sem entregas a pagar ✦</div>';
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0">
@@ -1486,6 +1493,7 @@ function renderEntregadores() {
         </div>
         <span class="mini-link" style="color:var(--pink)" onclick="unlinkEntregador('${e.id}')">desvincular</span>
       </div>
+      ${payLine}
     </div>`;
   }).join('');
 }
@@ -1506,6 +1514,17 @@ async function linkEntregador() {
       msg.style.color = 'var(--green)'; msg.textContent = d.already ? 'esse entregador já é fixo ✦' : 'entregador vinculado ✦';
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+}
+async function settleEntregador(id, amountCents) {
+  if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' pras entregas desse entregador?\n\nIsso registra que você já acertou com ele.')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_entregador_settle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, entregador_id: id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
+  } catch (e) { alert('erro de rede'); }
 }
 async function unlinkEntregador(id) {
   if (!confirm('Desvincular esse entregador fixo?')) return;

@@ -153,6 +153,7 @@
       <div class="earn-row">
         <span>Hoje <b id="earn-today">R$ 0,00</b></span>
         <span>Entregas <b id="earn-count">0</b></span>
+        <span>A receber <b id="earn-due">R$ 0,00</b></span>
       </div>
     </div>
 
@@ -256,6 +257,7 @@ function renderGanhosSummary(){
   _q('earn-week').textContent=fmtBRL(g.semana_cents);
   _q('earn-today').textContent=fmtBRL(g.hoje_cents);
   _q('earn-count').textContent=(g.entregas_semana||0);
+  _q('earn-due').textContent=fmtBRL(g.a_receber_cents);
 }
 
 function renderCorridas(list){

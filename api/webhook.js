@@ -4679,6 +4679,16 @@ async function handleFilialPainel(req, res) {
       };
     });
 
+    // Pagamento dos entregadores FIXOS: corridas entregues, pagas pela loja, ainda não quitadas
+    const fixos = Array.isArray((filial.metadata || {}).entregadores_fixos) ? (filial.metadata || {}).entregadores_fixos : [];
+    let entregadoresFixos = fixos;
+    try {
+      const settleRows = await sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`);
+      const owe = {};
+      (settleRows || []).forEach(c => { const k = c.entregador_id; if (!k) return; owe[k] = owe[k] || { cents: 0, n: 0 }; owe[k].cents += Number(c.valor_motoboy_cents) || 0; owe[k].n++; });
+      entregadoresFixos = fixos.map(e => ({ ...e, a_pagar_cents: (owe[e.id] || {}).cents || 0, entregas_a_pagar: (owe[e.id] || {}).n || 0 }));
+    } catch (e) { console.warn('[painel entregadores settle]', e.message); }
+
     return res.status(200).json({
       ok: true,
       comissoes,
@@ -4694,7 +4704,7 @@ async function handleFilialPainel(req, res) {
         filtros: (filial.metadata || {}).filtros || [],
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
-        entregadores_fixos: (filial.metadata || {}).entregadores_fixos || [],
+        entregadores_fixos: entregadoresFixos,
         entrega: (filial.metadata || {}).entrega || { base: 6, km: 1.5 },
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
@@ -6791,6 +6801,31 @@ async function handleFilialEntregadorSave(req, res) {
   } catch (e) { console.error('[filial_entregador_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_entregador_settle — LOJISTA marca as entregas de um fixo como pagas.
+// Quita as corridas entregues (payer=loja) ainda não pagas desse entregador nesta loja.
+async function handleFilialEntregadorSettle(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const entregadorId = String(body.entregador_id || '').trim();
+    if (!entregadorId) return res.status(400).json({ ok: false, error: 'entregador_id obrigatório' });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?filial_id=eq.${filial.id}&entregador_id=eq.${encodeURIComponent(entregadorId)}&payer=eq.loja&status=eq.entregue&settled_at=is.null`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ settled_at: new Date().toISOString() }),
+    });
+    const upd = await r.json();
+    const n = Array.isArray(upd) ? upd.length : 0;
+    return res.status(200).json({ ok: true, settled: n });
+  } catch (e) { console.error('[filial_entregador_settle] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=filial_corrida_create — LOJISTA cria a corrida (entrega) de um pedido.
 // assigned_to opcional: atribui a um entregador específico; sem ele, fica aberta pra
 // qualquer entregador ativo da loja pegar. valor opcional (reais).
@@ -6830,6 +6865,8 @@ async function handleFilialCorridaCreate(req, res) {
     const inserted = await sbInsert('drope_corridas', {
       order_id: order.id, filial_id: filial.id, status: 'aberta',
       assigned_to: assignedTo, valor_motoboy_cents: valorCents,
+      // Quem paga: atribuiu a um fixo → a loja paga; abriu pra todos (avulso) → o DROPE paga.
+      payer: assignedTo ? 'loja' : 'drope',
       endereco_destino: enderecoDest, cliente_phone: clientePhone,
       posted_at: new Date().toISOString(),
     });
@@ -6932,14 +6969,15 @@ async function handleEntregadorCorridas(req, res) {
     const dow = (now.getDay() + 6) % 7;
     const wk = new Date(now.getFullYear(), now.getMonth(), now.getDate()); wk.setDate(wk.getDate() - dow);
     const startWeek = wk.toISOString();
-    const done = await sbGet('drope_corridas', `entregador_id=eq.${encodeURIComponent(me)}&status=eq.entregue&order=delivered_at.desc&select=id,filial_id,valor_motoboy_cents,delivered_at&limit=40`);
-    let hoje = 0, semana = 0, nHoje = 0, nSemana = 0;
+    const done = await sbGet('drope_corridas', `entregador_id=eq.${encodeURIComponent(me)}&status=eq.entregue&order=delivered_at.desc&select=id,filial_id,valor_motoboy_cents,delivered_at,settled_at,payer&limit=60`);
+    let hoje = 0, semana = 0, nHoje = 0, nSemana = 0, aReceber = 0;
+    (done || []).forEach(c => { if (!c.settled_at) aReceber += Number(c.valor_motoboy_cents) || 0; });
     const dfids = [...new Set((done || []).map(c => c.filial_id).filter(Boolean))];
     const dfmap = {};
     if (dfids.length) { const fr = await sbGet('drope_filiais', `id=in.(${dfids.join(',')})&select=id,name&limit=100`); (fr || []).forEach(f => { dfmap[f.id] = f.name; }); }
     (done || []).forEach(c => { const v = c.valor_motoboy_cents || 0; const at = c.delivered_at || ''; if (at >= startToday) { hoje += v; nHoje++; } if (at >= startWeek) { semana += v; nSemana++; } });
     const historico = (done || []).slice(0, 15).map(c => ({ loja: dfmap[c.filial_id] || 'Loja', valor_cents: c.valor_motoboy_cents, delivered_at: c.delivered_at }));
-    const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, historico };
+    const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, a_receber_cents: aReceber, historico };
     return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
@@ -19674,6 +19712,10 @@ async function generateAll(){
   // action=filial_corrida_create — POST: lojista cria a corrida (entrega) de um pedido
   if (req.url && req.url.indexOf('action=filial_corrida_create') >= 0) {
     return await handleFilialCorridaCreate(req, res);
+  }
+  // action=filial_entregador_settle — POST: lojista marca entregas de um fixo como pagas
+  if (req.url && req.url.indexOf('action=filial_entregador_settle') >= 0) {
+    return await handleFilialEntregadorSettle(req, res);
   }
   // Mini-app do entregador: signup, login, listar corridas, agir (aceitar/saí/entregue)
   if (req.url && req.url.indexOf('action=entregador_signup') >= 0) {
