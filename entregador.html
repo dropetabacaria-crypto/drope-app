@@ -121,7 +121,10 @@
       <label>Telefone (WhatsApp)</label>
       <input id="lg-phone" type="tel" inputmode="tel" placeholder="(11) 91234-5678">
       <label>Senha</label>
-      <input id="lg-pass" type="password" placeholder="sua senha">
+      <div style="position:relative">
+        <input id="lg-pass" type="password" placeholder="sua senha" style="padding-right:64px">
+        <button type="button" onclick="_togglePw('lg-pass',this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+      </div>
       <button class="btn" id="btn-login" onclick="doLogin()">Entrar ✦</button>
     </div>
 
@@ -133,7 +136,10 @@
       <label>Chave Pix (pra receber)</label>
       <input id="sg-pix" placeholder="CPF, telefone, email ou aleatória">
       <label>Crie uma senha</label>
-      <input id="sg-pass" type="password" placeholder="mín. 4 caracteres">
+      <div style="position:relative">
+        <input id="sg-pass" type="password" placeholder="mín. 4 caracteres" style="padding-right:64px">
+        <button type="button" onclick="_togglePw('sg-pass',this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+      </div>
       <button class="btn" id="btn-signup" onclick="doSignup()">Criar conta ✦</button>
       <div class="hint">Sua chave Pix é usada pro repasse das entregas avulsas.</div>
     </div>
@@ -174,6 +180,7 @@ let SESS = null; let _ganhos = null;
 try { SESS = JSON.parse(localStorage.getItem(SK) || 'null'); } catch(e) {}
 
 function _q(id){ return document.getElementById(id); }
+function _togglePw(id, btn){ const i=document.getElementById(id); if(!i) return; const show=i.type==='password'; i.type=show?'text':'password'; if(btn) btn.textContent=show?'ocultar':'ver'; }
 function fmtBRL(c){ return 'R$ ' + ((c||0)/100).toFixed(2).replace('.', ','); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function fmtPhoneStr(d){ d=String(d||'').replace(/\D/g,'').slice(0,11); if(d.length>=8)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7); if(d.length>=3)return '('+d.slice(0,2)+') '+d.slice(2); return d; }

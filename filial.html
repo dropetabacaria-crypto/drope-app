@@ -212,7 +212,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <h1 id="auth-title">Painel da loja</h1>
     <p>Entre com seu email e senha</p>
     <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
-    <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" onkeydown="if(event.key==='Enter')login()">
+    <div style="position:relative">
+      <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" style="padding-right:60px;width:100%" onkeydown="if(event.key==='Enter')login()">
+      <button type="button" onclick="_togglePw('login-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+    </div>
     <button onclick="login()">Entrar</button>
     <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
   </div>
@@ -806,6 +809,8 @@ function fmtBRL(cents) { return 'R$ ' + ((cents||0)/100).toFixed(2).replace('.',
 function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch(e){ return '—'; } }
 function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch(e){ return '—'; } }
 
+// Mostrar/ocultar senha (útil no mobile)
+function _togglePw(id, btn) { const i = document.getElementById(id); if (!i) return; const show = i.type === 'password'; i.type = show ? 'text' : 'password'; if (btn) btn.textContent = show ? 'ocultar' : 'ver'; }
 async function login() {
   const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
   const pass = (document.getElementById('login-pass').value || '');

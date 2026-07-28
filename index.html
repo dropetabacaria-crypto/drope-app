@@ -4529,7 +4529,10 @@
       </label>
       <label class="lj-field">
         <span class="lj-lbl">Senha</span>
-        <input id="lj-pass" class="card-input" type="password" autocomplete="new-password" placeholder="mín. 6 caracteres" maxlength="60" oninput="_ljBtn()">
+        <div style="position:relative">
+          <input id="lj-pass" class="card-input" type="password" autocomplete="new-password" placeholder="mín. 6 caracteres" maxlength="60" style="width:100%;padding-right:76px" oninput="_ljBtn()">
+          <span onclick="togglePw('lj-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:700;user-select:none">mostrar</span>
+        </div>
       </label>
 
       <button class="btn-primary" id="lj-submit" onclick="submitFilialRegister()" disabled style="opacity:0.4; width:100%; margin-top:20px">Cadastrar loja ✦</button>
