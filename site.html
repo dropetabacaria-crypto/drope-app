@@ -71,23 +71,32 @@
   .phone { width:288px; max-width:82%; padding:11px; border-radius:44px; background:linear-gradient(160deg,#33334a,#14141f); border:1px solid rgba(255,255,255,0.14); box-shadow:0 44px 90px rgba(0,0,0,0.55), 0 0 70px rgba(140,80,255,0.28); position:relative; }
   .phone::before { content:''; position:absolute; top:19px; left:50%; transform:translateX(-50%); width:116px; height:22px; background:#07070d; border-radius:0 0 14px 14px; z-index:5; }
   .screen { border-radius:34px; overflow:hidden; background:var(--bg); aspect-ratio:9/19.2; display:flex; flex-direction:column; position:relative; }
-  .ap-head { background:linear-gradient(135deg,#2a1350,#4A1A6E 60%,#6d2170); padding:34px 15px 14px; }
-  .ap-loc { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#e8e0ff; font-weight:600; }
-  .ap-loc b { font-family:'Space Grotesk'; }
-  .ap-search { margin-top:12px; background:rgba(255,255,255,0.14); border-radius:12px; padding:9px 12px; font-size:11px; color:#d9d2f2; }
-  .ap-chips { display:flex; gap:6px; margin-top:12px; overflow:hidden; }
-  .ap-chips span { font-size:10px; font-weight:700; padding:5px 11px; border-radius:999px; background:rgba(255,255,255,0.1); color:#ded7f5; white-space:nowrap; }
-  .ap-chips span.act { background:var(--lime); color:#0A0A14; }
-  .ap-body { padding:14px 13px; display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; align-content:start; }
-  .ap-prod { background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-  .ap-thumb { height:58px; background:linear-gradient(135deg,#8C50FF,#FF2D6F); }
-  .ap-prod:nth-child(2) .ap-thumb { background:linear-gradient(135deg,#4ADE80,#8C50FF); }
-  .ap-prod:nth-child(3) .ap-thumb { background:linear-gradient(135deg,#FF2D6F,#D4FF2E); }
-  .ap-prod:nth-child(4) .ap-thumb { background:linear-gradient(135deg,#8C50FF,#4ADE80); }
-  .ap-info { padding:7px 8px 9px; }
-  .ap-info .nm { font-size:10px; font-weight:700; color:var(--fg); }
-  .ap-info .pr { font-size:11px; font-weight:800; color:var(--lime); font-family:'Space Grotesk'; margin-top:3px; }
-  .ap-bag { margin:auto 13px 14px; background:var(--lime); color:#0A0A14; border-radius:13px; padding:11px 14px; display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:800; font-family:'Space Grotesk'; }
+  .ap-top { padding:32px 14px 0; }
+  .ap-h1 { font-family:'Space Grotesk'; font-weight:800; font-size:19px; letter-spacing:-.5px; }
+  .ap-h1 span { color:var(--lime); }
+  .ap-sub { color:var(--dim); font-size:10px; margin-top:2px; }
+  .ap-search { margin-top:11px; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:9px 12px; font-size:11px; color:var(--dim); }
+  .ap-banner { margin:12px 14px 0; background:linear-gradient(120deg,#FF2D6F,#8C50FF); border-radius:16px; padding:13px 12px; display:flex; align-items:center; justify-content:space-between; gap:6px; overflow:hidden; }
+  .ap-banner b { font-family:'Space Grotesk'; font-size:13px; display:block; color:#fff; }
+  .ap-banner p { font-size:9.5px; color:rgba(255,255,255,0.92); margin-top:2px; line-height:1.3; }
+  .ap-banner img { width:66px; flex:0 0 auto; filter:drop-shadow(0 6px 12px rgba(0,0,0,0.3)); }
+  .ap-chips { display:flex; gap:6px; padding:12px 14px 0; overflow:hidden; }
+  .ap-chips span { font-size:10px; font-weight:700; padding:6px 12px; border-radius:999px; background:rgba(255,255,255,0.08); color:var(--dim); white-space:nowrap; }
+  .ap-chips span.act { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+  .ap-eyebrow { font-family:'Space Grotesk'; font-weight:700; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); padding:13px 14px 0; }
+  .ap-store { margin:8px 14px 0; background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:9px; display:flex; align-items:flex-start; gap:10px; }
+  .ap-logo { width:46px; height:46px; border-radius:11px; background-size:cover; background-position:center; flex:0 0 auto; }
+  .ap-st { flex:1; min-width:0; }
+  .ap-st b { font-family:'Space Grotesk'; font-size:13px; }
+  .ap-st .desc { display:block; font-size:9.5px; color:var(--dim); margin:1px 0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ap-tags { display:flex; gap:4px; }
+  .ap-tags i { font-style:normal; font-size:8.5px; background:rgba(255,255,255,0.08); color:var(--dim); padding:2px 7px; border-radius:6px; }
+  .ap-tags i.ok { background:rgba(212,255,46,0.15); color:var(--lime); }
+  .ap-heart { color:var(--dim); font-size:15px; flex:0 0 auto; }
+  .ap-nav { margin-top:auto; display:flex; justify-content:space-around; padding:9px 4px calc(9px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:rgba(10,10,20,0.6); }
+  .ap-nav span { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; color:var(--dim); }
+  .ap-nav span small { font-size:7.5px; }
+  .ap-nav span.act { color:var(--lime); }
 
   /* DOWNLOAD */
   .dl { margin-top:26px; }
@@ -220,18 +229,34 @@
     <div class="hero-art">
       <div class="phone" aria-hidden="true">
         <div class="screen">
-          <div class="ap-head">
-            <div class="ap-loc"><span>📍 Entregar em <b>Santos, SP</b> ▾</span><span>🔔</span></div>
-            <div class="ap-search">🔍 Buscar drops, lojas...</div>
-            <div class="ap-chips"><span class="act">Todos</span><span>Pods</span><span>Vinhos</span><span>Gelados</span></div>
+          <div class="ap-top">
+            <div class="ap-h1">Lojas <span>DROPE</span></div>
+            <div class="ap-sub">Lojas parceiras perto de você ✦</div>
+            <div class="ap-search">🔍 Buscar loja...</div>
           </div>
-          <div class="ap-body">
-            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Pod Ice 8000</div><div class="pr">R$ 89,90</div></div></div>
-            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Vinho tinto</div><div class="pr">R$ 54,00</div></div></div>
-            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Gelo & mixers</div><div class="pr">R$ 19,90</div></div></div>
-            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Combo festa</div><div class="pr">R$ 129,00</div></div></div>
+          <div class="ap-banner">
+            <div><b>Drops em minutos ✦</b><p>Peça e receba rapidinho,<br>sem sair de casa!</p></div>
+            <img src="icons/drope-moto.png" alt="">
           </div>
-          <div class="ap-bag"><span>🛒 Ver sacola</span><span>R$ 143,90</span></div>
+          <div class="ap-chips"><span class="act">Todas</span><span>Tabacarias</span><span>Adegas</span></div>
+          <div class="ap-eyebrow">Escolha a sua</div>
+          <div class="ap-store">
+            <div class="ap-logo" style="background-image:url(icons/1.png); background-color:#12121f"></div>
+            <div class="ap-st"><b>Drope Santos</b><span class="desc">Tabacaria Drope Oficial Santos</span><div class="ap-tags"><i>29 produtos</i><i>Santos</i><i class="ok">aberto</i></div></div>
+            <div class="ap-heart">♡</div>
+          </div>
+          <div class="ap-store">
+            <div class="ap-logo" style="background-image:url(icons/camaleao-olho.webp); background-color:#12121f"></div>
+            <div class="ap-st"><b>Drope SP</b><span class="desc">Tabacaria e adega · São Paulo</span><div class="ap-tags"><i>52 produtos</i><i>São Paulo</i><i class="ok">aberto</i></div></div>
+            <div class="ap-heart">♡</div>
+          </div>
+          <div class="ap-nav">
+            <span class="act">🏠<small>Início</small></span>
+            <span>🏷️<small>Ofertas</small></span>
+            <span>🛍️<small>Pedidos</small></span>
+            <span>♡<small>Favoritos</small></span>
+            <span>👤<small>Conta</small></span>
+          </div>
         </div>
       </div>
     </div>
