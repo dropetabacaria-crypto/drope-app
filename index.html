@@ -8205,7 +8205,7 @@
             <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name || '')}</div>
             <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${escapeHtml(cityTc)}${f.produtos ? ` ✦ ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}` : ''}</div>
           </div>
-          <button class="hero-cta" style="flex:0 0 auto;padding:9px 14px;font-size:13px;margin:0" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">quero ✦</button>
+          <button style="flex:0 0 auto;padding:10px 16px;font-size:13px;font-weight:800;border:0;border-radius:999px;background:var(--store-accent,var(--lime));color:#0A0A14;cursor:pointer;font-family:inherit;white-space:nowrap" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">quero ✦</button>
         </div>`;
       }).join('');
     } catch (e) { list.innerHTML = '<div class="empty-mini">erro ao carregar ✦ tenta de novo</div>'; }
