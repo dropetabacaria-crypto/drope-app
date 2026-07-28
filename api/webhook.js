@@ -4497,6 +4497,21 @@ async function handleAnalyzePricePhoto(req, res) {
 }
 
 // ============ PAINEL DA FILIAL (09/06/2026) ============
+// Janela de apuração de comissões: o dono escolhe semanal ou mensal.
+// Retorna { mode, startISO, key, label }. Semana começa na segunda-feira.
+function _commissionWindow(md, now) {
+  const mode = ((md || {}).commission_period === 'week') ? 'week' : 'month';
+  if (mode === 'week') {
+    const d = new Date(now);
+    const dow = (d.getDay() + 6) % 7; // segunda = 0
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - dow);
+    return { mode, startISO: d.toISOString(), key: 'W' + d.toISOString().slice(0, 10), label: 'semana' };
+  }
+  const d = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { mode, startISO: d.toISOString(), key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, label: 'mês' };
+}
+
 // Andrade pediu: painel pra fundadora da filial ver pedidos, saldo, mês, histórico.
 // Auth simples por código de acesso (gera-se com nome + telefone — bom o suficiente
 // pra começar). Cliente vê pedidos da filial dela e ganho por venda.
@@ -4609,11 +4624,21 @@ async function handleFilialPainel(req, res) {
     const _funcs = Array.isArray((filial.metadata || {}).funcionarios) ? (filial.metadata || {}).funcionarios : [];
     const _parcAll = Array.isArray((filial.metadata || {}).parceiros) ? (filial.metadata || {}).parceiros : [];
     const _parcAprov = _parcAll.filter(p => p && p.status === 'approved');
-    // Período (mês corrente) e pagamentos de comissão já registrados
-    const periodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Janela de comissão (semanal/mensal, escolha do dono) + pagamentos registrados
+    const _cw = _commissionWindow(filial.metadata || {}, now);
+    const periodKey = _cw.key;
+    // Pedidos da janela: se a semana couber no mês já buscado, filtra; senão busca à parte.
+    let commOrders;
+    if (_cw.startISO >= monthStart) {
+      commOrders = (orders || []).filter(o => (o.created_at || '') >= _cw.startISO);
+    } else {
+      commOrders = await sbGet('drope_orders',
+        `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${_cw.startISO}&select=id,total_cents,items,metadata,created_at&limit=200`);
+      if (!Array.isArray(commOrders)) commOrders = [];
+    }
     const _payments = Array.isArray((filial.metadata || {}).commission_payments) ? (filial.metadata || {}).commission_payments : [];
     const comissoes = _funcs.concat(_parcAprov).map(f => {
-      const myOrders = (orders || []).filter(o => ((o.metadata || {}).employee_id) === f.id);
+      const myOrders = commOrders.filter(o => ((o.metadata || {}).employee_id) === f.id);
       let comissaoCents = 0;
       if (f.tipo === 'fixo') {
         comissaoCents = myOrders.length * Math.round((Number(f.valor) || 0) * 100); // R$ fixo por venda
@@ -4659,6 +4684,7 @@ async function handleFilialPainel(req, res) {
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
         accepts_partners: !!((filial.metadata || {}).accepts_partners),
+        commission_period: _cw.mode, // 'week' | 'month'
       },
       plans_catalog: DROPE_PLANS_CATALOG(),
       saldo_pendente_cents: saldoPendenteCents,
@@ -4943,6 +4969,8 @@ async function handleFilialProfileSave(req, res) {
     if (body.featured_mode && ['auto', 'manual'].includes(body.featured_mode)) md.featured_mode = body.featured_mode;
     // programa de parceria/indicação: loja liga/desliga se aceita parceiros
     if (typeof body.accepts_partners === 'boolean') md.accepts_partners = body.accepts_partners;
+    // cadência de pagamento das comissões: semanal ou mensal (escolha do dono)
+    if (body.commission_period && ['week', 'month'].includes(body.commission_period)) md.commission_period = body.commission_period;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, profile: md.profile, endereco: md.endereco || null });
   } catch (e) {
@@ -6763,7 +6791,7 @@ async function handleFilialCommissionPay(req, res) {
     const person = funcs.concat(parc).find(p => p.id === personId);
     if (!person) return res.status(404).json({ ok: false, error: 'pessoa não encontrada' });
     const now = new Date();
-    const periodKey = body.period ? String(body.period) : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const periodKey = body.period ? String(body.period) : _commissionWindow(md, now).key;
     if (op === 'undo') {
       // desfaz o último pagamento da pessoa no período (em caso de erro)
       let lastI = -1, lastAt = '';

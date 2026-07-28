@@ -492,6 +492,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="section">
           <h2>Funcionários<span class="help-q" onclick="helpShow('funcionarios',true)" title="O que é isso?">?</span></h2>
           <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Cadastre quem vende na sua loja e a comissão de cada um. O dinheiro das vendas cai na SUA conta; aqui o sistema calcula quanto pagar pra cada funcionário. Deixar vazio é ok — nem toda loja tem funcionário.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13.5px;font-weight:700;color:var(--fg)">Pagamento das comissões</div>
+              <div style="font-size:11.5px;color:var(--fg-dim);margin-top:2px">Você acerta com cada um por semana ou por mês.</div>
+            </div>
+            <div style="display:flex;gap:6px;flex:0 0 auto">
+              <button id="cp-week" onclick="setCommPeriod('week')" style="padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--fg-dim);font-family:inherit;font-weight:800;font-size:12.5px;cursor:pointer">Semanal</button>
+              <button id="cp-month" onclick="setCommPeriod('month')" style="padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--fg-dim);font-family:inherit;font-weight:800;font-size:12.5px;cursor:pointer">Mensal</button>
+            </div>
+          </div>
           <div id="func-list" style="margin-bottom:14px"></div>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px">
             <label class="pf-lbl">Nome do funcionário</label>
@@ -830,8 +840,9 @@ function render(d) {
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
   _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
   _acceptsPartners = !!f.accepts_partners;
+  _commPeriod = (f.commission_period === 'week') ? 'week' : 'month';
   _comissoes = Array.isArray(d.comissoes) ? d.comissoes : [];
-  try { _updateParcBadge(); renderAcceptPartners(); } catch (e) {}
+  try { _updateParcBadge(); renderAcceptPartners(); renderCommPeriod(); } catch (e) {}
   document.getElementById('hello').textContent = f.founder_name ? ('Oi, ' + f.founder_name) : 'Oi ✦';
   // Modelo antigo mostrava "ganha R$X por venda" (founder_share fixo). Com o split,
   // o ganho é o líquido por pedido (mostrado em cada card). No topo, só o nome + plano.
@@ -1392,33 +1403,54 @@ async function toggleAcceptPartners() {
 let _funcionarios = [];
 let _parceiros = [];
 let _comissoes = [];
+let _commPeriod = 'month'; // 'week' | 'month' — cadência de pagamento das comissões
+function _commLabel(cap) { const s = _commPeriod === 'week' ? 'esta semana' : 'este mês'; return cap ? (s.charAt(0).toUpperCase() + s.slice(1)) : s; }
+function renderCommPeriod() {
+  const w = document.getElementById('cp-week'), m = document.getElementById('cp-month');
+  const on = (b, act) => { if (!b) return; b.style.background = act ? 'var(--lime)' : 'var(--bg3)'; b.style.color = act ? '#000' : 'var(--fg-dim)'; b.style.borderColor = act ? 'var(--lime)' : 'var(--border)'; };
+  on(w, _commPeriod === 'week'); on(m, _commPeriod === 'month');
+}
+async function setCommPeriod(period) {
+  if (period !== 'week' && period !== 'month') return;
+  if (period === _commPeriod) return;
+  const prev = _commPeriod; _commPeriod = period; renderCommPeriod();
+  try {
+    const r = await fetch('/api/webhook?action=filial_profile_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, commission_period: period }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { loadData(true); } else { _commPeriod = prev; renderCommPeriod(); alert(d.error || 'erro ao salvar'); }
+  } catch (e) { _commPeriod = prev; renderCommPeriod(); alert('erro de rede'); }
+}
 function _fmtDay(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); } catch (e) { return ''; } }
 // Bloco de comissão do mês (gerado / a pagar / pago) + botão "Marcar como pago".
 function _comissaoBlock(c) {
   if (!c) return '';
   const gerou = c.comissao_cents || 0;
   const temHist = c.pagamentos && c.pagamentos.length;
+  const lbl = _commLabel(true); // "Esta semana" / "Este mês"
   if (gerou <= 0 && !temHist) {
-    return `<div style="font-size:12px;color:var(--fg-dim);margin-top:3px">Este mês: nenhuma venda ainda</div>`;
+    return `<div style="font-size:12px;color:var(--fg-dim);margin-top:3px">${lbl}: nenhuma venda ainda</div>`;
   }
   const aPagar = (c.a_pagar_cents != null) ? c.a_pagar_cents : gerou;
   let line;
   if (aPagar > 0) {
     line = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px">
-      <div style="font-size:12px;color:var(--lime)">Este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · a pagar <b>${fmtBRL(aPagar)}</b></div>
+      <div style="font-size:12px;color:var(--lime)">${lbl}: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · a pagar <b>${fmtBRL(aPagar)}</b></div>
       <button class="pf-btn sec" style="padding:5px 11px;font-size:12px" onclick="markCommissionPaid('${c.id}',${aPagar})">Marcar como pago</button>
     </div>`;
   } else {
-    line = `<div style="font-size:12px;color:var(--green);margin-top:5px">Este mês: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · tudo pago ✦</div>`;
+    line = `<div style="font-size:12px;color:var(--green);margin-top:5px">${lbl}: ${c.vendas} venda${c.vendas !== 1 ? 's' : ''} · tudo pago ✦</div>`;
   }
   const hist = temHist
-    ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:4px">Pago este mês: ${fmtBRL(c.pago_cents || 0)}${c.pagamentos[0].paid_at ? ' · último em ' + _fmtDay(c.pagamentos[0].paid_at) : ''} <span class="mini-link" onclick="undoCommissionPay('${c.id}')">desfazer</span></div>`
+    ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:4px">Pago ${_commLabel(false)}: ${fmtBRL(c.pago_cents || 0)}${c.pagamentos[0].paid_at ? ' · último em ' + _fmtDay(c.pagamentos[0].paid_at) : ''} <span class="mini-link" onclick="undoCommissionPay('${c.id}')">desfazer</span></div>`
     : '';
   return line + hist;
 }
 async function markCommissionPaid(personId, amountCents) {
   if (!amountCents || amountCents <= 0) return;
-  if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' de comissão?\n\nIsso registra que você já pagou essa pessoa este mês.')) return;
+  if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' de comissão?\n\nIsso registra que você já pagou essa pessoa (' + _commLabel(false) + ').')) return;
   try {
     const r = await fetch('/api/webhook?action=filial_commission_pay', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1997,7 +2029,7 @@ function openCfg(name) {
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
     if (name === 'qr') renderQR();
     if (name === 'pagamento') mpRefreshStatus();
-    if (name === 'funcionarios') { _fnTipoHint(); renderFuncionarios(); }
+    if (name === 'funcionarios') { _fnTipoHint(); renderCommPeriod(); renderFuncionarios(); }
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
   } catch (e) {}
   const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
