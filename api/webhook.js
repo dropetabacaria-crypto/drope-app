@@ -6839,6 +6839,136 @@ async function handleFilialCorridaCreate(req, res) {
   } catch (e) { console.error('[filial_corrida_create] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// ===== Mini-app do entregador (por loja) =====
+const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
+async function _entregadorAuth(slug, entregadorId, token) {
+  if (!slug || !entregadorId || !token) return null;
+  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(String(slug).toLowerCase())}&status=eq.active&select=id,slug,name,metadata&limit=1`);
+  const filial = Array.isArray(fr) && fr[0];
+  if (!filial) return null;
+  const ents = Array.isArray((filial.metadata || {}).entregadores) ? filial.metadata.entregadores : [];
+  const ent = ents.find(e => e.id === entregadorId);
+  if (!ent || ent.ativo === false || !ent.session_hash) return null;
+  if (_sha256hex(token) !== ent.session_hash) return null;
+  return { filial, entregador: ent };
+}
+// POST action=entregador_login { loja, phone, code } → sessão do entregador
+async function handleEntregadorLogin(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const slug = String(body.loja || '').toLowerCase().trim();
+    const phone = _entNormPhone(body.phone);
+    const code = String(body.code || '').replace(/\D/g, '');
+    if (!slug || phone.length < 10 || code.length < 4) return res.status(400).json({ ok: false, error: 'informe loja, telefone e código' });
+    const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(slug)}&status=eq.active&select=id,slug,name,metadata&limit=1`);
+    const filial = Array.isArray(fr) && fr[0];
+    if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
+    const md = filial.metadata || {};
+    const ents = Array.isArray(md.entregadores) ? md.entregadores : [];
+    const ent = ents.find(e => e.ativo !== false && _entNormPhone(e.phone) === phone && String(e.access_code) === code);
+    if (!ent) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'telefone ou código incorretos' }); }
+    const token = crypto.randomBytes(24).toString('hex');
+    ent.session_hash = _sha256hex(token); ent.session_at = new Date().toISOString();
+    md.entregadores = ents;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, token, entregador: { id: ent.id, nome: ent.nome }, loja: { slug: filial.slug, name: filial.name } });
+  } catch (e) { console.error('[entregador_login] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// GET action=entregador_corridas&loja=&entregador=&token= → corridas disponíveis + minhas
+async function handleEntregadorCorridas(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const u = new URL(req.url, 'http://x');
+    const auth = await _entregadorAuth(u.searchParams.get('loja'), u.searchParams.get('entregador'), u.searchParams.get('token'));
+    if (!auth) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const fid = auth.filial.id, me = auth.entregador.id;
+    const rows = await sbGet('drope_corridas', `filial_id=eq.${fid}&status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,accepted_at&limit=60`);
+    const list = (rows || []).filter(c =>
+      (c.status === 'aberta' && (!c.assigned_to || c.assigned_to === me)) ||
+      ((c.status === 'aceita' || c.status === 'em_rota') && c.entregador_id === me));
+    const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
+    const omap = {};
+    if (oids.length) {
+      const ords = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot&limit=100`);
+      (ords || []).forEach(o => { omap[o.id] = o; });
+    }
+    const corridas = list.map(c => {
+      const o = omap[c.order_id] || {};
+      return {
+        id: c.id, status: c.status, mine: c.entregador_id === me,
+        order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
+        endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
+        cliente_nome: (o.customer_snapshot || {}).name || '',
+        itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
+      };
+    });
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: auth.entregador.nome }, loja: { name: auth.filial.name } });
+  } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=entregador_corrida_action { loja, entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
+async function handleEntregadorCorridaAction(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const auth = await _entregadorAuth(body.loja, body.entregador, body.token);
+    if (!auth) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const me = auth.entregador, fid = auth.filial.id;
+    const corridaId = parseInt(body.corrida_id);
+    const action = String(body.action || '');
+    if (!corridaId) return res.status(400).json({ ok: false, error: 'corrida_id obrigatório' });
+    const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+    const nowIso = new Date().toISOString();
+    if (action === 'accept') {
+      // TRAVA ATÔMICA: só pega se ainda 'aberta' e (sem dono OU atribuída a mim). 1 vencedor.
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&filial_id=eq.${fid}&status=eq.aberta&or=(assigned_to.is.null,assigned_to.eq.${encodeURIComponent(me.id)})`, {
+        method: 'PATCH', headers: H,
+        body: JSON.stringify({ status: 'aceita', entregador_id: me.id, motoboy_nome: me.nome, motoboy_phone: me.phone, accepted_at: nowIso, updated_at: nowIso }),
+      });
+      const upd = await r.json();
+      if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Essa corrida já foi pega por outro entregador ✦' });
+      return res.status(200).json({ ok: true, status: 'aceita' });
+    }
+    if (['sai', 'entregue', 'cancelar'].includes(action)) {
+      const fromStatuses = action === 'sai' ? 'aceita' : 'aceita,em_rota';
+      const newStatus = action === 'sai' ? 'em_rota' : (action === 'entregue' ? 'entregue' : 'aberta');
+      let patch = { status: newStatus, updated_at: nowIso };
+      if (action === 'entregue') patch.delivered_at = nowIso;
+      if (action === 'cancelar') patch = Object.assign(patch, { entregador_id: null, motoboy_nome: null, motoboy_phone: null, accepted_at: null });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&filial_id=eq.${fid}&entregador_id=eq.${encodeURIComponent(me.id)}&status=in.(${fromStatuses})`, {
+        method: 'PATCH', headers: H, body: JSON.stringify(patch),
+      });
+      const upd = await r.json();
+      if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Não deu pra atualizar (o status mudou?)' });
+      const corrida = upd[0];
+      // atualiza o pedido + avisa o cliente nos marcos
+      try {
+        if (action === 'sai' || action === 'entregue') {
+          const oStatus = action === 'sai' ? 'dispatched' : 'delivered';
+          const oPatch = { status: oStatus, updated_at: nowIso };
+          if (action === 'sai') oPatch.dispatched_at = nowIso; else oPatch.delivered_at = nowIso;
+          await sbUpdate('drope_orders', `id=eq.${corrida.order_id}`, oPatch);
+          const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot&limit=1`);
+          const o = Array.isArray(ords) && ords[0];
+          const phone = o && o.customer_snapshot && o.customer_snapshot.phone;
+          if (phone) {
+            const nsu = o.order_nsu ? ('#' + o.order_nsu) : 'Seu pedido';
+            if (action === 'sai') _notify('customer', phone, 'order_status', 'Saiu pra entrega 🛵', `${nsu} saiu pra entrega com ${me.nome} ✦`).catch(() => {});
+            else _notify('customer', phone, 'order_status', 'Pedido entregue ✅', `${nsu} chegou! Valeu pela compra 🦎`).catch(() => {});
+          }
+        }
+      } catch (e) { console.warn('[entregador action order]', e.message); }
+      return res.status(200).json({ ok: true, status: newStatus });
+    }
+    return res.status(400).json({ ok: false, error: 'ação inválida' });
+  } catch (e) { console.error('[entregador_corrida_action] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
 // Cria um pedido 'pending' em drope_filiais.metadata.parceiros; a loja aprova depois.
 async function handleFilialParceiroRequest(req, res) {
@@ -19512,6 +19642,16 @@ async function generateAll(){
   // action=filial_corrida_create — POST: lojista cria a corrida (entrega) de um pedido
   if (req.url && req.url.indexOf('action=filial_corrida_create') >= 0) {
     return await handleFilialCorridaCreate(req, res);
+  }
+  // Mini-app do entregador: login, listar corridas, agir (aceitar/saí/entregue)
+  if (req.url && req.url.indexOf('action=entregador_login') >= 0) {
+    return await handleEntregadorLogin(req, res);
+  }
+  if (req.url && req.url.indexOf('action=entregador_corridas') >= 0) {
+    return await handleEntregadorCorridas(req, res);
+  }
+  if (req.url && req.url.indexOf('action=entregador_corrida_action') >= 0) {
+    return await handleEntregadorCorridaAction(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {
