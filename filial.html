@@ -253,7 +253,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
   <div class="status-bar">
     <div class="dot"></div>
-    <span id="last-update">atualizando...</span>
+    <span id="last-update">Atualizando...</span>
     <button class="refresh-btn" style="margin-left:auto;position:relative" onclick="openNotifs()" title="Avisos">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px">0</span></button>
     <button class="refresh-btn" onclick="verLojaCliente()">Ver como cliente</button>
     <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
@@ -268,12 +268,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
       <div class="kpi pink">
         <div class="kpi-label">Vendas mês</div>
-        <div class="kpi-value" id="vendas-mes">0</div>
+        <div class="kpi-value" id="vendas-mes" style="font-size:19px">0</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Recebido (líquido)</div>
+        <div class="kpi-label">Recebido</div>
         <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--lime)">R$ 0</div>
-        <div class="kpi-sub" id="liq-sub">após comissão</div>
+        <div class="kpi-sub" id="liq-sub">líquido, após comissão</div>
       </div>
     </div>
     <div class="dash-card">
@@ -376,7 +376,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
 
           <label class="pf-lbl">Subcapa (banner do topo)</label>
-          <div id="loja-cover" style="width:100%;height:120px;border-radius:14px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-dim);margin-bottom:8px;background-size:cover;background-position:center">toque pra adicionar uma imagem larga</div>
+          <div id="loja-cover" style="width:100%;height:120px;border-radius:14px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-dim);margin-bottom:8px;background-size:cover;background-position:center">Toque pra adicionar uma imagem larga</div>
           <div style="display:flex;gap:8px;margin-bottom:14px">
             <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('loja-cover-input').click()">Enviar subcapa</button>
             <button class="pf-btn sec" id="loja-cover-remove" style="flex:0 0 auto;display:none" onclick="removeLojaCover()">Remover</button>
@@ -388,20 +388,20 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <button type="button" class="seg-btn active" data-seg="tabacaria" onclick="toggleSeg(this)">Tabacaria</button>
             <button type="button" class="seg-btn" data-seg="adega" onclick="toggleSeg(this)">Adega</button>
           </div>
-          <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">pode marcar os dois ✦ define onde sua loja aparece no app</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin:0 0 14px">Pode marcar os dois ✦ define onde sua loja aparece no app</div>
 
           <label class="pf-lbl">Descrição da loja <span id="bio-count" style="float:right;color:var(--fg-dim)">0/80</span></label>
           <textarea class="pf-input" id="loja-bio" maxlength="80" oninput="_bioCount()" placeholder="ex: a tabacaria mais raiz de Santos ✦"></textarea>
 
           <label class="pf-lbl" style="margin-top:12px">WhatsApp de atendimento</label>
           <input class="pf-input" id="loja-whats" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 91234-5678" oninput="_fmtLojaWhats(this)">
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">é o número que o cliente usa pra falar com a sua loja</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">É o número que o cliente usa pra falar com a sua loja</div>
 
           <label class="pf-lbl" style="margin-top:12px">CEP da loja</label>
           <input class="pf-input" id="loja-cep" inputmode="numeric" maxlength="9" placeholder="00000-000" oninput="_fmtLojaCep(this)" onblur="_lookupLojaCep()">
           <label class="pf-lbl">Endereço (rua e número)</label>
           <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">usamos pra mostrar sua loja pros clientes mais perto</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">Usamos pra mostrar sua loja pros clientes mais perto</div>
 
           <div class="pf-lbl" style="margin-top:16px">Aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
@@ -413,7 +413,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
           <div style="font-size:13px;color:var(--fg-dim);margin:10px 0 8px">Cor de destaque</div>
           <div id="accent-swatches" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-          <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ a essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:10px">✦ A essência DROPE (escamas, cara do app) continua — você só personaliza cores e fundo.</div>
 
           <div class="pf-lbl" style="margin-top:16px">Prévia da sua página</div>
           <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
@@ -490,7 +490,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
               <div style="flex:1"><label class="pf-lbl">Abre</label><input class="pf-input" type="time" id="hora-abre" value="09:00"></div>
               <div style="flex:1"><label class="pf-lbl">Fecha</label><input class="pf-input" type="time" id="hora-fecha" value="22:00"></div>
             </div>
-            <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">o app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
+            <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">O app mostra "aberto/fechado" automaticamente pros clientes conforme esse horário.</div>
           </div>
           <button class="pf-btn full" onclick="saveHorario()" style="margin-top:14px">Salvar horário ✦</button>
           <div id="horario-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
@@ -647,7 +647,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
   <div style="padding:12px 16px 0">
     <button class="pf-btn full" onclick="openBarcodeScanner('pdv')" style="font-size:14px;padding:14px">Escanear código de barras</button>
-    <div style="font-size:11px;color:var(--fg-dim);text-align:center;margin-top:6px">aponte a câmera no código — o produto entra na venda na hora</div>
+    <div style="font-size:11px;color:var(--fg-dim);text-align:center;margin-top:6px">Aponte a câmera no código — o produto entra na venda na hora</div>
   </div>
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
@@ -775,7 +775,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </div>
       <input type="file" id="ap-foto-file" accept="image/*" style="display:none" onchange="onApFotoFile(this)">
       <div id="ap-foto-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
-      <div class="pf-hint">Envie uma foto do aparelho, cole um link, ou gere com IA depois de adicionar (no card do produto).</div>
+      <div class="pf-hint">Envie uma foto do aparelho ou gere a arte com IA depois de adicionar (no card do produto).</div>
       <input class="pf-input" id="ap-img" placeholder="ou cole o link da foto (opcional)">
       <div style="display:flex; gap:10px; margin-top:4px">
         <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
@@ -870,7 +870,7 @@ async function resetRequest(method) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o email da loja'; return; }
   const be = document.getElementById('reset-send-email'), bw = document.getElementById('reset-send-whats');
   [be, bw].forEach(b => { if (b) b.disabled = true; });
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'enviando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Enviando...';
   try {
     const r = await fetch('/api/webhook?action=filial_reset_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, method }) });
     const d = await r.json().catch(() => ({}));
@@ -879,7 +879,7 @@ async function resetRequest(method) {
       const via = d.method === 'whats' ? 'WhatsApp' : 'email';
       msg.style.color = 'var(--green)'; msg.textContent = 'código enviado por ' + via + ' ' + (d.sent_to || '') + ' ✦';
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
   [be, bw].forEach(b => { if (b) b.disabled = false; });
 }
 async function resetConfirm() {
@@ -897,14 +897,14 @@ async function resetConfirm() {
       const le = document.getElementById('login-email'); if (le) le.value = email;
       const ae = document.getElementById('auth-err'); if (ae) { ae.style.color = 'var(--green)'; ae.textContent = 'senha redefinida ✦ entre com a nova senha'; }
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 async function login() {
   const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
   const pass = (document.getElementById('login-pass').value || '');
   const err = document.getElementById('auth-err');
   if (!email || !pass) { err.textContent = 'informe email e senha'; return; }
-  err.textContent = 'entrando...';
+  err.textContent = 'Entrando...';
   try {
     const r = await fetch('/api/webhook?action=filial_login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -921,7 +921,7 @@ async function login() {
     } else {
       err.textContent = d.error || 'email ou senha incorretos';
     }
-  } catch (e) { err.textContent = 'erro de rede'; }
+  } catch (e) { err.textContent = 'Erro de rede'; }
 }
 function logout() {
   try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
@@ -938,7 +938,7 @@ try {
 
 async function loadData(showLoading) {
   if (!ACCESS_CODE || !FILIAL_SLUG) return;
-  if (showLoading) document.getElementById('last-update').textContent = 'atualizando...';
+  if (showLoading) document.getElementById('last-update').textContent = 'Atualizando...';
   try {
     const r = await fetch(`/api/webhook?action=filial_painel&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
     if (r.status === 401) {
@@ -1086,7 +1086,7 @@ async function selectPlan(tier) {
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
       else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-    } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
+    } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
     return;
   }
   try {
@@ -1097,7 +1097,7 @@ async function selectPlan(tier) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); }
     else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
 }
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -1322,7 +1322,7 @@ async function applyBatchFiltro() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _batchSel.clear(); _updateBatchCount(); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = `${d.updated} produto(s) atualizado(s) ✦`; } loadData(true); }
     else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
 }
 let _prodFilter = 'todos';
 let _prodSort = 'recentes';
@@ -1372,7 +1372,7 @@ async function generateProductArt(id) {
     }
   } catch (e) {
     _artBusy[id] = false; renderProdutos();
-    alert(' erro de rede ao gerar a imagem');
+    alert(' Erro de rede ao gerar a imagem');
   }
   // sincroniza com o servidor
   loadData(false);
@@ -1565,7 +1565,7 @@ async function saveFrete() {
   const km = _num((document.getElementById('frete-km') || {}).value);
   const msg = document.getElementById('frete-msg');
   if (!isFinite(base) || base < 0) { msg.style.color = 'var(--pink)'; msg.textContent = 'base inválida'; return; }
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   try {
     const r = await fetch('/api/webhook?action=filial_profile_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1574,7 +1574,7 @@ async function saveFrete() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _entrega = { base, km: (isFinite(km) && km > 0) ? km : 0 }; msg.style.color = 'var(--green)'; msg.textContent = 'tabela salva ✦'; }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 function renderEntregadores() {
   const el = document.getElementById('ent-list'); if (!el) return;
@@ -1617,7 +1617,7 @@ async function linkEntregador() {
       document.getElementById('ent-phone').value = '';
       msg.style.color = 'var(--green)'; msg.textContent = d.already ? 'esse entregador já é fixo ✦' : 'entregador vinculado ✦';
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 async function settleEntregador(id, amountCents) {
   if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' pras entregas desse entregador?\n\nIsso registra que você já acertou com ele.')) return;
@@ -1628,7 +1628,7 @@ async function settleEntregador(id, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('erro de rede'); }
+  } catch (e) { alert('Erro de rede'); }
 }
 async function unlinkEntregador(id) {
   if (!confirm('Desvincular esse entregador fixo?')) return;
@@ -1664,7 +1664,7 @@ async function setCommPeriod(period) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); } else { _commPeriod = prev; renderCommPeriod(); alert(d.error || 'erro ao salvar'); }
-  } catch (e) { _commPeriod = prev; renderCommPeriod(); alert('erro de rede'); }
+  } catch (e) { _commPeriod = prev; renderCommPeriod(); alert('Erro de rede'); }
 }
 function _fmtDay(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); } catch (e) { return ''; } }
 // Bloco de comissão do mês (gerado / a pagar / pago) + botão "Marcar como pago".
@@ -1701,7 +1701,7 @@ async function markCommissionPaid(personId, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('erro de rede'); }
+  } catch (e) { alert('Erro de rede'); }
 }
 async function undoCommissionPay(personId) {
   if (!confirm('Desfazer o último pagamento registrado deste mês?')) return;
@@ -1712,7 +1712,7 @@ async function undoCommissionPay(personId) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro');
-  } catch (e) { alert('erro de rede'); }
+  } catch (e) { alert('Erro de rede'); }
 }
 let _fnEditId = null;
 function _fnTipoHint() {
@@ -1760,7 +1760,7 @@ async function saveFuncionario() {
   const msg = document.getElementById('fn-msg');
   if (nome.length < 2) { msg.textContent = 'põe o nome do funcionário'; return; }
   if (!isFinite(valor) || valor < 0) { msg.textContent = 'valor da comissão inválido'; return; }
-  msg.textContent = 'salvando...';
+  msg.textContent = 'Salvando...';
   try {
     const r = await fetch('/api/webhook?action=filial_funcionario_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1774,7 +1774,7 @@ async function saveFuncionario() {
       document.getElementById('fn-operador').checked = false; msg.textContent = '';
       renderFuncionarios();
     } else { msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.textContent = 'Erro de rede'; }
 }
 function editFuncionario(id) {
   const f = (_funcionarios || []).find(x => x.id === id); if (!f) return;
@@ -1837,7 +1837,7 @@ async function saveIndicadorOffer() {
       if (_painelData && _painelData.filial) { _painelData.filial.indicador_offer = { tipo, valor }; _painelData.filial.affiliate_min_cents = Math.round(min * 100); }
       if (el) { el.textContent = 'Oferta salva ✦'; setTimeout(updateOfferMath, 1600); }
     } else { alert((d && d.error) || 'erro ao salvar'); }
-  } catch (e) { alert('erro de conexão'); }
+  } catch (e) { alert('Erro de conexão'); }
 }
 function renderParceiros() {
   updateOfferUI();
@@ -1888,7 +1888,7 @@ async function _parceiroManage(payload) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _parceiros = d.parceiros || []; renderParceiros(); _updateParcBadge(); }
     else alert(d.error || ('erro ' + r.status));
-  } catch (e) { alert('erro de rede'); }
+  } catch (e) { alert('Erro de rede'); }
 }
 
 // ===== Avisos (notificações in-app do lojista) =====
@@ -1933,7 +1933,7 @@ async function _saveProduct(payload, onOk) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { onOk && onOk(); loadData(true); return true; }
     return d.error || ('erro ' + r.status);
-  } catch (e) { return 'erro de rede'; }
+  } catch (e) { return 'Erro de rede'; }
 }
 
 async function saveNewProduct() {
@@ -1958,7 +1958,7 @@ async function saveNewProduct() {
     filtro_id = novo && novo.id;
   }
   if (!filtro_id) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha (ou crie) uma categoria pro produto'; return; }
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
@@ -2101,7 +2101,7 @@ async function pdvFinalize() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { closePDV(); loadData(true); }
     else { msg.textContent = d.error || ('erro ' + r.status); btn.disabled = false; }
-  } catch (e) { msg.textContent = 'erro de rede'; btn.disabled = false; }
+  } catch (e) { msg.textContent = 'Erro de rede'; btn.disabled = false; }
 }
 
 // ===================== Balanço — contagem de estoque =====================
@@ -2118,7 +2118,7 @@ function renderBalanco() {
 }
 async function saveBalanco() {
   const prods = _lastProdutos || [];
-  const msg = document.getElementById('bal-msg'); msg.textContent = 'salvando...';
+  const msg = document.getElementById('bal-msg'); msg.textContent = 'Salvando...';
   let changed = 0, errs = 0;
   for (const p of prods) {
     const el = document.getElementById('bal-' + p.id); if (!el) continue;
@@ -2242,7 +2242,7 @@ async function gerarFiltroIAEdit(id) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); }
     else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
 }
 async function _saveFiltro(extra, silent) {
   const msg = document.getElementById('filtro-msg');
@@ -2254,7 +2254,7 @@ async function _saveFiltro(extra, silent) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { renderFiltros(d.filtros); if (!silent) { msg.style.color = 'var(--green)'; msg.textContent = 'filtro salvo ✦'; document.getElementById('filtro-nome').value = ''; } return true; }
     msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); return false;
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; return false; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; return false; }
 }
 async function onFiltroFile(input) {
   const nome = (document.getElementById('filtro-nome').value || '').trim();
@@ -2282,7 +2282,7 @@ async function gerarFiltroIA() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'imagem gerada ✦'; document.getElementById('filtro-nome').value = ''; if (refInput) refInput.value = ''; loadData(true); }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 async function delFiltro(id) {
   try {
@@ -2542,7 +2542,7 @@ async function onLojaCover(input) {
 function removeLojaCover() {
   _lojaCoverB64 = null; _removeCover = true;
   const el = document.getElementById('loja-cover');
-  if (el) { el.style.backgroundImage = ''; el.textContent = 'toque pra adicionar uma imagem larga'; }
+  if (el) { el.style.backgroundImage = ''; el.textContent = 'Toque pra adicionar uma imagem larga'; }
   const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = 'none';
   document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
   document.getElementById('loja-msg').textContent = 'subcapa removida — clica em salvar';
@@ -2554,7 +2554,7 @@ async function saveLojaProfile() {
   const address = (document.getElementById('loja-address').value || '').trim();
   const whats = (document.getElementById('loja-whats').value || '').replace(/\D/g, '');
   const msg = document.getElementById('loja-msg');
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, whats, theme: _pageTheme, segmentos: _segs() };
   if (_pageAccent) payload.accent = _pageAccent;
   if (_lojaPhotoB64) payload.photo_base64 = _lojaPhotoB64;
@@ -2569,7 +2569,7 @@ async function saveLojaProfile() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _lojaPhotoB64 = null; _lojaCoverB64 = null; _removeCover = false; msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦'; }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 function _fmtWhatsStr(d) {
   d = String(d || '').replace(/\D/g, '').slice(0, 11);
@@ -2595,7 +2595,7 @@ function renderLojaProfile(prof, endereco) {
     const cv = document.getElementById('loja-cover'), rm = document.getElementById('loja-cover-remove');
     if (cv) {
       if (prof.cover_url) { cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = ''; if (rm) rm.style.display = ''; }
-      else { cv.style.backgroundImage = ''; cv.textContent = 'toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
+      else { cv.style.backgroundImage = ''; cv.textContent = 'Toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
     }
   }
   setPageTheme(prof.theme || 'dark');
@@ -2630,7 +2630,7 @@ async function saveHorario() {
   const abre = (document.getElementById('hora-abre').value || '09:00');
   const fecha = (document.getElementById('hora-fecha').value || '22:00');
   const msg = document.getElementById('horario-msg');
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando...';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const hours = { enabled: _online, days: [..._diasSel].sort((a, b) => a - b), open: abre, close: fecha };
   try {
     const r = await fetch('/api/webhook?action=filial_profile_save', {
@@ -2640,7 +2640,7 @@ async function saveHorario() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'horário salvo ✦'; }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 function renderHorario(hours) {
   hours = hours || {};
@@ -2723,7 +2723,7 @@ async function confirmChamar() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { closeChamar(); loadData(true); }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 
 // Boot: se há sessão salva (slug + token), entra direto; senão mostra o login

@@ -95,7 +95,7 @@
 <div class="app">
   <div class="top">
     <img class="logo" src="icons/drope-avatar.png" alt="">
-    <div class="brand">DRO<b>PE</b> ✦ entregas</div>
+    <div class="brand">DRO<b>PE</b> ✦ Entregas</div>
   </div>
 
   <!-- AUTH -->
@@ -105,9 +105,8 @@
         <div class="hero-title">App do entregador ✦</div>
         <div class="hero-sub">Faça entregas das lojas DROPE e ganhe por corrida.</div>
         <div class="hero-chips">
-          <span class="hero-chip">💸 Ganhe por corrida</span>
           <span class="hero-chip">🛵 Fixo + avulso</span>
-          <span class="hero-chip">⚡ Pix</span>
+          <span class="hero-chip">⚡ Recebe no Pix</span>
         </div>
       </div>
       <img class="hero-img" src="icons/camaleao-olho.webp" alt="">
@@ -122,7 +121,7 @@
       <input id="lg-phone" type="tel" inputmode="tel" placeholder="(11) 91234-5678">
       <label>Senha</label>
       <div style="position:relative">
-        <input id="lg-pass" type="password" placeholder="sua senha" style="padding-right:48px">
+        <input id="lg-pass" type="password" placeholder="Sua senha" style="padding-right:48px">
         <span onclick="_togglePw('lg-pass',this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:19px;line-height:1;user-select:none;opacity:.85">👁</span>
       </div>
       <button class="btn" id="btn-login" onclick="doLogin()">Entrar ✦</button>
@@ -150,7 +149,7 @@
   <div id="corridas-screen" class="hidden">
     <div class="hdr-row">
       <div class="hdr-name" id="ent-nome">—</div>
-      <span class="sair" onclick="sair()">sair</span>
+      <span class="sair" onclick="sair()">Sair</span>
     </div>
 
     <div class="earn">
@@ -208,30 +207,30 @@ async function doSignup(){
   const pix_key=(_q('sg-pix').value||'').trim();
   const password=(_q('sg-pass').value||'');
   const msg=_q('auth-msg');
-  if(nome.length<2){ msg.textContent='põe seu nome'; return; }
-  if(phone.length<10){ msg.textContent='telefone inválido'; return; }
-  if(password.length<4){ msg.textContent='senha muito curta (mín. 4)'; return; }
-  const b=_q('btn-signup'); b.disabled=true; b.textContent='criando...';
+  if(nome.length<2){ msg.textContent='Informe seu nome'; return; }
+  if(phone.length<10){ msg.textContent='Telefone inválido'; return; }
+  if(password.length<4){ msg.textContent='Senha muito curta (mín. 4)'; return; }
+  const b=_q('btn-signup'); b.disabled=true; b.textContent='Criando...';
   try{
     const r=await fetch(API+'?action=entregador_signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,phone,password,pix_key})});
     const d=await r.json().catch(()=>({}));
     if(r.ok&&d.ok){ SESS={entregador_id:d.entregador.id,nome:d.entregador.nome,token:d.token}; localStorage.setItem(SK,JSON.stringify(SESS)); showCorridas(); }
-    else { msg.textContent=d.error||'não deu pra cadastrar'; }
-  }catch(e){ msg.textContent='erro de rede'; }
+    else { msg.textContent=d.error||'Não deu pra cadastrar'; }
+  }catch(e){ msg.textContent='Erro de rede'; }
   b.disabled=false; b.textContent='Criar conta ✦';
 }
 async function doLogin(){
   const phone=(_q('lg-phone').value||'').replace(/\D/g,'');
   const password=(_q('lg-pass').value||'');
   const msg=_q('auth-msg');
-  if(phone.length<10||!password){ msg.textContent='preencha telefone e senha'; return; }
-  const b=_q('btn-login'); b.disabled=true; b.textContent='entrando...';
+  if(phone.length<10||!password){ msg.textContent='Preencha telefone e senha'; return; }
+  const b=_q('btn-login'); b.disabled=true; b.textContent='Entrando...';
   try{
     const r=await fetch(API+'?action=entregador_login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,password})});
     const d=await r.json().catch(()=>({}));
     if(r.ok&&d.ok){ SESS={entregador_id:d.entregador.id,nome:d.entregador.nome,token:d.token}; localStorage.setItem(SK,JSON.stringify(SESS)); showCorridas(); }
-    else { msg.textContent=d.error||'não deu pra entrar'; }
-  }catch(e){ msg.textContent='erro de rede'; }
+    else { msg.textContent=d.error||'Não deu pra entrar'; }
+  }catch(e){ msg.textContent='Erro de rede'; }
   b.disabled=false; b.textContent='Entrar ✦';
 }
 function sair(){ localStorage.removeItem(SK); SESS=null; location.reload(); }
@@ -239,7 +238,7 @@ function sair(){ localStorage.removeItem(SK); SESS=null; location.reload(); }
 function showCorridas(){
   _q('auth-screen').classList.add('hidden');
   _q('corridas-screen').classList.remove('hidden');
-  _q('ent-nome').textContent='Oi, '+(SESS.nome||'entregador')+' ✦';
+  _q('ent-nome').textContent='Oi, '+(SESS.nome||'Entregador')+' ✦';
   loadCorridas();
 }
 
@@ -276,8 +275,8 @@ function renderCorridas(list){
       : c.status==='aceita' ? '<span class="c-badge b-aceita">Aceita</span>'
       : '<span class="c-badge b-rota">Saiu pra entrega</span>';
     const tipo = c.avulso ? '<span class="c-badge b-avulso">Avulso</span>' : '<span class="c-badge b-fixo">Loja fixa</span>';
-    const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ mapa</a>`:'';
-    const zap=c.cliente_phone?` · <a class="zap" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">whats</a>`:'';
+    const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank">🗺️ Mapa</a>`:'';
+    const zap=c.cliente_phone?` · <a class="zap" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">WhatsApp</a>`:'';
     let acts='';
     if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
     else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega 🛵</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
@@ -287,8 +286,8 @@ function renderCorridas(list){
       <div class="c-badges">${tipo}${st}</div>
       <div class="c-line"><span>📦</span><span>Pedido #${esc(c.order_nsu)}</span></div>
       ${c.itens?`<div class="c-line"><span>🛒</span><span>${esc(c.itens)}</span></div>`:''}
-      <div class="c-line"><span>📍</span><span><b>${esc(c.endereco||'sem endereço')}</b></span></div>
-      <div class="c-line"><span>👤</span><span>${esc(c.cliente_nome||'cliente')} ${maps}${zap}</span></div>
+      <div class="c-line"><span>📍</span><span><b>${esc(c.endereco||'Sem endereço')}</b></span></div>
+      <div class="c-line"><span>👤</span><span>${esc(c.cliente_nome||'Cliente')} ${maps}${zap}</span></div>
       <div class="c-acts">${acts}</div>
     </div>`;
   }).join('');
@@ -310,8 +309,8 @@ async function act(corridaId, action, btn){
   try{
     const r=await fetch(API+'?action=entregador_corrida_action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,corrida_id:corridaId,action})});
     const d=await r.json().catch(()=>({}));
-    if(!(r.ok&&d.ok)) alert(d.error||'não deu pra atualizar');
-  }catch(e){ alert('erro de rede'); }
+    if(!(r.ok&&d.ok)) alert(d.error||'Não deu pra atualizar');
+  }catch(e){ alert('Erro de rede'); }
   if(btn){ btn.disabled=false; btn.textContent=btn._old||'ok'; }
   loadCorridas();
 }
