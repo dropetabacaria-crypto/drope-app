@@ -4,17 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0A0A14">
-<title>DROPE ✦ drops em minutos</title>
-<meta name="description" content="DROPE — peça drops em minutos e receba em casa. Pra clientes: rápido, no Pix. Pra lojistas: seu app pronto, comissão baixa e entrega.">
+<title>DROPE ✦ o app de delivery de tabacarias e adegas</title>
+<meta name="description" content="Baixe o DROPE: peça da sua tabacaria ou adega favorita e receba em minutos, pagando no Pix. Se você tem uma loja, o DROPE é o seu delivery pronto.">
 <meta property="og:title" content="DROPE ✦ drops em minutos">
-<meta property="og:description" content="Peça em minutos e receba em casa. E se você tem loja, venda no DROPE.">
+<meta property="og:description" content="Baixe o app: peça em minutos e receba em casa. E se você tem loja, venda no DROPE.">
+<meta property="og:image" content="icons/1.png">
 <link rel="icon" href="icons/drope-avatar.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   :root { --bg:#0A0A14; --bg2:#12121f; --bg3:#1b1b2b; --fg:#F5F3FF; --dim:#9a97b5; --border:rgba(255,255,255,0.10); --lime:#D4FF2E; --pink:#FF2D6F; --purple:#8C50FF; --green:#4ADE80; }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  html { scroll-behavior:smooth; }
   body { background:var(--bg); color:var(--fg); font-family:'Inter',system-ui,sans-serif; font-weight:500; line-height:1.55; overflow-x:hidden; }
   body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none; background:
     radial-gradient(45% 35% at 12% 0%, rgba(140,80,255,0.20), transparent 60%),
@@ -24,36 +26,89 @@
   a { color:inherit; text-decoration:none; }
   h1,h2,h3 { font-family:'Space Grotesk',sans-serif; font-weight:800; letter-spacing:-0.5px; line-height:1.1; }
   .lime { color:var(--lime); }
-  /* nav */
-  header { position:sticky; top:0; z-index:20; backdrop-filter:blur(10px); background:rgba(10,10,20,0.72); border-bottom:1px solid var(--border); }
+
+  /* NAV */
+  header { position:sticky; top:0; z-index:40; backdrop-filter:blur(10px); background:rgba(10,10,20,0.78); border-bottom:1px solid var(--border); }
   .nav { display:flex; align-items:center; justify-content:space-between; padding:14px 0; }
-  .brand { display:flex; align-items:center; gap:10px; font-family:'Space Grotesk'; font-weight:800; font-size:20px; }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Space Grotesk'; font-weight:800; font-size:20px; cursor:pointer; }
   .brand img { width:34px; height:34px; border-radius:10px; }
   .brand b { color:var(--lime); }
-  .nav-links { display:flex; align-items:center; gap:24px; }
-  .nav-links a { color:var(--dim); font-size:14px; font-weight:600; }
+  .nav-links { display:flex; align-items:center; gap:22px; }
+  .nav-links a { color:var(--dim); font-size:14px; font-weight:600; cursor:pointer; }
   .nav-links a:hover { color:var(--fg); }
-  .btn { display:inline-block; font-weight:800; border-radius:999px; padding:12px 22px; font-size:14px; cursor:pointer; border:0; font-family:inherit; transition:transform .12s; }
+  .nav-links a.on { color:var(--fg); }
+  .menu-btn { display:none; background:transparent; border:1px solid var(--border); color:var(--fg); border-radius:10px; padding:7px 12px; font-size:18px; cursor:pointer; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:800; border-radius:999px; padding:12px 22px; font-size:14px; cursor:pointer; border:0; font-family:inherit; transition:transform .12s, filter .12s; }
   .btn:active { transform:scale(0.97); }
   .btn-lime { background:var(--lime); color:#0A0A14; }
+  .btn-lime:hover { filter:brightness(1.05); }
   .btn-ghost { background:transparent; color:var(--fg); border:1px solid var(--border); }
   .btn-pink { background:var(--pink); color:#fff; }
-  @media(max-width:720px){ .nav-links a:not(.btn){ display:none; } }
-  /* hero */
-  .hero { display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center; padding:70px 0 60px; }
-  .hero-tag { display:inline-block; font-size:12px; font-weight:700; color:var(--lime); background:rgba(212,255,46,0.1); border:1px solid rgba(212,255,46,0.3); border-radius:999px; padding:5px 12px; margin-bottom:18px; }
-  .hero h1 { font-size:clamp(38px,6vw,60px); }
-  .hero p.sub { color:var(--dim); font-size:clamp(16px,2.2vw,19px); margin:18px 0 28px; max-width:520px; }
+  .btn-lg { padding:15px 28px; font-size:16px; }
+  @media(max-width:720px){
+    .menu-btn { display:block; }
+    .nav-links { position:absolute; top:100%; left:0; right:0; flex-direction:column; align-items:stretch; gap:4px; background:rgba(12,12,22,0.98); border-bottom:1px solid var(--border); padding:12px 22px 20px; display:none; }
+    .nav-links.open { display:flex; }
+    .nav-links a { padding:11px 0; font-size:16px; border-bottom:1px solid rgba(255,255,255,0.05); }
+    .nav-links .btn { margin-top:10px; }
+  }
+
+  /* VIEWS (roteamento por hash) */
+  .view { display:none; animation:fade .25s ease; }
+  .view.on { display:block; }
+  @keyframes fade { from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none;} }
+
+  /* HERO */
+  .hero { display:grid; grid-template-columns:1.05fr 0.95fr; gap:44px; align-items:center; padding:66px 0 40px; }
+  .hero-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--lime); background:rgba(212,255,46,0.1); border:1px solid rgba(212,255,46,0.3); border-radius:999px; padding:5px 13px; margin-bottom:18px; }
+  .hero h1 { font-size:clamp(34px,5.4vw,56px); }
+  .hero p.sub { color:var(--dim); font-size:clamp(16px,2.2vw,19px); margin:18px 0 26px; max-width:520px; }
   .hero-cta { display:flex; gap:12px; flex-wrap:wrap; }
-  .hero-art { position:relative; display:flex; justify-content:center; }
-  .hero-art img { width:min(320px,80%); filter:drop-shadow(0 30px 60px rgba(255,45,111,0.35)); }
-  @media(max-width:820px){ .hero{ grid-template-columns:1fr; text-align:center; padding:44px 0 40px; } .hero p.sub{ margin-inline:auto; } .hero-cta{ justify-content:center; } .hero-art{ order:-1; } .hero-art img{ width:200px; } }
-  /* sections */
-  section { padding:60px 0; position:relative; z-index:1; }
+  @media(max-width:860px){ .hero{ grid-template-columns:1fr; text-align:center; padding:40px 0 20px; } .hero p.sub{ margin-inline:auto; } .hero-cta{ justify-content:center; } .hero-art{ order:-1; } }
+
+  /* PHONE MOCKUP (imagem do app) */
+  .hero-art { display:flex; justify-content:center; }
+  .phone { width:288px; max-width:82%; padding:11px; border-radius:44px; background:linear-gradient(160deg,#33334a,#14141f); border:1px solid rgba(255,255,255,0.14); box-shadow:0 44px 90px rgba(0,0,0,0.55), 0 0 70px rgba(140,80,255,0.28); position:relative; }
+  .phone::before { content:''; position:absolute; top:19px; left:50%; transform:translateX(-50%); width:116px; height:22px; background:#07070d; border-radius:0 0 14px 14px; z-index:5; }
+  .screen { border-radius:34px; overflow:hidden; background:var(--bg); aspect-ratio:9/19.2; display:flex; flex-direction:column; position:relative; }
+  .ap-head { background:linear-gradient(135deg,#2a1350,#4A1A6E 60%,#6d2170); padding:34px 15px 14px; }
+  .ap-loc { display:flex; align-items:center; justify-content:space-between; font-size:11px; color:#e8e0ff; font-weight:600; }
+  .ap-loc b { font-family:'Space Grotesk'; }
+  .ap-search { margin-top:12px; background:rgba(255,255,255,0.14); border-radius:12px; padding:9px 12px; font-size:11px; color:#d9d2f2; }
+  .ap-chips { display:flex; gap:6px; margin-top:12px; overflow:hidden; }
+  .ap-chips span { font-size:10px; font-weight:700; padding:5px 11px; border-radius:999px; background:rgba(255,255,255,0.1); color:#ded7f5; white-space:nowrap; }
+  .ap-chips span.act { background:var(--lime); color:#0A0A14; }
+  .ap-body { padding:14px 13px; display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; align-content:start; }
+  .ap-prod { background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .ap-thumb { height:58px; background:linear-gradient(135deg,#8C50FF,#FF2D6F); }
+  .ap-prod:nth-child(2) .ap-thumb { background:linear-gradient(135deg,#4ADE80,#8C50FF); }
+  .ap-prod:nth-child(3) .ap-thumb { background:linear-gradient(135deg,#FF2D6F,#D4FF2E); }
+  .ap-prod:nth-child(4) .ap-thumb { background:linear-gradient(135deg,#8C50FF,#4ADE80); }
+  .ap-info { padding:7px 8px 9px; }
+  .ap-info .nm { font-size:10px; font-weight:700; color:var(--fg); }
+  .ap-info .pr { font-size:11px; font-weight:800; color:var(--lime); font-family:'Space Grotesk'; margin-top:3px; }
+  .ap-bag { margin:auto 13px 14px; background:var(--lime); color:#0A0A14; border-radius:13px; padding:11px 14px; display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:800; font-family:'Space Grotesk'; }
+
+  /* DOWNLOAD */
+  .dl { margin-top:26px; }
+  .dl-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  @media(max-width:860px){ .dl-row{ justify-content:center; } }
+  .store { display:inline-flex; align-items:center; gap:9px; background:#15151f; border:1px solid var(--border); border-radius:14px; padding:9px 15px; opacity:.75; position:relative; }
+  .store svg { width:20px; height:20px; flex:0 0 auto; }
+  .store .st-txt { line-height:1.15; text-align:left; }
+  .store .st-txt small { display:block; font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+  .store .st-txt b { font-family:'Space Grotesk'; font-size:14px; }
+  .store .soon { position:absolute; top:-8px; right:-6px; background:var(--purple); color:#fff; font-size:8px; font-weight:800; padding:2px 6px; border-radius:999px; text-transform:uppercase; letter-spacing:.4px; }
+  .qr-box { display:flex; align-items:center; gap:14px; margin-top:18px; color:var(--dim); font-size:13px; }
+  .qr-box img { width:96px; height:96px; border-radius:12px; background:#fff; padding:7px; }
+  @media(max-width:860px){ .qr-box{ justify-content:center; } .qr-hide-mobile{ display:none; } }
+
+  /* SECTIONS */
+  section { padding:52px 0; position:relative; z-index:1; }
   .eyebrow { font-family:'Space Grotesk'; font-weight:700; font-size:13px; letter-spacing:1.5px; text-transform:uppercase; color:var(--dim); }
   .sec-title { font-size:clamp(26px,4vw,38px); margin:8px 0 10px; }
   .sec-sub { color:var(--dim); font-size:16px; max-width:600px; }
-  .grid { display:grid; gap:16px; margin-top:34px; }
+  .grid { display:grid; gap:16px; margin-top:30px; }
   .g3 { grid-template-columns:repeat(3,1fr); }
   .g4 { grid-template-columns:repeat(4,1fr); }
   .g2 { grid-template-columns:repeat(2,1fr); }
@@ -63,151 +118,360 @@
   .card .ico { font-size:28px; }
   .card h3 { font-size:17px; margin:12px 0 6px; }
   .card p { color:var(--dim); font-size:14px; }
-  /* audience split */
-  .audience { background:linear-gradient(135deg, rgba(140,80,255,0.10), rgba(255,45,111,0.06)); border:1px solid var(--border); border-radius:24px; padding:34px; }
-  .audience.lojista { background:linear-gradient(135deg, rgba(212,255,46,0.08), rgba(140,80,255,0.06)); }
+  .card.link { cursor:pointer; transition:border-color .15s, transform .15s; }
+  .card.link:hover { border-color:rgba(212,255,46,0.4); transform:translateY(-3px); }
+  .card.link .go { color:var(--lime); font-weight:800; font-size:13px; margin-top:12px; display:inline-block; }
+
+  /* DOORS (cliente/lojista na home) */
+  .door { display:flex; flex-direction:column; gap:6px; }
+  .door.cli { background:linear-gradient(135deg, rgba(140,80,255,0.12), rgba(255,45,111,0.07)); }
+  .door.loj { background:linear-gradient(135deg, rgba(212,255,46,0.09), rgba(140,80,255,0.07)); }
+
+  /* AUDIENCE */
+  .audience { background:linear-gradient(135deg, rgba(212,255,46,0.08), rgba(140,80,255,0.06)); border:1px solid var(--border); border-radius:24px; padding:34px; }
   .chk { list-style:none; margin-top:16px; display:grid; gap:10px; }
   .chk li { display:flex; gap:10px; align-items:flex-start; font-size:15px; color:var(--fg); }
   .chk li span { color:var(--lime); font-weight:800; flex:0 0 auto; }
-  /* steps */
-  .steps { counter-reset:s; }
+
+  /* STEPS */
   .step { display:flex; gap:16px; align-items:flex-start; }
   .step .n { flex:0 0 auto; width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,var(--purple),var(--pink)); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk'; font-weight:800; }
-  /* planos */
+
+  /* PLANOS */
   .plan { position:relative; }
   .plan.best { border-color:var(--lime); box-shadow:0 10px 30px rgba(0,0,0,0.3), 0 0 26px rgba(212,255,46,0.12); }
   .plan .badge { position:absolute; top:-11px; right:16px; background:var(--lime); color:#0A0A14; font-size:11px; font-weight:800; padding:3px 10px; border-radius:999px; }
   .plan .price { font-family:'Space Grotesk'; font-weight:800; font-size:26px; margin:6px 0 2px; }
   .plan .price small { font-size:13px; color:var(--dim); font-weight:600; }
   .plan .pct { color:var(--lime); font-weight:800; font-size:14px; }
-  /* cta band */
-  .cta-band { background:linear-gradient(135deg,#241046,#4A1A6E 55%,#8A2A6B); border-radius:26px; padding:48px 30px; text-align:center; position:relative; overflow:hidden; }
+
+  /* CTA BAND */
+  .cta-band { background:linear-gradient(135deg,#241046,#4A1A6E 55%,#8A2A6B); border-radius:26px; padding:46px 30px; text-align:center; position:relative; overflow:hidden; }
   .cta-band::after { content:''; position:absolute; inset:0; background:radial-gradient(70% 80% at 100% 0%, rgba(255,45,111,0.25), transparent 60%); }
-  .cta-band h2 { font-size:clamp(26px,4vw,38px); position:relative; z-index:1; }
+  .cta-band h2 { font-size:clamp(26px,4vw,36px); position:relative; z-index:1; }
   .cta-band p { color:rgba(255,255,255,0.9); margin:12px 0 24px; position:relative; z-index:1; }
   .cta-band .hero-cta { justify-content:center; position:relative; z-index:1; }
-  /* footer */
-  footer { border-top:1px solid var(--border); padding:34px 0; color:var(--dim); font-size:13px; }
-  .foot { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; align-items:center; }
+
+  /* SOBRE */
   .mock { border-radius:22px; border:1px solid var(--border); background:var(--bg2); overflow:hidden; box-shadow:0 14px 40px rgba(0,0,0,0.4); }
   .mock img { width:100%; display:block; }
-  .note { font-size:12px; color:var(--dim); opacity:.7; margin-top:10px; }
+  .note { font-size:12px; color:var(--dim); opacity:.7; margin-top:12px; }
+  .values { list-style:none; margin-top:18px; display:grid; gap:14px; }
+  .values li { display:flex; gap:12px; align-items:flex-start; }
+  .values li .vi { font-size:22px; }
+  .values li b { font-family:'Space Grotesk'; display:block; margin-bottom:2px; }
+  .values li p { color:var(--dim); font-size:14px; }
+
+  /* FOOTER */
+  footer { border-top:1px solid var(--border); padding:30px 0; color:var(--dim); font-size:13px; margin-top:10px; }
+  .foot { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; align-items:center; }
+  .foot-links { display:flex; gap:18px; flex-wrap:wrap; }
+  .foot-links a { cursor:pointer; }
+  .foot-links a:hover { color:var(--fg); }
+
+  /* MODAL INSTALL */
+  .ov { position:fixed; inset:0; z-index:60; background:rgba(6,6,12,0.72); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:22px; }
+  .ov.on { display:flex; }
+  .modal { background:var(--bg2); border:1px solid var(--border); border-radius:22px; padding:26px; max-width:400px; width:100%; box-shadow:0 30px 70px rgba(0,0,0,0.6); }
+  .modal h3 { font-size:20px; margin-bottom:6px; }
+  .modal p { color:var(--dim); font-size:14px; }
+  .modal .stepline { display:flex; gap:10px; align-items:flex-start; margin-top:16px; font-size:14px; }
+  .modal .stepline b { color:var(--lime); font-family:'Space Grotesk'; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="wrap nav">
-    <a class="brand" href="#topo"><img src="icons/drope-avatar.png" alt="DROPE"><span>DRO<b>PE</b> ✦</span></a>
-    <nav class="nav-links">
-      <a href="#cliente">Pra você</a>
-      <a href="#lojista">Pra sua loja</a>
-      <a href="#como">Como funciona</a>
-      <a class="btn btn-lime" href="/">Abrir o app</a>
+    <div class="brand" onclick="nav('/')"><img src="icons/drope-avatar.png" alt="DROPE"><span>DRO<b>PE</b> ✦</span></div>
+    <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">☰</button>
+    <nav class="nav-links" id="navlinks">
+      <a data-r="/" onclick="nav('/')">Início</a>
+      <a data-r="/voce" onclick="nav('/voce')">Para você</a>
+      <a data-r="/loja" onclick="nav('/loja')">Para lojistas</a>
+      <a data-r="/sobre" onclick="nav('/sobre')">Quem somos</a>
+      <button class="btn btn-lime" onclick="installApp()">Instalar o app</button>
     </nav>
   </div>
 </header>
 
-<a id="topo"></a>
-<section class="wrap hero">
-  <div>
-    <span class="hero-tag">✦ Tabacarias e adegas, em minutos</span>
-    <h1>Os melhores <span class="lime">drops</span><br>chegam rapidinho.</h1>
-    <p class="sub">O DROPE é o app pra pedir da sua tabacaria ou adega favorita e receber em casa em minutos — pagando no Pix, sem complicação. E se você tem uma loja, o DROPE é o seu delivery pronto.</p>
-    <div class="hero-cta">
-      <a class="btn btn-lime" href="/">Pedir agora ✦</a>
-      <a class="btn btn-ghost" href="#lojista">Tenho uma loja</a>
+<!-- ===================== INÍCIO ===================== -->
+<main class="view" data-v="/">
+  <section class="wrap hero">
+    <div>
+      <span class="hero-tag">✦ Tabacarias e adegas, em minutos</span>
+      <h1>O delivery dos seus <span class="lime">drops</span> favoritos.</h1>
+      <p class="sub">Baixe o DROPE e peça da sua tabacaria ou adega mais próxima — pague no Pix e receba em casa rapidinho. Simples como tem que ser.</p>
+      <div class="hero-cta">
+        <button class="btn btn-lime btn-lg" onclick="installApp()">⬇ Instalar o DROPE</button>
+        <a class="btn btn-ghost btn-lg" onclick="nav('/voce')">Como funciona</a>
+      </div>
+      <div class="dl">
+        <div class="dl-row">
+          <span class="store"><svg viewBox="0 0 24 24" fill="#fff"><path d="M16.4 12.9c0-2 1.6-3 1.7-3-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7s-1.6-.7-2.6-.7c-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 8 .7 1 1.4 2 2.4 2s1.3-.6 2.5-.6 1.5.6 2.6.6 1.7-.9 2.3-1.9c.7-1.1 1-2.2 1-2.3 0 0-2-.8-2.2-3.9zM14.7 6.3c.5-.7.9-1.6.8-2.6-.8 0-1.8.6-2.4 1.2-.5.6-1 1.5-.8 2.4.9.1 1.8-.4 2.4-1z"/></svg><span class="st-txt"><small>Baixar na</small><b>App Store</b></span><span class="soon">Em breve</span></span>
+          <span class="store"><svg viewBox="0 0 24 24"><path fill="#4ADE80" d="M3.6 2.3 13 12 3.6 21.7c-.3-.2-.5-.6-.5-1V3.3c0-.4.2-.8.5-1z"/><path fill="#D4FF2E" d="M13 12 3.6 2.3c.3-.2.7-.2 1.1 0l11 6.3L13 12z"/><path fill="#FF2D6F" d="M15.7 8.6 19 10.5c.7.4.7 1.6 0 2l-3.3 1.9L13 12l2.7-3.4z"/><path fill="#8C50FF" d="m4.7 21.7 8.3-9.7 2.7 3.4-11 6.3c-.4.2-.8.2-1.1 0z"/></svg><span class="st-txt"><small>Disponível no</small><b>Google Play</b></span><span class="soon">Em breve</span></span>
+        </div>
+        <div class="qr-box qr-hide-mobile">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&color=0A0A14&bgcolor=FFFFFF&data=https%3A%2F%2Fdrope-app.vercel.app%2F" alt="QR code para abrir o DROPE" loading="lazy">
+          <div>Aponte a câmera do celular<br>e abra o DROPE na hora.</div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="hero-art"><img src="icons/1.png" alt="Camaleão DROPE"></div>
-</section>
-
-<!-- PRA VOCÊ (CLIENTE) -->
-<section class="wrap" id="cliente">
-  <div class="eyebrow">Pra você</div>
-  <h2 class="sec-title">Peça e receba em minutos ✦</h2>
-  <p class="sec-sub">Tudo que você curte, das lojas perto de você, na palma da mão.</p>
-  <div class="grid g4">
-    <div class="card"><div class="ico">⚡</div><h3>Em minutos</h3><p>Escolha a loja, monte o pedido e receba rapidinho, sem sair de casa.</p></div>
-    <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Pagamento na hora, aprovação instantânea. Simples e seguro.</p></div>
-    <div class="card"><div class="ico">🛵</div><h3>Acompanhe a entrega</h3><p>Saiba quando saiu pra entrega e quando chega — avisos no app.</p></div>
-    <div class="card"><div class="ico">❤️</div><h3>Seus favoritos</h3><p>Salve lojas e drops, repita o pedido com um toque.</p></div>
-  </div>
-</section>
-
-<!-- PRA SUA LOJA (LOJISTA) -->
-<section class="wrap" id="lojista">
-  <div class="grid g2" style="align-items:stretch">
-    <div class="audience lojista">
-      <div class="eyebrow">Pra sua loja</div>
-      <h2 class="sec-title" style="font-size:30px">Venda no DROPE ✦</h2>
-      <p class="sec-sub">Seu delivery pronto, sem taxa de entrada. Você recebe direto na sua conta e a gente cuida do app, do catálogo e da logística.</p>
-      <ul class="chk">
-        <li><span>✓</span> App e catálogo prontos, com a cara da sua loja</li>
-        <li><span>✓</span> Recebe direto no Pix (split automático, comissão baixa)</li>
-        <li><span>✓</span> Gestão de pedidos, estoque, funcionários e parceiros</li>
-        <li><span>✓</span> Entregadores: fixos da loja ou avulsos da plataforma</li>
-        <li><span>✓</span> Cupons, destaque na vitrine e relatórios</li>
-      </ul>
-      <div style="margin-top:22px"><a class="btn btn-lime" href="/lojista-signup">Cadastrar minha loja</a></div>
+    <div class="hero-art">
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="ap-head">
+            <div class="ap-loc"><span>📍 Entregar em <b>Santos, SP</b> ▾</span><span>🔔</span></div>
+            <div class="ap-search">🔍 Buscar drops, lojas...</div>
+            <div class="ap-chips"><span class="act">Todos</span><span>Pods</span><span>Vinhos</span><span>Gelados</span></div>
+          </div>
+          <div class="ap-body">
+            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Pod Ice 8000</div><div class="pr">R$ 89,90</div></div></div>
+            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Vinho tinto</div><div class="pr">R$ 54,00</div></div></div>
+            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Gelo & mixers</div><div class="pr">R$ 19,90</div></div></div>
+            <div class="ap-prod"><div class="ap-thumb"></div><div class="ap-info"><div class="nm">Combo festa</div><div class="pr">R$ 129,00</div></div></div>
+          </div>
+          <div class="ap-bag"><span>🛒 Ver sacola</span><span>R$ 143,90</span></div>
+        </div>
+      </div>
     </div>
-    <div class="hero-art" style="align-items:center"><img src="icons/drope-moto.png" alt="Entrega DROPE" style="width:min(320px,90%);filter:drop-shadow(0 24px 50px rgba(140,80,255,0.35))"></div>
-  </div>
+  </section>
 
-  <!-- PLANOS -->
-  <div style="margin-top:44px">
+  <!-- duas portas -->
+  <section class="wrap" style="padding-top:20px">
+    <div class="grid g2">
+      <div class="card link door cli" onclick="nav('/voce')">
+        <div class="ico">🛍️</div>
+        <h3>Sou cliente</h3>
+        <p>Peça das tabacarias e adegas perto de você e receba em minutos, no Pix.</p>
+        <span class="go">Ver como funciona →</span>
+      </div>
+      <div class="card link door loj" onclick="nav('/loja')">
+        <div class="ico">🏪</div>
+        <h3>Tenho uma loja</h3>
+        <p>Coloque sua loja no DROPE: app pronto, comissão baixa e entrega resolvida.</p>
+        <span class="go">Vender no DROPE →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- destaques rápidos -->
+  <section class="wrap">
+    <div class="eyebrow">Por que DROPE</div>
+    <h2 class="sec-title">Um app de delivery de verdade ✦</h2>
+    <div class="grid g4">
+      <div class="card"><div class="ico">⚡</div><h3>Em minutos</h3><p>Das lojas da sua região direto pra sua casa, sem enrolação.</p></div>
+      <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Aprovação na hora, sem cartão salvo, seguro.</p></div>
+      <div class="card"><div class="ico">🛵</div><h3>Acompanhe tudo</h3><p>Avisos de "saiu pra entrega" e "chegou" no app.</p></div>
+      <div class="card"><div class="ico">📱</div><h3>Na tela inicial</h3><p>Instale o DROPE e abra igual um app, com ícone no celular.</p></div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== PARA VOCÊ (CLIENTE) ===================== -->
+<main class="view" data-v="/voce">
+  <section class="wrap" style="padding-bottom:10px">
+    <div class="eyebrow">Para você</div>
+    <h2 class="sec-title">Peça e receba em minutos ✦</h2>
+    <p class="sec-sub">Tudo que você curte, das lojas perto de você, na palma da mão — pagando no Pix, sem complicação.</p>
+    <div class="hero-cta" style="margin-top:22px">
+      <button class="btn btn-lime btn-lg" onclick="installApp()">⬇ Instalar o DROPE</button>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-top:20px">
+    <div class="grid g4">
+      <div class="card"><div class="ico">⚡</div><h3>Em minutos</h3><p>Escolha a loja, monte o pedido e receba rapidinho, sem sair de casa.</p></div>
+      <div class="card"><div class="ico">💸</div><h3>Pague no Pix</h3><p>Pagamento na hora, aprovação instantânea. Simples e seguro.</p></div>
+      <div class="card"><div class="ico">🛵</div><h3>Acompanhe a entrega</h3><p>Saiba quando saiu pra entrega e quando chega — avisos no app.</p></div>
+      <div class="card"><div class="ico">❤️</div><h3>Seus favoritos</h3><p>Salve lojas e drops, repita o pedido com um toque.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="eyebrow">Como funciona</div>
+    <h2 class="sec-title">Simples assim</h2>
+    <div class="grid g3">
+      <div class="card step"><div class="n">1</div><div><h3>Escolha a loja</h3><p>Veja as tabacarias e adegas perto de você e monte seu pedido.</p></div></div>
+      <div class="card step"><div class="n">2</div><div><h3>Pague no Pix</h3><p>Aprovação na hora, direto no app. Sem cartão salvo, sem complicação.</p></div></div>
+      <div class="card step"><div class="n">3</div><div><h3>Receba em casa</h3><p>Acompanhe a entrega e receba seus drops rapidinho.</p></div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="cta-band">
+      <h2>Bora dropar? ✦</h2>
+      <p>Instale o DROPE e faça seu primeiro pedido em minutos.</p>
+      <div class="hero-cta">
+        <button class="btn btn-lime btn-lg" onclick="installApp()">⬇ Instalar o DROPE</button>
+        <a class="btn btn-ghost btn-lg" href="/">Abrir no navegador</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== PARA LOJISTAS ===================== -->
+<main class="view" data-v="/loja">
+  <section class="wrap" style="padding-bottom:0">
+    <div class="grid g2" style="align-items:center">
+      <div class="audience">
+        <div class="eyebrow">Para lojistas</div>
+        <h2 class="sec-title" style="font-size:32px">Venda no DROPE ✦</h2>
+        <p class="sec-sub">Seu delivery pronto, sem taxa de entrada. Você recebe direto na sua conta e a gente cuida do app, do catálogo e da logística.</p>
+        <ul class="chk">
+          <li><span>✓</span> App e catálogo prontos, com a cara da sua loja</li>
+          <li><span>✓</span> Recebe direto no Pix (split automático, comissão baixa)</li>
+          <li><span>✓</span> Gestão de pedidos, estoque, funcionários e parceiros</li>
+          <li><span>✓</span> Entregadores: fixos da loja ou avulsos da plataforma</li>
+          <li><span>✓</span> Cupons, destaque na vitrine e relatórios</li>
+        </ul>
+        <div style="margin-top:24px"><a class="btn btn-lime btn-lg" href="/lojista-signup">Cadastrar minha loja</a></div>
+      </div>
+      <div class="hero-art"><img src="icons/drope-moto.png" alt="Entrega DROPE" style="width:min(320px,88%);filter:drop-shadow(0 24px 50px rgba(140,80,255,0.35))"></div>
+    </div>
+  </section>
+
+  <section class="wrap">
     <div class="eyebrow">Planos</div>
-    <h2 class="sec-title" style="font-size:26px">Escolha do seu tamanho</h2>
+    <h2 class="sec-title">Escolha do seu tamanho</h2>
+    <p class="sec-sub">Sem fidelidade. Comece de graça e evolua quando quiser.</p>
     <div class="grid g3">
       <div class="card plan"><h3>Start</h3><div class="pct">10% por venda</div><div class="price">Grátis</div><p>App e catálogo, Pix com split, gestão de pedidos, a loja faz a própria entrega.</p></div>
       <div class="card plan best"><div class="badge">Popular</div><h3>Pro</h3><div class="pct">6% por venda</div><div class="price">R$ 99,90<small>/mês</small></div><p>Tudo do Start + destaque na vitrine, filtros com IA, dashboard, prioridade e cupons.</p></div>
       <div class="card plan"><h3>Max</h3><div class="pct">5% por venda</div><div class="price">R$ 169,90<small>/mês</small></div><p>Tudo do Pro + entrega pelo DROPE, push e marketing, destaque máximo.</p></div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- COMO FUNCIONA -->
-<section class="wrap" id="como">
-  <div class="eyebrow">Como funciona</div>
-  <h2 class="sec-title">Simples assim</h2>
-  <div class="grid g3">
-    <div class="card step"><div class="n">1</div><div><h3>Escolha a loja</h3><p>Veja as tabacarias e adegas perto de você e monte seu pedido.</p></div></div>
-    <div class="card step"><div class="n">2</div><div><h3>Pague no Pix</h3><p>Aprovação na hora, direto no app. Sem cartão salvo, sem complicação.</p></div></div>
-    <div class="card step"><div class="n">3</div><div><h3>Receba em casa</h3><p>Acompanhe a entrega e receba seus drops rapidinho.</p></div></div>
-  </div>
-</section>
-
-<!-- QUEM SOMOS -->
-<section class="wrap" id="quem">
-  <div class="grid g2" style="align-items:center">
-    <div>
-      <div class="eyebrow">Quem somos</div>
-      <h2 class="sec-title" style="font-size:30px">Nascemos pra facilitar ✦</h2>
-      <p class="sec-sub" style="max-width:none">O DROPE conecta você às tabacarias e adegas da sua região com a fluidez de um app de delivery de verdade — e dá pros lojistas as ferramentas pra vender online sem dor de cabeça.</p>
-      <p class="note">✍️ Espaço reservado pra vocês contarem a história do DROPE, a equipe e os valores. É só me passar o texto e as fotos.</p>
+  <section class="wrap">
+    <div class="cta-band">
+      <h2>Coloque sua loja no ar hoje ✦</h2>
+      <p>Cadastro rápido e sem custo pra começar.</p>
+      <div class="hero-cta">
+        <a class="btn btn-lime btn-lg" href="/lojista-signup">Cadastrar minha loja</a>
+      </div>
     </div>
-    <div class="mock"><img src="icons/camaleao-olho.webp" alt="DROPE"></div>
-  </div>
-</section>
+  </section>
+</main>
 
-<!-- CTA FINAL -->
-<section class="wrap">
-  <div class="cta-band">
-    <h2>Bora dropar? ✦</h2>
-    <p>Peça em minutos ou cadastre sua loja — é rápido.</p>
-    <div class="hero-cta">
-      <a class="btn btn-lime" href="/">Abrir o app</a>
-      <a class="btn btn-pink" href="/lojista-signup">Cadastrar minha loja</a>
+<!-- ===================== QUEM SOMOS ===================== -->
+<main class="view" data-v="/sobre">
+  <section class="wrap">
+    <div class="grid g2" style="align-items:center">
+      <div>
+        <div class="eyebrow">Quem somos</div>
+        <h2 class="sec-title" style="font-size:32px">Nascemos pra facilitar ✦</h2>
+        <p class="sec-sub" style="max-width:none">O DROPE conecta você às tabacarias e adegas da sua região com a fluidez de um app de delivery de verdade — e dá pros lojistas as ferramentas pra vender online sem dor de cabeça.</p>
+        <p class="note">✍️ Espaço reservado pra contar a história do DROPE, a equipe e os valores. É só me passar o texto e as fotos que eu encaixo aqui.</p>
+      </div>
+      <div class="mock"><img src="icons/camaleao-olho.webp" alt="DROPE"></div>
     </div>
-  </div>
-</section>
+  </section>
+
+  <section class="wrap" style="padding-top:0">
+    <div class="grid g3">
+      <div class="card"><div class="ico">🎯</div><h3>Propósito</h3><p>Levar praticidade real pra tabacarias e adegas — e pra quem compra nelas.</p></div>
+      <div class="card"><div class="ico">🤝</div><h3>Justo com o lojista</h3><p>Comissão baixa, dinheiro caindo direto na conta e ferramentas de gente grande.</p></div>
+      <div class="card"><div class="ico">🦎</div><h3>Do nosso jeito</h3><p>Rápido, bonito e sem burocracia. Um app com identidade — o camaleão é a nossa cara.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="cta-band">
+      <h2>Faça parte ✦</h2>
+      <p>Baixe o app ou coloque sua loja no DROPE.</p>
+      <div class="hero-cta">
+        <button class="btn btn-lime btn-lg" onclick="installApp()">⬇ Instalar o DROPE</button>
+        <a class="btn btn-pink btn-lg" href="/lojista-signup">Cadastrar minha loja</a>
+      </div>
+    </div>
+  </section>
+</main>
 
 <footer>
   <div class="wrap foot">
     <div class="brand" style="font-size:17px"><img src="icons/drope-avatar.png" alt=""><span>DRO<b>PE</b> ✦</span></div>
+    <div class="foot-links">
+      <a onclick="nav('/')">Início</a>
+      <a onclick="nav('/voce')">Para você</a>
+      <a onclick="nav('/loja')">Para lojistas</a>
+      <a onclick="nav('/sobre')">Quem somos</a>
+      <a href="/">Abrir o app</a>
+    </div>
     <div>© 2026 DROPE ✦ drops em minutos · +18</div>
   </div>
 </footer>
 
+<!-- MODAL: como instalar -->
+<div class="ov" id="install-ov" onclick="if(event.target===this)closeInstall()">
+  <div class="modal">
+    <h3>Instalar o DROPE 📱</h3>
+    <p id="install-txt">Adicione o DROPE à tela inicial e use como um app de verdade.</p>
+    <div id="install-steps"></div>
+    <div style="margin-top:22px; display:flex; gap:10px; flex-wrap:wrap">
+      <a class="btn btn-lime" href="/">Abrir o DROPE</a>
+      <button class="btn btn-ghost" onclick="closeInstall()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---------- roteamento por hash (páginas clicáveis) ---------- */
+  var ROUTES = ['/','/voce','/loja','/sobre'];
+  function currentRoute(){
+    var h = (location.hash || '').replace(/^#/, '');
+    return ROUTES.indexOf(h) >= 0 ? h : '/';
+  }
+  function render(){
+    var r = currentRoute();
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('on', v.getAttribute('data-v') === r); });
+    document.querySelectorAll('.nav-links a[data-r]').forEach(function(a){ a.classList.toggle('on', a.getAttribute('data-r') === r); });
+    window.scrollTo(0, 0);
+    document.getElementById('navlinks').classList.remove('open');
+  }
+  function nav(r){ if (currentRoute() === r) { render(); } else { location.hash = r; } }
+  window.addEventListener('hashchange', render);
+
+  function toggleMenu(){ document.getElementById('navlinks').classList.toggle('open'); }
+
+  /* ---------- PWA: instalar de verdade ---------- */
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferredPrompt = e; });
+  if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('/sw.js'); } catch(e){} }
+
+  function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+
+  async function installApp(){
+    if (isStandalone()) { location.href = '/'; return; }
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      try { await deferredPrompt.userChoice; } catch(e){}
+      deferredPrompt = null;
+      return;
+    }
+    openInstall();
+  }
+
+  function openInstall(){
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    var steps = document.getElementById('install-steps');
+    var txt = document.getElementById('install-txt');
+    if (isIOS) {
+      txt.textContent = 'No iPhone/iPad, adicione o DROPE à tela inicial em 2 toques:';
+      steps.innerHTML =
+        '<div class="stepline"><b>1.</b><div>Toque no botão <b>Compartilhar</b> ⬆️ na barra do Safari.</div></div>' +
+        '<div class="stepline"><b>2.</b><div>Escolha <b>"Adicionar à Tela de Início"</b> e confirme.</div></div>';
+    } else {
+      txt.textContent = 'Adicione o DROPE à tela inicial pra usar como app:';
+      steps.innerHTML =
+        '<div class="stepline"><b>1.</b><div>Abra o menu do navegador <b>⋮</b> (canto superior).</div></div>' +
+        '<div class="stepline"><b>2.</b><div>Toque em <b>"Instalar app"</b> ou <b>"Adicionar à tela inicial"</b>.</div></div>';
+    }
+    document.getElementById('install-ov').classList.add('on');
+  }
+  function closeInstall(){ document.getElementById('install-ov').classList.remove('on'); }
+
+  render();
+</script>
 </body>
 </html>
