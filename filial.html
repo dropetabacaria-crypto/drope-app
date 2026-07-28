@@ -215,8 +215,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <p>Entre com seu email e senha</p>
       <input type="email" id="login-email" inputmode="email" autocomplete="email" placeholder="Email" autofocus>
       <div style="position:relative">
-        <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" style="padding-right:60px;width:100%" onkeydown="if(event.key==='Enter')login()">
-        <button type="button" onclick="_togglePw('login-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="Senha" style="padding-right:44px;width:100%" onkeydown="if(event.key==='Enter')login()">
+        <span onclick="_togglePw('login-pass',this)" style="position:absolute;right:12px;top:calc(50% - 5px);transform:translateY(-50%);cursor:pointer;font-size:18px;line-height:1;user-select:none;opacity:.85">👁</span>
       </div>
       <button onclick="login()">Entrar</button>
       <div id="auth-err" style="color:var(--pink);font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>
@@ -224,14 +224,17 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
     <!-- REDEFINIR SENHA -->
     <div id="reset-view" style="display:none">
-      <p>A gente manda um código pro email cadastrado da loja pra você criar uma senha nova.</p>
+      <p>A gente manda um código pra você criar uma senha nova. Escolha por onde receber.</p>
       <input type="email" id="reset-email" inputmode="email" autocomplete="email" placeholder="Email da loja">
-      <button id="reset-send-btn" onclick="resetRequest()">Enviar código</button>
+      <div style="display:flex;gap:8px">
+        <button id="reset-send-email" onclick="resetRequest('email')" style="flex:1">Código por email</button>
+        <button id="reset-send-whats" onclick="resetRequest('whats')" style="flex:1;background:var(--bg3);color:var(--fg)">Por WhatsApp</button>
+      </div>
       <div id="reset-step2" style="display:none;margin-top:10px">
         <input id="reset-code" inputmode="numeric" maxlength="6" placeholder="Código (6 dígitos)">
         <div style="position:relative">
-          <input type="password" id="reset-pass" placeholder="Nova senha (mín. 6)" style="padding-right:60px;width:100%">
-          <button type="button" onclick="_togglePw('reset-pass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--lime);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">ver</button>
+          <input type="password" id="reset-pass" placeholder="Nova senha (mín. 6)" style="padding-right:44px;width:100%">
+          <span onclick="_togglePw('reset-pass',this)" style="position:absolute;right:12px;top:calc(50% - 5px);transform:translateY(-50%);cursor:pointer;font-size:18px;line-height:1;user-select:none;opacity:.85">👁</span>
         </div>
         <button onclick="resetConfirm()">Redefinir senha ✦</button>
       </div>
@@ -830,7 +833,7 @@ function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString('pt-BR', {
 function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch(e){ return '—'; } }
 
 // Mostrar/ocultar senha (útil no mobile)
-function _togglePw(id, btn) { const i = document.getElementById(id); if (!i) return; const show = i.type === 'password'; i.type = show ? 'text' : 'password'; if (btn) btn.textContent = show ? 'ocultar' : 'ver'; }
+function _togglePw(id, btn) { const i = document.getElementById(id); if (!i) return; const show = i.type === 'password'; i.type = show ? 'text' : 'password'; if (btn) btn.textContent = show ? '🙈' : '👁'; }
 // Esqueci a senha → redefinir com código no WhatsApp da loja
 function showReset() {
   document.getElementById('login-view').style.display = 'none';
@@ -843,21 +846,23 @@ function showLoginView() {
   document.getElementById('reset-view').style.display = 'none';
   document.getElementById('login-view').style.display = 'block';
 }
-async function resetRequest() {
+async function resetRequest(method) {
   const email = (document.getElementById('reset-email').value || '').trim().toLowerCase();
   const msg = document.getElementById('reset-msg');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.style.color = 'var(--pink)'; msg.textContent = 'email inválido'; return; }
-  const b = document.getElementById('reset-send-btn'); b.disabled = true; b.textContent = 'enviando...';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o email da loja'; return; }
+  const be = document.getElementById('reset-send-email'), bw = document.getElementById('reset-send-whats');
+  [be, bw].forEach(b => { if (b) b.disabled = true; });
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'enviando...';
   try {
-    const r = await fetch('/api/webhook?action=filial_reset_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const r = await fetch('/api/webhook?action=filial_reset_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, method }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
       document.getElementById('reset-step2').style.display = 'block';
-      msg.style.color = 'var(--green)'; msg.textContent = 'código enviado pro email ' + (d.email_masked || 'da loja') + ' ✦';
-      b.textContent = 'Reenviar código';
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); b.textContent = 'Enviar código'; }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; b.textContent = 'Enviar código'; }
-  b.disabled = false;
+      const via = d.method === 'whats' ? 'WhatsApp' : 'email';
+      msg.style.color = 'var(--green)'; msg.textContent = 'código enviado por ' + via + ' ' + (d.sent_to || '') + ' ✦';
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+  [be, bw].forEach(b => { if (b) b.disabled = false; });
 }
 async function resetConfirm() {
   const email = (document.getElementById('reset-email').value || '').trim().toLowerCase();

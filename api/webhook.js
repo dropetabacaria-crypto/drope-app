@@ -13821,7 +13821,8 @@ async function handleFilialResetRequest(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const email = String(body.email || '').trim().toLowerCase();
     if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
-    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,name,metadata');
+    const method = body.method === 'whats' ? 'whats' : 'email';
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,name,founder_phone,metadata');
     const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
     if (!filial) return res.status(404).json({ ok: false, error: 'não achei uma loja com esse email' });
     const md = filial.metadata || {};
@@ -13831,15 +13832,25 @@ async function handleFilialResetRequest(req, res) {
     const code = String(crypto.randomInt(100000, 1000000));
     md.login = { ...(md.login || {}), reset: { code_hash: _sha256hex(code), expires_at: new Date(now + 15 * 60000).toISOString(), attempts: 0, at: new Date(now).toISOString() } };
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
-    const html = `<div style="font-family:system-ui,Arial,sans-serif;background:#0A0A14;color:#F5F3FF;padding:28px;border-radius:16px;max-width:440px">
-      <div style="font-weight:800;font-size:20px">DRO<span style="color:#D4FF2E">PE</span> ✦</div>
-      <p style="color:#9a97b5;margin:14px 0 6px">Código pra redefinir a senha do seu painel:</p>
-      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#D4FF2E;margin:6px 0 14px">${code}</div>
-      <p style="color:#9a97b5;font-size:13px">Vale por 15 minutos. Se não foi você que pediu, ignore este email.</p>
-    </div>`;
-    const sent = await _sendEmail(email, 'DROPE ✦ código pra redefinir sua senha', html);
-    if (!sent) return res.status(502).json({ ok: false, error: RESEND_API_KEY ? 'não conseguimos enviar o email agora. Tente de novo.' : 'envio de email ainda não configurado (RESEND_API_KEY)' });
-    return res.status(200).json({ ok: true, email_masked: _maskEmail(email) });
+    let sent = false, sentTo = '';
+    if (method === 'whats') {
+      const phone = _normPhone(filial.founder_phone);
+      if (phone.length < 10) return res.status(400).json({ ok: false, error: 'a loja não tem um WhatsApp cadastrado' });
+      try { const r = await sendText(_phone55(phone), `DROPE ✦ código pra redefinir a senha do seu painel: ${code}\n\nVale por 15 minutos. Se não foi você, ignore.`); sent = !!(r && r.ok); } catch (e) { console.warn('[reset whats]', e.message); }
+      sentTo = '(••) •••••-' + phone.slice(-4);
+      if (!sent) return res.status(502).json({ ok: false, error: 'não conseguimos enviar pelo WhatsApp agora (a instância pode estar desconectada). Tente por email.' });
+    } else {
+      const html = `<div style="font-family:system-ui,Arial,sans-serif;background:#0A0A14;color:#F5F3FF;padding:28px;border-radius:16px;max-width:440px">
+        <div style="font-weight:800;font-size:20px">DRO<span style="color:#D4FF2E">PE</span> ✦</div>
+        <p style="color:#9a97b5;margin:14px 0 6px">Código pra redefinir a senha do seu painel:</p>
+        <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#D4FF2E;margin:6px 0 14px">${code}</div>
+        <p style="color:#9a97b5;font-size:13px">Vale por 15 minutos. Se não foi você que pediu, ignore este email.</p>
+      </div>`;
+      sent = await _sendEmail(email, 'DROPE ✦ código pra redefinir sua senha', html);
+      sentTo = _maskEmail(email);
+      if (!sent) return res.status(502).json({ ok: false, error: RESEND_API_KEY ? 'não conseguimos enviar o email agora. Tente de novo.' : 'envio de email ainda não configurado (RESEND_API_KEY)' });
+    }
+    return res.status(200).json({ ok: true, method, sent_to: sentTo });
   } catch (e) { console.error('[filial_reset_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // POST action=filial_reset_confirm { email, code, password } → valida o código e grava a nova senha.
