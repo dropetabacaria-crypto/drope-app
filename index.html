@@ -4996,7 +4996,7 @@
   <!-- ============ FAVORITES ============ -->
   <div class="screen" id="favorites">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('home')">
+      <div class="icon-btn" onclick="goBack('inicio')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">Seus favoritos</div>
@@ -5008,7 +5008,7 @@
   <!-- ============ ORDERS ============ -->
   <div class="screen" id="orders">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('profile')">
+      <div class="icon-btn" onclick="goBack('inicio')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">Meus pedidos</div>
@@ -5020,7 +5020,7 @@
   <!-- ============ PROFILE ============ -->
   <div class="screen" id="profile">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('home')">
+      <div class="icon-btn" onclick="goBack('inicio')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">Perfil</div>
@@ -10236,7 +10236,23 @@
   updateHero();
 
   // ===== Navigation =====
+  // Histórico de navegação: "voltar" volta pra tela ANTERIOR de verdade, não pra uma fixa.
+  let _navHistory = [];
+  let _navBack = false;
+  function goBack(fallback) {
+    const prev = _navHistory.pop();
+    _navBack = true;
+    try { go(prev || fallback || 'inicio'); } finally { _navBack = false; }
+  }
   function go(screen) {
+    // Empilha a tela atual antes de trocar (menos quando é o próprio "voltar")
+    try {
+      const cur = (document.querySelector('.screen.active') || {}).id;
+      if (cur && cur !== screen && !_navBack) {
+        if (_navHistory[_navHistory.length - 1] !== cur) _navHistory.push(cur);
+        if (_navHistory.length > 25) _navHistory.shift();
+      }
+    } catch (e) {}
     // Toggle admin-mode class based on screen
     if (screen && screen.startsWith('admin-')) {
       document.body.classList.add('admin-mode');
