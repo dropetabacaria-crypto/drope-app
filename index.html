@@ -1120,14 +1120,14 @@
   .upsell-card .up { font-size: 13px; font-weight: 800; color: var(--lime); margin-top: 4px; }
   .upsell-card .uadd { margin-top: 8px; text-align: center; background: rgba(212,255,46,0.13); color: var(--lime); border: 1px solid rgba(212,255,46,0.3); border-radius: 999px; padding: 6px; font-size: 12px; font-weight: 800; }
   /* Barra "Ver sacola" fixa (resumo do carrinho, estilo iFood) */
-  .cart-fab { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: linear-gradient(135deg,#8C50FF 0%, #FF2D6F 100%); box-shadow: 0 12px 32px rgba(176,38,255,0.42); cursor: pointer; border: 1px solid rgba(255,255,255,0.14); }
+  .cart-fab { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: #1b1b28; box-shadow: 0 14px 34px rgba(0,0,0,0.55); cursor: pointer; border: 1px solid var(--border); }
   .cart-fab.show { display: flex; }
   .cart-fab:active { transform: translateX(-50%) scale(0.99); }
-  .cart-fab-left { color: #fff; min-width: 0; }
-  .cart-fab-count { font-size: 11.5px; font-weight: 700; opacity: 0.92; }
-  .cart-fab-total { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 17px; }
-  .cart-fab-eco { font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.28); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
-  .cart-fab-btn { flex: 0 0 auto; background: #fff; color: #0A0A14; font-weight: 800; font-size: 13px; border-radius: 999px; padding: 10px 15px; }
+  .cart-fab-left { color: var(--text); min-width: 0; }
+  .cart-fab-count { font-size: 11.5px; font-weight: 700; color: var(--text-dim); }
+  .cart-fab-total { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 17px; color: var(--text); }
+  .cart-fab-eco { font-size: 11px; font-weight: 700; color: var(--green); background: rgba(74,222,128,0.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
+  .cart-fab-btn { flex: 0 0 auto; background: var(--lime); color: #0A0A14; font-weight: 800; font-size: 13px; border-radius: 999px; padding: 10px 15px; }
   /* Barra de categorias compacta sticky (aparece ao rolar) */
   .loja-cat-sticky { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; z-index: 60; display: none; background: var(--bg); border-bottom: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
   .loja-cat-sticky.show { display: block; }
