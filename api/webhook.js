@@ -4555,7 +4555,7 @@ async function handleFilialPainel(req, res) {
 
     // Pedidos da filial, pagos, do mês corrente
     const orders = await sbGet('drope_orders',
-      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
 
     // Calcular ganho da fundadora como (price - cost) / 2 por item
     // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
@@ -4573,6 +4573,15 @@ async function handleFilialPainel(req, res) {
       (prodCosts || []).forEach(p => { costMap[p.id] = { cost: p.cost_cents || 0, price: p.price_cents || 0 }; });
     }
 
+    // Corridas (entregas) desta loja pros pedidos atuais — mais recente por pedido
+    const _orderIds = (orders || []).map(o => o.id).filter(Boolean);
+    const corridaByOrder = {};
+    if (_orderIds.length) {
+      const corridas = await sbGet('drope_corridas',
+        `filial_id=eq.${filial.id}&order_id=in.(${_orderIds.join(',')})&status=neq.cancelada&order=id.desc&select=id,order_id,status,motoboy_nome,entregador_id,assigned_to,valor_motoboy_cents,accepted_at,delivered_at&limit=200`);
+      (corridas || []).forEach(c => { if (!corridaByOrder[c.order_id]) corridaByOrder[c.order_id] = c; });
+    }
+
     const _commPctPedidos = (_planFor(filial).commission_pct) || 10;
     const pedidos = (orders || []).map(o => {
       const totalCents = Number(o.total_cents || 0);
@@ -4587,6 +4596,8 @@ async function handleFilialPainel(req, res) {
         items: Array.isArray(o.items) ? o.items.map(it => ({ qty: it.qty || it.quantity || 1, name: it.name || 'item' })) : [],
         customer: o.customer_snapshot || {},
         address: o.address || null,
+        delivery_mode: o.delivery_mode || (o.address ? 'delivery' : 'pickup'),
+        corrida: corridaByOrder[o.id] || null,
         created_at: o.created_at,
         delivered_at: o.delivered_at || o.picked_up_at,
         scheduled: !!(o.metadata && o.metadata.scheduled),
@@ -6777,6 +6788,55 @@ async function handleFilialEntregadorSave(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, entregadores: ents });
   } catch (e) { console.error('[filial_entregador_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_corrida_create — LOJISTA cria a corrida (entrega) de um pedido.
+// assigned_to opcional: atribui a um entregador específico; sem ele, fica aberta pra
+// qualquer entregador ativo da loja pegar. valor opcional (reais).
+async function handleFilialCorridaCreate(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const orderId = parseInt(body.order_id);
+    if (!orderId) return res.status(400).json({ ok: false, error: 'order_id obrigatório' });
+    // pedido pertence a esta loja?
+    const ords = await sbGet('drope_orders', `id=eq.${orderId}&filial_id=eq.${filial.id}&select=id,order_nsu,address,customer_snapshot,delivery_mode&limit=1`);
+    const order = Array.isArray(ords) && ords[0];
+    if (!order) return res.status(404).json({ ok: false, error: 'pedido não encontrado' });
+    // já existe corrida ativa pra esse pedido?
+    const exist = await sbGet('drope_corridas', `order_id=eq.${orderId}&status=in.(aberta,aceita,em_rota)&select=id&limit=1`);
+    if (Array.isArray(exist) && exist[0]) return res.status(409).json({ ok: false, error: 'esse pedido já tem uma entrega em andamento' });
+    // entregador atribuído (opcional) precisa existir e estar ativo
+    const ents = Array.isArray((filial.metadata || {}).entregadores) ? filial.metadata.entregadores : [];
+    const assignedTo = body.assigned_to ? String(body.assigned_to) : null;
+    if (assignedTo && !ents.some(e => e.id === assignedTo && e.ativo !== false)) return res.status(400).json({ ok: false, error: 'entregador inválido' });
+    if (!assignedTo && !ents.some(e => e.ativo !== false)) return res.status(400).json({ ok: false, error: 'cadastre um entregador ativo primeiro' });
+    const addr = order.address || {};
+    const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento].filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço)';
+    const clientePhone = (order.customer_snapshot || {}).phone || addr.phone || null;
+    let valorCents = Math.round(Number(body.valor) * 100);
+    if (!isFinite(valorCents) || valorCents <= 0) valorCents = _motoboyCalcValorCents(null);
+    const inserted = await sbInsert('drope_corridas', {
+      order_id: order.id, filial_id: filial.id, status: 'aberta',
+      assigned_to: assignedTo, valor_motoboy_cents: valorCents,
+      endereco_destino: enderecoDest, cliente_phone: clientePhone,
+      posted_at: new Date().toISOString(),
+    });
+    const corrida = Array.isArray(inserted) ? inserted[0] : inserted;
+    if (!corrida) return res.status(502).json({ ok: false, error: 'falha ao criar a corrida' });
+    // avisa o(s) entregador(es) no app — se atribuída, só ele; senão, todos ativos
+    try {
+      const alvo = assignedTo ? ents.filter(e => e.id === assignedTo) : ents.filter(e => e.ativo !== false);
+      for (const e of alvo) _notify('entregador', e.id, 'corrida_nova', 'Nova corrida ✦', `Pedido #${order.order_nsu || order.id} disponível pra entrega`).catch(() => {});
+    } catch (e) {}
+    return res.status(200).json({ ok: true, corrida });
+  } catch (e) { console.error('[filial_corrida_create] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
@@ -19448,6 +19508,10 @@ async function generateAll(){
   // action=filial_entregador_save — POST: lojista cadastra/edita/remove entregador
   if (req.url && req.url.indexOf('action=filial_entregador_save') >= 0) {
     return await handleFilialEntregadorSave(req, res);
+  }
+  // action=filial_corrida_create — POST: lojista cria a corrida (entrega) de um pedido
+  if (req.url && req.url.indexOf('action=filial_corrida_create') >= 0) {
+    return await handleFilialCorridaCreate(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {

@@ -623,6 +623,22 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 </div>
 
+<!-- Modal: chamar entregador pra um pedido -->
+<div class="help-ov" id="chamar-ov" onclick="if(event.target===this)closeChamar()">
+  <div class="help-card">
+    <div class="help-emoji">🛵</div>
+    <h3 id="chamar-title" style="margin:0 0 12px;font-size:18px;color:var(--fg)">Chamar entregador</h3>
+    <label class="pf-lbl">Pra quem?</label>
+    <select class="pf-input" id="chamar-ent"></select>
+    <label class="pf-lbl" style="margin-top:8px">Valor da entrega (R$)</label>
+    <input class="pf-input" id="chamar-valor" inputmode="decimal" placeholder="8,00">
+    <div class="pf-hint" style="margin-top:4px">"Abrir pra todos" = o primeiro entregador que aceitar leva.</div>
+    <button class="pf-btn full" onclick="confirmChamar()" style="margin-top:14px">Criar corrida ✦</button>
+    <button class="pf-btn full" onclick="closeChamar()" style="margin-top:8px;background:var(--bg3);color:var(--fg-dim)">Cancelar</button>
+    <div id="chamar-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+  </div>
+</div>
+
 <!-- Overlay: Leitor de código de barras (ao vivo) -->
 <div class="sheet-ov" id="scan-ov" style="background:#000;z-index:120">
   <div class="sheet-hd" style="background:rgba(0,0,0,0.55)">
@@ -2468,6 +2484,15 @@ function renderPedidoCard(p, isEntregue) {
   const schedBadge = p.scheduled
     ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
     : '';
+  const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
+  let entregaBlock = '';
+  if (!isEntregue && isDelivery) {
+    if (p.corrida) {
+      entregaBlock = `<div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--fg-dim)">${_corridaLabel(p.corrida)}</div>`;
+    } else {
+      entregaBlock = `<button class="pf-btn sec" style="margin-top:10px;width:100%" onclick="openChamarEntregador(${p.id})">🛵 Chamar entregador</button>`;
+    }
+  }
   return `
     <div class="pedido-card ${cls}">
       <div class="pedido-head">
@@ -2481,8 +2506,50 @@ function renderPedidoCard(p, isEntregue) {
         <span>Total: ${fmtBRL(p.total_cents)}</span>
         <span class="ganho">${fmtBRL(p.ganho_cents)} ✦ líquido pra você</span>
       </div>
+      ${entregaBlock}
     </div>
   `;
+}
+// Rótulo legível do estado da corrida (entrega)
+function _corridaLabel(c) {
+  if (!c) return '';
+  const nome = c.motoboy_nome || ((_entregadores || []).find(e => e.id === c.assigned_to) || {}).nome || '';
+  if (c.status === 'aberta') return c.assigned_to ? `⏳ Oferecida a ${esc(nome)} — aguardando aceite` : '⏳ Aberta — aguardando um entregador pegar';
+  if (c.status === 'aceita') return `🛵 ${esc(nome || 'Entregador')} aceitou a corrida`;
+  if (c.status === 'em_rota') return `🛵 ${esc(nome || 'Entregador')} saiu pra entrega`;
+  if (c.status === 'entregue') return `✅ Entregue por ${esc(nome || 'entregador')}`;
+  return esc(c.status || '');
+}
+let _chamarOrderId = null;
+function openChamarEntregador(orderId) {
+  _chamarOrderId = orderId;
+  const ativos = (_entregadores || []).filter(e => e.ativo !== false);
+  const sel = document.getElementById('chamar-ent');
+  if (!ativos.length) {
+    alert('Cadastre um entregador ativo primeiro (Config → Entregadores).');
+    return;
+  }
+  sel.innerHTML = '<option value="">Abrir pra todos pegarem</option>' + ativos.map(e => `<option value="${e.id}">${esc(e.nome)}</option>`).join('');
+  document.getElementById('chamar-valor').value = '';
+  document.getElementById('chamar-msg').textContent = '';
+  document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido #' + orderId;
+  document.getElementById('chamar-ov').classList.add('open');
+}
+function closeChamar() { document.getElementById('chamar-ov').classList.remove('open'); }
+async function confirmChamar() {
+  const assigned_to = (document.getElementById('chamar-ent') || {}).value || null;
+  const valor = _num((document.getElementById('chamar-valor') || {}).value);
+  const msg = document.getElementById('chamar-msg');
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando corrida...';
+  try {
+    const r = await fetch('/api/webhook?action=filial_corrida_create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, order_id: _chamarOrderId, assigned_to, valor: (isFinite(valor) && valor > 0) ? valor : undefined }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { closeChamar(); loadData(true); }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
 }
 
 // Boot: se há sessão salva (slug + token), entra direto; senão mostra o login
