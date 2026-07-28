@@ -8775,6 +8775,7 @@
     else { toast('bem-vindo ✦ você tá logado'); }
     try { loadMyOrders(); } catch (e) {}
     try { loadFavoritesFromAccount(); } catch (e) {}
+    try { loadAddressesFromAccount(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
   }
   // Mostra/oculta o texto de um campo de senha (olho).
@@ -8939,11 +8940,44 @@
   let addrPickMode = false; // true when user came from checkout to pick an address
   let editingAddrId = null;
 
+  // Sincronização de endereços com a CONTA (durável, cross-device).
+  let _addrPushTimer = null;
+  function _addrSyncPush() {
+    if (typeof _isLoggedIn === 'function' && !_isLoggedIn()) return;
+    if (!profile || !profile.phone) return;
+    clearTimeout(_addrPushTimer);
+    _addrPushTimer = setTimeout(() => {
+      fetch('/api/webhook?action=customer_addresses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: profile.phone, token: _custToken(), addresses }),
+      }).catch(() => {});
+    }, 800);
+  }
+  async function loadAddressesFromAccount() {
+    if (typeof _isLoggedIn === 'function' && !_isLoggedIn()) return;
+    if (!profile || !profile.phone) return;
+    try {
+      const r = await fetch('/api/webhook?action=customer_addresses&phone=' + encodeURIComponent(profile.phone) + '&token=' + encodeURIComponent(_custToken()), { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json().catch(() => null);
+      if (!d || !d.ok || !Array.isArray(d.addresses)) return;
+      const byId = new Map();
+      (addresses || []).forEach(a => { if (a && a.id) byId.set(a.id, a); });     // device tem prioridade
+      d.addresses.forEach(a => { if (a && a.id && !byId.has(a.id)) byId.set(a.id, a); }); // une os da conta
+      addresses = Array.from(byId.values());
+      if (!selectedAddressId && addresses.length) selectedAddressId = addresses[0].id;
+      try { localStorage.setItem(ADDR_KEY, JSON.stringify(addresses)); } catch (e) {}
+      if (document.querySelector('.screen.active')?.id === 'addresses') { try { renderAddresses(); } catch (e) {} }
+      _addrSyncPush(); // sobe a união (conta fica com tudo que o device tinha também)
+    } catch (e) {}
+  }
+
   function saveAddresses() {
     try {
       localStorage.setItem(ADDR_KEY, JSON.stringify(addresses));
       if (selectedAddressId) localStorage.setItem(ADDR_SEL_KEY, selectedAddressId);
     } catch(e) {}
+    if (typeof _addrSyncPush === 'function') _addrSyncPush();
   }
   function loadAddresses() {
     try {
@@ -10373,6 +10407,7 @@
     if (screen === 'card') renderCardScreen();
     if (screen === 'search') renderSearch();
     if (screen === 'favorites') { renderFavorites(); loadFavoritesFromAccount(); }
+    if (screen === 'addresses') loadAddressesFromAccount();
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
     if (screen === 'lojista-signup') _resetLojistaForm();

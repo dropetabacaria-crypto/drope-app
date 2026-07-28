@@ -14217,6 +14217,36 @@ async function handleCustomerFavorites(req, res) {
   } catch (e) { console.error('[customer_favorites] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// GET/POST action=customer_addresses — endereços do cliente salvos na CONTA
+// (drope_customers.addresses), pra seguirem em qualquer aparelho. Gated por sessão.
+async function handleCustomerAddresses(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    if (req.method === 'GET') {
+      const qs = (req.url && req.url.includes('?')) ? req.url.split('?')[1] : '';
+      const params = {};
+      qs.split('&').forEach(p => { const [k, v] = p.split('='); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+      if (!(await _customerSessionOk(params.phone, params.token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+      const p = _normPhone(params.phone);
+      const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=addresses&limit=1`);
+      const arr = (rows && rows[0] && Array.isArray(rows[0].addresses)) ? rows[0].addresses : [];
+      return res.status(200).json({ ok: true, addresses: arr });
+    }
+    if (req.method === 'POST') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      if (!(await _customerSessionOk(body.phone, body.token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+      const p = _normPhone(body.phone);
+      const addresses = Array.isArray(body.addresses) ? body.addresses.slice(0, 50) : [];
+      await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(p)}`, { addresses, last_seen_at: new Date().toISOString() });
+      return res.status(200).json({ ok: true });
+    }
+    return res.status(405).json({ ok: false, error: 'method not allowed' });
+  } catch (e) { console.error('[customer_addresses] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 async function handleCatalog(req, res) {
   // CORS — pode vir do próprio domínio ou localhost de dev
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
@@ -17200,6 +17230,11 @@ module.exports = async function handler(req, res) {
   // GET/POST /api/webhook?action=customer_favorites — favoritos salvos na conta
   if (req.url && req.url.indexOf('action=customer_favorites') >= 0) {
     return await handleCustomerFavorites(req, res);
+  }
+
+  // GET/POST /api/webhook?action=customer_addresses — endereços salvos na conta
+  if (req.url && req.url.indexOf('action=customer_addresses') >= 0) {
+    return await handleCustomerAddresses(req, res);
   }
 
   // ===== SaaS multi-tabacaria (filiais) =====
