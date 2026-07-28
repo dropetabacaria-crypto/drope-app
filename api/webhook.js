@@ -32,6 +32,21 @@ const MP_ACCESS_TOKEN = (process.env.MP_ACCESS_TOKEN || "").replace(/^["']|["']$
 const MP_CLIENT_ID = (process.env.MP_CLIENT_ID || "").replace(/^["']|["']$/g, "").trim();
 const MP_CLIENT_SECRET = (process.env.MP_CLIENT_SECRET || "").replace(/^["']|["']$/g, "").trim();
 const MP_REDIRECT_URI = (process.env.MP_REDIRECT_URI || "https://drope-app.vercel.app/api/webhook?action=mp_oauth_callback").replace(/^["']|["']$/g, "").trim();
+// Email transacional (Resend) — usado no reset de senha do lojista por email
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || "").replace(/^["']|["']$/g, "").trim();
+const RESEND_FROM = (process.env.RESEND_FROM || "DROPE <onboarding@resend.dev>").replace(/^["']|["']$/g, "").trim();
+// Envia um email simples via Resend. Retorna true se enviou.
+async function _sendEmail(to, subject, html) {
+  if (!RESEND_API_KEY || !to) return false;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST', headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html }),
+    });
+    if (!r.ok) { console.warn('[_sendEmail] HTTP', r.status, (await r.text()).slice(0, 200)); return false; }
+    return true;
+  } catch (e) { console.warn('[_sendEmail]', e.message); return false; }
+}
 
 // Whitelist: só esse número cadastra produto. Outros = cliente.
 const ADMIN_LUCAS = process.env.ADMIN_LUCAS || "5511962443565";
@@ -13792,7 +13807,12 @@ async function handleFilialLogin(req, res) {
 function _normPhone(s) { let d = String(s || '').replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); return d; }
 function _phone55(d) { d = _normPhone(d); return d.startsWith('55') ? d : '55' + d; }
 
-// POST action=filial_reset_request { email } → envia código de redefinição pro WhatsApp da loja.
+function _maskEmail(e) {
+  const [u, d] = String(e || '').split('@'); if (!d) return e;
+  const uu = u.length <= 2 ? u[0] + '•' : u.slice(0, 2) + '•'.repeat(Math.max(1, u.length - 2));
+  return uu + '@' + d;
+}
+// POST action=filial_reset_request { email } → envia código de redefinição pro EMAIL da loja.
 async function handleFilialResetRequest(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -13801,25 +13821,25 @@ async function handleFilialResetRequest(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const email = String(body.email || '').trim().toLowerCase();
     if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
-    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,founder_phone,metadata');
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,name,metadata');
     const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
-    if (!filial || !filial.founder_phone) return res.status(404).json({ ok: false, error: 'não achei uma loja com esse email' });
-    const phone = _normPhone(filial.founder_phone);
-    if (phone.length < 10) return res.status(400).json({ ok: false, error: 'a loja não tem um WhatsApp válido cadastrado' });
+    if (!filial) return res.status(404).json({ ok: false, error: 'não achei uma loja com esse email' });
+    const md = filial.metadata || {};
     const now = Date.now();
-    const ex = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=last_sent_at&limit=1`);
-    if (ex && ex[0] && ex[0].last_sent_at && (now - new Date(ex[0].last_sent_at).getTime()) < 45000) {
-      return res.status(429).json({ ok: false, error: 'espera alguns segundos pra pedir outro código' });
-    }
+    const last = ((md.login || {}).reset || {}).at;
+    if (last && (now - new Date(last).getTime()) < 45000) return res.status(429).json({ ok: false, error: 'espera alguns segundos pra pedir outro código' });
     const code = String(crypto.randomInt(100000, 1000000));
-    const rec = { phone, code_hash: _sha256hex(code), expires_at: new Date(now + 10 * 60000).toISOString(), attempts: 0, last_sent_at: new Date(now).toISOString() };
-    if (ex && ex[0]) await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, rec);
-    else await sbInsert('drope_otp', rec);
-    let sent = false;
-    try { const r = await sendText(_phone55(phone), `DROPE ✦ código pra redefinir a senha do seu painel: ${code}\n\nVale por 10 minutos. Se não foi você, ignore.`); sent = !!(r && r.ok); }
-    catch (e) { console.warn('[filial_reset_request] whats:', e.message); }
-    if (!sent) return res.status(502).json({ ok: false, error: 'não conseguimos enviar o código pelo WhatsApp agora. Tente de novo em instantes.' });
-    return res.status(200).json({ ok: true, phone_masked: '(••) •••••-' + phone.slice(-4) });
+    md.login = { ...(md.login || {}), reset: { code_hash: _sha256hex(code), expires_at: new Date(now + 15 * 60000).toISOString(), attempts: 0, at: new Date(now).toISOString() } };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    const html = `<div style="font-family:system-ui,Arial,sans-serif;background:#0A0A14;color:#F5F3FF;padding:28px;border-radius:16px;max-width:440px">
+      <div style="font-weight:800;font-size:20px">DRO<span style="color:#D4FF2E">PE</span> ✦</div>
+      <p style="color:#9a97b5;margin:14px 0 6px">Código pra redefinir a senha do seu painel:</p>
+      <div style="font-size:34px;font-weight:800;letter-spacing:6px;color:#D4FF2E;margin:6px 0 14px">${code}</div>
+      <p style="color:#9a97b5;font-size:13px">Vale por 15 minutos. Se não foi você que pediu, ignore este email.</p>
+    </div>`;
+    const sent = await _sendEmail(email, 'DROPE ✦ código pra redefinir sua senha', html);
+    if (!sent) return res.status(502).json({ ok: false, error: RESEND_API_KEY ? 'não conseguimos enviar o email agora. Tente de novo.' : 'envio de email ainda não configurado (RESEND_API_KEY)' });
+    return res.status(200).json({ ok: true, email_masked: _maskEmail(email) });
   } catch (e) { console.error('[filial_reset_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // POST action=filial_reset_confirm { email, code, password } → valida o código e grava a nova senha.
@@ -13834,23 +13854,21 @@ async function handleFilialResetConfirm(req, res) {
     const password = String(body.password || '');
     if (!_isEmail(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
     if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
-    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,founder_phone,metadata');
+    const rows = await sbGet('drope_filiais', 'status=eq.active&select=id,metadata');
     const filial = (rows || []).find(f => (((f.metadata || {}).login || {}).email) === email);
     if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
-    const phone = _normPhone(filial.founder_phone);
-    const orows = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=*&limit=1`);
-    const otp = orows && orows[0];
-    if (!otp || !otp.code_hash) return res.status(400).json({ ok: false, error: 'peça um código primeiro' });
-    if (new Date(otp.expires_at).getTime() < Date.now()) return res.status(400).json({ ok: false, error: 'código expirado, peça outro' });
-    if ((otp.attempts || 0) >= 5) return res.status(429).json({ ok: false, error: 'muitas tentativas, peça outro código' });
-    if (_sha256hex(code) !== otp.code_hash) {
-      await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { attempts: (otp.attempts || 0) + 1 });
+    const md = filial.metadata || {};
+    const reset = (md.login || {}).reset;
+    if (!reset || !reset.code_hash) return res.status(400).json({ ok: false, error: 'peça um código primeiro' });
+    if (new Date(reset.expires_at).getTime() < Date.now()) return res.status(400).json({ ok: false, error: 'código expirado, peça outro' });
+    if ((reset.attempts || 0) >= 5) return res.status(429).json({ ok: false, error: 'muitas tentativas, peça outro código' });
+    if (_sha256hex(code) !== reset.code_hash) {
+      md.login.reset = { ...reset, attempts: (reset.attempts || 0) + 1 };
+      await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
       return res.status(401).json({ ok: false, error: 'código incorreto' });
     }
-    await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { code_hash: '', expires_at: new Date(Date.now() - 1000).toISOString() });
     const pass = _ljHashPassword(password);
-    const md = filial.metadata || {};
-    md.login = { ...(md.login || {}), pass_salt: pass.salt, pass_hash: pass.hash, session_hash: null };
+    md.login = { ...(md.login || {}), pass_salt: pass.salt, pass_hash: pass.hash, session_hash: null, reset: null };
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true });
   } catch (e) { console.error('[filial_reset_confirm] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }

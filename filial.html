@@ -224,7 +224,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
     <!-- REDEFINIR SENHA -->
     <div id="reset-view" style="display:none">
-      <p>A gente manda um código pro WhatsApp cadastrado da loja pra você criar uma senha nova.</p>
+      <p>A gente manda um código pro email cadastrado da loja pra você criar uma senha nova.</p>
       <input type="email" id="reset-email" inputmode="email" autocomplete="email" placeholder="Email da loja">
       <button id="reset-send-btn" onclick="resetRequest()">Enviar código</button>
       <div id="reset-step2" style="display:none;margin-top:10px">
@@ -853,7 +853,7 @@ async function resetRequest() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
       document.getElementById('reset-step2').style.display = 'block';
-      msg.style.color = 'var(--green)'; msg.textContent = 'código enviado pro WhatsApp ' + (d.phone_masked || 'da loja') + ' ✦';
+      msg.style.color = 'var(--green)'; msg.textContent = 'código enviado pro email ' + (d.email_masked || 'da loja') + ' ✦';
       b.textContent = 'Reenviar código';
     } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); b.textContent = 'Enviar código'; }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; b.textContent = 'Enviar código'; }
