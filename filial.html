@@ -982,7 +982,18 @@ function renderPlanos(d) {
 async function selectPlan(tier) {
   const msg = document.getElementById('plano-msg');
   if (tier !== 'start') {
-    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Assinatura Pro/Max entra no ar junto com o pagamento ✦ te avisamos.'; }
+    // Pro/Max: cria a assinatura mensal no Mercado Pago e leva pro pagamento (cartão)
+    if (!confirm('Assinar o plano ' + tier.toUpperCase() + '?\n\nVocê vai pro Mercado Pago autorizar a cobrança mensal no cartão. O plano ativa assim que o pagamento confirmar.')) return;
+    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'abrindo o Mercado Pago...'; }
+    try {
+      const r = await fetch('/api/webhook?action=filial_plan_subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
+      else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+    } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; } }
     return;
   }
   try {
@@ -2245,6 +2256,15 @@ async function mpRefreshStatus() {
     try { history.replaceState({}, '', location.pathname); } catch (e) {}
     if (mp === 'ok') { setTimeout(() => { try { openCfg('pagamento'); } catch (e) {} alert('Mercado Pago conectado! ✦'); }, 400); }
     else if (mp === 'erro') { setTimeout(() => alert('Não deu pra conectar o Mercado Pago. Tenta de novo.'), 400); }
+  } catch (e) {}
+})();
+// Feedback ao voltar da assinatura do plano (?assinatura=ok)
+(function () {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('assinatura') !== 'ok') return;
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
+    setTimeout(() => alert('Assinatura autorizada! ✦ Assim que o Mercado Pago confirmar a cobrança, seu plano ativa sozinho.'), 400);
   } catch (e) {}
 })();
 

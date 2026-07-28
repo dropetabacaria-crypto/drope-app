@@ -13537,7 +13537,9 @@ const DROPE_PLANS = {
 };
 function _planFor(filial) {
   const pmeta = ((filial && filial.metadata) || {}).plan || {};
-  const tier = DROPE_PLANS[pmeta.tier] ? pmeta.tier : 'start';
+  let tier = DROPE_PLANS[pmeta.tier] ? pmeta.tier : 'start';
+  // Assinatura vencida (MP parou de cobrar) → volta pro Start automaticamente.
+  if (tier !== 'start' && pmeta.paid_until && new Date(pmeta.paid_until).getTime() < Date.now()) tier = 'start';
   const base = DROPE_PLANS[tier];
   const pct = (typeof pmeta.commission_pct_override === 'number' && pmeta.commission_pct_override >= 0)
     ? pmeta.commission_pct_override : base.commission_pct;
@@ -13570,6 +13572,70 @@ async function handleFilialSetPlan(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, plan: _planFor({ metadata: md }) });
   } catch (e) { console.error('[filial_set_plan] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// POST action=filial_plan_subscribe { filial, token, tier } → cria a assinatura mensal
+// no Mercado Pago (preapproval). A loja autoriza no init_point (cartão); o MP cobra
+// todo mês na conta do DROPE e o webhook ativa o plano (mp_webhook → _mpApplyPreapproval).
+async function handleFilialPlanSubscribe(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const tier = String(body.tier || '').toLowerCase().trim();
+    const plan = DROPE_PLANS[tier];
+    if (!plan || !plan.monthly_fee_cents) return res.status(400).json({ ok: false, error: 'plano inválido' });
+    if (!MP_ACCESS_TOKEN) return res.status(500).json({ ok: false, error: 'pagamento não configurado' });
+    const md = filial.metadata || {};
+    const email = ((md.login || {}).email) || '';
+    if (!email) return res.status(400).json({ ok: false, error: 'cadastre um email de acesso primeiro' });
+    const pre = await fetch('https://api.mercadopago.com/preapproval', {
+      method: 'POST', headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reason: `DROPE ${plan.label} — ${filial.name || filial.slug}`,
+        external_reference: `${filial.slug}:${tier}`,
+        payer_email: email,
+        back_url: `https://drope-app.vercel.app/${encodeURIComponent(filial.slug)}/painel?assinatura=ok`,
+        notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
+        auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: plan.monthly_fee_cents / 100, currency_id: 'BRL' },
+        status: 'pending',
+      }),
+    });
+    const d = await pre.json().catch(() => ({}));
+    const init = d.init_point || d.sandbox_init_point;
+    if (!pre.ok || !init) return res.status(502).json({ ok: false, error: (d && d.message) || 'falha ao criar assinatura' });
+    md.plan = { ...(md.plan || {}), pending: { tier, preapproval_id: d.id, at: new Date().toISOString() } };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, init_point: init });
+  } catch (e) { console.error('[filial_plan_subscribe] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// Aplica o resultado de uma assinatura MP (preapproval) no plano da loja.
+async function _mpApplyPreapproval(preapprovalId) {
+  if (!preapprovalId || !MP_ACCESS_TOKEN) return;
+  const r = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } });
+  if (!r.ok) return;
+  const p = await r.json().catch(() => ({}));
+  const [slug, tier] = String(p.external_reference || '').split(':');
+  if (!slug || !DROPE_PLANS[tier]) return;
+  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(slug)}&select=id,name,metadata&limit=1`);
+  const filial = Array.isArray(fr) && fr[0];
+  if (!filial) return;
+  const md = filial.metadata || {};
+  if (p.status === 'authorized') {
+    md.plan = { tier, since: new Date().toISOString(), paid_until: new Date(Date.now() + 35 * 864e5).toISOString(), subscription: { provider: 'mp', preapproval_id: preapprovalId } };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    _notify('filial', filial.id, 'plan', `Plano ${DROPE_PLANS[tier].label} ativo ✦`, `Sua assinatura está ativa — comissão de ${DROPE_PLANS[tier].commission_pct}% por venda.`).catch(() => {});
+  } else if (p.status === 'cancelled' || p.status === 'paused') {
+    md.plan = { tier: 'start', since: new Date().toISOString(), subscription: null };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    _notify('filial', filial.id, 'plan', 'Plano voltou pro Start', 'Sua assinatura foi encerrada — você está no Start (10% por venda).').catch(() => {});
+  }
 }
 
 // POST action=filial_products_filtro { filial, token, product_ids:[], filtro_id }
@@ -16558,6 +16624,24 @@ async function handleMPWebhook(req, res) {
   try {
     const body = req.body || {};
     console.log('[MP Webhook] received:', JSON.stringify(body).substring(0, 400));
+
+    // Assinatura (preapproval) — ativa/desativa o plano da loja
+    const _topic = String(body.type || body.topic || body.action || '');
+    if (_topic.includes('preapproval')) {
+      const id = body.data && body.data.id;
+      if (id) { try { await _mpApplyPreapproval(id); } catch (e) { console.error('[MP preapproval]', e.message); } }
+      return res.status(200).json({ ok: true, preapproval: true });
+    }
+    if (_topic.includes('authorized_payment')) { // cobrança recorrente da assinatura
+      const id = body.data && body.data.id;
+      try {
+        if (id && MP_ACCESS_TOKEN) {
+          const ar = await fetch(`https://api.mercadopago.com/authorized_payments/${id}`, { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` } });
+          if (ar.ok) { const ap = await ar.json(); if (ap.preapproval_id) await _mpApplyPreapproval(ap.preapproval_id); }
+        }
+      } catch (e) { console.error('[MP authpay]', e.message); }
+      return res.status(200).json({ ok: true, authorized_payment: true });
+    }
 
     let paymentId = null;
     if (body.data && body.data.id) paymentId = body.data.id;
@@ -19680,6 +19764,10 @@ async function generateAll(){
   // action=filial_set_plan — POST: lojista troca de plano (Start/Pro/Max)
   if (req.url && req.url.indexOf('action=filial_set_plan') >= 0) {
     return await handleFilialSetPlan(req, res);
+  }
+  // action=filial_plan_subscribe — POST: cria assinatura mensal (Pro/Max) no Mercado Pago
+  if (req.url && req.url.indexOf('action=filial_plan_subscribe') >= 0) {
+    return await handleFilialPlanSubscribe(req, res);
   }
   // action=filial_products_filtro — POST: marca vários produtos com um filtro
   if (req.url && req.url.indexOf('action=filial_products_filtro') >= 0) {
