@@ -4343,10 +4343,12 @@
   </div>
 
   <!-- ============ HOME ============ -->
-  <div class="screen" id="home">
+  <div class="screen no-nav" id="home">
     <div class="header">
-      <div class="avatar avatar-emoji" id="home-avatar" onclick="go('inicio')"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="greet" id="home-greet">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
+      <div class="icon-btn" onclick="goBack('inicio')" title="Voltar" style="flex:0 0 auto;margin-right:6px">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="greet" id="home-greet" style="flex:1;min-width:0">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div class="cart-btn" onclick="openNotifsApp()" style="position:relative;margin-right:8px" title="Avisos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <div class="cart-badge" id="app-notif-badge" style="display:none">0</div>
@@ -4872,6 +4874,11 @@
 
   <!-- ============ SUCCESS ============ -->
   <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999;display:none"></canvas>
+
+  <!-- Lightbox: foto da loja em tamanho maior -->
+  <div id="store-photo-ov" onclick="closeStorePhoto()" style="position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:28px">
+    <img id="store-photo-img" src="" alt="" style="max-width:88%;max-height:80%;border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,0.6);object-fit:contain">
+  </div>
   <div class="screen no-nav" id="success">
     <!-- FRICÇÃO #009: banner MODO TESTE no sucesso -->
     <div id="success-test-banner" class="test-mode-banner" style="display:none">
@@ -8183,7 +8190,7 @@
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
       : `<div class="lj-hd-cover lj-hd-cover-ph"></div>`;
     const logo = loja.photo_url
-      ? `<img class="lj-hd-logo" src="${escapeHtml(loja.photo_url)}" alt="" draggable="false">`
+      ? `<img class="lj-hd-logo" src="${escapeHtml(loja.photo_url)}" alt="" draggable="false" style="cursor:zoom-in" onclick="openStorePhoto('${escapeHtml(loja.photo_url)}')">`
       : `<div class="lj-hd-logo lj-hd-logo-ph">🏪</div>`;
     const fav = (typeof _isFavStore === 'function' && loja.slug) ? _isFavStore(loja.slug) : false;
     el.innerHTML = `${cover}
@@ -8356,7 +8363,7 @@
     const label = f.name || f.city || '';
     const cityTc = (f.city || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
     const cover = f.cover
-      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
+      ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" style="cursor:zoom-in" onclick="event.stopPropagation();openStorePhoto('${escapeHtml(f.cover)}')" onerror="this.outerHTML='<div class=\\'loja-cover-ph\\'></div>'">`
       : `<div class="loja-cover-ph"></div>`;
     const kmTxt = (typeof f._km === 'number') ? (f._km < 1 ? Math.round(f._km * 1000) + ' m' : f._km.toFixed(1).replace('.', ',') + ' km') : '';
     const etaTxt = _etaFromKm(f._km);
@@ -8631,6 +8638,14 @@
     fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'customer', phone: profile.phone, token: _custToken() }) }).then(() => _renderAppNotifBadge(0)).catch(() => {});
   }
   function closeNotifsApp() { document.getElementById('app-notif-ov').style.display = 'none'; }
+  // Lightbox da foto da loja (toque na foto → vê maior)
+  function openStorePhoto(url) {
+    if (!url) return;
+    const ov = document.getElementById('store-photo-ov'), img = document.getElementById('store-photo-img');
+    if (!ov || !img) return;
+    img.src = url; ov.style.display = 'flex';
+  }
+  function closeStorePhoto() { const ov = document.getElementById('store-photo-ov'); if (ov) ov.style.display = 'none'; }
   setTimeout(() => { try { loadAppNotifs(); } catch (e) {} }, 2500);
   setInterval(() => { try { loadAppNotifs(); } catch (e) {} }, 45000);
   function _isLoggedIn() { return !PREVIEW_MODE && !!_custToken(); }
