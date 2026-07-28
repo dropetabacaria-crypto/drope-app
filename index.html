@@ -8288,10 +8288,11 @@
   async function requestParceiro(slug, name) {
     if (!slug) return;
     if (!confirm(`Quer ser parceiro da ${name || 'loja'}?\n\nVocê divulga por um link e ganha comissão nas vendas que trouxer. A loja aprova seu pedido.`)) return;
+    const pixKey = (prompt('Sua chave Pix pra receber as comissões (CPF, telefone, e-mail ou aleatória):', '') || '').trim();
     try {
       const r = await fetch('/api/webhook?action=filial_parceiro_request', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filial_slug: slug, nome: profile.name || '', phone: profile.phone || '', email: profile.email || '' }),
+        body: JSON.stringify({ filial_slug: slug, nome: profile.name || '', phone: profile.phone || '', email: profile.email || '', pix_key: pixKey }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {

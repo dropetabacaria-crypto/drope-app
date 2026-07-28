@@ -591,6 +591,24 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             </div>
             <button id="parc-accept-toggle" onclick="toggleAcceptPartners()" style="flex:0 0 auto;min-width:74px;padding:9px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg3);color:var(--fg-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Desligado</button>
           </div>
+          <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+            <div style="font-size:14px;font-weight:700;color:var(--fg)">Oferta de indicação</div>
+            <div style="font-size:11.5px;color:var(--fg-dim);margin:2px 0 10px">Quanto você topa pagar a quem divulga. Vira o padrão ao aprovar um indicador.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <select class="pf-input" id="offer-tipo" onchange="updateOfferMath()" style="flex:1;min-width:130px;margin-bottom:0">
+                <option value="pct_venda">% da venda</option>
+                <option value="pct_lucro">% do lucro</option>
+                <option value="fixo">R$ fixo por venda</option>
+              </select>
+              <input class="pf-input" id="offer-valor" inputmode="decimal" oninput="updateOfferMath()" placeholder="valor" style="width:100px;margin-bottom:0">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+              <span style="font-size:12px;color:var(--fg-dim)">Pagar só a partir de R$</span>
+              <input class="pf-input" id="offer-min" inputmode="decimal" placeholder="20" style="width:80px;margin-bottom:0">
+              <button class="pf-btn" style="margin:0" onclick="saveIndicadorOffer()">Salvar</button>
+            </div>
+            <div id="offer-math" style="font-size:12px;color:var(--lime);margin-top:10px;font-weight:600"></div>
+          </div>
           <div id="parc-body" style="opacity:.5;pointer-events:none">
             <div id="parc-pend-wrap" style="margin-bottom:14px"></div>
             <div id="parc-aprov-wrap"></div>
@@ -1782,7 +1800,47 @@ function _updateParcBadge() {
   const pend = (_parceiros || []).filter(p => p.status === 'pending').length;
   if (pend) { b.textContent = pend; b.style.display = 'inline'; } else b.style.display = 'none';
 }
+// Oferta de indicação: quanto a loja topa pagar a quem divulga (a loja decide).
+function updateOfferMath() {
+  const el = document.getElementById('offer-math'); if (!el) return;
+  const tipo = ((document.getElementById('offer-tipo') || {}).value) || 'pct_venda';
+  const valor = _num((document.getElementById('offer-valor') || {}).value) || 0;
+  const pct = (_painelData && _painelData.filial && _painelData.filial.plan && _painelData.filial.plan.commission_pct) || 10;
+  if (!valor) { el.textContent = ''; return; }
+  const f = n => 'R$ ' + n.toFixed(2).replace('.', ',');
+  const drope = 100 * pct / 100;
+  if (tipo === 'pct_lucro') {
+    el.textContent = `Numa venda de R$ 100: DROPE ${f(drope)} + indicador ${String(valor).replace('.', ',')}% do seu lucro. O resto é seu.`;
+  } else {
+    const ind = tipo === 'fixo' ? valor : (100 * valor / 100);
+    el.textContent = `Ex.: venda de R$ 100 → DROPE ${f(drope)}, indicador ${f(ind)}, você fica com ${f(100 - drope - ind)}.`;
+  }
+}
+function updateOfferUI() {
+  const o = (_painelData && _painelData.filial && _painelData.filial.indicador_offer) || { tipo: 'pct_venda', valor: 0 };
+  const min = (_painelData && _painelData.filial && typeof _painelData.filial.affiliate_min_cents === 'number') ? _painelData.filial.affiliate_min_cents : 2000;
+  const t = document.getElementById('offer-tipo'), v = document.getElementById('offer-valor'), m = document.getElementById('offer-min');
+  if (t) t.value = o.tipo || 'pct_venda';
+  if (v) v.value = o.valor ? o.valor : '';
+  if (m) m.value = (min / 100);
+  updateOfferMath();
+}
+async function saveIndicadorOffer() {
+  const tipo = ((document.getElementById('offer-tipo') || {}).value) || 'pct_venda';
+  const valor = _num((document.getElementById('offer-valor') || {}).value) || 0;
+  const min = _num((document.getElementById('offer-min') || {}).value) || 0;
+  const el = document.getElementById('offer-math');
+  try {
+    const r = await fetch('/api/webhook?action=filial_profile_save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, indicador_offer: { tipo, valor }, affiliate_min_cents: Math.round(min * 100) }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      if (_painelData && _painelData.filial) { _painelData.filial.indicador_offer = { tipo, valor }; _painelData.filial.affiliate_min_cents = Math.round(min * 100); }
+      if (el) { el.textContent = 'Oferta salva ✦'; setTimeout(updateOfferMath, 1600); }
+    } else { alert((d && d.error) || 'erro ao salvar'); }
+  } catch (e) { alert('erro de conexão'); }
+}
 function renderParceiros() {
+  updateOfferUI();
   const pendWrap = document.getElementById('parc-pend-wrap');
   const aprovWrap = document.getElementById('parc-aprov-wrap');
   if (!pendWrap || !aprovWrap) return;
@@ -1794,7 +1852,7 @@ function renderParceiros() {
       <div style="font-weight:800;font-size:14px">${esc(p.nome)}</div>
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px">${esc(p.phone || '')}${p.email ? ' · ' + esc(p.email) : ''}</div>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
-        <select class="pf-input" id="pcap-tipo-${p.id}" style="flex:1;margin-bottom:0"><option value="pct_lucro">% do lucro</option><option value="fixo">R$ fixo por venda</option></select>
+        <select class="pf-input" id="pcap-tipo-${p.id}" style="flex:1;margin-bottom:0"><option value="pct_venda">% da venda</option><option value="pct_lucro">% do lucro</option><option value="fixo">R$ fixo por venda</option></select>
         <input class="pf-input" id="pcap-valor-${p.id}" inputmode="decimal" placeholder="10" style="width:80px;margin-bottom:0">
       </div>
       <div style="display:flex;gap:8px">
@@ -1803,7 +1861,7 @@ function renderParceiros() {
       </div>
     </div>`).join('')) : '';
   aprovWrap.innerHTML = aprov.length ? ('<div style="font-size:12px;font-weight:800;color:var(--fg-dim);margin-bottom:6px">PARCEIROS ATIVOS</div>' + aprov.map(p => {
-    const regra = p.tipo === 'fixo' ? ('R$ ' + Number(p.valor || 0).toFixed(2).replace('.', ',') + ' por venda') : (String(p.valor || 0).replace('.', ',') + '% do lucro');
+    const regra = p.tipo === 'fixo' ? ('R$ ' + Number(p.valor || 0).toFixed(2).replace('.', ',') + ' por venda') : (String(p.valor || 0).replace('.', ',') + (p.tipo === 'pct_venda' ? '% da venda' : '% do lucro'));
     const c = (_comissoes || []).find(x => x.id === p.id);
     const comLine = _comissaoBlock(c);
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
@@ -1812,6 +1870,7 @@ function renderParceiros() {
         <span class="mini-link" style="color:var(--pink)" onclick="deleteParceiro('${p.id}')">remover</span>
       </div>
       ${p.ref_code ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:5px"><span class="mini-link" onclick="copyFuncLink('${p.ref_code}')">copiar link de indicação ✦</span></div>` : ''}
+      ${p.pix_key ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:3px">Pix: ${esc(p.pix_key)}</div>` : '<div style="font-size:11px;color:var(--pink);margin-top:3px">⚠ sem chave Pix (não dá pra pagar automático)</div>'}
     </div>`;
   }).join('')) : (pend.length ? '' : '<div style="font-size:13px;color:var(--fg-dim)">Nenhum parceiro ainda. Quando um cliente pedir pra ser parceiro pelo app, o pedido aparece aqui pra você aprovar.</div>');
 }

@@ -4666,10 +4666,17 @@ async function handleFilialPainel(req, res) {
     }
     const _payments = Array.isArray((filial.metadata || {}).commission_payments) ? (filial.metadata || {}).commission_payments : [];
     const comissoes = _funcs.concat(_parcAprov).map(f => {
-      const myOrders = commOrders.filter(o => ((o.metadata || {}).employee_id) === f.id);
+      // funcionário: pedidos que ele registrou (employee_id).
+      // indicador/parceiro: pedidos que vieram pelo link dele (?ref= → metadata.parceiro_ref).
+      const myOrders = commOrders.filter(o => {
+        const m = o.metadata || {};
+        return m.employee_id === f.id || (f.ref_code && m.parceiro_ref === f.ref_code);
+      });
       let comissaoCents = 0;
       if (f.tipo === 'fixo') {
         comissaoCents = myOrders.length * Math.round((Number(f.valor) || 0) * 100); // R$ fixo por venda
+      } else if (f.tipo === 'pct_venda') {
+        for (const o of myOrders) comissaoCents += Math.round(Number(o.total_cents || 0) * (Number(f.valor) || 0) / 100); // % da venda
       } else { // pct_lucro
         for (const o of myOrders) {
           let lucroCents = 0;
@@ -4724,6 +4731,8 @@ async function handleFilialPainel(req, res) {
         plan: _planFor(filial),
         featured_mode: ((filial.metadata || {}).featured_mode) || 'auto',
         accepts_partners: !!((filial.metadata || {}).accepts_partners),
+        indicador_offer: (filial.metadata || {}).indicador_offer || { tipo: 'pct_venda', valor: 0 },
+        affiliate_min_cents: (typeof (filial.metadata || {}).affiliate_min_cents === 'number') ? filial.metadata.affiliate_min_cents : 2000,
         commission_period: _cw.mode, // 'week' | 'month'
       },
       plans_catalog: DROPE_PLANS_CATALOG(),
@@ -5009,6 +5018,15 @@ async function handleFilialProfileSave(req, res) {
     if (body.featured_mode && ['auto', 'manual'].includes(body.featured_mode)) md.featured_mode = body.featured_mode;
     // programa de parceria/indicação: loja liga/desliga se aceita parceiros
     if (typeof body.accepts_partners === 'boolean') md.accepts_partners = body.accepts_partners;
+    // oferta de indicação: quanto a loja paga a quem divulga (tipo + valor) — a loja decide
+    if (body.indicador_offer && typeof body.indicador_offer === 'object') {
+      const t = body.indicador_offer.tipo;
+      const tipo = ['fixo', 'pct_venda', 'pct_lucro'].includes(t) ? t : 'pct_venda';
+      const valor = Math.max(0, Number(body.indicador_offer.valor) || 0);
+      md.indicador_offer = { tipo, valor };
+    }
+    // piso mínimo pra pagar o indicador (junta e paga quando passa disso)
+    if (body.affiliate_min_cents != null) md.affiliate_min_cents = Math.max(0, Math.round(Number(body.affiliate_min_cents) || 0));
     // cadência de pagamento das comissões: semanal ou mensal (escolha do dono)
     if (body.commission_period && ['week', 'month'].includes(body.commission_period)) md.commission_period = body.commission_period;
     // tabela de frete do entregador: base + por km (reais)
@@ -7054,6 +7072,30 @@ async function handleEntregadorCorridaAction(req, res) {
   } catch (e) { console.error('[entregador_corrida_action] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// ── MOTOR ÚNICO DE PIX-OUT (pagamento de saída) ───────────────────────────────
+// Ponto ÚNICO por onde sai dinheiro do DROPE pra terceiros (indicador, entregador).
+// Hoje é um stub SEGURO: só envia de verdade quando um provedor de payout
+// (Transfeera / Celcoin / etc.) estiver configurado via env PAYOUT_PROVIDER.
+// Sem provedor => não move dinheiro. Nunca lança (não quebra o fluxo que chamou).
+// Retorna { ok, provider?, txid?, reason? }.
+async function _pixPayout(pixKey, amountCents, description) {
+  try {
+    const key = String(pixKey || '').trim();
+    const cents = Math.round(Number(amountCents) || 0);
+    if (!key) return { ok: false, reason: 'sem_chave_pix' };
+    if (cents <= 0) return { ok: false, reason: 'valor_invalido' };
+    const provider = String(process.env.PAYOUT_PROVIDER || '').toLowerCase().trim();
+    if (!provider) return { ok: false, reason: 'provider_nao_configurado' };
+    // TODO(fase 2): integrar o provedor escolhido (envio de Pix via API).
+    //   if (provider === 'transfeera') { ...cria transferência Pix pra `key`... return { ok:true, provider, txid } }
+    //   if (provider === 'celcoin')    { ... }
+    return { ok: false, provider, reason: 'provider_nao_integrado' };
+  } catch (e) {
+    console.error('[_pixPayout] ERROR:', e.message);
+    return { ok: false, reason: 'erro' };
+  }
+}
+
 // POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
 // Cria um pedido 'pending' em drope_filiais.metadata.parceiros; a loja aprova depois.
 async function handleFilialParceiroRequest(req, res) {
@@ -7074,9 +7116,10 @@ async function handleFilialParceiroRequest(req, res) {
     if (nome.length < 2 || phone.length < 10) return res.status(400).json({ ok: false, error: 'nome e telefone válidos são obrigatórios' });
     const md = filial.metadata || {};
     let parceiros = Array.isArray(md.parceiros) ? md.parceiros : [];
+    const pixKey = String(body.pix_key || '').trim().slice(0, 80);
     const existing = parceiros.find(p => (p.phone || '') === phone);
     if (existing) return res.status(200).json({ ok: true, already: existing.status || 'pending' });
-    parceiros.push({ id: 'pc-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), nome, phone, email, status: 'pending', requested_at: new Date().toISOString() });
+    parceiros.push({ id: 'pc-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000), nome, phone, email, pix_key: pixKey || null, status: 'pending', requested_at: new Date().toISOString() });
     md.parceiros = parceiros;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     _notify('filial', filial.id, 'partner_request', 'Novo pedido de parceria ✦', `${nome} quer divulgar a sua loja`).catch(() => {});
@@ -7144,8 +7187,9 @@ async function handleFilialParceiroManage(req, res) {
       parceiros = parceiros.filter(x => x.id !== body.id);
     } else if (op === 'approve' || op === 'save') {
       if (!p) return res.status(404).json({ ok: false, error: 'parceiro não encontrado' });
-      p.tipo = (body.tipo === 'fixo') ? 'fixo' : 'pct_lucro';
+      p.tipo = ['fixo', 'pct_venda', 'pct_lucro'].includes(body.tipo) ? body.tipo : 'pct_lucro';
       let valor = Number(body.valor); p.valor = (isFinite(valor) && valor >= 0) ? valor : 0;
+      if (typeof body.pix_key === 'string') p.pix_key = body.pix_key.trim().slice(0, 80) || null;
       if (op === 'approve') {
         p.status = 'approved'; p.approved_at = new Date().toISOString();
         if (!p.ref_code) {
