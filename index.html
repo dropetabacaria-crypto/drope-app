@@ -1072,6 +1072,25 @@
   .loja-card { position: relative; display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 14px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.32), 0 0 20px rgba(91,33,182,0.10); transition: transform .12s; overflow: hidden; }
   .loja-card:active { transform: scale(0.985); }
   .loja-card::after { content: ''; position: absolute; inset: 0; border-radius: 20px; background: linear-gradient(120deg, transparent 55%, rgba(176,38,255,0.08)); pointer-events: none; }
+  /* ===== Seja parceiro (hero + cards de loja) ===== */
+  .parc-hero { position: relative; overflow: hidden; border-radius: 22px; padding: 22px 20px; margin: 8px 0 22px; background: linear-gradient(130deg,#8C50FF 0%, #FF2D6F 60%, #FF8533 118%); box-shadow: 0 14px 34px rgba(176,38,255,0.30); }
+  .parc-hero::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.20), transparent 60%); pointer-events: none; }
+  .parc-hero-emoji { font-size: 34px; line-height: 1; }
+  .parc-hero-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 26px; color: #fff; margin-top: 8px; letter-spacing: -0.5px; }
+  .parc-hero-sub { font-size: 13.5px; color: rgba(255,255,255,0.92); line-height: 1.45; margin-top: 6px; max-width: 94%; }
+  .parc-hero-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+  .parc-step { font-size: 11.5px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 5px 11px; backdrop-filter: blur(4px); }
+  .parc-sec-label { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-dim); margin: 0 2px 12px; }
+  .parc-card { position: relative; display: flex; align-items: center; gap: 13px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 12px; margin-bottom: 12px; box-shadow: 0 8px 22px rgba(0,0,0,0.30), 0 0 18px rgba(91,33,182,0.08); overflow: hidden; }
+  .parc-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 58%, rgba(212,255,46,0.06)); pointer-events: none; }
+  .parc-card-cover { width: 58px; height: 58px; border-radius: 15px; object-fit: cover; flex: 0 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .parc-card-cover-ph { width: 58px; height: 58px; border-radius: 15px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 24px; background: linear-gradient(135deg,#8C50FF,#FF2D6F); }
+  .parc-card-body { flex: 1; min-width: 0; }
+  .parc-card-name { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 15.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .parc-card-meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .parc-card-btn { flex: 0 0 auto; padding: 10px 16px; font-size: 13px; font-weight: 800; border: 0; border-radius: 999px; background: var(--lime); color: #0A0A14; cursor: pointer; font-family: inherit; white-space: nowrap; box-shadow: 0 4px 14px rgba(212,255,46,0.30); transition: transform .12s; }
+  .parc-card-btn:active { transform: scale(0.94); }
+  .parc-empty { text-align: center; color: var(--text-dim); font-size: 13.5px; line-height: 1.6; padding: 34px 12px; }
   /* ===== Header de loja estilo iFood (subcapa + logo sobreposto + info row) ===== */
   .lj-hd-cover { width: 100%; height: 118px; background-size: cover; background-position: center; }
   .lj-hd-cover-ph { background: linear-gradient(120deg,#8C50FF 0%, #FF2D6F 55%, #FF8533 100%); }
@@ -4518,9 +4537,18 @@
       <div class="brand-small">Seja parceiro</div>
       <div style="width:40px"></div>
     </div>
-    <div style="padding:0 20px 40px">
-      <div class="onboard-title" style="margin-top:8px">Divulgue e ganhe ✦</div>
-      <div class="onboard-sub" style="margin-bottom:16px">Escolha uma loja que aceita parceiros. Você divulga por um link e ganha comissão nas vendas que trouxer — a loja aprova seu pedido.</div>
+    <div style="padding:0 16px 40px">
+      <div class="parc-hero">
+        <div class="parc-hero-emoji">🤝</div>
+        <div class="parc-hero-title">Divulgue e ganhe ✦</div>
+        <div class="parc-hero-sub">Escolha uma loja, divulgue pelo seu link e ganhe comissão nas vendas que você trouxer.</div>
+        <div class="parc-hero-steps">
+          <span class="parc-step">💸 comissão por venda</span>
+          <span class="parc-step">🔗 link só seu</span>
+          <span class="parc-step">✅ a loja aprova</span>
+        </div>
+      </div>
+      <div class="parc-sec-label">Lojas que aceitam parceiros</div>
       <div id="parceiro-lojas-list"></div>
     </div>
   </div>
@@ -8185,30 +8213,31 @@
   async function renderParceiroLojas() {
     const list = document.getElementById('parceiro-lojas-list');
     if (!list) return;
-    list.innerHTML = '<div class="empty-mini">carregando lojas ✦</div>';
+    list.innerHTML = '<div class="parc-empty">carregando lojas ✦</div>';
     try {
       const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
       const d = await r.json();
       const lojas = (d && Array.isArray(d.filiais) ? d.filiais : []).filter(f => f.accepts_partners);
       if (!lojas.length) {
-        list.innerHTML = '<div class="empty-mini">nenhuma loja está aceitando parceiros agora ✦<br>volta mais tarde</div>';
+        list.innerHTML = '<div class="parc-empty">🔍 nenhuma loja está aceitando parceiros agora.<br>volta mais tarde ✦</div>';
         return;
       }
       list.innerHTML = lojas.map(f => {
         const cover = f.cover
-          ? `<img class="loja-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false" style="width:56px;height:56px">`
-          : `<div class="loja-cover-ph" style="width:56px;height:56px;font-size:22px"></div>`;
+          ? `<img class="parc-card-cover" src="${escapeHtml(f.cover)}" alt="" draggable="false">`
+          : `<div class="parc-card-cover-ph">🏪</div>`;
         const cityTc = (f.city || '').toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
-        return `<div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px">
+        const meta = [cityTc, f.produtos ? `${f.produtos} produto${f.produtos !== 1 ? 's' : ''}` : ''].filter(Boolean).join(' ✦ ');
+        return `<div class="parc-card">
           ${cover}
-          <div style="flex:1;min-width:0">
-            <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name || '')}</div>
-            <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${escapeHtml(cityTc)}${f.produtos ? ` ✦ ${f.produtos} produto${f.produtos !== 1 ? 's' : ''}` : ''}</div>
+          <div class="parc-card-body">
+            <div class="parc-card-name">${escapeHtml(f.name || '')}</div>
+            <div class="parc-card-meta">${escapeHtml(meta)}</div>
           </div>
-          <button style="flex:0 0 auto;padding:10px 16px;font-size:13px;font-weight:800;border:0;border-radius:999px;background:var(--store-accent,var(--lime));color:#0A0A14;cursor:pointer;font-family:inherit;white-space:nowrap" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">quero ✦</button>
+          <button class="parc-card-btn" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">quero ✦</button>
         </div>`;
       }).join('');
-    } catch (e) { list.innerHTML = '<div class="empty-mini">erro ao carregar ✦ tenta de novo</div>'; }
+    } catch (e) { list.innerHTML = '<div class="parc-empty">erro ao carregar ✦ tenta de novo</div>'; }
   }
   async function requestParceiro(slug, name) {
     if (!slug) return;
