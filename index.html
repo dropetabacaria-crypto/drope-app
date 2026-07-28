@@ -4202,7 +4202,7 @@
       <div id="onboard-step-2" class="onboard-step" style="display:none">
         <div class="onboard-body">
           <div class="onboard-title">boas-vindas ✦</div>
-          <div class="onboard-sub">só 3 coisinhas e você tá dentro</div>
+          <div class="onboard-sub">Só 3 coisinhas e você tá dentro</div>
         </div>
         <div class="welcome-form">
           <input type="text" id="welcome-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateWelcomeBtn()">
@@ -4276,7 +4276,7 @@
   <div class="guest-gate" id="guest-gate">
     <div class="guest-gate-handle"></div>
     <div class="onboard-title" style="margin-bottom:4px">antes de dropar ✦</div>
-    <div class="onboard-sub" style="margin-bottom:16px">pra fechar o pedido, a gente precisa saber quem é você</div>
+    <div class="onboard-sub" style="margin-bottom:16px">Pra fechar o pedido, a gente precisa saber quem é você</div>
     <div class="welcome-form">
       <input type="text" id="gate-name" class="card-input" placeholder="seu nome (ou apelido)" maxlength="24" autocomplete="given-name" oninput="updateGateBtn()">
       <input type="tel" id="gate-phone" class="card-input" placeholder="celular com ddd ✦ ex: 11 91234-5678" autocomplete="tel" inputmode="tel" oninput="formatGatePhone(this); updateGateBtn()">
@@ -4485,7 +4485,7 @@
         <span class="lj-lbl">Endereço (rua e número)</span>
         <input id="lj-address" class="card-input" placeholder="ex: Rua das Flores, 100" maxlength="90" oninput="_ljBtn()">
       </label>
-      <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">usamos pra mostrar sua loja pros clientes mais perto</div>
+      <div class="onboard-sub" style="font-size:11px;margin:2px 0 0">Usamos pra mostrar sua loja pros clientes mais perto</div>
 
       <div class="lj-sec lj-sec-label">Seu contato</div>
       <label class="lj-field">
@@ -4499,7 +4499,7 @@
       <label class="lj-field">
         <span class="lj-lbl">CPF ou CNPJ</span>
         <input id="lj-doc" class="card-input" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0000-00" maxlength="18" oninput="formatLjDoc(this); _ljBtn()">
-        <span class="onboard-sub" style="font-size:11px;margin:2px 0 0">usamos pra emitir o repasse das suas vendas</span>
+        <span class="onboard-sub" style="font-size:11px;margin:2px 0 0">Usamos pra emitir o repasse das suas vendas</span>
       </label>
 
       <div class="lj-sec lj-sec-label">Seu acesso ao painel</div>
@@ -4619,14 +4619,14 @@
     <div class="cart-empty" id="cart-empty" style="display:none">
       
       <div class="t">Seu carrinho tá seco</div>
-      <div class="s">bora dropar algum sabor?</div>
+      <div class="s">Bora dropar algum sabor?</div>
       <button class="btn-primary" onclick="go('home')" style="max-width: 220px">ver catálogo</button>
     </div>
 
     <!-- Cupom no carrinho (antes do total) -->
     <div id="cart-coupon-area" style="padding: 0 20px; margin-top: 8px;">
       <div class="co-coupon-toggle" id="cart-coupon-toggle" onclick="toggleCartCoupon()">
-        tem cupom?
+        Tem cupom?
       </div>
       <div class="co-coupon" id="cart-coupon-wrap" style="display:none">
         <div class="co-coupon-row">
@@ -8624,7 +8624,7 @@
   function _renderAppNotifBadge(n) { const b = document.getElementById('app-notif-badge'); if (!b) return; if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'flex'; } else b.style.display = 'none'; }
   function _appNotifTime(iso) { try { const d = new Date(iso); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
   function openNotifsApp() {
-    if (typeof isGuest === 'function' && isGuest()) { toast('entra na sua conta pra ver seus avisos ✦'); try { openCustomerLogin(); } catch (e) {} return; }
+    if (typeof isGuest === 'function' && isGuest()) { toast('Entra na sua conta pra ver seus avisos ✦'); try { openCustomerLogin(); } catch (e) {} return; }
     const list = document.getElementById('app-notif-list'); const ns = _appNotifs || [];
     list.innerHTML = ns.length ? ns.map(n => `<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;${n.read ? 'opacity:.6' : ''}"><div style="font-weight:700;font-size:15px">${escapeHtml(n.title)}</div>${n.body ? `<div style="font-size:13px;color:var(--text-dim);margin-top:3px">${escapeHtml(n.body)}</div>` : ''}<div style="font-size:11px;color:var(--text-dim);margin-top:5px">${_appNotifTime(n.created_at)}</div></div>`).join('') : '<div style="text-align:center;color:var(--text-dim);padding:50px 0">nenhum aviso ainda ✦</div>';
     document.getElementById('app-notif-ov').style.display = 'flex';
@@ -8786,7 +8786,7 @@
     const pn = document.getElementById('prof-name');
     if (pn) pn.textContent = guest ? 'Convidado' : (profile.name || 'Você');
     const pp = document.getElementById('prof-phone');
-    if (pp) pp.textContent = guest ? 'crie sua conta pra pedir ✦' : (profile.phone || '');
+    if (pp) pp.textContent = guest ? 'Crie sua conta pra pedir ✦' : (profile.phone || '');
   }
   function pickAvatar(em) {
     pickedAvatar = em;
@@ -8912,7 +8912,7 @@
         <div class="addr-empty">
           <div class="icon"></div>
           <div class="t">Nenhum endereço ainda</div>
-          <div class="s">cadastra um pra dropar direto na sua porta</div>
+          <div class="s">Cadastra um pra dropar direto na sua porta</div>
           <button class="btn-primary" onclick="openAddressForm()" style="max-width: 240px; margin: 0 auto">cadastrar endereço ✦</button>
         </div>`;
       cta.style.display = 'none';
@@ -9227,7 +9227,7 @@
   function renderAdminProducts() {
     const list = document.getElementById('admin-products-list');
     if (!products.length) {
-      list.innerHTML = '<div class="empty-mini" style="grid-column:auto">nenhum drope cadastrado ✦</div>';
+      list.innerHTML = '<div class="empty-mini" style="grid-column:auto">Nenhum drope cadastrado ✦</div>';
       return;
     }
     const pairs = products.map((p, i) => ({ p, i }));
@@ -9238,7 +9238,7 @@
         })
       : pairs;
     if (!filtered.length) {
-      list.innerHTML = '<div class="empty-mini" style="grid-column:auto">nenhum drope com esse nome ✦</div>';
+      list.innerHTML = '<div class="empty-mini" style="grid-column:auto">Nenhum drope com esse nome ✦</div>';
       return;
     }
     list.innerHTML = filtered.map(({ p, i }) => {
@@ -10144,7 +10144,7 @@
         : 'resultados';
       html = items.length
         ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
-        : '<div class="empty-mini">nenhum produto bate com os filtros ✦</div>';
+        : '<div class="empty-mini">Nenhum produto bate com os filtros ✦</div>';
     } else if (filtros.length) {
       // Seções dinâmicas: uma por categoria da loja, na ordem que ela definiu.
       filtros.forEach(f => {
@@ -10158,13 +10158,13 @@
       // Produtos sem categoria (legado) → seção "Outros", só se existir.
       const semCat = filtered.filter(({ p }) => !p.filtro_id).sort(_sortStockThenNew);
       if (semCat.length) html += _homeSectionHTML('Outros', semCat, { cap: 6, moreOnclick: 'openCatalog()' });
-      if (!html) html = '<div class="empty-mini">essa loja ainda não tem produtos ✦</div>';
+      if (!html) html = '<div class="empty-mini">Essa loja ainda não tem produtos ✦</div>';
     } else {
       // Loja sem categorias → uma seção só "Cardápio" (preview + ver todos).
       const items = filtered.slice().sort(_sortStockThenNew);
       html = items.length
         ? _homeSectionHTML('Cardápio', items, { cap: 8, moreOnclick: 'openCatalog()' })
-        : '<div class="empty-mini">essa loja ainda não tem produtos ✦</div>';
+        : '<div class="empty-mini">Essa loja ainda não tem produtos ✦</div>';
     }
     container.innerHTML = html;
 
@@ -10230,7 +10230,7 @@
       <div class="hero hero-seeall" onclick="openCatalog()">
         <div class="hero-seeall-arrow">→</div>
         <div class="hero-name display">ver todos<br>os drops</div>
-        <div class="hero-seeall-sub">explora o catálogo</div>
+        <div class="hero-seeall-sub">Explora o catálogo</div>
       </div>`;
   }
   updateHero();
