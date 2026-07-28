@@ -1110,6 +1110,15 @@
   .lj-hd-chip { font-size: 11px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
   .lj-hd-chip.open { color: #4ADE80; border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.1); }
   .lj-hd-chip.closed { color: #FF6B6B; border-color: rgba(255,107,107,0.35); background: rgba(255,107,107,0.1); }
+  /* Barra "Ver sacola" fixa (resumo do carrinho, estilo iFood) */
+  .cart-fab { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: linear-gradient(135deg,#8C50FF 0%, #FF2D6F 100%); box-shadow: 0 12px 32px rgba(176,38,255,0.42); cursor: pointer; border: 1px solid rgba(255,255,255,0.14); }
+  .cart-fab.show { display: flex; }
+  .cart-fab:active { transform: translateX(-50%) scale(0.99); }
+  .cart-fab-left { color: #fff; min-width: 0; }
+  .cart-fab-count { font-size: 11.5px; font-weight: 700; opacity: 0.92; }
+  .cart-fab-total { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 17px; }
+  .cart-fab-eco { font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.28); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
+  .cart-fab-btn { flex: 0 0 auto; background: #fff; color: #0A0A14; font-weight: 800; font-size: 13px; border-radius: 999px; padding: 10px 15px; }
   /* Barra de categorias compacta sticky (aparece ao rolar) */
   .loja-cat-sticky { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; z-index: 60; display: none; background: var(--bg); border-bottom: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
   .loja-cat-sticky.show { display: block; }
@@ -4874,6 +4883,15 @@
 
   <!-- ============ SUCCESS ============ -->
   <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:9999;display:none"></canvas>
+
+  <!-- Barra "Ver sacola" (resumo do carrinho, fixa no rodapé das telas da loja) -->
+  <div class="cart-fab" id="cart-fab" onclick="goCartSafe()">
+    <div class="cart-fab-left">
+      <div class="cart-fab-count" id="cart-fab-count">0 itens</div>
+      <div><span class="cart-fab-total" id="cart-fab-total">R$ 0,00</span><span class="cart-fab-eco" id="cart-fab-eco" style="display:none"></span></div>
+    </div>
+    <div class="cart-fab-btn">Ver sacola →</div>
+  </div>
 
   <!-- Lightbox: foto da loja em tamanho maior -->
   <div id="store-photo-ov" onclick="closeStorePhoto()" style="position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:28px">
@@ -10286,6 +10304,7 @@
     window.scrollTo(0, 0);
     // barra de categorias sticky some ao trocar de tela (reavalia no próximo scroll)
     { const _st = document.getElementById('loja-cat-sticky'); if (_st && screen !== 'home') _st.classList.remove('show'); }
+    try { updateCartFab(); } catch (e) {}
     // tema da loja (claro/cor) vale só DENTRO da loja; fora volta pro DROPE dark
     const inStore = (screen === 'home' || screen === 'catalog' || screen === 'detail' || screen === 'cart' || screen === 'checkout');
     document.body.classList.toggle('in-loja', inStore);
@@ -12051,6 +12070,23 @@
     badge.textContent = total;
     badge.style.display = total > 0 ? 'flex' : 'none';
     saveCart();
+    try { updateCartFab(); } catch (e) {}
+  }
+  // Barra "Ver sacola" fixa — resumo do carrinho nas telas da loja (estilo iFood)
+  function updateCartFab() {
+    const fab = document.getElementById('cart-fab'); if (!fab) return;
+    const cur = (document.querySelector('.screen.active') || {}).id;
+    const onStore = ['home', 'catalog', 'detail'].includes(cur);
+    const n = cart.reduce((s, i) => s + i.qty, 0);
+    if (!onStore || n <= 0) { fab.classList.remove('show'); return; }
+    const sum = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const discount = (appliedCoupon && !appliedCoupon.isTest) ? (appliedCoupon.discount || 0) : 0;
+    const totalVal = Math.max(0, sum - discount);
+    document.getElementById('cart-fab-count').textContent = n + (n === 1 ? ' item' : ' itens');
+    document.getElementById('cart-fab-total').textContent = money(totalVal);
+    const eco = document.getElementById('cart-fab-eco');
+    if (discount > 0) { eco.style.display = ''; eco.textContent = 'Economia ' + money(discount) + ' ✦'; } else { eco.style.display = 'none'; }
+    fab.classList.add('show');
   }
   updateCartBadge();
   checkAdminRoute();
