@@ -5126,7 +5126,7 @@
           <span onclick="togglePw('clogin-pw-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:600;user-select:none">mostrar</span>
         </div>
         <button class="btn-primary" id="clogin-pw-btn" onclick="loginWithPassword()" style="width:100%;margin-top:16px">entrar ✦</button>
-        <div style="text-align:center;margin-top:12px"><span onclick="showCodeLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">‹ usar código no WhatsApp</span></div>
+        <div style="text-align:center;margin-top:12px"><span onclick="showCreateAccount()" style="color:var(--lime);font-size:13px;cursor:pointer">Criar conta ›</span><span id="clogin-code-link" style="display:none">&nbsp; · &nbsp;<span onclick="showCodeLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">usar código no WhatsApp</span></span></div>
         <div id="clogin-msg-pw" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
       <div id="clogin-step2" style="display:none">
@@ -5136,6 +5136,20 @@
         <button class="btn-primary" id="clogin-verify" onclick="verifyOtp()" style="width:100%;margin-top:16px">entrar ✦</button>
         <div style="text-align:center;margin-top:12px"><span onclick="backToPhone()" style="color:var(--text-dim);font-size:13px;cursor:pointer">‹ trocar número</span> &nbsp;·&nbsp; <span onclick="sendOtp(true)" id="clogin-resend" style="color:var(--lime);font-size:13px;cursor:pointer">reenviar código</span></div>
         <div id="clogin-msg2" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
+      </div>
+      <div id="clogin-step-create" style="display:none">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Criar conta</div>
+        <div style="color:var(--text-dim);font-size:13px;margin:6px 0 18px">Sua conta guarda seus pedidos, favoritos e endereços em qualquer aparelho ✦</div>
+        <input id="creg-name" class="card-input" placeholder="Seu nome" maxlength="60" style="width:100%;font-size:16px;padding:15px">
+        <input id="creg-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px;margin-top:10px">
+        <input id="creg-email" class="card-input" type="email" inputmode="email" placeholder="E-mail" style="width:100%;font-size:16px;padding:15px;margin-top:10px">
+        <div style="position:relative;margin-top:10px">
+          <input id="creg-pass" class="card-input" type="password" placeholder="Crie uma senha (mín. 6)" style="width:100%;font-size:16px;padding:15px;padding-right:74px" onkeydown="if(event.key==='Enter')registerAccount()">
+          <span onclick="togglePw('creg-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:600;user-select:none">mostrar</span>
+        </div>
+        <button class="btn-primary" id="creg-btn" onclick="registerAccount()" style="width:100%;margin-top:16px">Criar conta ✦</button>
+        <div style="text-align:center;margin-top:12px"><span onclick="showPwLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Já tenho conta ›</span></div>
+        <div id="clogin-msg-create" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
     </div>
   </div>
@@ -6890,8 +6904,8 @@
   }
   // Criar conta a partir do perfil (convidado) — sem pedido em andamento
   function openAccountCreate() {
-    pendingAfterGate = 'account';
-    openGuestGate();
+    openCustomerLogin();
+    showCreateAccount();
   }
   // Detecta se este aparelho tem uma tabacaria (cadastrou aqui OU logou no painel).
   // App e filial.html dividem o mesmo localStorage (mesma origem).
@@ -8726,11 +8740,54 @@
   let _otpPhone = '';
   function formatLoginPhone(el) { let d = el.value.replace(/\D/g, '').slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
   function _loginPhoneDigits() { return (document.getElementById('clogin-phone').value || '').replace(/\D/g, ''); }
-  function openCustomerLogin() { document.getElementById('clogin-step1').style.display = 'block'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step-pw').style.display = 'none'; document.getElementById('clogin-msg1').textContent = ''; document.getElementById('clogin-msg2').textContent = ''; const mpw = document.getElementById('clogin-msg-pw'); if (mpw) mpw.textContent = ''; document.getElementById('clogin-ov').style.display = 'flex'; }
-  function showPwLogin() { document.getElementById('clogin-step1').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step-pw').style.display = 'block'; const pf = document.getElementById('clogin-pw-phone'), src = document.getElementById('clogin-phone'); if (pf && src && src.value && !pf.value) pf.value = src.value; document.getElementById('clogin-msg-pw').textContent = ''; const pw = document.getElementById('clogin-pw-pass'); if (pw) pw.type = 'password'; const tg = document.querySelector("[onclick=\"togglePw('clogin-pw-pass', this)\"]"); if (tg) tg.textContent = 'mostrar'; }
-  function showCodeLogin() { document.getElementById('clogin-step-pw').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step1').style.display = 'block'; }
+  // Login por WhatsApp (OTP): desligado enquanto o número oficial (Meta) não está no ar.
+  // Com false: abre direto no login por senha, esconde o código, e mostra "Criar conta".
+  var WA_LOGIN_ON = false;
+  function _cloginShow(stepId) {
+    ['clogin-step1', 'clogin-step2', 'clogin-step-pw', 'clogin-step-create'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = (id === stepId) ? 'block' : 'none'; });
+    ['clogin-msg1', 'clogin-msg2', 'clogin-msg-pw', 'clogin-msg-create'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+    const cl = document.getElementById('clogin-code-link'); if (cl) cl.style.display = WA_LOGIN_ON ? '' : 'none';
+  }
+  function openCustomerLogin() {
+    if (WA_LOGIN_ON) _cloginShow('clogin-step1'); else showPwLogin();
+    document.getElementById('clogin-ov').style.display = 'flex';
+  }
+  function showPwLogin() {
+    _cloginShow('clogin-step-pw');
+    const pf = document.getElementById('clogin-pw-phone'), src = document.getElementById('clogin-phone');
+    if (pf && src && src.value && !pf.value) pf.value = src.value;
+    const pw = document.getElementById('clogin-pw-pass'); if (pw) pw.type = 'password';
+    const tg = document.querySelector("[onclick=\"togglePw('clogin-pw-pass', this)\"]"); if (tg) tg.textContent = 'mostrar';
+  }
+  function showCodeLogin() { _cloginShow('clogin-step1'); }
+  function showCreateAccount() {
+    _cloginShow('clogin-step-create');
+    const n = document.getElementById('creg-name'), p = document.getElementById('creg-phone'), e = document.getElementById('creg-email');
+    if (n && !n.value && profile.name) n.value = profile.name;
+    if (e && !e.value && profile.email) e.value = profile.email;
+    if (p && !p.value) { const src = ((document.getElementById('clogin-pw-phone') || {}).value) || ((document.getElementById('clogin-phone') || {}).value) || (profile.phone || ''); if (src) p.value = src; }
+  }
+  async function registerAccount() {
+    const name = (document.getElementById('creg-name').value || '').trim();
+    const phone = (document.getElementById('creg-phone').value || '').replace(/\D/g, '');
+    const email = (document.getElementById('creg-email').value || '').trim();
+    const pass = document.getElementById('creg-pass').value || '';
+    const msg = document.getElementById('clogin-msg-create');
+    if (name.length < 2) { msg.textContent = 'Põe seu nome'; return; }
+    if (phone.replace(/^55/, '').length < 10) { msg.textContent = 'Põe um número válido com DDD'; return; }
+    if (pass.length < 6) { msg.textContent = 'Crie uma senha de pelo menos 6 caracteres'; return; }
+    const btn = document.getElementById('creg-btn'); btn.textContent = 'Criando...'; btn.disabled = true;
+    try {
+      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, password: pass }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; _applyCustomerLogin(d.token, phone, name); }
+      else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
+      else { msg.textContent = d.error || 'Não deu pra criar a conta'; }
+    } catch (e) { msg.textContent = 'Erro de rede'; }
+    finally { btn.textContent = 'Criar conta ✦'; btn.disabled = false; }
+  }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
-  function backToPhone() { document.getElementById('clogin-step2').style.display = 'none'; document.getElementById('clogin-step1').style.display = 'block'; }
+  function backToPhone() { _cloginShow('clogin-step1'); }
   async function sendOtp(resend) {
     const phone = (resend && _otpPhone) ? _otpPhone : _loginPhoneDigits();
     const msg = document.getElementById(resend ? 'clogin-msg2' : 'clogin-msg1');
