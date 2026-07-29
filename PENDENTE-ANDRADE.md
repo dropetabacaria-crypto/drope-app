@@ -37,5 +37,12 @@ O uazapi (dropepod) morreu (503) e o grátis apaga instância em 1h. Decisão: p
 ## 5. Endurecer segurança (estava pausado de propósito)
 - [ ] Rever RLS / regras de acesso com o Andrade quando o app já estiver funcional. Foco atual é funcionar; endurecer depois.
 
+## 6. Modelo de pagamento estilo iFood (coletar + repassar) — conversa com o Rafael (29/07)
+Hoje: split via Mercado Pago (cada loja conecta o PSP dela; loja sem MP não vende). Funciona pra lançar.
+Futuro (jeito iFood, pra NÃO obrigar a loja a ter PSP): o DROPE **recebe todo o dinheiro** numa conta própria (1 adquirente/PSP) e **repassa** pra cada loja (Pix/TED) via **provedor de payout** (Transfeera/Celcoin), descontando a comissão. A loja só informa **conta bancária/chave Pix** — não conecta PSP nenhum.
+- [ ] Escolher provedor de payout (Pix-out pra terceiros) — `_pixPayout` em webhook.js já é o esqueleto.
+- [ ] Resolver o lado regulatório/contábil (arranjo de pagamento, BACEN, impostos, antifraude, chargeback) — é o que pesa.
+- Obs: iFood usa Adyen + "iFood Pago" (instituição de pagamento própria) por trás. É referência de **modelo**, não de fornecedor.
+
 ---
 _Atualizar esta lista conforme as coisas forem resolvidas._
