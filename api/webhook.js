@@ -14079,6 +14079,37 @@ async function handleCustomerLoginPassword(req, res) {
   } catch (e) { console.error('[customer_login_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=customer_register { phone, name, email, password } → cria conta com SENHA
+// e emite sessão, SEM OTP. É o que permite conta persistente sem depender do WhatsApp.
+// Se já existe conta COM senha nesse telefone, NÃO sobrescreve (manda entrar) — protege
+// o dono. (Segurança de verificação de posse do número fica pro endurecimento futuro.)
+async function handleCustomerRegister(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = _normPhone(body.phone);
+    const password = String(body.password || '');
+    const name = String(body.name || '').trim().slice(0, 60);
+    const email = String(body.email || '').trim().toLowerCase();
+    if (phone.length < 10 || phone.length > 11) return res.status(400).json({ ok: false, error: 'telefone inválido' });
+    if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id,pass_hash&limit=1`);
+    const existing = rows && rows[0];
+    if (existing && existing.pass_hash) return res.status(409).json({ ok: false, error: 'já existe uma conta com esse telefone — entre com sua senha' });
+    const p = _ljHashPassword(password);
+    const token = crypto.randomBytes(24).toString('hex');
+    const patch = { pass_salt: p.salt, pass_hash: p.hash, session_hash: _sha256hex(token), session_exp: new Date(Date.now() + 60 * 86400000).toISOString(), last_seen_at: new Date().toISOString() };
+    if (name) patch.name = name;
+    if (email) patch.email = email;
+    if (existing) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
+    else await sbInsert('drope_customers', { phone, source: 'app', created_at: new Date().toISOString(), ...patch });
+    return res.status(200).json({ ok: true, token, customer: { name: name || '', phone } });
+  } catch (e) { console.error('[customer_register] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=customer_set_password { phone, token, password } → define/troca a senha.
 // Exige sessão válida (token do OTP ou de um login anterior). Assim ninguém troca senha sem estar logado.
 async function handleCustomerSetPassword(req, res) {
@@ -17272,6 +17303,10 @@ module.exports = async function handler(req, res) {
   // POST action=customer_login_password — login por telefone+senha (fallback do OTP)
   if (req.url && req.url.indexOf('action=customer_login_password') >= 0) {
     return await handleCustomerLoginPassword(req, res);
+  }
+  // POST action=customer_register — cria conta com senha + sessão, SEM OTP (app sem WhatsApp)
+  if (req.url && req.url.indexOf('action=customer_register') >= 0) {
+    return await handleCustomerRegister(req, res);
   }
   // POST action=customer_set_password — cria/troca senha (exige sessão válida)
   if (req.url && req.url.indexOf('action=customer_set_password') >= 0) {
