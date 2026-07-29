@@ -1216,9 +1216,9 @@
     content: '';
     position: absolute;
     left: 50%; top: 50%;
-    width: 300px; height: 300px;
+    width: 340px; height: 340px;
     transform: translate(-50%, -50%);
-    background: radial-gradient(circle, rgba(91, 33, 182, 0.35), transparent 65%);
+    background: radial-gradient(circle, rgba(130, 70, 255, 0.42), rgba(255, 45, 111, 0.12) 55%, transparent 70%);
     filter: blur(40px);
     z-index: 0;
   }
@@ -5438,7 +5438,7 @@
       <div class="adm-menu">
         <button class="adm-item" onclick="go('admin-products')"><span>gerenciar drops</span><small>preço, estoque, esconder</small></button>
         <button class="adm-item" onclick="openImportDrops()"><span>importar em lote</span><small>vários drops de uma vez</small></button>
-        <button class="adm-item" onclick="openPendentesPodPhoto()"><span>fotos pendentes</span><small>aprovar foto do pod</small></button>
+        <button class="adm-item" onclick="openPendentesPodPhoto()"><span>fotos pendentes</span><small>aprovar foto do produto</small></button>
         <button class="adm-item" onclick="openRevisarReferencias()"><span>revisar artes</span><small>pipeline de referências</small></button>
       </div>
 
@@ -11291,7 +11291,7 @@
       specsRows.push(['em estoque', p.stock + (p.stock === 1 ? ' unidade' : ' unidades')]);
     }
     const card1 = `<div class="info-card">
-      <div class="info-card-title">sobre o pod</div>
+      <div class="info-card-title">sobre o produto</div>
       ${specsRows.map(([l, v]) => `
         <div class="info-card-row">
           <span class="info-card-label">${escapeHtml(l)}</span>
@@ -11805,7 +11805,7 @@
 
   // ===== ADMIN — imagens das vibes (gera por IA a arte de cada tema) =====
   const _VIBE_DEFS_ADM = [
-    { fl: 'tudo',    emoji: '', label: 'Tudo (filtro do topo)', desc: 'mistura de pods das marcas' },
+    { fl: 'tudo',    emoji: '', label: 'Tudo (filtro do topo)', desc: 'mistura das marcas' },
     { fl: 'fruity',  emoji: '', label: 'Frutado', desc: 'frutas frescas' },
     { fl: 'sweet',   emoji: '', label: 'Doce',    desc: 'doces e sobremesas' },
     { fl: 'icy',     emoji: '', label: 'Gelado',  desc: 'gelo e frost' },
@@ -13282,7 +13282,7 @@ REGRAS:
       const thumbHtml = thumbSrc
         ? `<img src="${esc(thumbSrc)}" style="width:88px;height:88px;object-fit:cover;border-radius:8px;background:#222" loading="lazy">`
         : '<div style="width:88px;height:88px;border-radius:8px;background:#222;display:flex;align-items:center;justify-content:center;font-size:32px"></div>';
-      const googleQ = encodeURIComponent(`${meta.brand || ''} ${meta.model || ''} ${puffs} vape pod device`.trim().replace(/\s+/g, ' '));
+      const googleQ = encodeURIComponent(`${meta.brand || ''} ${meta.model || ''} ${puffs} vape device`.trim().replace(/\s+/g, ' '));
       return `
         <div style="background:#181820;border:1px solid #2a2a35;border-radius:12px;padding:14px;margin-bottom:12px;display:flex;gap:12px">
           ${thumbHtml}
