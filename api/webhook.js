@@ -13442,6 +13442,7 @@ async function handleFiliaisList(req, res) {
           open_now: _storeOpenNow(hours),
           whats: prof.whats || null, // WhatsApp de atendimento da loja (contato público, definido pela loja)
           pending: ((f.metadata || {}).onboarding) === 'pending_payment',
+          mp_ready: !!((((f.metadata || {}).payment) || {}).access_token), // loja conectou Mercado Pago (pode vender)
           accepts_partners: !!((f.metadata || {}).accepts_partners), // loja aceita programa de parceria/indicação
         };
       })
@@ -16893,10 +16894,15 @@ async function handleMPCreatePix(req, res) {
         }
       }
     }
-    // token da cobrança: da loja (com split) ou da plataforma (fallback, sem split)
+    // SEGURANÇA (loja sem MP não vende): pedido de loja SÓ é cobrado com o Mercado
+    // Pago DA PRÓPRIA LOJA. Sem token da loja, a cobrança cairia na conta da
+    // plataforma (DROPE) — proibido. Bloqueia e avisa o cliente.
+    if (slug && !sellerToken) {
+      return res.status(409).json({ error: 'loja_sem_pagamento', message: 'Esta loja ainda não ativou os recebimentos. Não dá pra finalizar o pedido agora.' });
+    }
     const authToken = sellerToken || MP_ACCESS_TOKEN;
     if (!authToken) {
-      return res.status(500).json({ error: 'loja sem Mercado Pago conectado e MP_ACCESS_TOKEN ausente' });
+      return res.status(500).json({ error: 'pagamento indisponível no momento' });
     }
 
     const description = `Drope - Pedido ${order_id || 'avulso'}`;

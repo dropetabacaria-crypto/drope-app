@@ -7008,6 +7008,10 @@
   // Guest gate também aparece ao abrir carrinho (mais cedo = menos surpresa)
   let pendingAfterGate = null;
   function goCartSafe() {
+    if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
+      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+      return;
+    }
     if (isGuest() && cart.length > 0) {
       pendingAfterGate = 'cart';
       openGuestGate();
@@ -8399,11 +8403,14 @@
     const bio = loja.bio;
     const on = loja.open_now;
     const lh = loja.hours || {};
-    const statusChip = (on === true)
-      ? `<span class="lj-hd-chip open">● aberta${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}</span>`
-      : (on === false)
-        ? `<span class="lj-hd-chip closed">● fechada${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}</span>`
-        : `<span class="lj-hd-chip open">● aberta</span>`;
+    const unavailable = (loja.mp_connected === false); // loja sem Mercado Pago = não vende
+    const statusChip = unavailable
+      ? `<span class="lj-hd-chip closed">● indisponível</span>`
+      : (on === true)
+        ? `<span class="lj-hd-chip open">● aberta${lh.close ? ` · fecha ${escapeHtml(lh.close)}` : ''}</span>`
+        : (on === false)
+          ? `<span class="lj-hd-chip closed">● fechada${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}</span>`
+          : `<span class="lj-hd-chip open">● aberta</span>`;
     // distância/eta se o app já sabe a geo do cliente (senão fica genérico)
     let etaTxt = 'entrega em minutos', kmTxt = '';
     try {
@@ -8432,7 +8439,8 @@
             <span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>
           </div>
           ${bio ? `<div class="lj-hd-bio">${escapeHtml(bio)}</div>` : ''}
-          <div class="lj-hd-chips">${statusChip}${infoChips}</div>
+          ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">Loja indisponível — ainda não ativou os recebimentos.</div>` : ''}
+          <div class="lj-hd-chips">${statusChip}${unavailable ? '' : infoChips}</div>
         </div>
       </div>`;
     const hf = document.getElementById('home-fav-btn'); if (hf) { hf.classList.toggle('on', fav); hf.dataset.slug = loja.slug || ''; }
@@ -8606,9 +8614,11 @@
       etaTxt ? `<span class="lc-chip time">${etaTxt}</span>` : '',
       f.produtos ? `<span class="lc-chip">${f.produtos} produto${f.produtos !== 1 ? 's' : ''}</span>` : `<span class="lc-chip new">✦ nova</span>`,
       cityTc ? `<span class="lc-chip">${escapeHtml(cityTc)}</span>` : '',
-      (f.open_now === false)
-        ? `<span class="lc-chip closed">fechada</span>`
-        : `<span class="lc-chip open">aberto${f.open_now === true ? 'a' : ''}</span>`,
+      (f.mp_ready === false)
+        ? `<span class="lc-chip closed">indisponível</span>`
+        : (f.open_now === false)
+          ? `<span class="lc-chip closed">fechada</span>`
+          : `<span class="lc-chip open">aberto${f.open_now === true ? 'a' : ''}</span>`,
     ].filter(Boolean).join('');
     const fav = _isFavStore(f.slug);
     return `<div class="loja-card" onclick="pickClientFilial('${escapeHtml(f.slug)}')">
@@ -12478,6 +12488,11 @@
   }
 
   function addToCart() {
+    // Loja sem Mercado Pago conectado não vende (o dinheiro não teria pra onde ir).
+    if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
+      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+      return;
+    }
     const p = products[currentProduct];
     if (typeof p.stock === 'number' && p.stock <= 0) {
       toast('esgotado ✦ volta depois');
