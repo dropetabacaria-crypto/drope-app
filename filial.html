@@ -202,6 +202,42 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 .theme-toggle { display: flex; gap: 6px; }
 .th-opt { background: var(--bg3); border: 1px solid var(--border); color: var(--fg); padding: 8px 12px; border-radius: 10px; font-size: 12px; cursor: pointer; }
 .th-opt.active { background: rgba(255,77,143,0.15); border-color: var(--pink); color: var(--pink); }
+
+  /* ===== DROPE FUTURISTA — grid pontilhado + vidro (Ai OS) ===== */
+  body { background: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.5px) 0 0 / 23px 23px, var(--bg) !important; }
+  .card, .sec, .cfg-item, .cfg-sec {
+    background: linear-gradient(158deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015) 60%), var(--bg2) !important;
+    border: 1px solid var(--border) !important;
+  }
+  .card, .cfg-item { border-radius: 16px !important; }
+
+  /* ===== Configuração da loja em OVERLAY de tela cheia (estilo Ajustes) ===== */
+  #cfg-topbar { display: none; }
+  #config-wrap.cfg-open {
+    position: fixed; inset: 0; z-index: 300; margin: 0 auto !important; max-width: 640px;
+    background: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.5px) 0 0 / 23px 23px, var(--bg);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 0 16px calc(34px + env(safe-area-inset-bottom));
+    animation: cfgIn .2s ease;
+  }
+  @keyframes cfgIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+  #config-wrap.cfg-open #cfg-topbar {
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 2;
+    margin: 0 -16px 12px; padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+    background: linear-gradient(180deg, var(--bg) 60%, rgba(10,10,20,0.6));
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  #cfg-back-btn {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--bg2); border: 1px solid var(--border); color: var(--fg);
+    font-size: 24px; font-weight: 800; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #cfg-back-btn:active { transform: scale(0.94); }
+  #cfg-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 19px; }
+  #config-wrap.cfg-open .cfg-back { display: none; } /* barra unica de topo cuida do voltar */
 </style>
 </head>
 <body>
@@ -325,6 +361,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <span id="config-chev" style="color:var(--fg-dim);font-weight:400">Abrir ▾</span>
     </button>
     <div id="config-wrap" style="display:none;margin-top:6px">
+
+      <!-- Barra de topo do overlay (só aparece em tela cheia) -->
+      <div id="cfg-topbar">
+        <button id="cfg-back-btn" onclick="cfgBack()" aria-label="Voltar">‹</button>
+        <span id="cfg-title">Configuração da loja</span>
+      </div>
 
       <!-- MENU hierárquico da configuração -->
       <div id="config-menu" style="display:flex;flex-direction:column;gap:8px">
@@ -2296,18 +2338,40 @@ async function delFiltro(id) {
 }
 
 // ===== Configuração da loja (bloco recolhível) =====
-function toggleConfig() {
+// Configuração = OVERLAY de tela cheia (estilo Ajustes): menu → seção → voltar.
+const CFG_TITLES = { loja: 'Minha loja', filtros: 'Meus filtros', func: 'Funcionamento', qr: 'QR da loja', pagamento: 'Pagamentos', funcionarios: 'Funcionários', entregadores: 'Entregadores', parceiros: 'Parceiros / Indicadores', plano: 'Meu plano' };
+function openConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
-  const open = w.style.display !== 'none';
-  w.style.display = open ? 'none' : 'block';
-  if (c) c.textContent = open ? 'Abrir ▾' : 'Fechar ▴';
-  if (!open) { try { closeCfg(); } catch (e) {} } // sempre abre no menu
+  if (!w) return;
+  w.style.display = 'block'; w.classList.add('cfg-open');
+  document.body.style.overflow = 'hidden';
+  if (c) c.textContent = 'Fechar ▴';
+  closeCfg();          // sempre abre no menu
+  w.scrollTop = 0;
+}
+function closeConfigOverlay() {
+  const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
+  if (!w) return;
+  w.classList.remove('cfg-open'); w.style.display = 'none';
+  document.body.style.overflow = '';
+  if (c) c.textContent = 'Abrir ▾';
+}
+function toggleConfig() {
+  const w = document.getElementById('config-wrap');
+  if (w && w.classList.contains('cfg-open')) closeConfigOverlay(); else openConfigOverlay();
+}
+// Botão único de voltar da barra de topo: seção → menu; menu → fecha overlay.
+function cfgBack() {
+  const menu = document.getElementById('config-menu');
+  if (menu && menu.style.display === 'none') closeCfg();   // está numa seção → volta pro menu
+  else closeConfigOverlay();                                // está no menu → sai do overlay
 }
 // Navegação hierárquica da configuração (menu → seção)
 function openCfg(name) {
   const menu = document.getElementById('config-menu'); if (menu) menu.style.display = 'none';
   document.querySelectorAll('.cfg-sec').forEach(s => s.style.display = 'none');
   const sec = document.getElementById('cfg-' + name); if (sec) sec.style.display = 'block';
+  const t = document.getElementById('cfg-title'); if (t) t.textContent = (CFG_TITLES[name] || 'Configuração');
   try {
     if (name === 'loja') renderLojaPreview();
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
@@ -2317,12 +2381,14 @@ function openCfg(name) {
     if (name === 'entregadores') { renderEntregadores(); renderFrete(); }
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
   } catch (e) {}
-  const cw = document.getElementById('config-wrap'); if (cw && cw.scrollIntoView) cw.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const cw = document.getElementById('config-wrap'); if (cw) cw.scrollTop = 0;
   try { helpShow(name); } catch (e) {} // explicação automática na 1ª vez que abre a seção
 }
 function closeCfg() {
   document.querySelectorAll('.cfg-sec').forEach(s => s.style.display = 'none');
   const menu = document.getElementById('config-menu'); if (menu) menu.style.display = 'flex';
+  const t = document.getElementById('cfg-title'); if (t) t.textContent = 'Configuração da loja';
+  const cw = document.getElementById('config-wrap'); if (cw) cw.scrollTop = 0;
 }
 
 // ===== Ajuda contextual: explica cada seção. Aparece 1x automática + botão "?" =====
