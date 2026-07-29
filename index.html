@@ -4323,7 +4323,8 @@
     .ff-cats{ display:flex; gap:14px; overflow-x:auto; padding:10px 20px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
     .ff-cats::-webkit-scrollbar{ display:none; }
     .ff-cat{ flex:0 0 auto; width:66px; text-align:center; cursor:pointer; }
-    .ff-cat .ic{ width:60px; height:60px; border-radius:18px; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 6px; box-shadow:0 6px 16px rgba(0,0,0,.28); transition:transform .1s; }
+    .ff-cat .ic{ width:60px; height:60px; border-radius:18px; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 6px; box-shadow:0 6px 16px rgba(0,0,0,.28); transition:transform .1s; overflow:hidden; }
+    .ff-cat .ic img{ width:52px; height:52px; object-fit:contain; }
     .ff-cat:active .ic{ transform:scale(.93); }
     .ff-cat .lb{ font-size:11px; color:var(--text-dim); font-weight:600; line-height:1.15; }
     .ff-flyers{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; padding:12px 20px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
@@ -8520,7 +8521,7 @@
   }
   function renderInicioCats(cats) {
     const el = document.getElementById('inicio-cats'); if (!el) return;
-    el.innerHTML = (cats || []).map(c => `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><div class="ic">${c.emoji || '✦'}</div><div class="lb">${escapeHtml(c.label)}</div></div>`).join('');
+    el.innerHTML = (cats || []).map(c => `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><div class="ic"><img src="icons/cat-${c.key}.png" alt="" loading="lazy" onerror="this.parentNode.textContent='${c.emoji || '✦'}'"></div><div class="lb">${escapeHtml(c.label)}</div></div>`).join('');
   }
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
