@@ -1092,7 +1092,7 @@
   .parc-card-btn:active { transform: scale(0.94); }
   .parc-empty { text-align: center; color: var(--text-dim); font-size: 13.5px; line-height: 1.6; padding: 34px 12px; }
   /* ===== Header de loja estilo iFood (subcapa + logo sobreposto + info row) ===== */
-  .lj-hd-cover { width: 100%; height: 150px; background-size: cover; background-position: center; }
+  .lj-hd-cover { width: 100%; height: 172px; background-size: cover; background-position: center; }
   .lj-hd-cover-ph { background: linear-gradient(135deg,#241046 0%, #4A1A6E 55%, #8A2A6B 100%); }
   .lj-hd-favbtn { position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.42); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
   .lj-hd-favbtn svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; }
@@ -4403,14 +4403,23 @@
     <div id="ofertas-list" style="padding: 14px 20px 24px"></div>
   </div>
 
+  <style>
+    /* Página da loja estilo iFood: header flutua SOBRE a capa (botões circulares escuros). */
+    .lj-float-hd .icon-btn, .lj-float-hd .cart-btn { background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); border-radius: 50%; }
+    .lj-float-hd .hfav.on svg { fill: #FF2D6F; stroke: #FF2D6F; }
+  </style>
+
   <!-- ============ HOME ============ -->
   <div class="screen no-nav" id="home">
-    <div class="header" style="padding:10px 16px 6px">
+    <div class="header lj-float-hd" style="position:absolute;top:0;left:0;right:0;z-index:6;padding:calc(12px + env(safe-area-inset-top)) 14px 8px;background:transparent">
       <div class="icon-btn" onclick="goBack('inicio')" title="Voltar" style="flex:0 0 auto;margin-right:6px">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="greet" id="home-greet" style="display:none">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div style="flex:1"></div>
+      <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja" style="margin-right:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      </div>
       <div class="cart-btn" onclick="openNotifsApp()" style="position:relative;margin-right:8px" title="Avisos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <div class="cart-badge" id="app-notif-badge" style="display:none">0</div>
@@ -4422,7 +4431,7 @@
     </div>
 
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
-    <div id="home-loja-bar" style="position:relative;margin:0 16px 10px;border-radius:20px;overflow:hidden;background:var(--card);border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,0.25)"></div>
+    <div id="home-loja-bar" style="position:relative;margin:0 0 10px;overflow:hidden;background:var(--card)"></div>
 
     <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
     <div class="search-bar-wrap">
@@ -8288,9 +8297,6 @@
       : `<div class="lj-hd-logo lj-hd-logo-ph">🏪</div>`;
     const fav = (typeof _isFavStore === 'function' && loja.slug) ? _isFavStore(loja.slug) : false;
     el.innerHTML = `${cover}
-      <div class="lj-hd-favbtn ${fav ? 'on' : ''}" onclick="event.stopPropagation();toggleFavStore('${escapeHtml(loja.slug || '')}',this)" title="Favoritar loja">
-        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-      </div>
       <div class="lj-hd-body">
         ${logo}
         <div class="lj-hd-info">
@@ -8302,6 +8308,11 @@
           <div class="lj-hd-chips">${statusChip}${infoChips}</div>
         </div>
       </div>`;
+    const hf = document.getElementById('home-fav-btn'); if (hf) { hf.classList.toggle('on', fav); hf.dataset.slug = loja.slug || ''; }
+  }
+  function _homeToggleFav(el) {
+    const slug = (el && el.dataset && el.dataset.slug) || (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || '';
+    if (slug && typeof toggleFavStore === 'function') toggleFavStore(slug, el);
   }
   // Cliente pede pra ser parceiro/indicador da loja (precisa estar logado).
   // Abre a lista de lojas que ACEITAM parceria (não amarra na loja atual).
