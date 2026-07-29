@@ -14338,6 +14338,89 @@ async function handleCustomerAddresses(req, res) {
   } catch (e) { console.error('[customer_addresses] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// ===== HOME estilo iFood: categorias globais + feed de produtos cruzando lojas =====
+// Categoria global (fixa) usada nos atalhos da home. SEM "Pod" (regra da marca).
+const DROPE_CATS = [
+  { key: 'cerveja', label: 'Cervejas', emoji: '🍺' },
+  { key: 'vinho', label: 'Vinhos', emoji: '🍷' },
+  { key: 'destilado', label: 'Destilados', emoji: '🥃' },
+  { key: 'bebida', label: 'Bebidas geladas', emoji: '🥤' },
+  { key: 'cigarro', label: 'Cigarros', emoji: '🚬' },
+  { key: 'tabaco', label: 'Tabaco', emoji: '🍂' },
+  { key: 'narguile', label: 'Narguilé', emoji: '💨' },
+  { key: 'gelo', label: 'Gelo', emoji: '🧊' },
+  { key: 'doces', label: 'Doces & snacks', emoji: '🍫' },
+  { key: 'acessorios', label: 'Acessórios', emoji: '🔧' },
+];
+const _CAT_KW = {
+  cerveja: ['cerveja', 'beer', 'ipa', 'lager', 'pilsen', 'heineken', 'brahma', 'skol', 'budweiser', 'stella', 'corona', 'eisenbahn', 'spaten', 'amstel', 'itaipava', 'antarctica'],
+  vinho: ['vinho', 'wine', 'tinto', 'rosé', 'espumante', 'prosecco', 'chardonnay', 'cabernet', 'malbec', 'suave', 'seco'],
+  destilado: ['whisky', 'whiskey', 'vodka', 'cachaça', 'cachaca', ' rum', 'tequila', 'licor', 'conhaque', 'destilado', 'absolut', 'johnnie', 'smirnoff', 'velho barreiro', 'campari', 'aperol', 'gin '],
+  bebida: ['refrigerante', 'energetico', 'energético', 'red bull', 'redbull', 'coca', 'pepsi', 'guarana', 'guaraná', 'suco', 'tônica', 'tonica', 'isotonico', 'isotônico', 'monster', 'baly', 'fusion', 'água', 'agua'],
+  cigarro: ['cigarro', 'marlboro', 'lucky strike', 'rothmans', 'chesterfield', 'dunhill', 'camel', 'gudang'],
+  tabaco: ['tabaco', 'fumo', 'seda', 'piteira', 'papel de', 'smoking', 'rizla', 'filtro '],
+  narguile: ['narguile', 'narguilé', 'essencia', 'essência', 'carvao', 'carvão', 'rosh', 'fornilho', 'hookah', 'zomo', 'pielas', 'mangueira'],
+  gelo: ['gelo'],
+  doces: ['chocolate', 'bala', 'doce', 'salgadinho', 'snack', 'biscoito', ' bis', 'trident', 'halls', 'chiclete', 'amendoim', 'pringles'],
+  acessorios: ['isqueiro', 'bic ', 'acendedor', 'cinzeiro', 'bateria', 'carregador', 'capa'],
+};
+function _inferCatGlobal(category, name) {
+  const t = (String(category || '') + ' ' + String(name || '')).toLowerCase();
+  for (const c of DROPE_CATS) {
+    if ((_CAT_KW[c.key] || []).some(k => t.includes(k))) return c.key;
+  }
+  return null;
+}
+
+// GET /api/webhook?action=home_feed[&cat=<key>]
+// Sem cat: { categories, mais_vendidos, promocoes }. Com cat: { categories, cat, produtos }.
+async function handleHomeFeed(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  try {
+    const qs = (req.url && req.url.includes('?')) ? req.url.split('?')[1] : '';
+    const params = {}; qs.split('&').forEach(p => { const [k, v] = p.split('='); if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+    const cat = (params.cat || '').toLowerCase().trim();
+    const frows = await sbGet('drope_filiais', 'select=id,slug,name,metadata&status=eq.active&order=name.asc');
+    const storeById = {};
+    (frows || []).forEach(f => {
+      const prof = (f.metadata || {}).profile || {}; const hours = prof.hours || null;
+      if ((hours || {}).enabled === false) return;
+      storeById[f.id] = { name: f.name, slug: f.slug, open_now: _storeOpenNow(hours) };
+    });
+    const ids = Object.keys(storeById);
+    if (!ids.length) return res.status(200).json({ ok: true, categories: DROPE_CATS, mais_vendidos: [], promocoes: [], produtos: [] });
+    const prods = await sbGet('drope_products',
+      `filial_id=in.(${ids.join(',')})&hidden=eq.false&qty_available=gt.0&select=id,slug,name,price_cents,image_url,image_status,category,metadata,total_sold,filial_id&order=total_sold.desc&limit=400`);
+    const items = (Array.isArray(prods) ? prods : []).map(p => {
+      const st = storeById[p.filial_id]; if (!st) return null;
+      const md = p.metadata || {};
+      const promo = (typeof md.offer_cents === 'number' && md.offer_cents > 0 && md.offer_cents < p.price_cents) ? md.offer_cents : null;
+      return {
+        id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents, promo_cents: promo,
+        image_url: (p.image_status === 'ok' ? p.image_url : null) || p.image_url || null,
+        store_name: st.name, store_slug: st.slug, open_now: st.open_now,
+        cat_global: md.cat_global || _inferCatGlobal(p.category, p.name) || null,
+        total_sold: p.total_sold || 0,
+      };
+    }).filter(Boolean);
+    if (cat) {
+      return res.status(200).json({ ok: true, categories: DROPE_CATS, cat, produtos: items.filter(i => i.cat_global === cat).slice(0, 40) });
+    }
+    const withImg = items.filter(i => i.image_url);
+    return res.status(200).json({
+      ok: true, categories: DROPE_CATS,
+      mais_vendidos: (withImg.length ? withImg : items).slice(0, 12),
+      promocoes: items.filter(i => i.promo_cents).slice(0, 12),
+    });
+  } catch (e) { console.error('[home_feed] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 async function handleCatalog(req, res) {
   // CORS — pode vir do próprio domínio ou localhost de dev
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
@@ -17337,6 +17420,10 @@ module.exports = async function handler(req, res) {
   // POST /api/webhook?action=filial_register → auto-cadastro de loja (status pending)
   if (req.url && req.url.indexOf('action=filiais_list') >= 0) {
     return await handleFiliaisList(req, res);
+  }
+  // GET action=home_feed — categorias globais + produtos cruzando lojas (home iFood)
+  if (req.url && req.url.indexOf('action=home_feed') >= 0) {
+    return await handleHomeFeed(req, res);
   }
   if (req.url && req.url.indexOf('action=offers_list') >= 0) {
     return await handleOffersList(req, res);
