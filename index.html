@@ -4431,6 +4431,9 @@
     .ff-cat img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
     .ff-cat::after{ content:''; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.12) 55%, transparent 100%); }
     .ff-cat-lb{ position:absolute; left:12px; bottom:9px; z-index:1; color:#fff; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:15px; text-shadow:0 2px 8px rgba(0,0,0,.65); }
+    /* Busca estilo iFood: grade de categorias 2 colunas (reusa o visual .ff-cat) */
+    .busca-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:12px 20px 8px; }
+    .busca-grid .ff-cat{ width:auto; height:104px; }
     .ff-hero{ position:relative; margin:12px 20px; border-radius:20px; overflow:hidden; height:124px; box-shadow:0 8px 24px rgba(0,0,0,.3); touch-action:pan-y; }
     .ff-hero .slide{ position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:20px; color:#fff; opacity:0; transform:scale(1.06); transition:opacity .5s ease, transform .5s ease; pointer-events:none; }
     .ff-hero .slide.on{ opacity:1; transform:scale(1); pointer-events:auto; }
@@ -4480,9 +4483,9 @@
           </div>
         </div>
       </div>
-      <div class="inicio-search">
+      <div class="inicio-search" onclick="openBusca()" style="cursor:pointer">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input id="inicio-search-input" placeholder="Buscar loja..." autocomplete="off" oninput="filterInicio(this.value)">
+        <input id="inicio-search-input" placeholder="Buscar loja ou categoria..." autocomplete="off" readonly onfocus="openBusca()" style="cursor:pointer">
       </div>
     </div>
     <div class="vibe-greet" id="inicio-vibe-greet" style="display:none">Qual sua vibe de hoje?<small>Escolha por categoria ✦</small></div>
@@ -5204,15 +5207,20 @@
 
   <!-- ============ SEARCH ============ -->
   <div class="screen" id="search">
-    <div class="section-title display" style="padding-top: 24px">Buscar<span>acha seu drope</span></div>
-
-    <div class="search-bar">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input id="search-input" placeholder="digita um sabor..." oninput="renderSearch()">
+    <div style="padding: 22px 20px 2px; display:flex; align-items:center; gap:10px">
+      <div class="cart-btn" onclick="goBack('inicio')" title="Voltar" style="flex:0 0 auto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </div>
+      <div class="inicio-search" style="flex:1;margin-top:0">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search-input" placeholder="Buscar loja ou categoria..." autocomplete="off" oninput="renderSearch()">
+      </div>
     </div>
-
-    <div class="search-hint">todos os dropes</div>
-    <div id="search-list"></div>
+    <div id="search-cats-wrap">
+      <div class="inicio-sec-lbl" style="padding:0 20px">Explorar por categoria</div>
+      <div id="search-cats" class="busca-grid"></div>
+    </div>
+    <div id="search-list" style="padding: 4px 20px 20px"></div>
   </div>
 
   <!-- ============ FAVORITES ============ -->
@@ -11569,29 +11577,70 @@
     _favSyncPush();
   }
 
+  // ===== Busca estilo iFood: grade de categorias + busca de lojas =====
+  // Abre a tela de busca (a barra da home é só o gatilho, igual iFood).
+  async function openBusca() {
+    go('search');
+    // garante lojas + feed de categorias carregados
+    try {
+      if (!_inicioLojas || !_inicioLojas.length) {
+        const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
+        const d = await r.json(); if (d && Array.isArray(d.filiais)) { _inicioLojas = d.filiais; _lojasCache = d.filiais; }
+      }
+      if (!_homeFeedCache || !(_homeFeedCache.categories || []).length) {
+        const r2 = await fetch('/api/webhook?action=home_feed', { cache: 'no-store' });
+        const d2 = await r2.json(); if (d2 && d2.ok) _homeFeedCache = d2;
+      }
+    } catch (e) {}
+    const inp = document.getElementById('search-input'); if (inp) { inp.value = ''; }
+    renderSearch();
+    setTimeout(() => { try { inp && inp.focus(); } catch (e) {} }, 80);
+  }
+  function _buscaCats() {
+    const cats = (_homeFeedCache && _homeFeedCache.categories) || [];
+    if (cats.length) return cats;
+    // fallback fixo (mesma taxonomia do backend) caso o feed não tenha carregado
+    return [
+      { key: 'combos', label: 'Combos' }, { key: 'cerveja', label: 'Cervejas' }, { key: 'vinho', label: 'Vinhos' },
+      { key: 'destilado', label: 'Destilados' }, { key: 'energetico', label: 'Energéticos' }, { key: 'bebida', label: 'Bebidas geladas' },
+      { key: 'cigarro', label: 'Cigarros' }, { key: 'tabaco', label: 'Tabaco' }, { key: 'narguile', label: 'Narguilé' },
+      { key: 'gelo', label: 'Gelo' }, { key: 'doces', label: 'Doces & snacks' }, { key: 'acessorios', label: 'Acessórios' },
+    ];
+  }
+  function _buscaCatTile(c) {
+    return `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><img src="icons/cat-${c.key}.png" alt="" loading="lazy" onerror="this.style.display='none'"><span class="ff-cat-lb">${escapeHtml(c.label)}</span></div>`;
+  }
+  function renderSearchCats() {
+    const el = document.getElementById('search-cats'); if (!el) return;
+    el.innerHTML = _buscaCats().map(_buscaCatTile).join('');
+  }
   function renderSearch() {
     const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+    const catsWrap = document.getElementById('search-cats-wrap');
     const list = document.getElementById('search-list');
-    const filtered = products.filter(p =>
-      p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)
-    );
-    if (filtered.length === 0) {
-      list.innerHTML = `<div class="empty"><div class="t">Nenhum drope com esse nome</div><div class="s">tenta "gelado" ou "frutado"</div></div>`;
+    if (!list) return;
+    if (!q) { // vazio → grade de categorias (estilo iFood)
+      if (catsWrap) catsWrap.style.display = '';
+      list.innerHTML = '';
+      renderSearchCats();
       return;
     }
-    list.innerHTML = filtered.map(p => {
-      const idx = products.indexOf(p);
-      return `
-        <div class="search-row" onclick="openProduct(${idx})">
-          <div class="em">${p.emoji}</div>
-          <div class="info">
-            <div class="nm">${p.name}</div>
-            <div class="ds">${p.desc}</div>
-          </div>
-          <div class="pr">${money(p.price)}</div>
-        </div>
-      `;
-    }).join('');
+    if (catsWrap) catsWrap.style.display = 'none';
+    const norm = s => (s || '').toString().toLowerCase();
+    const lojas = (_inicioLojas && _inicioLojas.length ? _inicioLojas : _lojasCache) || [];
+    const hitLojas = lojas.filter(f => norm(f.name).includes(q) || norm(f.city).includes(q) || norm(f.bio).includes(q));
+    const hitCats = _buscaCats().filter(c => norm(c.label).includes(q) || norm(c.key).includes(q));
+    let html = '';
+    if (hitCats.length) {
+      html += `<div class="inicio-sec-lbl">Categorias</div><div class="busca-grid" style="padding-left:0;padding-right:0">${hitCats.map(_buscaCatTile).join('')}</div>`;
+    }
+    if (hitLojas.length) {
+      html += `<div class="inicio-sec-lbl">Lojas</div>${hitLojas.map(_lojaCardHtml).join('')}`;
+    }
+    if (!hitCats.length && !hitLojas.length) {
+      html = `<div style="text-align:center;padding:46px 24px;color:var(--text-dim)"><div style="font-size:15px;font-weight:700;color:var(--text)">Nada encontrado pra "${escapeHtml(q)}"</div><div style="font-size:13px;margin-top:6px">Tenta o nome de uma loja ou uma categoria ✦</div></div>`;
+    }
+    list.innerHTML = html;
   }
 
   async function renderFavorites() {
