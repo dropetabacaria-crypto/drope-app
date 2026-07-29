@@ -4407,6 +4407,15 @@
     /* Página da loja estilo iFood: header flutua SOBRE a capa (botões circulares escuros). */
     .lj-float-hd .icon-btn, .lj-float-hd .cart-btn { background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); border-radius: 50%; }
     .lj-float-hd .hfav.on svg { fill: #FF2D6F; stroke: #FF2D6F; }
+    /* Busca em overlay: ao tocar a lupa do header, a barra desce fixa no topo (iFood). */
+    .search-bar-wrap.as-overlay {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+      background: var(--bg); margin: 0;
+      padding: calc(9px + env(safe-area-inset-top)) 14px 9px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.55);
+      animation: ssDrop .18s ease;
+    }
+    @keyframes ssDrop { from { transform: translateY(-14px); opacity: 0 } to { transform: none; opacity: 1 } }
   </style>
 
   <!-- ============ HOME ============ -->
@@ -4417,6 +4426,9 @@
       </div>
       <div class="greet" id="home-greet" style="display:none">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div style="flex:1"></div>
+      <div class="cart-btn" id="home-search-btn" onclick="openStoreSearch()" title="Buscar produtos" style="margin-right:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
       <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja" style="margin-right:8px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       </div>
@@ -4433,9 +4445,12 @@
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
     <div id="home-loja-bar" style="position:relative;margin:0 0 10px;overflow:hidden;background:var(--card)"></div>
 
-    <!-- DROPE HOME v2 (04/06/2026) — Busca sticky no topo (UX research Gen Z mobile) -->
-    <div class="search-bar-wrap">
+    <!-- Busca vira ícone de lupa no header; ao tocar, esta barra abre em overlay no topo -->
+    <div class="search-bar-wrap" id="home-search-wrap" style="display:none">
       <div class="search-bar">
+        <button class="ss-back" id="ss-back" onclick="closeStoreSearch()" aria-label="Fechar busca" title="Fechar" style="display:none;background:none;border:0;color:var(--text);cursor:pointer;padding:0 4px 0 0;flex:0 0 auto">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
@@ -8712,7 +8727,7 @@
       const _prevLojaSlug = CLIENT_LOJA && CLIENT_LOJA.slug;
       CLIENT_LOJA = data.loja || null;
       // Trocou de loja → zera o filtro de categoria selecionado (não vaza entre lojas)
-      if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; } catch(e) {} }
+      if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; } catch(e) {} try { closeStoreSearch(); } catch(e) {} }
       if (CLIENT_LOJA && CLIENT_LOJA.name) { CLIENT_FILIAL_NAME = CLIENT_LOJA.name; try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME); } catch(e) {} }
       try { renderLojaBar(); } catch(e) {}
       try { renderLojaFiltros(); } catch(e) {}
@@ -9977,6 +9992,26 @@
       const y = cats.getBoundingClientRect().top + window.scrollY - 12;
       window.scrollTo({ top: y, behavior: 'smooth' });
     }
+  }
+
+  // Busca da loja em overlay (lupa no header) — mesma barra/input/filtros, só que sob demanda.
+  function openStoreSearch() {
+    const wrap = document.getElementById('home-search-wrap');
+    if (!wrap) return;
+    wrap.style.display = 'block';
+    wrap.classList.add('as-overlay');
+    const back = document.getElementById('ss-back'); if (back) back.style.display = '';
+    const inp = document.getElementById('home-search');
+    if (inp) setTimeout(() => { try { inp.focus(); } catch (e) {} }, 60);
+  }
+  function closeStoreSearch() {
+    const wrap = document.getElementById('home-search-wrap');
+    if (!wrap) return;
+    wrap.classList.remove('as-overlay');
+    wrap.style.display = 'none';
+    const back = document.getElementById('ss-back'); if (back) back.style.display = 'none';
+    try { clearSearch(); } catch (e) {}
+    const inp = document.getElementById('home-search'); if (inp) { try { inp.blur(); } catch (e) {} }
   }
 
   function openFilters() {
