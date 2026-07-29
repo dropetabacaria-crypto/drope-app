@@ -8574,13 +8574,15 @@
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
     const slides = [
-      { bg: 'linear-gradient(135deg,#241046,#8A2A6B)', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.', img: 'icons/drope-moto.png' },
-      { bg: 'linear-gradient(135deg,#0e7a3a,#12a150)', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.', emoji: '💸' },
-      { bg: 'linear-gradient(135deg,#2a2a3d,#12121f)', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.', emoji: '🦎' },
+      { img: 'icons/flyer-drops.png', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
+      { img: 'icons/flyer-pix.png', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
+      { img: 'icons/flyer-18.png', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
     ];
     _flyN = slides.length; _flyIdx = 0;
+    // Fundo com arte DROPE (dark-neon) + overlay escuro à esquerda pra manter o texto legível
+    const OV = 'linear-gradient(90deg,rgba(8,6,20,.92) 0%,rgba(8,6,20,.62) 42%,rgba(8,6,20,.12) 100%)';
     el.innerHTML = '<div class="ff-hero" id="ff-hero">'
-      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:${s.bg}"><div><h3>${s.h}</h3><p>${s.p}</p></div>${s.img ? `<img src="${s.img}" alt="">` : `<div class="emoji">${s.emoji || '✦'}</div>`}</div>`).join('')
+      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:${OV}, url('${s.img}') center/cover"><div style="max-width:66%"><h3>${s.h}</h3><p>${s.p}</p></div></div>`).join('')
       + '<div class="ff-dots">' + slides.map((_, i) => `<span class="ff-dot${i === 0 ? ' on' : ''}" onclick="flyGo(${i})"></span>`).join('') + '</div>'
       + '</div>';
     _flyBind(); _flyAuto();
