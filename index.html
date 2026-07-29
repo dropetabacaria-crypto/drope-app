@@ -4327,13 +4327,16 @@
     .ff-cat .ic img{ width:52px; height:52px; object-fit:contain; }
     .ff-cat:active .ic{ transform:scale(.93); }
     .ff-cat .lb{ font-size:11px; color:var(--text-dim); font-weight:600; line-height:1.15; }
-    .ff-flyers{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; padding:12px 20px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-    .ff-flyers::-webkit-scrollbar{ display:none; }
-    .ff-flyer{ flex:0 0 86%; scroll-snap-align:center; border-radius:20px; padding:20px; min-height:118px; display:flex; align-items:center; justify-content:space-between; gap:10px; color:#fff; overflow:hidden; }
-    .ff-flyer h3{ font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:800; }
-    .ff-flyer p{ font-size:12.5px; opacity:.93; margin-top:4px; line-height:1.35; }
-    .ff-flyer img{ width:82px; flex:0 0 auto; filter:drop-shadow(0 8px 16px rgba(0,0,0,.3)); }
-    .ff-flyer .emoji{ font-size:48px; flex:0 0 auto; }
+    .ff-hero{ position:relative; margin:12px 20px; border-radius:20px; overflow:hidden; height:124px; box-shadow:0 8px 24px rgba(0,0,0,.3); touch-action:pan-y; }
+    .ff-hero .slide{ position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:20px; color:#fff; opacity:0; transform:scale(1.06); transition:opacity .5s ease, transform .5s ease; pointer-events:none; }
+    .ff-hero .slide.on{ opacity:1; transform:scale(1); pointer-events:auto; }
+    .ff-hero .slide h3{ font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:800; }
+    .ff-hero .slide p{ font-size:12.5px; opacity:.93; margin-top:4px; line-height:1.35; }
+    .ff-hero .slide img{ width:82px; flex:0 0 auto; filter:drop-shadow(0 8px 16px rgba(0,0,0,.3)); }
+    .ff-hero .slide .emoji{ font-size:48px; flex:0 0 auto; }
+    .ff-dots{ position:absolute; bottom:9px; left:0; right:0; display:flex; gap:6px; justify-content:center; z-index:2; }
+    .ff-dot{ width:6px; height:6px; border-radius:999px; background:rgba(255,255,255,.45); cursor:pointer; transition:width .3s, background .3s; }
+    .ff-dot.on{ width:18px; background:#fff; }
     .ff-rail-h{ padding:8px 20px 0; }
     .ff-rail-h b{ font-family:'Space Grotesk',sans-serif; font-size:17px; color:var(--text); }
     .ff-rail{ display:flex; gap:12px; overflow-x:auto; padding:10px 20px 8px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
@@ -8523,6 +8526,9 @@
     const el = document.getElementById('inicio-cats'); if (!el) return;
     el.innerHTML = (cats || []).map(c => `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><div class="ic"><img src="icons/cat-${c.key}.png" alt="" loading="lazy" onerror="this.parentNode.textContent='${c.emoji || '✦'}'"></div><div class="lb">${escapeHtml(c.label)}</div></div>`).join('');
   }
+  // Carrossel de flyers estilo iFood: banner FIXO, o conteúdo dentro faz cross-fade
+  // (efeito camaleão sumindo/aparecendo) ao arrastar pro lado. Com bolinhas + auto-play.
+  let _flyTimer = null, _flyIdx = 0, _flyN = 0;
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
     const slides = [
@@ -8530,7 +8536,25 @@
       { bg: 'linear-gradient(135deg,#0e7a3a,#12a150)', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.', emoji: '💸' },
       { bg: 'linear-gradient(135deg,#2a2a3d,#12121f)', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.', emoji: '🦎' },
     ];
-    el.innerHTML = '<div class="ff-flyers">' + slides.map(s => `<div class="ff-flyer" style="background:${s.bg}"><div><h3>${s.h}</h3><p>${s.p}</p></div>${s.img ? `<img src="${s.img}" alt="">` : `<div class="emoji">${s.emoji || '✦'}</div>`}</div>`).join('') + '</div>';
+    _flyN = slides.length; _flyIdx = 0;
+    el.innerHTML = '<div class="ff-hero" id="ff-hero">'
+      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:${s.bg}"><div><h3>${s.h}</h3><p>${s.p}</p></div>${s.img ? `<img src="${s.img}" alt="">` : `<div class="emoji">${s.emoji || '✦'}</div>`}</div>`).join('')
+      + '<div class="ff-dots">' + slides.map((_, i) => `<span class="ff-dot${i === 0 ? ' on' : ''}" onclick="flyGo(${i})"></span>`).join('') + '</div>'
+      + '</div>';
+    _flyBind(); _flyAuto();
+  }
+  function flyGo(i) {
+    const hero = document.getElementById('ff-hero'); if (!hero || !_flyN) return;
+    _flyIdx = ((i % _flyN) + _flyN) % _flyN;
+    hero.querySelectorAll('.slide').forEach((s, k) => s.classList.toggle('on', k === _flyIdx));
+    hero.querySelectorAll('.ff-dot').forEach((d, k) => d.classList.toggle('on', k === _flyIdx));
+  }
+  function _flyAuto() { if (_flyTimer) clearInterval(_flyTimer); _flyTimer = setInterval(() => flyGo(_flyIdx + 1), 5000); }
+  function _flyBind() {
+    const hero = document.getElementById('ff-hero'); if (!hero) return;
+    let x0 = null;
+    hero.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    hero.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 40) { flyGo(_flyIdx + (dx < 0 ? 1 : -1)); _flyAuto(); } });
   }
   function renderInicioRails(d) {
     const el = document.getElementById('inicio-rails'); if (!el) return;
