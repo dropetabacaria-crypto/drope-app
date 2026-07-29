@@ -14341,9 +14341,11 @@ async function handleCustomerAddresses(req, res) {
 // ===== HOME estilo iFood: categorias globais + feed de produtos cruzando lojas =====
 // Categoria global (fixa) usada nos atalhos da home. SEM "Pod" (regra da marca).
 const DROPE_CATS = [
+  { key: 'combos', label: 'Combos', emoji: '🎁' },
   { key: 'cerveja', label: 'Cervejas', emoji: '🍺' },
   { key: 'vinho', label: 'Vinhos', emoji: '🍷' },
   { key: 'destilado', label: 'Destilados', emoji: '🥃' },
+  { key: 'energetico', label: 'Energéticos', emoji: '⚡' },
   { key: 'bebida', label: 'Bebidas geladas', emoji: '🥤' },
   { key: 'cigarro', label: 'Cigarros', emoji: '🚬' },
   { key: 'tabaco', label: 'Tabaco', emoji: '🍂' },
@@ -14353,10 +14355,14 @@ const DROPE_CATS = [
   { key: 'acessorios', label: 'Acessórios', emoji: '🔧' },
 ];
 const _CAT_KW = {
+  // combos vem primeiro: se o nome tem "combo/kit", ganha das outras categorias
+  combos: ['combo', 'combos', 'kit ', ' kit', 'kits', 'leve ', 'pague ', 'pacote', 'party pack', 'happy hour'],
   cerveja: ['cerveja', 'beer', 'ipa', 'lager', 'pilsen', 'heineken', 'brahma', 'skol', 'budweiser', 'stella', 'corona', 'eisenbahn', 'spaten', 'amstel', 'itaipava', 'antarctica'],
   vinho: ['vinho', 'wine', 'tinto', 'rosé', 'espumante', 'prosecco', 'chardonnay', 'cabernet', 'malbec', 'suave', 'seco'],
   destilado: ['whisky', 'whiskey', 'vodka', 'cachaça', 'cachaca', ' rum', 'tequila', 'licor', 'conhaque', 'destilado', 'absolut', 'johnnie', 'smirnoff', 'velho barreiro', 'campari', 'aperol', 'gin '],
-  bebida: ['refrigerante', 'energetico', 'energético', 'red bull', 'redbull', 'coca', 'pepsi', 'guarana', 'guaraná', 'suco', 'tônica', 'tonica', 'isotonico', 'isotônico', 'monster', 'baly', 'fusion', 'água', 'agua'],
+  // energetico antes de bebida: energéticos não caem no balde genérico de bebidas
+  energetico: ['energetico', 'energético', 'energy drink', 'red bull', 'redbull', 'monster', 'baly', 'fusion', 'tnt energy', 'tnt ', 'red horse', 'balyz', 'flying horse', 'insano'],
+  bebida: ['refrigerante', 'coca', 'pepsi', 'guarana', 'guaraná', 'suco', 'tônica', 'tonica', 'isotonico', 'isotônico', 'gatorade', 'powerade', 'água', 'agua', 'chá gelado', 'cha gelado', 'itubaina'],
   cigarro: ['cigarro', 'marlboro', 'lucky strike', 'rothmans', 'chesterfield', 'dunhill', 'camel', 'gudang'],
   tabaco: ['tabaco', 'fumo', 'seda', 'piteira', 'papel de', 'smoking', 'rizla', 'filtro '],
   narguile: ['narguile', 'narguilé', 'essencia', 'essência', 'carvao', 'carvão', 'rosh', 'fornilho', 'hookah', 'zomo', 'pielas', 'mangueira'],
