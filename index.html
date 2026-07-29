@@ -8266,6 +8266,7 @@
   function renderLojaBar() {
     const el = document.getElementById('home-loja-bar');
     if (!el) return;
+    el.style.opacity = ''; el.style.transform = ''; // reseta o efeito de scroll ao (re)entrar
     const loja = CLIENT_LOJA || {};
     applyLojaTheme(loja);
     const nm = loja.name || CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
@@ -9884,7 +9885,7 @@
     let ticking = false;
     window.addEventListener('scroll', () => {
       if (ticking) return; ticking = true;
-      requestAnimationFrame(() => { _updateCatSticky(); ticking = false; });
+      requestAnimationFrame(() => { _updateCatSticky(); _updateHomeFx(); ticking = false; });
     }, { passive: true });
   }
   function _updateCatSticky() {
@@ -9899,6 +9900,16 @@
     const r = row.getBoundingClientRect();
     // mostra quando a barra rica de categorias já saiu por cima do topo
     st.classList.toggle('show', r.bottom < 8);
+  }
+  // Efeito camaleão: a capa da loja some (fade + parallax) ao descer e volta ao subir.
+  function _updateHomeFx() {
+    const home = document.getElementById('home');
+    const bar = document.getElementById('home-loja-bar');
+    if (!home || !bar || !home.classList.contains('active')) return;
+    const y = window.scrollY || window.pageYOffset || 0;
+    const p = Math.min(1, y / 160);
+    bar.style.opacity = String(1 - p * 0.95);
+    bar.style.transform = 'translateY(' + (-y * 0.3).toFixed(1) + 'px)';
   }
   function setLojaFiltro(id) {
     homeState.filtroId = id || null;
