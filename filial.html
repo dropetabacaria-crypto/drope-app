@@ -219,6 +219,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 0 16px calc(34px + env(safe-area-inset-bottom));
     animation: cfgIn .2s ease;
+    box-shadow: 0 0 0 1px var(--border), 0 30px 80px rgba(0,0,0,0.6);
+  }
+  /* escurece o fundo atrás do overlay (aparece em telas largas; no mobile o painel cobre tudo) */
+  #config-wrap.cfg-open::before {
+    content: ''; position: fixed; inset: 0; z-index: -1;
+    background: rgba(5,4,12,0.78); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   }
   @keyframes cfgIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
   #config-wrap.cfg-open #cfg-topbar {
