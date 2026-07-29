@@ -4319,35 +4319,71 @@
     <button class="btn-secondary" onclick="closeStockEdit()" style="margin-top:8px; width:100%">cancelar</button>
   </div>
 
+  <style>
+    .ff-cats{ display:flex; gap:14px; overflow-x:auto; padding:10px 20px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .ff-cats::-webkit-scrollbar{ display:none; }
+    .ff-cat{ flex:0 0 auto; width:66px; text-align:center; cursor:pointer; }
+    .ff-cat .ic{ width:60px; height:60px; border-radius:18px; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 6px; box-shadow:0 6px 16px rgba(0,0,0,.28); transition:transform .1s; }
+    .ff-cat:active .ic{ transform:scale(.93); }
+    .ff-cat .lb{ font-size:11px; color:var(--text-dim); font-weight:600; line-height:1.15; }
+    .ff-flyers{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; padding:12px 20px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .ff-flyers::-webkit-scrollbar{ display:none; }
+    .ff-flyer{ flex:0 0 86%; scroll-snap-align:center; border-radius:20px; padding:20px; min-height:118px; display:flex; align-items:center; justify-content:space-between; gap:10px; color:#fff; overflow:hidden; }
+    .ff-flyer h3{ font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:800; }
+    .ff-flyer p{ font-size:12.5px; opacity:.93; margin-top:4px; line-height:1.35; }
+    .ff-flyer img{ width:82px; flex:0 0 auto; filter:drop-shadow(0 8px 16px rgba(0,0,0,.3)); }
+    .ff-flyer .emoji{ font-size:48px; flex:0 0 auto; }
+    .ff-rail-h{ padding:8px 20px 0; }
+    .ff-rail-h b{ font-family:'Space Grotesk',sans-serif; font-size:17px; color:var(--text); }
+    .ff-rail{ display:flex; gap:12px; overflow-x:auto; padding:10px 20px 8px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .ff-rail::-webkit-scrollbar{ display:none; }
+    .ff-prod{ flex:0 0 auto; width:142px; cursor:pointer; }
+    .ff-prod .th{ width:142px; height:120px; border-radius:16px; background-color:var(--card); background-size:cover; background-position:center; border:1px solid var(--border); position:relative; }
+    .ff-prod .promo{ position:absolute; top:8px; left:8px; background:var(--pink); color:#fff; font-size:10px; font-weight:800; padding:2px 7px; border-radius:8px; }
+    .ff-prod .nm{ font-size:12.5px; font-weight:700; color:var(--text); margin-top:7px; line-height:1.2; max-height:2.4em; overflow:hidden; }
+    .ff-prod .st{ font-size:11px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ff-prod .pr{ font-size:13px; font-weight:800; color:var(--lime); margin-top:3px; }
+    .ff-prod .pr s{ color:var(--text-dim); font-weight:500; font-size:11px; margin-left:4px; }
+    .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:16px 20px 40px; }
+    .cat-grid .ff-prod{ width:auto; }
+    .cat-grid .ff-prod .th{ width:100%; height:130px; }
+  </style>
+
   <!-- ============ INÍCIO — descoberta de tabacarias ============ -->
   <div class="screen" id="inicio">
-    <div style="padding: 22px 20px 8px">
+    <div style="padding: 22px 20px 4px">
       <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:800;color:var(--text);line-height:1.1">Lojas <span style="color:#C6FF00;text-shadow:0 0 12px rgba(198,255,0,0.65)">DROPE</span></div>
-      <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Lojas parceiras perto de você ✦</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:6px">Tabacarias e adegas perto de você ✦</div>
       <div class="inicio-search">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="inicio-search-input" placeholder="Buscar loja..." autocomplete="off" oninput="filterInicio(this.value)">
       </div>
-      <div class="inicio-banner">
-        <div>
-          <div class="ib-title">Drops em minutos ✦</div>
-          <div class="ib-sub">Peça e receba rapidinho,<br>sem sair de casa!</div>
-        </div>
-        <div class="ib-moto-wrap">
-          <img class="ib-moto" src="icons/drope-moto.png" alt="DROPE na moto" draggable="false">
-        </div>
-      </div>
+    </div>
+    <div id="inicio-cats" class="ff-cats"></div>
+    <div id="inicio-flyers"></div>
+    <div id="inicio-rails"></div>
+    <div style="padding: 6px 20px 0">
       <div class="seg-tabs" id="seg-tabs">
         <button class="seg-tab active" data-seg="" onclick="setInicioSeg('', this)">Todas</button>
         <button class="seg-tab" data-seg="tabacaria" onclick="setInicioSeg('tabacaria', this)">Tabacarias</button>
         <button class="seg-tab" data-seg="adega" onclick="setInicioSeg('adega', this)">Adegas</button>
       </div>
-      <div class="inicio-sec-lbl">Escolha a sua</div>
+      <div class="inicio-sec-lbl">Lojas recomendadas</div>
     </div>
     <div id="inicio-list" style="padding: 4px 20px 8px"></div>
     <div onclick="go('lojista-signup')" style="text-align:center;font-size:13px;color:var(--text-dim);padding:4px 20px 28px">
       É dono de loja? <span style="color:var(--lime);font-weight:800">Cadastre a sua →</span>
     </div>
+  </div>
+
+  <!-- Resultados de uma categoria (atalhos da home) -->
+  <div id="cat-ov" style="position:fixed;inset:0;z-index:210;background:var(--bg);display:none;flex-direction:column">
+    <div class="top-bar">
+      <div class="icon-btn" onclick="closeCatOv()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="brand-small" id="cat-ov-title">Categoria</div>
+      <div style="width:42px"></div>
+    </div>
+    <div id="cat-ov-body" style="flex:1;overflow-y:auto"></div>
   </div>
 
   <!-- ============ OFERTAS ============ -->
@@ -8463,18 +8499,71 @@
     );
   }
   let _inicioLojas = [];
+  let _homeFeedCache = null;
   async function renderInicio() {
     const list = document.getElementById('inicio-list');
     if (!list) return;
     _requestClientGeo();
+    renderFlyers();
+    // Lojas recomendadas
     try {
       const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
       const d = await r.json();
-      if (!d || !Array.isArray(d.filiais)) return;
-      _inicioLojas = d.filiais; _lojasCache = d.filiais;
-      filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
+      if (d && Array.isArray(d.filiais)) { _inicioLojas = d.filiais; _lojasCache = d.filiais; filterInicio((document.getElementById('inicio-search-input') || {}).value || ''); }
+    } catch (e) {}
+    // Feed estilo iFood: categorias + rails de produto (cruzando lojas)
+    try {
+      const r = await fetch('/api/webhook?action=home_feed', { cache: 'no-store' });
+      const d = await r.json();
+      if (d && d.ok) { _homeFeedCache = d; renderInicioCats(d.categories || []); renderInicioRails(d); }
     } catch (e) {}
   }
+  function renderInicioCats(cats) {
+    const el = document.getElementById('inicio-cats'); if (!el) return;
+    el.innerHTML = (cats || []).map(c => `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><div class="ic">${c.emoji || '✦'}</div><div class="lb">${escapeHtml(c.label)}</div></div>`).join('');
+  }
+  function renderFlyers() {
+    const el = document.getElementById('inicio-flyers'); if (!el) return;
+    const slides = [
+      { bg: 'linear-gradient(135deg,#241046,#8A2A6B)', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.', img: 'icons/drope-moto.png' },
+      { bg: 'linear-gradient(135deg,#0e7a3a,#12a150)', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.', emoji: '💸' },
+      { bg: 'linear-gradient(135deg,#2a2a3d,#12121f)', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.', emoji: '🦎' },
+    ];
+    el.innerHTML = '<div class="ff-flyers">' + slides.map(s => `<div class="ff-flyer" style="background:${s.bg}"><div><h3>${s.h}</h3><p>${s.p}</p></div>${s.img ? `<img src="${s.img}" alt="">` : `<div class="emoji">${s.emoji || '✦'}</div>`}</div>`).join('') + '</div>';
+  }
+  function renderInicioRails(d) {
+    const el = document.getElementById('inicio-rails'); if (!el) return;
+    let html = '';
+    if (d.mais_vendidos && d.mais_vendidos.length) html += _railHtml('Mais vendidos ✦', d.mais_vendidos);
+    if (d.promocoes && d.promocoes.length) html += _railHtml('Em promoção 🔥', d.promocoes);
+    el.innerHTML = html;
+  }
+  function _railHtml(title, items) {
+    return `<div class="ff-rail-h"><b>${title}</b></div><div class="ff-rail">${(items || []).map(_ffProd).join('')}</div>`;
+  }
+  function _ffProd(p) {
+    const img = p.image_url ? `background-image:url('${escapeHtml(String(p.image_url).replace(/'/g, ''))}')` : '';
+    const pc = (p.price_cents || 0) / 100, pm = p.promo_cents ? p.promo_cents / 100 : null;
+    const brl = n => 'R$ ' + n.toFixed(2).replace('.', ',');
+    const price = pm != null ? `${brl(pm)} <s>${brl(pc)}</s>` : brl(pc);
+    return `<div class="ff-prod" onclick="pickClientFilial('${escapeHtml(p.store_slug)}')"><div class="th" style="${img}">${p.promo_cents ? '<span class="promo">promo</span>' : ''}</div><div class="nm">${escapeHtml(p.name)}</div><div class="st">${escapeHtml(p.store_name || '')}</div><div class="pr">${price}</div></div>`;
+  }
+  async function openCategory(key, label) {
+    const ov = document.getElementById('cat-ov'), body = document.getElementById('cat-ov-body'), ttl = document.getElementById('cat-ov-title');
+    if (!ov) return;
+    ttl.textContent = label || 'Categoria';
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Carregando…</div>';
+    ov.style.display = 'flex';
+    try {
+      const r = await fetch('/api/webhook?action=home_feed&cat=' + encodeURIComponent(key), { cache: 'no-store' });
+      const d = await r.json();
+      const items = (d && d.produtos) || [];
+      body.innerHTML = items.length
+        ? '<div class="cat-grid">' + items.map(_ffProd).join('') + '</div>'
+        : '<div style="text-align:center;padding:50px 24px;color:var(--text-dim)"><div style="font-size:15px;font-weight:700;color:var(--text)">Nada em ' + escapeHtml(label || 'nessa categoria') + ' ainda ✦</div><div style="font-size:13px;margin-top:6px;line-height:1.5">As lojas ainda não marcaram produtos aqui. Volta em breve!</div></div>';
+    } catch (e) { body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--pink)">Erro ao carregar</div>'; }
+  }
+  function closeCatOv() { const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none'; }
   let _inicioSeg = ''; // '' = todas | 'tabacaria' | 'adega'
   function setInicioSeg(seg, el) {
     _inicioSeg = seg;
