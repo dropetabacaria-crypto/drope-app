@@ -4182,6 +4182,16 @@
 
   /* Utilitário: número em LED/dot-matrix (só destaques) */
   .led { font-family: 'Doto', 'Space Grotesk', monospace !important; font-weight: 800 !important; letter-spacing: 0.06em; }
+
+  /* Flyers: texto à esquerda + imagem isolada à direita (nunca atrás do texto) */
+  .ff-hero .slide { padding: 15px 18px; }
+  .ff-hero .fly-txt { max-width: 60%; position: relative; z-index: 1; }
+  .ff-hero .slide img.fly-img {
+    height: 96%; max-width: 40%; width: auto;
+    object-fit: contain; object-position: right center;
+    flex: 0 0 auto; align-self: center;
+    filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5));
+  }
 </style>
 </head>
 <body>
@@ -4423,9 +4433,15 @@
             <span style="color:var(--text-dim);font-weight:700;flex:0 0 auto">▾</span>
           </div>
         </div>
-        <div class="cart-btn" id="inicio-cart-btn" onclick="goCartSafe()" title="Sua sacola" style="position:relative;flex:0 0 auto;margin-top:2px">
-          <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
-          <div class="cart-badge" id="cart-badge">0</div>
+        <div style="display:flex;gap:8px;flex:0 0 auto;margin-top:2px">
+          <div class="cart-btn" onclick="openNotifsApp()" title="Avisos" style="position:relative">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <div class="cart-badge" id="app-notif-badge" style="display:none">0</div>
+          </div>
+          <div class="cart-btn" id="inicio-cart-btn" onclick="goCartSafe()" title="Sua sacola" style="position:relative">
+            <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+            <div class="cart-badge" id="cart-badge">0</div>
+          </div>
         </div>
       </div>
       <div class="inicio-search">
@@ -4496,12 +4512,8 @@
       <div class="cart-btn" id="home-search-btn" onclick="openStoreSearch()" title="Buscar produtos" style="margin-right:8px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
-      <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja" style="margin-right:8px">
+      <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-      </div>
-      <div class="cart-btn" onclick="openNotifsApp()" style="position:relative" title="Avisos">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <div class="cart-badge" id="app-notif-badge" style="display:none">0</div>
       </div>
     </div>
 
@@ -8636,15 +8648,14 @@
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
     const slides = [
-      { img: 'icons/flyer-drops.png', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
-      { img: 'icons/flyer-pix.png', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
-      { img: 'icons/flyer-18.png', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
+      { img: 'icons/drope-moto.png', glow: 'rgba(130,70,255,0.42)', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
+      { img: 'icons/flyer-pix.png', glow: 'rgba(74,222,128,0.34)', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
+      { img: 'icons/flyer-18.png', glow: 'rgba(255,45,111,0.32)', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
     ];
     _flyN = slides.length; _flyIdx = 0;
-    // Fundo com arte DROPE (dark-neon) + overlay escuro à esquerda pra manter o texto legível
-    const OV = 'linear-gradient(90deg,rgba(8,6,20,.92) 0%,rgba(8,6,20,.62) 42%,rgba(8,6,20,.12) 100%)';
+    // Card escuro com glow radial temático à direita + imagem isolada à direita (nunca atrás do texto)
     el.innerHTML = '<div class="ff-hero" id="ff-hero">'
-      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:${OV}, url('${s.img}') center/cover"><div style="max-width:66%"><h3>${s.h}</h3><p>${s.p}</p></div></div>`).join('')
+      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:radial-gradient(80% 130% at 100% 50%, ${s.glow}, transparent 60%), linear-gradient(180deg,#151026,#0d0a1a)"><div class="fly-txt"><h3>${s.h}</h3><p>${s.p}</p></div><img class="fly-img" src="${s.img}" alt="" loading="lazy"></div>`).join('')
       + '<div class="ff-dots">' + slides.map((_, i) => `<span class="ff-dot${i === 0 ? ' on' : ''}" onclick="flyGo(${i})"></span>`).join('') + '</div>'
       + '</div>';
     _flyBind(); _flyAuto();
