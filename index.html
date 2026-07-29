@@ -4367,6 +4367,7 @@
         <input id="inicio-search-input" placeholder="Buscar loja..." autocomplete="off" oninput="filterInicio(this.value)">
       </div>
     </div>
+    <div class="vibe-greet" id="inicio-vibe-greet" style="display:none">Qual sua vibe de hoje?<small>Escolha por categoria ✦</small></div>
     <div id="inicio-cats" class="ff-cats"></div>
     <div id="inicio-flyers"></div>
     <div id="inicio-rails"></div>
@@ -8565,6 +8566,7 @@
   function renderInicioCats(cats) {
     const el = document.getElementById('inicio-cats'); if (!el) return;
     el.innerHTML = (cats || []).map(c => `<div class="ff-cat" onclick="openCategory('${c.key}','${escapeHtml(c.label)}')"><img src="icons/cat-${c.key}.png" alt="" loading="lazy" onerror="this.style.display='none'"><span class="ff-cat-lb">${escapeHtml(c.label)}</span></div>`).join('');
+    const gr = document.getElementById('inicio-vibe-greet'); if (gr) gr.style.display = (cats && cats.length) ? '' : 'none';
   }
   // Carrossel de flyers estilo iFood: banner FIXO, o conteúdo dentro faz cross-fade
   // (efeito camaleão sumindo/aparecendo) ao arrastar pro lado. Com bolinhas + auto-play.
