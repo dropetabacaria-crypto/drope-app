@@ -14,8 +14,19 @@ Coisas que dependem do Andrade (acesso, decisão de negócio/compliance ou códi
 - [ ] **Cron semanal** que paga os indicadores/entregadores acima do piso e marca como pago.
 > Enquanto isso, o "marcar pago" manual no painel funciona como rede de segurança.
 
-## 2. UAZAPI (WhatsApp não está enviando)
-- [ ] Reconectar a instância (escanear QR de novo) **ou** passar token novo se a instância foi recriada. Sem isso, envio de WhatsApp cai em 502. Depois eu atualizo `UAZAPI_TOKEN` na Vercel.
+## 2. WhatsApp — migrar pro OFICIAL (Meta Cloud API) — decisão tomada
+O uazapi (dropepod) morreu (503) e o grátis apaga instância em 1h. Decisão: parar de depender disso e ir pro **WhatsApp Cloud API oficial da Meta**. Base no código **já está pronta** (pluggable): é só ligar as variáveis quando a conta Meta existir. Hoje está **desligado** (`WHATSAPP_PROVIDER=off`) — o app roda sem WhatsApp.
+
+**Custos:** conta Meta e API **grátis** (sem mensalidade). Paga só por msg: OTP ~R$0,17 · aviso de pedido ~R$0,04 (grátis em 24h) · começo ~R$5–15/mês, escala com a venda. Precisa **cartão** na Meta.
+
+**O que precisa providenciar (Andrade/Lucas):**
+- [ ] Conta **Meta Business** (Facebook)
+- [ ] **CNPJ próprio do DROPE** (ainda não tem) + dados pra verificação
+- [ ] **Número/chip dedicado** (fora do WhatsApp normal) pros avisos
+- [ ] **Cartão** cadastrado na Meta (cobrança por msg)
+- [ ] Verificação do negócio + aprovação dos modelos (uns dias, lado Meta)
+
+**Quando a conta existir, é comigo:** setar `WHATSAPP_PROVIDER=cloud`, `WA_CLOUD_TOKEN`, `WA_PHONE_NUMBER_ID` na Vercel, criar os templates (OTP/avisos) e testar. Já existe `sendWhatsAppTemplate()` pronto.
 
 ## 3. Teste real do split do Mercado Pago (Fase 2 — Pix no app)
 - [ ] Precisa de uma **2ª conta MP real** da Santos (o Lucas ia passar). Testar o split de ponta a ponta com dinheiro real.
