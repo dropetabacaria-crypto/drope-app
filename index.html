@@ -4135,6 +4135,13 @@
     --glass-sheen: linear-gradient(158deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015) 60%);
     --radius-lg: 22px;
     --radius-md: 16px;
+    /* --card-2 nunca foi definido no projeto → sheets/modais ficavam transparentes. Definido aqui. */
+    --card-2: #17131f;
+  }
+  /* Sheets/modais com fundo opaco em vidro (filtros, guest-gate, added-sheet) */
+  .sheet, .guest-gate, .added-sheet {
+    background: var(--glass-sheen), var(--card-2) !important;
+    border-top: 1px solid var(--glass-bd) !important;
   }
   /* Grid pontilhado sutil no fundo (assinatura Ai OS) */
   .app {
