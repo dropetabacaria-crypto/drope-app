@@ -4188,19 +4188,19 @@
   .ff-hero .fly-txt { max-width: 56%; position: relative; z-index: 2; }
   /* Mascote (transparente): contido, à direita */
   .ff-hero .slide img.fly-img {
-    height: 96%; max-width: 40%; width: auto;
+    height: 84%; max-width: 34%; width: auto;
     object-fit: contain; object-position: right center;
     flex: 0 0 auto; align-self: center;
     filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5));
     position: relative; z-index: 1;
   }
-  /* Artes ricas (dark-neon): cobrem a metade direita e dissolvem na esquerda (máscara),
+  /* Artes ricas (dark-neon): cobrem parte da direita e dissolvem na esquerda (máscara),
      misturando com o card — mesma linguagem do app, sem retângulo. */
   .ff-hero .slide img.fly-img.rich {
-    position: absolute; top: 0; right: 0; bottom: 0;
-    height: 100%; width: 56%; max-width: 56%;
+    position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+    height: 84%; width: 48%; max-width: 48%;
     object-fit: cover; object-position: center;
-    filter: none; align-self: stretch;
+    filter: none;
     -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
     mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
   }
