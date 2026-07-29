@@ -4183,14 +4183,26 @@
   /* Utilitário: número em LED/dot-matrix (só destaques) */
   .led { font-family: 'Doto', 'Space Grotesk', monospace !important; font-weight: 800 !important; letter-spacing: 0.06em; }
 
-  /* Flyers: texto à esquerda + imagem isolada à direita (nunca atrás do texto) */
-  .ff-hero .slide { padding: 15px 18px; }
-  .ff-hero .fly-txt { max-width: 60%; position: relative; z-index: 1; }
+  /* Flyers: texto à esquerda + imagem à direita (nunca atrás do texto) */
+  .ff-hero .slide { padding: 15px 18px; overflow: hidden; }
+  .ff-hero .fly-txt { max-width: 56%; position: relative; z-index: 2; }
+  /* Mascote (transparente): contido, à direita */
   .ff-hero .slide img.fly-img {
     height: 96%; max-width: 40%; width: auto;
     object-fit: contain; object-position: right center;
     flex: 0 0 auto; align-self: center;
     filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5));
+    position: relative; z-index: 1;
+  }
+  /* Artes ricas (dark-neon): cobrem a metade direita e dissolvem na esquerda (máscara),
+     misturando com o card — mesma linguagem do app, sem retângulo. */
+  .ff-hero .slide img.fly-img.rich {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    height: 100%; width: 56%; max-width: 56%;
+    object-fit: cover; object-position: center;
+    filter: none; align-self: stretch;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
   }
 </style>
 </head>
@@ -8648,14 +8660,15 @@
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
     const slides = [
-      { img: 'icons/drope-moto.png', glow: 'rgba(130,70,255,0.42)', h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
-      { img: 'icons/flyer-pix.png', glow: 'rgba(74,222,128,0.34)', h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
-      { img: 'icons/flyer-18.png', glow: 'rgba(255,45,111,0.32)', h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
+      { img: 'icons/drope-moto.png', glow: 'rgba(130,70,255,0.42)', rich: false, h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
+      { img: 'icons/flyer-pix.png', glow: 'rgba(74,222,128,0.30)', rich: true, h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
+      { img: 'icons/flyer-18.png', glow: 'rgba(255,45,111,0.28)', rich: true, h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
     ];
     _flyN = slides.length; _flyIdx = 0;
-    // Card escuro com glow radial temático à direita + imagem isolada à direita (nunca atrás do texto)
+    // Card escuro (mesma base das artes) + glow temático; imagem à direita.
+    // Mascote (rich:false) = contain; artes ricas (rich:true) = cover na direita com máscara que dissolve na esquerda.
     el.innerHTML = '<div class="ff-hero" id="ff-hero">'
-      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:radial-gradient(80% 130% at 100% 50%, ${s.glow}, transparent 60%), linear-gradient(180deg,#151026,#0d0a1a)"><div class="fly-txt"><h3>${s.h}</h3><p>${s.p}</p></div><img class="fly-img" src="${s.img}" alt="" loading="lazy"></div>`).join('')
+      + slides.map((s, i) => `<div class="slide${i === 0 ? ' on' : ''}" style="background:radial-gradient(78% 120% at 100% 50%, ${s.glow}, transparent 60%), linear-gradient(180deg,#0f0b1c,#0a0b16)"><div class="fly-txt"><h3>${s.h}</h3><p>${s.p}</p></div><img class="fly-img${s.rich ? ' rich' : ''}" src="${s.img}" alt="" loading="lazy"></div>`).join('')
       + '<div class="ff-dots">' + slides.map((_, i) => `<span class="ff-dot${i === 0 ? ' on' : ''}" onclick="flyGo(${i})"></span>`).join('') + '</div>'
       + '</div>';
     _flyBind(); _flyAuto();
