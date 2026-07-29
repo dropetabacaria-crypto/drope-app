@@ -4188,7 +4188,7 @@
   .ff-hero .fly-txt { max-width: 56%; position: relative; z-index: 2; }
   /* Mascote (transparente): contido, à direita */
   .ff-hero .slide img.fly-img {
-    height: 84%; max-width: 34%; width: auto;
+    height: 96%; max-width: 40%; width: auto;
     object-fit: contain; object-position: right center;
     flex: 0 0 auto; align-self: center;
     filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5));
@@ -4197,10 +4197,10 @@
   /* Artes ricas (dark-neon): cobrem parte da direita e dissolvem na esquerda (máscara),
      misturando com o card — mesma linguagem do app, sem retângulo. */
   .ff-hero .slide img.fly-img.rich {
-    position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
-    height: 84%; width: 48%; max-width: 48%;
+    position: absolute; top: 0; right: 0; bottom: 0;
+    height: 100%; width: 56%; max-width: 56%;
     object-fit: cover; object-position: center;
-    filter: none;
+    filter: none; align-self: stretch;
     -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
     mask-image: linear-gradient(90deg, transparent 0%, #000 50%);
   }
@@ -8660,7 +8660,7 @@
   function renderFlyers() {
     const el = document.getElementById('inicio-flyers'); if (!el) return;
     const slides = [
-      { img: 'icons/drope-moto.png', glow: 'rgba(130,70,255,0.42)', rich: false, h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
+      { img: 'icons/drope-moto-fx.png', glow: 'rgba(130,70,255,0.42)', rich: false, h: 'Drops em minutos ✦', p: 'Peça da sua tabacaria ou adega e receba rapidinho.' },
       { img: 'icons/flyer-pix.png', glow: 'rgba(74,222,128,0.30)', rich: true, h: 'Pague no Pix ✦', p: 'Aprovação na hora, sem cartão salvo. Simples e seguro.' },
       { img: 'icons/flyer-18.png', glow: 'rgba(255,45,111,0.28)', rich: true, h: '+18 ✦ Curta com responsa', p: 'Venda proibida para menores. Beba com moderação.' },
     ];
