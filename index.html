@@ -9879,14 +9879,30 @@
     sc.innerHTML = pill(null, 'Todos') + filtros.map(f => pill(f.id, f.nome || '')).join('');
   }
   let _catStickyBound = false;
+  let _scrollTicking = false;
+  function _onScrollFrame() {
+    if (_scrollTicking) return; _scrollTicking = true;
+    requestAnimationFrame(() => {
+      // try/finally garante que um erro em qualquer efeito nunca "trave" o scroll
+      try { _updateCatSticky(); } catch (e) {}
+      try { _updateHomeFx(); } catch (e) {}
+      _scrollTicking = false;
+    });
+  }
+  function _bindScrollFx() {
+    if (_bindScrollFx._bound) return;
+    _bindScrollFx._bound = true;
+    window.addEventListener('scroll', _onScrollFrame, { passive: true });
+    _onScrollFrame();
+  }
+  // Liga o listener de scroll uma vez, independente de abrir loja/filtros.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _bindScrollFx);
+  } else { _bindScrollFx(); }
   function _setupCatStickyToggle() {
+    _bindScrollFx();
     if (_catStickyBound) { _updateCatSticky(); return; }
     _catStickyBound = true;
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-      if (ticking) return; ticking = true;
-      requestAnimationFrame(() => { _updateCatSticky(); _updateHomeFx(); ticking = false; });
-    }, { passive: true });
   }
   function _updateCatSticky() {
     const st = document.getElementById('loja-cat-sticky');
