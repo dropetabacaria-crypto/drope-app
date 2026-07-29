@@ -17,6 +17,14 @@ const crypto = require('crypto');
 // ============ CONFIG ============
 const UAZAPI_SERVER = process.env.UAZAPI_SERVER || "https://dropepod.uazapi.com";
 const UAZAPI_TOKEN = process.env.UAZAPI_TOKEN || "";
+// Provedor de WhatsApp (pluggable): 'cloud' (Meta oficial) | 'uazapi' | 'off'.
+// Default: 'cloud' se configurado; senão 'uazapi' se tiver token; senão desligado.
+// Pra lançar SEM WhatsApp: setar WHATSAPP_PROVIDER=off na Vercel (nada trava).
+const WA_CLOUD_TOKEN = process.env.WA_CLOUD_TOKEN || "";          // token permanente da Cloud API (Meta)
+const WA_PHONE_NUMBER_ID = process.env.WA_PHONE_NUMBER_ID || ""; // phone_number_id da Meta
+const WA_GRAPH = "https://graph.facebook.com/v21.0";
+const WHATSAPP_PROVIDER = (process.env.WHATSAPP_PROVIDER
+  || ((WA_CLOUD_TOKEN && WA_PHONE_NUMBER_ID) ? 'cloud' : (UAZAPI_TOKEN ? 'uazapi' : 'off'))).toLowerCase();
 const CLAUDE_KEY = process.env.CLAUDE_KEY || process.env.ANTHROPIC_API_KEY || "";
 const XAI_API_KEY = process.env.XAI_API_KEY || "";
 const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || "").replace(/^["']|["']$/g, "").trim();
@@ -7660,27 +7668,79 @@ async function generateVideoFromArt(artUrl, slug) {
 }
 
 // ============ UAZAPI SEND ============
-async function sendText(phone, text, body = {}) {
-  const serverUrl = body.BaseUrl || UAZAPI_SERVER;
-  const token = body.token || UAZAPI_TOKEN;
+// Resposta "vazia" quando o WhatsApp está desligado/não configurado — parece uma
+// Response o suficiente pros callers (ok/status/json/text) e NUNCA quebra o fluxo.
+function _waSkip(reason) {
+  return { ok: false, status: 0, skipped: true, reason, json: async () => ({ ok: false, skipped: true, reason }), text: async () => reason };
+}
+
+// Envio de texto livre pela Cloud API oficial (Meta). Fora da janela de 24h a Meta
+// só aceita TEMPLATE — pra OTP/avisos use sendWhatsAppTemplate().
+async function _waCloudText(phone, text) {
+  const to = String(phone || '').replace(/\D/g, '');
   const t0 = Date.now();
-  const r = await fetch(`${serverUrl}/send/text`, {
+  const r = await fetch(`${WA_GRAPH}/${WA_PHONE_NUMBER_ID}/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "token": token },
-    body: JSON.stringify({ number: phone, text })
+    headers: { "Authorization": `Bearer ${WA_CLOUD_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } })
   });
-  console.log("[Send] text to", phone.slice(0, 6) + "***", "status:", r.status);
-  // OSSO 23 — log custo
-  logApiCost('uazapi_msg', {
-    type: 'text',
-    status: r.status,
-    ms: Date.now() - t0,
-    chars: text ? text.length : 0,
-  }).catch(() => {});
+  logApiCost('uazapi_msg', { type: 'text_cloud', status: r.status, ms: Date.now() - t0, chars: text ? text.length : 0 }).catch(() => {});
   return r;
 }
 
+// Envio via TEMPLATE aprovado (necessário fora da janela de 24h: OTP, avisos de pedido).
+// Preencher os nomes/params dos templates quando forem aprovados na Meta.
+async function sendWhatsAppTemplate(phone, templateName, lang, bodyParams = []) {
+  try {
+    if (WHATSAPP_PROVIDER !== 'cloud' || !WA_CLOUD_TOKEN || !WA_PHONE_NUMBER_ID) return _waSkip('cloud_nao_configurado');
+    const to = String(phone || '').replace(/\D/g, '');
+    const components = (bodyParams && bodyParams.length)
+      ? [{ type: 'body', parameters: bodyParams.map(v => ({ type: 'text', text: String(v) })) }] : [];
+    const r = await fetch(`${WA_GRAPH}/${WA_PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${WA_CLOUD_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template", template: { name: templateName, language: { code: lang || 'pt_BR' }, components } })
+    });
+    logApiCost('uazapi_msg', { type: 'template', status: r.status }).catch(() => {});
+    return r;
+  } catch (e) { console.warn('[wa template] falhou (ignorado):', e && e.message); return _waSkip('erro'); }
+}
+
+// Envio de texto — roteia pelo provedor configurado. NUNCA lança: se o WhatsApp
+// estiver desligado/fora do ar, retorna um "skip" e o app segue normal.
+async function sendText(phone, text, body = {}) {
+  try {
+    const provider = (body.provider || WHATSAPP_PROVIDER);
+    if (provider === 'cloud') {
+      if (!WA_CLOUD_TOKEN || !WA_PHONE_NUMBER_ID) return _waSkip('cloud_nao_configurado');
+      return await _waCloudText(phone, text);
+    }
+    if (provider === 'uazapi') {
+      const serverUrl = body.BaseUrl || UAZAPI_SERVER;
+      const token = body.token || UAZAPI_TOKEN;
+      if (!token) return _waSkip('uazapi_sem_token');
+      const t0 = Date.now();
+      const r = await fetch(`${serverUrl}/send/text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "token": token },
+        body: JSON.stringify({ number: phone, text })
+      });
+      console.log("[Send] text to", String(phone).slice(0, 6) + "***", "status:", r.status);
+      logApiCost('uazapi_msg', { type: 'text', status: r.status, ms: Date.now() - t0, chars: text ? text.length : 0 }).catch(() => {});
+      return r;
+    }
+    return _waSkip('whatsapp_off'); // lançar sem WhatsApp: no-op seguro
+  } catch (e) {
+    console.warn('[sendText] falhou (ignorado):', e && e.message);
+    return _waSkip('erro');
+  }
+}
+
 async function sendImage(phone, imageUrl, caption, body = {}) {
+  // Só o uazapi manda imagem por enquanto (Cloud API via mídia fica pra depois).
+  // Desligado/cloud → no-op seguro (não trava geração de arte nem nada).
+  const _prov = body.provider || WHATSAPP_PROVIDER;
+  if (_prov !== 'uazapi' || !(body.token || UAZAPI_TOKEN)) return _waSkip('img_' + _prov);
   const serverUrl = body.BaseUrl || UAZAPI_SERVER;
   const token = body.token || UAZAPI_TOKEN;
 
