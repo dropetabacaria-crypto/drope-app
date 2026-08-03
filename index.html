@@ -7441,8 +7441,13 @@
   function _revMoney(c) { return 'R$ ' + ((c || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function _revCard(lbl, val, sub, color) { return '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:14px;margin-bottom:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);font-weight:800">' + lbl + '</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:26px;color:' + color + ';margin-top:3px">' + val + '</div><div style="font-size:12px;color:var(--text-dim);margin-top:2px">' + sub + '</div></div>'; }
   function _revRow(lbl, val) { return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.06)"><span style="color:var(--text-dim)">' + lbl + '</span><b>' + val + '</b></div>'; }
-  function _revModal(html) { let m = document.getElementById('rev-modal'); if (!m) { m = document.createElement('div'); m.id = 'rev-modal'; document.body.appendChild(m); } m.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;background:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px) 0 0/23px 23px,rgba(5,4,12,.9)'; m.innerHTML = '<div style="background:linear-gradient(158deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),var(--card);border:1px solid var(--glass-bd);border-radius:22px;padding:24px;max-width:420px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.6)">' + html + '</div>'; }
+  function _revModal(html) { let m = document.getElementById('rev-modal'); if (!m) { m = document.createElement('div'); m.id = 'rev-modal'; document.body.appendChild(m); } m.style.cssText = 'position:fixed;inset:0;z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:0;overflow:auto;background:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px) 0 0/23px 23px,rgba(5,4,12,.94)'; m.innerHTML = '<div style="max-width:480px;width:100%;min-height:100%;padding:22px 18px 40px">' + html + '</div>'; }
   function _revModalClose() { const m = document.getElementById('rev-modal'); if (m) m.remove(); }
+  function _revDate(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); } catch (e) { return ''; } }
+  function _revSecTitle(t, n) { return '<div style="display:flex;align-items:baseline;gap:8px;margin:22px 2px 10px"><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:15px">' + t + '</span>' + (n != null ? '<span style="font-size:12px;color:var(--text-dim)">' + n + '</span>' : '') + '</div>'; }
+  function _revTierBadge(tier) { const c = tier === 'max' ? 'var(--pink)' : tier === 'pro' ? '#8C50FF' : 'var(--text-dim)'; return '<span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:' + c + ';border:1px solid ' + c + ';border-radius:6px;padding:2px 6px">' + tier + '</span>'; }
+  function _revListRow(left, right, sub, subRight) { return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px 13px;margin-bottom:7px"><div style="min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + left + '</div>' + (sub ? '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">' + sub + '</div>' : '') + '</div><div style="text-align:right;flex-shrink:0"><div style="font-size:13px;font-weight:800">' + right + '</div>' + (subRight ? '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">' + subRight + '</div>' : '') + '</div></div>'; }
+  function _revEmpty(t) { return '<div style="text-align:center;color:var(--text-dim);font-size:13px;padding:16px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.1);border-radius:12px">' + t + '</div>'; }
   async function openDropeRevenue() {
     const t = _adminTok(); if (!t) return;
     _revModal('<div style="text-align:center;color:var(--text-dim);padding:30px">Carregando ganhos…</div>');
@@ -7450,19 +7455,37 @@
       const r = await fetch('/api/webhook?action=admin_revenue&token=' + encodeURIComponent(t), { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
       if (!(r.ok && d.ok)) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); return; }
-      const co = d.commission, pl = d.plans;
+      const co = d.commission, pl = d.plans, sales = d.sales || [];
+      // Lojas assinantes (planos pagos)
+      let plHtml;
+      if (!pl.list || !pl.list.length) { plHtml = _revEmpty('Nenhuma loja em plano pago ainda'); }
+      else { plHtml = pl.list.map(function (s) {
+        const until = s.paid_until ? 'válido até ' + _revDate(s.paid_until) : (s.since ? 'desde ' + _revDate(s.since) : '');
+        return _revListRow(s.name + '  ' + _revTierBadge(s.tier), _revMoney(s.monthly_fee_cents) + '/mês', until + (s.method === 'pix_avulso' ? ' · Pix' : ''), 'comissão ' + s.commission_pct + '%');
+      }).join(''); }
+      // Vendas com comissão (só MP-split)
+      let sHtml;
+      if (!sales.length) { sHtml = _revEmpty('Nenhuma venda com comissão ainda'); }
+      else { sHtml = sales.map(function (v) {
+        return _revListRow(v.filial, '+ ' + _revMoney(v.commission_cents), _revDate(v.at) + ' · ' + (v.nsu || ''), _revMoney(v.gross_cents) + ' · ' + v.pct + '%');
+      }).join(''); }
       _revModal(
-        '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:20px;margin-bottom:2px">Ganhos do DROPE ✦</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px"><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:22px">Ganhos do DROPE ✦</div><span onclick="_revModalClose()" style="cursor:pointer;color:var(--text-dim);font-size:30px;line-height:.8">×</span></div>' +
         '<div style="color:var(--text-dim);font-size:12px;margin-bottom:16px">' + (d.lojas_ativas || 0) + ' lojas ativas</div>' +
         _revCard('DROPE recebe por mês (estimado)', _revMoney((co.month_cents || 0) + (pl.mrr_cents || 0)), 'comissão do mês + mensalidades', '#8C50FF') +
-        _revCard('Comissão das vendas · este mês', _revMoney(co.month_cents), (co.orders_month || 0) + ' pedidos · ' + _revMoney(co.gross_month_cents) + ' vendido', 'var(--lime)') +
+        _revCard('Comissão das vendas · este mês', _revMoney(co.month_cents), (co.orders_month || 0) + ' vendas · ' + _revMoney(co.gross_month_cents) + ' movimentado', 'var(--lime)') +
         _revCard('Planos · recorrente/mês (MRR)', _revMoney(pl.mrr_cents), (pl.active || 0) + ' assinaturas (' + (pl.by_tier.pro || 0) + ' Pro · ' + (pl.by_tier.max || 0) + ' Max)', 'var(--pink)') +
-        '<div style="height:6px"></div>' +
-        _revRow('Comissão total (histórico)', _revMoney(co.total_cents)) +
-        _revRow('Vendas totais (bruto)', _revMoney(co.gross_total_cents)) +
-        _revRow('Pedidos pagos (total)', String(co.orders || 0)) +
-        '<div style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.4">Comissão calculada pela % do plano atual de cada loja. A taxa do Mercado Pago (~1%) é descontada à parte.</div>' +
-        '<div style="text-align:center;margin-top:12px"><span onclick="_revModalClose()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Fechar</span></div>'
+        _revSecTitle('Lojas assinantes', pl.active || 0) +
+        plHtml +
+        _revSecTitle('Vendas com comissão', co.orders || 0) +
+        '<div style="font-size:11px;color:var(--text-dim);margin:-4px 2px 10px;line-height:1.4">Só vendas pelo app via Mercado Pago (split). Vendas no balcão não geram comissão.</div>' +
+        sHtml +
+        _revSecTitle('Totais (histórico)') +
+        _revRow('Comissão total', _revMoney(co.total_cents)) +
+        _revRow('Movimentado com comissão (bruto)', _revMoney(co.gross_total_cents)) +
+        _revRow('Vendas com comissão', String(co.orders || 0)) +
+        '<div style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.4">Comissão pela % do plano atual de cada loja. A taxa do Mercado Pago (~1%) é descontada à parte.</div>' +
+        '<div style="text-align:center;margin-top:18px"><span onclick="_revModalClose()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Fechar</span></div>'
       );
     } catch (e) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">Erro de rede</div><div style="text-align:center"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); }
   }

@@ -13683,27 +13683,39 @@ async function handleAdminRevenue(req, res) {
   if (!ADMIN_TOKEN || (qtok !== ADMIN_TOKEN && htok !== ADMIN_TOKEN)) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
   try {
     const filiais = (await sbGet('drope_filiais', 'select=id,slug,name,metadata&status=eq.active')) || [];
-    const pctBy = {}; const byTier = { start: 0, pro: 0, max: 0 }; let mrrCents = 0; const planList = [];
+    const pctBy = {}; const nameBy = {}; const byTier = { start: 0, pro: 0, max: 0 }; let mrrCents = 0; const planList = [];
     for (const f of filiais) {
-      const p = _planFor(f); pctBy[f.id] = p.commission_pct;
+      const p = _planFor(f); pctBy[f.id] = p.commission_pct; nameBy[f.id] = f.name || f.slug;
       byTier[p.tier] = (byTier[p.tier] || 0) + 1;
-      if (p.tier !== 'start') { mrrCents += (DROPE_PLANS[p.tier].monthly_fee_cents || 0); planList.push({ slug: f.slug, name: f.name || f.slug, tier: p.tier }); }
+      if (p.tier !== 'start') {
+        const fee = (DROPE_PLANS[p.tier] && DROPE_PLANS[p.tier].monthly_fee_cents) || 0; mrrCents += fee;
+        const pl = ((f.metadata || {}).plan) || {};
+        planList.push({ slug: f.slug, name: f.name || f.slug, tier: p.tier, commission_pct: p.commission_pct, monthly_fee_cents: fee, paid_until: pl.paid_until || null, since: pl.since || null, method: ((pl.subscription || {}).method) || null });
+      }
     }
-    const orders = (await sbGet('drope_orders', 'select=filial_id,amount_paid_cents,payment_confirmed_at,created_at&status=eq.paid&limit=8000')) || [];
+    // Comissão do DROPE = SÓ vendas que passaram pelo split do Mercado Pago (app).
+    // Balcão/PDV (dinheiro, débito, crédito, pix manual, infinitepay) = a loja fica com
+    // 100%, DROPE não ganha comissão. Conta qualquer status (paid/delivered/completed…),
+    // desde que tenha pagamento confirmado.
+    const orders = (await sbGet('drope_orders', 'select=order_nsu,filial_id,status,amount_paid_cents,total_cents,payment_confirmed_at,created_at&payment_method=like.mercadopago*&order=created_at.desc&limit=2000')) || [];
     const now = new Date(); const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     let grossTotal = 0, commTotal = 0, grossMonth = 0, commMonth = 0, cnt = 0, cntMonth = 0;
+    const sales = [];
     for (const o of orders) {
-      const amt = o.amount_paid_cents || 0; if (!amt) continue;
+      if (!o.payment_confirmed_at) continue;
+      const amt = o.amount_paid_cents || o.total_cents || 0; if (!amt) continue;
       const pct = (pctBy[o.filial_id] != null) ? pctBy[o.filial_id] : 10;
       const comm = Math.round(amt * pct / 100);
       grossTotal += amt; commTotal += comm; cnt++;
-      const t = new Date(o.payment_confirmed_at || o.created_at || 0).getTime();
+      const t = new Date(o.payment_confirmed_at).getTime();
       if (t >= monthStart) { grossMonth += amt; commMonth += comm; cntMonth++; }
+      sales.push({ nsu: o.order_nsu, filial: nameBy[o.filial_id] || ('loja ' + o.filial_id), gross_cents: amt, pct: pct, commission_cents: comm, at: o.payment_confirmed_at, status: o.status });
     }
     return res.status(200).json({
       ok: true,
       commission: { total_cents: commTotal, month_cents: commMonth, gross_total_cents: grossTotal, gross_month_cents: grossMonth, orders: cnt, orders_month: cntMonth },
-      plans: { active: planList.length, mrr_cents: mrrCents, by_tier: byTier, list: planList.slice(0, 50) },
+      plans: { active: planList.length, mrr_cents: mrrCents, by_tier: byTier, list: planList },
+      sales: sales.slice(0, 100),
       lojas_ativas: filiais.length,
       generated_at: new Date().toISOString(),
     });
