@@ -13717,24 +13717,69 @@ async function handleFilialPlanSubscribe(req, res) {
     const md = filial.metadata || {};
     const email = ((md.login || {}).email) || '';
     if (!email) return res.status(400).json({ ok: false, error: 'cadastre um email de acesso primeiro' });
-    const pre = await fetch('https://api.mercadopago.com/preapproval', {
-      method: 'POST', headers: { Authorization: `Bearer ${mpTok}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reason: `DROPE ${plan.label} — ${filial.name || filial.slug}`,
-        external_reference: `${filial.slug}:${tier}`,
-        payer_email: email,
-        back_url: `https://drope-app.vercel.app/${encodeURIComponent(filial.slug)}/painel?assinatura=ok`,
-        notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
-        auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: plan.monthly_fee_cents / 100, currency_id: 'BRL' },
-        status: 'pending',
-      }),
-    });
-    const d = await pre.json().catch(() => ({}));
-    const init = d.init_point || d.sandbox_init_point;
-    if (!pre.ok || !init) return res.status(502).json({ ok: false, error: (d && d.message) || 'falha ao criar assinatura' });
-    md.plan = { ...(md.plan || {}), pending: { tier, preapproval_id: d.id, at: new Date().toISOString() } };
+    const monthly = plan.monthly_fee_cents / 100;
+    const reason = `DROPE ${plan.label} — ${filial.name || filial.slug}`;
+    const backUrl = `https://drope-app.vercel.app/${encodeURIComponent(filial.slug)}/painel?assinatura=ok`;
+    const notifUrl = `https://drope-app.vercel.app/api/webhook?action=mp_webhook`;
+    let init = null, preapprovalId = null, method = 'card';
+
+    // 1) Fluxo ABERTO (Pix Automático + cartão): preapproval_plan libera Pix como recorrente,
+    //    e o lojista paga por QUALQUER banco sem precisar de conta no Mercado Pago.
+    //    (Precisa do Pix Automático habilitado na conta MP do DROPE pra o Pix aparecer.)
+    try {
+      const planRes = await fetch('https://api.mercadopago.com/preapproval_plan', {
+        method: 'POST', headers: { Authorization: `Bearer ${mpTok}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason,
+          auto_recurring: {
+            frequency: 1, frequency_type: 'months', transaction_amount: monthly, currency_id: 'BRL',
+            payment_methods_allowed: {
+              payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'bank_transfer' }],
+              payment_methods: [{ id: 'pix' }],
+            },
+          },
+          back_url: backUrl,
+          notification_url: notifUrl,
+        }),
+      });
+      const planData = await planRes.json().catch(() => ({}));
+      if (planRes.ok && planData.id) {
+        const subRes = await fetch('https://api.mercadopago.com/preapproval', {
+          method: 'POST', headers: { Authorization: `Bearer ${mpTok}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            preapproval_plan_id: planData.id, reason,
+            external_reference: `${filial.slug}:${tier}`, payer_email: email,
+            back_url: backUrl, notification_url: notifUrl, status: 'pending',
+          }),
+        });
+        const subData = await subRes.json().catch(() => ({}));
+        const si = subData.init_point || subData.sandbox_init_point;
+        if (subRes.ok && si) { init = si; preapprovalId = subData.id; method = 'plan'; }
+        else console.warn('[plan_subscribe] preapproval(plan) falhou:', JSON.stringify(subData).slice(0, 220));
+      } else {
+        console.warn('[plan_subscribe] preapproval_plan falhou:', JSON.stringify(planData).slice(0, 220));
+      }
+    } catch (e) { console.warn('[plan_subscribe] fluxo Pix falhou, cai no fallback cartão:', e.message); }
+
+    // 2) FALLBACK (só cartão) — garante que o botão nunca quebra se o Pix Automático não estiver ativo.
+    if (!init) {
+      const pre = await fetch('https://api.mercadopago.com/preapproval', {
+        method: 'POST', headers: { Authorization: `Bearer ${mpTok}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason, external_reference: `${filial.slug}:${tier}`, payer_email: email,
+          back_url: backUrl, notification_url: notifUrl,
+          auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: monthly, currency_id: 'BRL' },
+          status: 'pending',
+        }),
+      });
+      const d = await pre.json().catch(() => ({}));
+      init = d.init_point || d.sandbox_init_point; preapprovalId = d.id; method = 'card';
+      if (!pre.ok || !init) return res.status(502).json({ ok: false, error: (d && d.message) || 'falha ao criar assinatura' });
+    }
+
+    md.plan = { ...(md.plan || {}), pending: { tier, preapproval_id: preapprovalId, method, at: new Date().toISOString() } };
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
-    return res.status(200).json({ ok: true, init_point: init });
+    return res.status(200).json({ ok: true, init_point: init, method });
   } catch (e) { console.error('[filial_plan_subscribe] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
