@@ -1151,7 +1151,7 @@ function _planModal(html) {
   m.style.cssText = 'position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px) 0 0/23px 23px,rgba(5,4,12,.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)';
   m.innerHTML = '<div style="background:linear-gradient(158deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),var(--bg2);border:1px solid var(--border);border-radius:22px;padding:24px;max-width:380px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.6)">' + html + '</div>';
 }
-function _planModalClose() { const m = document.getElementById('plan-modal'); if (m) m.remove(); if (window._planPixPoll) { clearInterval(window._planPixPoll); window._planPixPoll = null; } }
+function _planModalClose() { const m = document.getElementById('plan-modal'); if (m) m.remove(); if (window._planPixPoll) { clearInterval(window._planPixPoll); window._planPixPoll = null; } if (window._planPixVis) { document.removeEventListener('visibilitychange', window._planPixVis); window._planPixVis = null; } }
 function openPlanPayChoice(tier) {
   const label = tier.toUpperCase();
   _planModal(
@@ -1187,18 +1187,27 @@ async function planPayPix(tier) {
       '<div id="planpix-status" style="text-align:center;font-size:13px;color:var(--fg-dim);min-height:18px">Aguardando pagamento…</div>' +
       '<div style="text-align:center;margin-top:8px"><span onclick="_planModalClose()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">Fechar</span></div>'
     );
+    const pid = d.payment_id;
     if (window._planPixPoll) clearInterval(window._planPixPoll);
-    window._planPixPoll = setInterval(async () => {
+    if (window._planPixVis) document.removeEventListener('visibilitychange', window._planPixVis);
+    window._planPixDone = false;
+    async function _planPixCheck() {
+      if (window._planPixDone) return;
       try {
-        const cr = await fetch('/api/webhook?action=mp_check_pix&payment_id=' + encodeURIComponent(d.payment_id));
+        const cr = await fetch('/api/webhook?action=mp_check_pix&payment_id=' + encodeURIComponent(pid), { cache: 'no-store' });
         const cd = await cr.json().catch(() => ({}));
         if (cd.status === 'approved') {
-          clearInterval(window._planPixPoll); window._planPixPoll = null;
+          window._planPixDone = true;
+          if (window._planPixPoll) { clearInterval(window._planPixPoll); window._planPixPoll = null; }
           const st = document.getElementById('planpix-status'); if (st) { st.style.color = 'var(--green)'; st.textContent = 'Pago ✦ plano ativado!'; }
           setTimeout(() => { _planModalClose(); loadData(true); }, 1600);
         }
       } catch (e) {}
-    }, 4000);
+    }
+    window._planPixPoll = setInterval(_planPixCheck, 4000);
+    // Celular pausa o timer ao abrir o app do banco — re-checa assim que volta pro navegador.
+    window._planPixVis = function () { if (document.visibilityState === 'visible') _planPixCheck(); };
+    document.addEventListener('visibilitychange', window._planPixVis);
   } catch (e) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">Erro de rede</div><div style="text-align:center"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); }
 }
 function _planPixCopy(btn) {

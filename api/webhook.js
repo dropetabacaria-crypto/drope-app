@@ -17088,7 +17088,8 @@ async function handleMPCheckPix(req, res) {
     return res.status(400).json({ error: 'missing payment_id' });
   }
   // Pagamento com split é criado com o token da LOJA — checa com o token dela.
-  let token = MP_ACCESS_TOKEN;
+  // Sem slug (ex.: Pix da mensalidade do plano) usa o token da plataforma (app), o mesmo que criou.
+  let token = (await _mpAppToken()) || MP_ACCESS_TOKEN;
   if (slug) {
     try { const f = await _filialBySlugRead(slug); if (f) { const t = await _mpTokenForFilial(f); if (t) token = t; } } catch (e) {}
   }
