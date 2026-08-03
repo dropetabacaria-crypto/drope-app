@@ -1157,8 +1157,8 @@ function openPlanPayChoice(tier) {
   _planModal(
     '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:19px;margin-bottom:4px">Assinar o plano ' + label + '</div>' +
     '<div style="color:var(--fg-dim);font-size:13px;margin-bottom:18px">Como você quer pagar a mensalidade?</div>' +
-    '<button onclick="planPayCard(\'' + tier + '\')" style="width:100%;background:var(--lime);color:#0A0A14;border:0;padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px">Cartão · assinatura automática</button>' +
-    '<button onclick="planPayPix(\'' + tier + '\')" style="width:100%;background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer">Pix · mensal, qualquer banco</button>' +
+    '<button onclick="planPayCard(\'' + tier + '\')" style="width:100%;background:var(--lime);color:#0A0A14;border:0;padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px">Cartão de crédito</button>' +
+    '<button onclick="planPayPix(\'' + tier + '\')" style="width:100%;background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer">Pix</button>' +
     '<div style="text-align:center;margin-top:14px"><span onclick="_planModalClose()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">Cancelar</span></div>'
   );
 }
@@ -1180,7 +1180,7 @@ async function planPayPix(tier) {
     const amount = (d.amount || 0).toFixed(2).replace('.', ',');
     _planModal(
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:18px;text-align:center">Pix da mensalidade</div>' +
-      '<div style="color:var(--fg-dim);font-size:13px;text-align:center;margin-bottom:14px">R$ ' + amount + ' · ' + tier.toUpperCase() + ' · qualquer banco</div>' +
+      '<div style="color:var(--fg-dim);font-size:13px;text-align:center;margin-bottom:14px">R$ ' + amount + ' · plano ' + tier.toUpperCase() + '</div>' +
       '<img src="data:image/png;base64,' + d.qr_code_base64 + '" alt="QR Pix" style="width:208px;height:208px;display:block;margin:0 auto 14px;border-radius:14px;background:#fff;padding:8px">' +
       '<div style="font-size:11px;color:var(--fg-dim);word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;max-height:64px;overflow:auto">' + esc(d.qr_code) + '</div>' +
       '<button data-code="' + encodeURIComponent(d.qr_code) + '" onclick="_planPixCopy(this)" style="width:100%;background:var(--lime);color:#0A0A14;border:0;padding:14px;border-radius:12px;font-weight:800;cursor:pointer;margin-bottom:8px">Copiar código Pix</button>' +
