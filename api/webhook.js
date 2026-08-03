@@ -13693,23 +13693,23 @@ async function handleAdminRevenue(req, res) {
         planList.push({ slug: f.slug, name: f.name || f.slug, tier: p.tier, commission_pct: p.commission_pct, monthly_fee_cents: fee, paid_until: pl.paid_until || null, since: pl.since || null, method: ((pl.subscription || {}).method) || null });
       }
     }
-    // Comissão do DROPE = SÓ vendas que passaram pelo split do Mercado Pago (app).
-    // Balcão/PDV (dinheiro, débito, crédito, pix manual, infinitepay) = a loja fica com
-    // 100%, DROPE não ganha comissão. Conta qualquer status (paid/delivered/completed…),
-    // desde que tenha pagamento confirmado.
-    const orders = (await sbGet('drope_orders', 'select=order_nsu,filial_id,status,amount_paid_cents,total_cents,payment_confirmed_at,created_at&payment_method=like.mercadopago*&order=created_at.desc&limit=2000')) || [];
+    // Comissão do DROPE = vendas feitas PELO APP (entrega + retirada). Balcão/PDV
+    // (delivery_mode=pos) é venda presencial da loja e NÃO gera comissão pro DROPE.
+    // Conta só vendas concluídas/pagas (ignora carrinho 'created' e 'waiting_proof').
+    const APP_PAID = new Set(['paid', 'preparing', 'ready', 'dispatched', 'dispatching', 'delivered', 'completed', 'picked_up', 'pending_pickup']);
+    const orders = (await sbGet('drope_orders', 'select=order_nsu,filial_id,status,delivery_mode,amount_paid_cents,total_cents,payment_confirmed_at,created_at&delivery_mode=in.(delivery,pickup)&order=created_at.desc&limit=3000')) || [];
     const now = new Date(); const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     let grossTotal = 0, commTotal = 0, grossMonth = 0, commMonth = 0, cnt = 0, cntMonth = 0;
     const sales = [];
     for (const o of orders) {
-      if (!o.payment_confirmed_at) continue;
+      if (!(o.payment_confirmed_at || APP_PAID.has(o.status))) continue;
       const amt = o.amount_paid_cents || o.total_cents || 0; if (!amt) continue;
       const pct = (pctBy[o.filial_id] != null) ? pctBy[o.filial_id] : 10;
       const comm = Math.round(amt * pct / 100);
       grossTotal += amt; commTotal += comm; cnt++;
-      const t = new Date(o.payment_confirmed_at).getTime();
+      const t = new Date(o.payment_confirmed_at || o.created_at || 0).getTime();
       if (t >= monthStart) { grossMonth += amt; commMonth += comm; cntMonth++; }
-      sales.push({ nsu: o.order_nsu, filial: nameBy[o.filial_id] || ('loja ' + o.filial_id), gross_cents: amt, pct: pct, commission_cents: comm, at: o.payment_confirmed_at, status: o.status });
+      sales.push({ nsu: o.order_nsu, filial: nameBy[o.filial_id] || ('loja ' + o.filial_id), gross_cents: amt, pct: pct, commission_cents: comm, at: o.payment_confirmed_at || o.created_at, status: o.status });
     }
     return res.status(200).json({
       ok: true,
