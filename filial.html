@@ -1129,9 +1129,8 @@ function renderPlanos(d) {
 async function selectPlan(tier) {
   const msg = document.getElementById('plano-msg');
   if (tier !== 'start') {
-    // Pro/Max: cria a assinatura mensal no Mercado Pago e leva pro pagamento (cartão)
-    if (!confirm('Assinar o plano ' + tier.toUpperCase() + '?\n\nVocê autoriza a cobrança mensal por Pix (Pix Automático) ou cartão — de qualquer banco, não precisa ter conta no Mercado Pago. O plano ativa assim que o pagamento confirmar.')) return;
-    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'abrindo o Mercado Pago...'; }
+    // Pro/Max: cria a assinatura mensal e leva direto pro pagamento (sem confirm — a info aparece no checkout)
+    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'abrindo o pagamento...'; }
     try {
       const r = await fetch('/api/webhook?action=filial_plan_subscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
