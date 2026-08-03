@@ -13783,6 +13783,67 @@ async function handleFilialPlanSubscribe(req, res) {
   } catch (e) { console.error('[filial_plan_subscribe] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_plan_pix { filial, token, tier } → gera um Pix AVULSO da mensalidade
+// (QR de qualquer banco, sem conta MP, sem trava de email). Cai na conta do DROPE (sem split).
+// Quando pago, o webhook ativa o plano por 35 dias (external_reference "plan:<slug>:<tier>").
+async function handleFilialPlanPix(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const tier = String(body.tier || '').toLowerCase().trim();
+    const plan = DROPE_PLANS[tier];
+    if (!plan || !plan.monthly_fee_cents) return res.status(400).json({ ok: false, error: 'plano inválido' });
+    const mpTok = (await _mpAppToken()) || MP_ACCESS_TOKEN;
+    if (!mpTok) return res.status(500).json({ ok: false, error: 'pagamento não configurado' });
+    const md = filial.metadata || {};
+    const email = ((md.login || {}).email) || 'lojista@drope.app';
+    const payload = {
+      transaction_amount: plan.monthly_fee_cents / 100,
+      description: `DROPE ${plan.label} — mensalidade (${filial.name || filial.slug})`,
+      payment_method_id: 'pix',
+      payer: { email },
+      external_reference: `plan:${filial.slug}:${tier}`,
+      notification_url: 'https://drope-app.vercel.app/api/webhook?action=mp_webhook',
+      date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    };
+    const r = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${mpTok}`, 'X-Idempotency-Key': `planpix-${filial.slug}-${tier}-${Date.now()}` },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { console.error('[plan pix] MP error:', JSON.stringify(data).slice(0, 300)); return res.status(502).json({ ok: false, error: (data && data.message) || 'falha ao gerar Pix' }); }
+    const tx = data.point_of_interaction && data.point_of_interaction.transaction_data;
+    if (!tx) return res.status(502).json({ ok: false, error: 'sem dados do Pix' });
+    md.plan = { ...(md.plan || {}), pending_pix: { tier, payment_id: data.id, at: new Date().toISOString() } };
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, payment_id: data.id, qr_code: tx.qr_code, qr_code_base64: tx.qr_code_base64, amount: plan.monthly_fee_cents / 100 });
+  } catch (e) { console.error('[filial_plan_pix] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// Ativa o plano da loja por 35 dias (mensalidade paga por Pix avulso). Estende se ainda válido.
+async function _activatePlanForSlug(slug, tier) {
+  if (!slug || !DROPE_PLANS[tier]) return;
+  const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(slug)}&select=id,name,metadata&limit=1`);
+  const filial = Array.isArray(fr) && fr[0];
+  if (!filial) return;
+  const md = filial.metadata || {};
+  const prev = md.plan || {};
+  const base = (prev.paid_until && new Date(prev.paid_until) > new Date()) ? new Date(prev.paid_until) : new Date();
+  const paidUntil = new Date(base.getTime() + 35 * 864e5);
+  md.plan = { ...prev, tier, since: prev.since || new Date().toISOString(), paid_until: paidUntil.toISOString(), subscription: { provider: 'mp', method: 'pix_avulso' } };
+  delete md.plan.pending_pix; delete md.plan.pending;
+  await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+  _notify('filial', filial.id, 'plan', `Plano ${DROPE_PLANS[tier].label} ativo ✦`, `Mensalidade recebida por Pix — comissão de ${DROPE_PLANS[tier].commission_pct}% por venda.`).catch(() => {});
+  console.log('[plan pix] plano ativado:', slug, tier, 'até', paidUntil.toISOString());
+}
+
 // Aplica o resultado de uma assinatura MP (preapproval) no plano da loja.
 async function _mpApplyPreapproval(preapprovalId) {
   const mpTok = (await _mpAppToken()) || MP_ACCESS_TOKEN;
@@ -17109,6 +17170,14 @@ async function handleMPWebhook(req, res) {
       return res.status(200).json({ ok: true, status: payment.status, awaiting: true });
     }
 
+    // Mensalidade do plano paga por Pix avulso (external_reference = "plan:<slug>:<tier>")
+    const _planRef = String(payment.external_reference || '');
+    if (_planRef.startsWith('plan:')) {
+      const parts = _planRef.split(':');
+      try { await _activatePlanForSlug(parts[1], parts[2]); } catch (e) { console.error('[plan pix activate]', e.message); }
+      return res.status(200).json({ ok: true, plan_pix: true });
+    }
+
     const orderNsu = payment.metadata?.order_id || '';
     const amountCents = Math.round((payment.transaction_amount || 0) * 100);
     const payerEmail = payment.payer?.email || '';
@@ -20227,6 +20296,10 @@ async function generateAll(){
   // action=filial_plan_subscribe — POST: cria assinatura mensal (Pro/Max) no Mercado Pago
   if (req.url && req.url.indexOf('action=filial_plan_subscribe') >= 0) {
     return await handleFilialPlanSubscribe(req, res);
+  }
+  // action=filial_plan_pix — POST: gera Pix avulso da mensalidade (qualquer banco, sem conta MP)
+  if (req.url && req.url.indexOf('action=filial_plan_pix') >= 0) {
+    return await handleFilialPlanPix(req, res);
   }
   // action=filial_products_filtro — POST: marca vários produtos com um filtro
   if (req.url && req.url.indexOf('action=filial_products_filtro') >= 0) {

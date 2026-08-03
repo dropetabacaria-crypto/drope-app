@@ -1129,17 +1129,8 @@ function renderPlanos(d) {
 async function selectPlan(tier) {
   const msg = document.getElementById('plano-msg');
   if (tier !== 'start') {
-    // Pro/Max: cria a assinatura mensal e leva direto pro pagamento (sem confirm — a info aparece no checkout)
-    if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'abrindo o pagamento...'; }
-    try {
-      const r = await fetch('/api/webhook?action=filial_plan_subscribe', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier })
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
-      else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-    } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+    // Pro/Max: escolhe como pagar a mensalidade (cartão automático OU Pix avulso).
+    openPlanPayChoice(tier);
     return;
   }
   try {
@@ -1151,6 +1142,68 @@ async function selectPlan(tier) {
     if (r.ok && d.ok) { loadData(true); }
     else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+}
+
+// ===== Pagamento do plano: escolha Cartão (assinatura automática) OU Pix avulso (qualquer banco) =====
+function _planModal(html) {
+  let m = document.getElementById('plan-modal');
+  if (!m) { m = document.createElement('div'); m.id = 'plan-modal'; document.body.appendChild(m); }
+  m.style.cssText = 'position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px) 0 0/23px 23px,rgba(5,4,12,.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)';
+  m.innerHTML = '<div style="background:linear-gradient(158deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),var(--bg2);border:1px solid var(--border);border-radius:22px;padding:24px;max-width:380px;width:100%;box-shadow:0 24px 70px rgba(0,0,0,.6)">' + html + '</div>';
+}
+function _planModalClose() { const m = document.getElementById('plan-modal'); if (m) m.remove(); if (window._planPixPoll) { clearInterval(window._planPixPoll); window._planPixPoll = null; } }
+function openPlanPayChoice(tier) {
+  const label = tier.toUpperCase();
+  _planModal(
+    '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:19px;margin-bottom:4px">Assinar o plano ' + label + '</div>' +
+    '<div style="color:var(--fg-dim);font-size:13px;margin-bottom:18px">Como você quer pagar a mensalidade?</div>' +
+    '<button onclick="planPayCard(\'' + tier + '\')" style="width:100%;background:var(--lime);color:#0A0A14;border:0;padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px">Cartão · assinatura automática</button>' +
+    '<button onclick="planPayPix(\'' + tier + '\')" style="width:100%;background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:15px;border-radius:13px;font-size:15px;font-weight:800;cursor:pointer">Pix · mensal, qualquer banco</button>' +
+    '<div style="text-align:center;margin-top:14px"><span onclick="_planModalClose()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">Cancelar</span></div>'
+  );
+}
+async function planPayCard(tier) {
+  _planModal('<div style="text-align:center;color:var(--fg-dim);padding:24px">Abrindo o pagamento…</div>');
+  try {
+    const r = await fetch('/api/webhook?action=filial_plan_subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
+    else _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>');
+  } catch (e) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">Erro de rede</div><div style="text-align:center"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); }
+}
+async function planPayPix(tier) {
+  _planModal('<div style="text-align:center;color:var(--fg-dim);padding:24px">Gerando o Pix…</div>');
+  try {
+    const r = await fetch('/api/webhook?action=filial_plan_pix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
+    const d = await r.json().catch(() => ({}));
+    if (!(r.ok && d.ok && d.qr_code)) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); return; }
+    const amount = (d.amount || 0).toFixed(2).replace('.', ',');
+    _planModal(
+      '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:18px;text-align:center">Pix da mensalidade</div>' +
+      '<div style="color:var(--fg-dim);font-size:13px;text-align:center;margin-bottom:14px">R$ ' + amount + ' · ' + tier.toUpperCase() + ' · qualquer banco</div>' +
+      '<img src="data:image/png;base64,' + d.qr_code_base64 + '" alt="QR Pix" style="width:208px;height:208px;display:block;margin:0 auto 14px;border-radius:14px;background:#fff;padding:8px">' +
+      '<div style="font-size:11px;color:var(--fg-dim);word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;max-height:64px;overflow:auto">' + esc(d.qr_code) + '</div>' +
+      '<button data-code="' + encodeURIComponent(d.qr_code) + '" onclick="_planPixCopy(this)" style="width:100%;background:var(--lime);color:#0A0A14;border:0;padding:14px;border-radius:12px;font-weight:800;cursor:pointer;margin-bottom:8px">Copiar código Pix</button>' +
+      '<div id="planpix-status" style="text-align:center;font-size:13px;color:var(--fg-dim);min-height:18px">Aguardando pagamento…</div>' +
+      '<div style="text-align:center;margin-top:8px"><span onclick="_planModalClose()" style="color:var(--fg-dim);font-size:13px;cursor:pointer">Fechar</span></div>'
+    );
+    if (window._planPixPoll) clearInterval(window._planPixPoll);
+    window._planPixPoll = setInterval(async () => {
+      try {
+        const cr = await fetch('/api/webhook?action=mp_check_pix&payment_id=' + encodeURIComponent(d.payment_id));
+        const cd = await cr.json().catch(() => ({}));
+        if (cd.status === 'approved') {
+          clearInterval(window._planPixPoll); window._planPixPoll = null;
+          const st = document.getElementById('planpix-status'); if (st) { st.style.color = 'var(--green)'; st.textContent = 'Pago ✦ plano ativado!'; }
+          setTimeout(() => { _planModalClose(); loadData(true); }, 1600);
+        }
+      } catch (e) {}
+    }, 4000);
+  } catch (e) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">Erro de rede</div><div style="text-align:center"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); }
+}
+function _planPixCopy(btn) {
+  const code = decodeURIComponent(btn.dataset.code || '');
+  try { navigator.clipboard.writeText(code); btn.textContent = 'Copiado ✓'; setTimeout(() => { btn.textContent = 'Copiar código Pix'; }, 1500); } catch (e) {}
 }
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
