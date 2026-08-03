@@ -13669,6 +13669,47 @@ function _planFor(filial) {
 }
 const DROPE_PLANS_CATALOG = () => Object.values(DROPE_PLANS);
 
+// GET action=admin_revenue&token=ADMIN_TOKEN → ganhos do DROPE (só a conta oficial).
+// Comissão das vendas (pedidos pagos × % do plano da loja) + MRR dos planos ativos.
+async function handleAdminRevenue(req, res) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  let qtok = '';
+  try { const qs = (req.url || '').split('?')[1] || ''; const m = qs.split('&').find(x => x.startsWith('token=')); if (m) qtok = decodeURIComponent(m.slice(6)); } catch (e) {}
+  const htok = req.headers['x-admin-token'] || '';
+  if (!ADMIN_TOKEN || (qtok !== ADMIN_TOKEN && htok !== ADMIN_TOKEN)) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+  try {
+    const filiais = (await sbGet('drope_filiais', 'select=id,slug,name,metadata&status=eq.active')) || [];
+    const pctBy = {}; const byTier = { start: 0, pro: 0, max: 0 }; let mrrCents = 0; const planList = [];
+    for (const f of filiais) {
+      const p = _planFor(f); pctBy[f.id] = p.commission_pct;
+      byTier[p.tier] = (byTier[p.tier] || 0) + 1;
+      if (p.tier !== 'start') { mrrCents += (DROPE_PLANS[p.tier].monthly_fee_cents || 0); planList.push({ slug: f.slug, name: f.name || f.slug, tier: p.tier }); }
+    }
+    const orders = (await sbGet('drope_orders', 'select=filial_id,amount_paid_cents,payment_confirmed_at,created_at&status=eq.paid&limit=8000')) || [];
+    const now = new Date(); const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let grossTotal = 0, commTotal = 0, grossMonth = 0, commMonth = 0, cnt = 0, cntMonth = 0;
+    for (const o of orders) {
+      const amt = o.amount_paid_cents || 0; if (!amt) continue;
+      const pct = (pctBy[o.filial_id] != null) ? pctBy[o.filial_id] : 10;
+      const comm = Math.round(amt * pct / 100);
+      grossTotal += amt; commTotal += comm; cnt++;
+      const t = new Date(o.payment_confirmed_at || o.created_at || 0).getTime();
+      if (t >= monthStart) { grossMonth += amt; commMonth += comm; cntMonth++; }
+    }
+    return res.status(200).json({
+      ok: true,
+      commission: { total_cents: commTotal, month_cents: commMonth, gross_total_cents: grossTotal, gross_month_cents: grossMonth, orders: cnt, orders_month: cntMonth },
+      plans: { active: planList.length, mrr_cents: mrrCents, by_tier: byTier, list: planList.slice(0, 50) },
+      lojas_ativas: filiais.length,
+      generated_at: new Date().toISOString(),
+    });
+  } catch (e) { console.error('[admin_revenue] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=filial_set_plan { filial, token, tier } → troca o plano da loja.
 // Enquanto o pagamento (Asaas) não estiver ativo, só 'start' é aplicável — planos
 // pagos (pro/max) só entram em vigor após a cobrança da mensalidade confirmar
@@ -20301,6 +20342,10 @@ async function generateAll(){
   // action=filial_plan_pix — POST: gera Pix avulso da mensalidade (qualquer banco, sem conta MP)
   if (req.url && req.url.indexOf('action=filial_plan_pix') >= 0) {
     return await handleFilialPlanPix(req, res);
+  }
+  // action=admin_revenue — GET: ganhos do DROPE (comissões + planos), só com ADMIN_TOKEN
+  if (req.url && req.url.indexOf('action=admin_revenue') >= 0) {
+    return await handleAdminRevenue(req, res);
   }
   // action=filial_products_filtro — POST: marca vários produtos com um filtro
   if (req.url && req.url.indexOf('action=filial_products_filtro') >= 0) {
