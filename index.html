@@ -5343,6 +5343,9 @@
         <div style="text-align:center;margin-top:12px"><span onclick="showPwLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Já tenho conta ›</span></div>
         <div id="clogin-msg-create" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
+      <div style="text-align:center;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)">
+        <span onclick="goLojistaLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">É dono de loja? <span style="color:var(--lime);font-weight:700">Entrar no painel da loja ›</span></span>
+      </div>
     </div>
   </div>
 
@@ -9112,6 +9115,8 @@
     finally { btn.textContent = 'Criar conta ✦'; btn.disabled = false; }
   }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
+  // Lojista entra pelo painel da loja (/filial resolve a loja pelo email na hora do login).
+  function goLojistaLogin() { window.location.href = '/filial'; }
   function backToPhone() { _cloginShow('clogin-step1'); }
   async function sendOtp(resend) {
     const phone = (resend && _otpPhone) ? _otpPhone : _loginPhoneDigits();
