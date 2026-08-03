@@ -13652,9 +13652,9 @@ function _normSegmentos(v) {
 const DROPE_PLANS = {
   start: { tier: 'start', label: 'Start', commission_pct: 10, monthly_fee_cents: 0,
            features: ['App e catálogo', 'Pix com split', 'Gestão de pedidos', 'A loja faz a própria entrega'] },
-  pro:   { tier: 'pro',   label: 'Pro',   commission_pct: 6,  monthly_fee_cents: 100, // TESTE R$1 (real: 9990)
+  pro:   { tier: 'pro',   label: 'Pro',   commission_pct: 8,  monthly_fee_cents: 100, // TESTE R$1 (real: 9990)
            features: ['Tudo do Start', 'Destaque na vitrine', 'Filtros com IA', 'Dashboard e relatórios', 'Prioridade no ranking', 'Cupons'] },
-  max:   { tier: 'max',   label: 'Max',   commission_pct: 5,  monthly_fee_cents: 100, // TESTE R$1 (real: 16990)
+  max:   { tier: 'max',   label: 'Max',   commission_pct: 6,  monthly_fee_cents: 100, // TESTE R$1 (real: 16990)
            features: ['Tudo do Pro', 'Entrega pelo DROPE', 'Push e marketing', 'Destaque máximo'] },
 };
 function _planFor(filial) {
