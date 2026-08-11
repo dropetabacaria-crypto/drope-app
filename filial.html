@@ -814,7 +814,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
       <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
       <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
-        <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Pods)" maxlength="30" style="margin-bottom:0">
+        <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Essências)" maxlength="30" style="margin-bottom:0">
+        <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="apCriarCatArte()">Criar categoria com arte por IA ✦</button>
+        <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
       </div>
       <div class="pf-hint" id="ap-filtro-hint" style="margin-top:4px">Todo produto entra numa categoria — é assim que sua vitrine fica organizada, igual ao iFood.</div>
       <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
@@ -1300,6 +1302,67 @@ function _apFiltroChange() {
   if (isNew && hint) hint.textContent = 'Crie a categoria e o produto já entra nela ✦';
   if (isNew) { const nc = document.getElementById('ap-newcat'); if (nc) setTimeout(() => nc.focus(), 50); }
 }
+// Cria a categoria na hora (opcionalmente já gera a arte por IA). Retorna o filtro criado ou null.
+async function _criarCategoriaInline(nome, opts) {
+  opts = opts || {};
+  nome = (nome || '').trim();
+  if (nome.length < 2) return null;
+  const ok = await _saveFiltro({ nome }, true);
+  if (ok !== true) return null;
+  const novo = (_filtros || []).find(f => (f.nome || '').toLowerCase() === nome.toLowerCase()) || (_filtros || [])[_filtros.length - 1];
+  if (novo && opts.art) {
+    try {
+      await fetch('/api/webhook?action=filial_filtro_art', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: novo.id, nome: nome }),
+      });
+    } catch (e) {}
+  }
+  return novo;
+}
+// Botão "criar categoria com arte" do formulário de ADICIONAR produto.
+async function apCriarCatArte() {
+  const nome = (document.getElementById('ap-newcat').value || '').trim();
+  const st = document.getElementById('ap-newcat-status');
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
+  const novo = await _criarCategoriaInline(nome, { art: true });
+  if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
+  const sel = document.getElementById('ap-filtro');
+  if (sel) { sel.innerHTML = _apFiltroOptions(); sel.value = novo.id; }
+  const wrap = document.getElementById('ap-newcat-wrap'); if (wrap) wrap.style.display = 'none';
+  if (st) { st.style.color = 'var(--green)'; st.textContent = 'categoria "' + novo.nome + '" criada com arte ✦'; }
+}
+// ===== Categoria na hora TAMBÉM ao EDITAR produto =====
+// Igual ao form de adicionar, mas por linha de produto (id).
+function _epFiltroOptions(sel) {
+  const has = (_filtros || []).length;
+  const parts = [];
+  if (!sel) parts.push('<option value="" disabled' + (has ? ' selected' : '') + '>Escolha a categoria…</option>');
+  parts.push(...(_filtros || []).map(f => `<option value="${esc(f.id)}" ${f.id === sel ? 'selected' : ''}>${esc(f.nome)}</option>`));
+  parts.push(`<option value="__new__"${!has ? ' selected' : ''}>+ criar nova categoria</option>`);
+  return parts.join('');
+}
+function _epFiltroChange(id) {
+  const sel = document.getElementById('ep-filtro-' + id);
+  const wrap = document.getElementById('ep-newcat-wrap-' + id);
+  if (!sel || !wrap) return;
+  const isNew = sel.value === '__new__';
+  wrap.style.display = isNew ? 'block' : 'none';
+  if (isNew) { const nc = document.getElementById('ep-newcat-' + id); if (nc) setTimeout(() => nc.focus(), 50); }
+}
+async function epCriarCatArte(id) {
+  const nome = (document.getElementById('ep-newcat-' + id).value || '').trim();
+  const st = document.getElementById('ep-newcat-status-' + id);
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
+  const novo = await _criarCategoriaInline(nome, { art: true });
+  if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
+  const sel = document.getElementById('ep-filtro-' + id);
+  if (sel) { sel.innerHTML = _epFiltroOptions(novo.id); sel.value = novo.id; }
+  const wrap = document.getElementById('ep-newcat-wrap-' + id); if (wrap) wrap.style.display = 'none';
+  if (st) { st.style.color = 'var(--green)'; st.textContent = 'categoria "' + novo.nome + '" criada com arte ✦'; }
+}
 function renderProdutos(list) {
   _lastProdutos = list || _lastProdutos;
   try { renderDestaqueBar(); } catch (e) {}
@@ -1376,10 +1439,13 @@ function renderProdutos(list) {
         <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:6px;min-height:14px"></div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
-        ${(_filtros && _filtros.length)
-          ? `<label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
-             <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0">${_filtroOptions(p.filtro_id)}</select>`
-          : `<div style="font-size:11px;color:var(--fg-dim);margin-top:10px">Crie filtros em Configuração → Meus filtros pra organizar seu catálogo em categorias.</div>`}
+        <label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
+        <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0" onchange="_epFiltroChange(${p.id})">${_epFiltroOptions(p.filtro_id)}</select>
+        <div id="ep-newcat-wrap-${p.id}" style="display:none;margin-top:6px">
+          <input class="pf-input" id="ep-newcat-${p.id}" placeholder="Nome da categoria (ex: Tabaco, Narguilé)" maxlength="30" style="margin-bottom:0">
+          <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="epCriarCatArte(${p.id})">Criar categoria com arte por IA ✦</button>
+          <div id="ep-newcat-status-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
+        </div>
         <label class="pf-lbl" style="margin-top:10px">Formas de pagamento</label>
         <select class="pf-input" id="ep-payment-${p.id}" style="margin-bottom:0">
           <option value="both"${p.pix_only ? '' : ' selected'}>Pix e cartão</option>
@@ -2103,7 +2169,17 @@ async function saveEditProduct(id) {
   const payEl = document.getElementById('ep-payment-' + id);
   const custoEl = document.getElementById('ep-custo-' + id);
   const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
-  if (fEl) payload.filtro_id = fEl.value || null; // categoria/filtro da loja
+  if (fEl) {
+    let fval = fEl.value || null;
+    if (fval === '__new__') { // criou a categoria na hora (só nome; arte é opcional pelo botão)
+      const st = document.getElementById('ep-newcat-status-' + id);
+      const nome = (document.getElementById('ep-newcat-' + id) || {}).value || '';
+      const novo = await _criarCategoriaInline(nome, {});
+      if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+      fval = novo.id;
+    }
+    payload.filtro_id = fval || null; // categoria/filtro da loja
+  }
   if (payEl) payload.pix_only = (payEl.value === 'pix'); // forma de pagamento do produto
   if (custoEl) { const cc = _num(custoEl.value); payload.cost_price = (isFinite(cc) && cc > 0) ? cc : 0; } // preço de custo (0 limpa)
   await _saveProduct(payload);
@@ -2466,9 +2542,9 @@ function closeCfg() {
 
 // ===== Ajuda contextual: explica cada seção. Aparece 1x automática + botão "?" =====
 const HELP = {
-  produtos: { emoji: '📦', title: 'Cadastrar produtos', body: 'Aqui você monta o cardápio da sua loja.<br><br><b>Primeiro a categoria, depois o produto.</b> Ao adicionar um produto, escolha (ou crie ali mesmo) uma categoria — ex: <i>Tabaco, Narguilé, Pods</i>. É a categoria que organiza sua vitrine, igual ao iFood.<br><br>Loja nova? O primeiro passo é criar sua primeira categoria e cadastrar o produto dentro dela ✦' },
+  produtos: { emoji: '📦', title: 'Cadastrar produtos', body: 'Aqui você monta o cardápio da sua loja.<br><br><b>Primeiro a categoria, depois o produto.</b> Ao adicionar um produto, escolha (ou crie ali mesmo) uma categoria — ex: <i>Tabaco, Narguilé, Essências</i>. É a categoria que organiza sua vitrine, igual ao iFood.<br><br>Loja nova? O primeiro passo é criar sua primeira categoria e cadastrar o produto dentro dela ✦' },
   loja: { emoji: '🏪', title: 'Minha loja', body: 'São os dados que o cliente vê no topo da sua página: nome, <b>logo</b>, <b>subcapa</b> (banner), descrição e endereço.<br><br>Foto e capa são opcionais — pode pular agora e colocar depois.' },
-  filtros: { emoji: '🗂️', title: 'Minhas categorias', body: 'Categorias são as seções da sua vitrine (Tabaco, Narguilé, Pods…).<br><br>Crie, dê uma imagem e use as setas <b>↑ ↓</b> pra definir a <b>ordem</b> que elas aparecem pro cliente. Todo produto entra numa categoria.' },
+  filtros: { emoji: '🗂️', title: 'Minhas categorias', body: 'Categorias são as seções da sua vitrine (Tabaco, Narguilé, Essências…).<br><br>Crie, dê uma imagem e use as setas <b>↑ ↓</b> pra definir a <b>ordem</b> que elas aparecem pro cliente. Todo produto entra numa categoria.' },
   qr: { emoji: '📱', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
   func: { emoji: '🕐', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
   pagamento: { emoji: '💳', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
