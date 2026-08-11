@@ -7449,9 +7449,19 @@ async function handleFilialFiltroArt(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     const nome = String(body.nome || '').trim();
     if (!nome) return res.status(400).json({ ok: false, error: 'nome do filtro vazio' });
-    let subject = _filtroSubject(nome);
-    if (body.ref_base64) { const desc = await _describeRefImage(body.ref_base64); if (desc) subject = desc; }
-    const tempUrl = await generateFilterScene(subject);
+    // Consistente com o produto: se o lojista ENVIOU uma foto de referência → img2img fiel.
+    // Sem referência → text2img do assunto CURADO da categoria (evita ambiguidade de busca,
+    // ex.: "Seda" na web = tecido, não papel de cigarro).
+    let tempUrl = null;
+    if (body.ref_base64) {
+      let refBuf = null;
+      try { const m = String(body.ref_base64).match(/base64,(.+)$/); refBuf = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
+      if (refBuf) {
+        const editPrompt = `Restyle this into a cinematic dark premium category icon for a storefront shelf (category: ${nome}). Single clean hero composition on a matte black reflective surface. Deep dark background gradient (#0A0C1B to #12091F), atmospheric vapor/smoke, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E), faint ultraviolet fill. Glossy premium, high detail. Remove clutter, hands, and any text. Square 1024x1024.`;
+        tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' });
+      }
+    }
+    if (!tempUrl) tempUrl = await generateFilterScene(_filtroSubject(nome));
     if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
     const imgResp = await fetch(tempUrl);
     const buf = Buffer.from(await imgResp.arrayBuffer());
