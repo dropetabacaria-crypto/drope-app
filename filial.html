@@ -1637,7 +1637,7 @@ async function onScanFile(input) {
   const btn = document.getElementById('scan-btn');
   st.style.display = 'block';
   st.style.background = 'rgba(212,255,46,0.08)'; st.style.color = 'var(--lime)';
-  st.textContent = ' identificando o produto com IA…';
+  st.textContent = ' identificando e pesquisando o produto…';
   if (btn) btn.disabled = true;
   try {
     const b64 = await _fileToDataUrl(file, 1280);
@@ -1655,12 +1655,15 @@ async function onScanFile(input) {
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
       const genname = (v.name || '').trim();
+      const isPod = (v.type === 'pod');
+      const variacao = flavor || (!isPod ? model : ''); // não-pod: a variação (ex "King Size Slim") vai no campo sabor/variação
       document.getElementById('ap-name').value = genname || [brand, model].filter(Boolean).join(' ') || flavor || '';
       document.getElementById('ap-marca').value = brand;
-      document.getElementById('ap-sabor').value = flavor;
+      document.getElementById('ap-sabor').value = variacao;
+      try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {} // barcode lido pela Vision
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
-      st.textContent = ' ' + label + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
+      st.textContent = ' ' + label + (v.web_spec ? ' (' + v.web_spec + ')' : '') + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
     } else {
       st.style.background = 'rgba(255,77,143,0.1)'; st.style.color = 'var(--pink)';
       st.textContent = ' ' + ((d && d.error) || 'não consegui identificar — tenta mais de perto ou usa "+ manual"');

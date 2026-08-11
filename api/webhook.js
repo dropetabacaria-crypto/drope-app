@@ -4385,6 +4385,52 @@ NAO invente dado. Identifique o produto seja ele qual for (pod, cigarro, tabaco,
   }
 }
 
+// Enriquecimento por BUSCA WEB (Serper) — completa a identificação da Vision pra
+// QUALQUER produto (seda, essência, bebida…), não só pod. Igual ao fluxo do Andrade:
+// a foto identifica o básico, a web confirma a linha/variação e as specs.
+async function _enrichProductFromWeb(v) {
+  try {
+    if (!v || typeof v !== 'object') return v;
+    const brand = String(v.brand || '').trim();
+    const isPod = (v.type === 'pod');
+    const nameExtra = (v.name && v.name.toLowerCase() !== brand.toLowerCase()) ? v.name : '';
+    const typeWord = (v.type && v.type !== 'pod' && v.type !== 'outro') ? v.type : '';
+    const q = [brand, v.model, typeWord, nameExtra].filter(Boolean).join(' ').trim();
+    if (q.length < 3) return v;
+    const web = await _serperSearch(q, 'search', 6);
+    const organic = (web && web.organic) || [];
+    if (!organic.length) return v;
+    const blob = organic.slice(0, 6).map(o => `• ${o.title || ''} — ${o.snippet || ''}`).join('\n').slice(0, 2500);
+
+    const sys = `${IA_SERVO_PREAMBULO}Voce refina a identificacao de UM produto de tabacaria/adega usando resultados de busca da web. Recebe (1) o que a Vision leu da foto e (2) trechos de busca. Devolve SO JSON valido (sem markdown), com o produto o mais COMPLETO e CORRETO possivel pra vitrine BR:
+{
+  "name": "nome completo pra vitrine PT-BR, curto e claro, com a LINHA/variacao (ex 'Seda Zomo Natural Perfect King Size', 'Essencia Zomo Blood 50g', 'Cerveja Heineken Long Neck 330ml')",
+  "brand": "marca em maiusculo",
+  "model": "linha/variacao (ex 'Natural Perfect King Size', 'Blood', 'Long Neck') ou null",
+  "flavor_pt": "sabor em PT-BR se o produto tiver sabor (essencia/seda com sabor) ou null",
+  "type": "pod|cigarro|tabaco|seda|narguile|essencia|isqueiro|carvao|cerveja|vinho|destilado|bebida|outro",
+  "spec": "1 linha curta de spec relevante (ex '33 folhas, king size, natural sem branqueamento' / '50g' / '355ml lata') ou null",
+  "confidence": "high|medium|low"
+}
+REGRAS: NAO inventa. Se a busca nao casar com a marca/produto da foto, mantem o que a Vision leu e poe confidence 'low'. Completa a variacao e o nome quando a busca deixar claro. Nunca 'unknown'.`;
+    const usr = `VISION leu:\n${JSON.stringify({ name: v.name || null, brand: v.brand || null, model: v.model || null, type: v.type || null, flavor_pt: v.flavor_pt || null, barcode: v.barcode || null })}\n\nBUSCA WEB (query "${q}"):\n${blob}\n\nResponde SO o JSON.`;
+    const out = await callClaude([{ role: 'user', content: usr }], sys, 700);
+    if (!out) return v;
+    let ref;
+    try { ref = JSON.parse(out.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()); } catch (_) { return v; }
+    if (!ref || typeof ref !== 'object' || ref.confidence === 'low') return v; // busca nao bateu → mantem Vision
+
+    const merged = Object.assign({}, v);
+    if (ref.name && (!isPod || !v.name)) merged.name = ref.name;   // pod mantem a logica propria de nome
+    if (ref.model && !v.model) merged.model = ref.model;
+    if (ref.flavor_pt && !v.flavor_pt) merged.flavor_pt = ref.flavor_pt;
+    if (ref.type && (!v.type || v.type === 'outro')) merged.type = ref.type;
+    if (ref.spec) merged.web_spec = ref.spec;
+    merged.enriched = true;
+    return merged;
+  } catch (e) { console.warn('[enrichWeb]', e.message); return v; }
+}
+
 // VISION READ EAN (08/05/2026) — Le APENAS o codigo de barras de uma foto.
 // Mais focado/barato que analyzeProductImage. Retorna { ean, confidence, raw_text }.
 // Usa Haiku — OCR de numeros impressos sob barras eh tarefa simples.
@@ -4962,7 +5008,10 @@ async function handleFilialAnalyzePhoto(req, res) {
     const podUrl = podB64 ? (podB64.startsWith('data:') ? podB64 : `data:image/jpeg;base64,${podB64}`) : null;
     const data = await analyzeProductImage(caixaUrl, podUrl);
     if (!data) return res.status(502).json({ ok: false, error: 'não consegui identificar — tira a foto mais de perto, com a frente da caixa nítida' });
-    return res.status(200).json({ ok: true, data });
+    // Enriquece com busca web (linha/variação + specs) — completa o que a foto não mostra.
+    let enriched = data;
+    try { enriched = await _enrichProductFromWeb(data); } catch (e) { console.warn('[filial_analyze_photo] enrich falhou:', e.message); }
+    return res.status(200).json({ ok: true, data: enriched });
   } catch (e) {
     console.error('[filial_analyze_photo] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
