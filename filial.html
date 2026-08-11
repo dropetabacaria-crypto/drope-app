@@ -836,6 +836,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div id="ap-art-preview" style="display:none;margin-top:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px">
           <img id="ap-art-img" src="" alt="" style="width:160px;height:160px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
           <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">Prévia da imagem do produto</div>
+          <button class="pf-btn sec" id="ap-art-again" style="margin-top:10px;width:100%;display:none" onclick="apGerarArte()">Não gostou? Gerar outra ✦</button>
         </div>
         <input class="pf-input" id="ap-img" placeholder="ou cole o link de uma foto (opcional)" style="margin-top:10px" oninput="apLinkPreview()">
       </div>
@@ -1647,9 +1648,10 @@ function wizNext() {
   if (_wizStep === 3) { saveNewProduct(); return; }
 }
 // ----- Etapa 3: imagem (arte IA rápida / foto própria / link) -----
-function _apShowArtPreview(src) {
+function _apShowArtPreview(src, isArt) {
   const img = document.getElementById('ap-art-img'); if (img) img.src = src;
   const w = document.getElementById('ap-art-preview'); if (w) w.style.display = 'block';
+  const again = document.getElementById('ap-art-again'); if (again) again.style.display = isArt ? 'block' : 'none';
 }
 function _apClearArt() {
   _apPhotoB64 = null;
@@ -1660,7 +1662,7 @@ function _apClearArt() {
 }
 function apLinkPreview() {
   const v = (document.getElementById('ap-img').value || '').trim();
-  if (/^https?:\/\//.test(v)) { _apPhotoB64 = null; _apShowArtPreview(v); }
+  if (/^https?:\/\//.test(v)) { _apPhotoB64 = null; _apShowArtPreview(v, false); }
 }
 async function apGerarArte() {
   const name = (document.getElementById('ap-name').value || '').trim();
@@ -1679,7 +1681,7 @@ async function apGerarArte() {
     if (r.ok && d.ok && d.image_url) {
       document.getElementById('ap-img').value = d.image_url; // vira a imagem do produto (image_url no save)
       _apPhotoB64 = null; // arte tem prioridade sobre foto própria
-      _apShowArtPreview(d.image_url);
+      _apShowArtPreview(d.image_url, true);
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
     } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo'; } }
   } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo'; } }
@@ -1698,7 +1700,7 @@ async function onApFotoFile(input) {
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
   _apPhotoB64 = b64;
   const link = document.getElementById('ap-img'); if (link) link.value = ''; // foto própria tem prioridade sobre link/arte
-  _apShowArtPreview(b64);
+  _apShowArtPreview(b64, false);
   if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta ✦ será usada como imagem do produto'; }
 }
 async function onEpFotoFile(id, input) {

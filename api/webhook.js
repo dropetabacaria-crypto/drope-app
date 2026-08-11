@@ -4973,12 +4973,12 @@ async function handleFilialProductArt(req, res) {
     let imageUrl = p.image_url || null;
     let imageStatus = p.image_status || null;
     const pendingArt = (p.metadata || {}).pending_art_url || null;
-    // Auto-aprova pro lojista (dono do produto): a arte passou pelo QC e fica em
-    // 'awaiting_approval' esperando o admin. Aqui publicamos direto.
-    if (!imageUrl && pendingArt) {
+    // Auto-aprova pro lojista (dono do produto): publica DIRETO, sem esperar admin.
+    // A arte do admin fica em 'awaiting_approval'; a do lojista não passa por isso.
+    if (!imageUrl && pendingArt) imageUrl = pendingArt;
+    if (imageUrl && imageStatus !== 'ok') {
       const md = { ...(p.metadata || {}), pending_art_url: null, lojista_auto_approved: true };
-      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, { image_url: pendingArt, image_status: 'ok', metadata: md });
-      imageUrl = pendingArt;
+      await sbUpdate('drope_products', `id=eq.${encodeURIComponent(productId)}`, { image_url: imageUrl, image_status: 'ok', metadata: md });
       imageStatus = 'ok';
     }
     return res.status(200).json({ ok: true, image_url: imageUrl, image_status: imageStatus });
