@@ -385,9 +385,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-item" onclick="openCfg('loja')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">Foto, nome, descrição, endereço e aparência</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
-        <button class="cfg-item" onclick="openCfg('filtros')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Meus filtros</span><br><small style="color:var(--fg-dim);font-weight:400">Categorias da sua vitrine</small></span><span style="color:var(--fg-dim)">›</span>
-        </button>
         <button class="cfg-item" onclick="openCfg('func')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionamento</span><br><small style="color:var(--fg-dim);font-weight:400">Dias, horário e visibilidade</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
@@ -478,30 +475,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
       </div>
 
-      <!-- SEÇÃO: Meus filtros -->
-      <div class="cfg-sec" id="cfg-filtros" style="display:none">
-        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
-        <div class="section">
-        <h2>Minhas categorias<span class="help-q" onclick="helpShow('filtros',true)" title="O que é isso?">?</span></h2>
-        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">Filtros são as categorias da sua vitrine. O cliente navega por elas no app. Toque numa sugestão pra adicionar, ou crie a sua.</div>
-          <div class="pf-lbl">Sugestões pro seu segmento</div>
-          <div id="filtro-sugestoes" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px"></div>
-          <div class="pf-lbl">Suas categorias <span style="color:var(--fg-dim);font-weight:400">(ordene com ↑↓ · oculte sem apagar)</span></div>
-          <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 18px"></div>
-          <label class="pf-lbl">Criar categoria personalizada</label>
-          <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas artesanais">
-          <div style="display:flex;gap:10px;margin-top:8px">
-            <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar imagem</button>
-            <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar com IA</button>
-          </div>
-          <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
-          <label class="pf-lbl" style="margin-top:12px;font-size:11px">Imagem de referência p/ a IA (opcional)</label>
-          <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
-          <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
-        </div>
-        </div>
-      </div>
+      <!-- Categorias saíram daqui e viraram a aba "Categorias" dentro de Meus produtos -->
 
       <!-- SEÇÃO: QR da loja -->
       <div class="cfg-sec" id="cfg-qr" style="display:none">
@@ -780,9 +754,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeProdutos()">←</button>
     <h3>Meus produtos</h3>
-    <span><span class="mini-link" onclick="toggleBatchMode()" id="batch-toggle">Organizar</span> &nbsp; <span class="mini-link" onclick="toggleAddProduct()">＋ Manual</span></span>
+    <span><span class="mini-link" onclick="switchProdTab('produtos');toggleBatchMode()" id="batch-toggle">Organizar</span> &nbsp; <span class="mini-link" onclick="switchProdTab('produtos');toggleAddProduct()">＋ Manual</span></span>
   </div>
   <div class="sheet-scroll">
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="ptab-produtos" onclick="switchProdTab('produtos')" style="flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)">Produtos</button>
+      <button id="ptab-categorias" onclick="switchProdTab('categorias')" style="flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Categorias</button>
+    </div>
+    <div id="prodtab-produtos">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
@@ -877,6 +856,24 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </select>
     </div>
     <div id="produtos-list"></div>
+    </div><!-- /prodtab-produtos -->
+    <div id="prodtab-categorias" style="display:none">
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">Categorias são as seções da sua vitrine — o cliente navega por elas no app. Crie, ordene com ↑↓, oculte ou apague. Todo produto entra numa categoria.</div>
+      <div class="pf-lbl">Sugestões pro seu segmento</div>
+      <div id="filtro-sugestoes" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px"></div>
+      <div class="pf-lbl">Suas categorias <span style="color:var(--fg-dim);font-weight:400">(ordene com ↑↓ · oculte sem apagar)</span></div>
+      <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 18px"></div>
+      <label class="pf-lbl">Criar categoria personalizada</label>
+      <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas artesanais">
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar imagem</button>
+        <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar com IA</button>
+      </div>
+      <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
+      <label class="pf-lbl" style="margin-top:12px;font-size:11px">Imagem de referência p/ a IA (opcional)</label>
+      <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
+      <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
+    </div>
   </div>
 </div>
 
@@ -2298,7 +2295,21 @@ async function pdvFinalize() {
 // ===================== Balanço — contagem de estoque =====================
 function openBalanco() { renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
 function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
-function openProdutos() { try { renderProdutos(); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); }
+function openProdutos() { try { renderProdutos(); } catch (e) {} try { renderFiltros(); } catch (e) {} try { switchProdTab('produtos'); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); }
+// Abas de Meus produtos: Produtos | Categorias
+function switchProdTab(tab) {
+  const isP = tab !== 'categorias';
+  const tp = document.getElementById('prodtab-produtos'), tc = document.getElementById('prodtab-categorias');
+  if (tp) tp.style.display = isP ? 'block' : 'none';
+  if (tc) tc.style.display = isP ? 'none' : 'block';
+  const base = 'flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;';
+  const on = 'background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)';
+  const off = 'background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)';
+  const bp = document.getElementById('ptab-produtos'), bc = document.getElementById('ptab-categorias');
+  if (bp) bp.style.cssText = base + (isP ? on : off);
+  if (bc) bc.style.cssText = base + (isP ? off : on);
+  if (!isP) { try { renderFiltros(); } catch (e) {} }
+}
 function closeProdutos() { document.getElementById('produtos-ov').classList.remove('open'); }
 function renderBalanco() {
   const list = document.getElementById('bal-list');
