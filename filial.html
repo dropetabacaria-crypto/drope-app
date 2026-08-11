@@ -1348,12 +1348,14 @@ async function _criarCategoriaInline(nome, opts) {
   if (ok !== true) return null;
   const novo = (_filtros || []).find(f => (f.nome || '').toLowerCase() === nome.toLowerCase()) || (_filtros || [])[_filtros.length - 1];
   if (novo && opts.art) {
+    _artOverlayShow('Gerando arte da categoria');
     try {
       await fetch('/api/webhook?action=filial_filtro_art', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: novo.id, nome: nome }),
       });
     } catch (e) {}
+    _artOverlayHide();
   }
   return novo;
 }
@@ -1572,10 +1574,45 @@ function bumpStock(id, delta) {
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
+// ===== Overlay animado de geração de arte (spinner + mensagens de processo) =====
+let _artMsgTimer = null;
+const _ART_MSGS = ['Buscando a melhor referência ✦', 'Gerando a imagem…', 'Aplicando o estilo DROPE…', 'Ajustando as luzes neon…', 'Dando os toques finais…'];
+function _artOverlayShow(title) {
+  let ov = document.getElementById('art-ov');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'art-ov';
+    ov.innerHTML = '<style>'
+      + '#art-ov{position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;background:rgba(5,4,12,.82);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}'
+      + '#art-ov .aoc{background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.01)),var(--bg2);border:1px solid var(--border);border-radius:20px;padding:30px 26px;text-align:center;max-width:290px;box-shadow:0 20px 60px rgba(0,0,0,.6)}'
+      + '#art-ov .aos{width:54px;height:54px;margin:0 auto 18px;border-radius:50%;border:4px solid rgba(198,255,58,.18);border-top-color:var(--lime);animation:aospin .8s linear infinite}'
+      + '#art-ov .aot{font-weight:800;font-size:18px;margin-bottom:6px}'
+      + '#art-ov .aom{font-size:14px;color:var(--lime);min-height:20px;transition:opacity .25s}'
+      + '#art-ov .aoh{font-size:11px;color:var(--fg-dim);margin-top:10px}'
+      + '@keyframes aospin{to{transform:rotate(360deg)}}'
+      + '</style>'
+      + '<div class="aoc"><div class="aos"></div><div class="aot" id="art-ov-title">Gerando arte</div><div class="aom" id="art-ov-msg"></div><div class="aoh">a IA está criando no estilo DROPE ✦</div></div>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  const t = document.getElementById('art-ov-title'); if (t) t.textContent = title || 'Gerando arte';
+  const msgEl = document.getElementById('art-ov-msg'); let i = 0;
+  if (msgEl) msgEl.textContent = _ART_MSGS[0];
+  clearInterval(_artMsgTimer);
+  _artMsgTimer = setInterval(function () {
+    i = (i + 1) % _ART_MSGS.length;
+    if (msgEl) { msgEl.style.opacity = '0'; setTimeout(function () { msgEl.textContent = _ART_MSGS[i]; msgEl.style.opacity = '1'; }, 220); }
+  }, 2600);
+}
+function _artOverlayHide() {
+  clearInterval(_artMsgTimer); _artMsgTimer = null;
+  const ov = document.getElementById('art-ov'); if (ov) ov.style.display = 'none';
+}
 async function generateProductArt(id) {
   if (_artBusy[id]) return;
   _artBusy[id] = true;
   renderProdutos();
+  _artOverlayShow('Gerando arte do produto');
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
   try {
     // 1) motor RÁPIDO (img2img via foto real da web ou descrição) — mesmo do wizard
@@ -1591,16 +1628,17 @@ async function generateProductArt(id) {
       if (err === true) {
         const pp = _lastProdutos.find(x => x.id === id);
         if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
-        renderProdutos();
-      } else { renderProdutos(); alert(' ' + (typeof err === 'string' ? err : 'não deu pra salvar a arte')); }
+        _artOverlayHide(); renderProdutos();
+      } else { _artOverlayHide(); renderProdutos(); alert(' ' + (typeof err === 'string' ? err : 'não deu pra salvar a arte')); }
     } else {
-      _artBusy[id] = false; renderProdutos();
+      _artBusy[id] = false; _artOverlayHide(); renderProdutos();
       alert(' ' + ((d && d.error) || 'não rolou gerar a arte agora'));
     }
   } catch (e) {
-    _artBusy[id] = false; renderProdutos();
+    _artBusy[id] = false; _artOverlayHide(); renderProdutos();
     alert(' Erro de rede ao gerar a imagem');
   }
+  _artOverlayHide();
   loadData(false);
 }
 
@@ -1676,6 +1714,7 @@ async function apGerarArte() {
   const btn = document.getElementById('ap-artgen-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = 'gerando… (até 1 min)'; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE…'; }
+  _artOverlayShow('Gerando arte do produto');
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
     if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
@@ -1688,6 +1727,7 @@ async function apGerarArte() {
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
     } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo'; } }
   } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo'; } }
+  _artOverlayHide();
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
 }
 
@@ -2579,7 +2619,8 @@ async function gerarFiltroIAEdit(id) {
   if (!nome) return;
   // salva shape/nome antes (silencioso) e gera a arte pra ESTE filtro
   await _saveFiltro({ id, nome, shape: _feShape(id) }, true);
-  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'gerando imagem com IA... (~15s)'; }
+  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'gerando imagem com IA…'; }
+  _artOverlayShow('Gerando arte da categoria');
   try {
     const r = await fetch('/api/webhook?action=filial_filtro_art', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2589,6 +2630,7 @@ async function gerarFiltroIAEdit(id) {
     if (r.ok && d.ok) { loadData(true); }
     else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+  _artOverlayHide();
 }
 async function _saveFiltro(extra, silent) {
   const msg = document.getElementById('filtro-msg');
@@ -2635,6 +2677,7 @@ async function gerarFiltroIA() {
   let ref = null; if (refInput && refInput.files && refInput.files[0]) ref = await _fileToDataUrl(refInput.files[0], 1024);
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'gerando a arte no estilo DROPE… pode levar até 1 minuto ✦';
   _setFiltroBusy(true);
+  _artOverlayShow('Gerando arte da categoria');
   try {
     const r = await fetch('/api/webhook?action=filial_filtro_art', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2644,6 +2687,7 @@ async function gerarFiltroIA() {
     if (r.ok && d.ok && d.image_url) { msg.textContent = ''; _showFiltroPreview({ nome: nome, image_url: d.image_url }); }
     else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ✦'; }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra gerar ✦ tenta de novo'; }
+  _artOverlayHide();
   _setFiltroBusy(false);
 }
 async function confirmarFiltro() {
