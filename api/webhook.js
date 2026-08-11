@@ -6592,7 +6592,8 @@ async function removeBackgroundSharp(imageUrl) {
 // Chave lida da env var OPENAI_API_KEY (configurada na Vercel).
 // OpenAI (gpt-image-1) retorna base64 (b64_json) — devolvemos como data URL,
 // que downloadImage() e applyDropeSeal() já sabem tratar (mesmo pipeline dos pods).
-async function openaiGenerateImage(prompt, tag) {
+async function openaiGenerateImage(prompt, tag, opts) {
+  opts = opts || {};
   if (!OPENAI_API_KEY) {
     console.error(`[openaiImage:${tag}] OPENAI_API_KEY não configurada`);
     return null;
@@ -6600,10 +6601,12 @@ async function openaiGenerateImage(prompt, tag) {
   const t0 = Date.now();
   let r, data;
   try {
+    const genBody = { model: 'gpt-image-1', prompt, n: 1, size: '1024x1024' };
+    if (opts.quality) genBody.quality = opts.quality; // 'low' = mais rápido (bom p/ ícones pequenos)
     r = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-      body: JSON.stringify({ model: 'gpt-image-1', prompt, n: 1, size: '1024x1024' }),
+      body: JSON.stringify(genBody),
     });
     data = await r.json();
   } catch (e) {
@@ -6739,7 +6742,7 @@ async function generateFilterScene(subjectEn) {
     `NO people, NO hands. NO text, NO watermarks, NO labels.`,
     `Square format 1024x1024.`,
   ].join(' ');
-  return await openaiGenerateImage(prompt, 'filtro');
+  return await openaiGenerateImage(prompt, 'filtro', { quality: 'low' }); // ícone pequeno → low é rápido (~24s) e suficiente
 }
 
 // Descreve uma imagem de referência (1 frase em inglês) pra alimentar o gerador.
@@ -7259,6 +7262,9 @@ async function handleFilialFiltroSave(req, res) {
         const url = await uploadToStorage(`filtro-${filial.id}-${f.id}`, String(body.photo_base64), 'image/jpeg');
         if (url) f.image_url = url + '?v=' + Date.now();
         else return res.status(502).json({ ok: false, error: 'falha ao salvar a imagem' });
+      } else if (typeof body.image_url === 'string' && body.image_url) {
+        // Imagem já gerada pela IA e hospedada (fluxo pré-visualizar → confirmar): só aponta pra ela.
+        f.image_url = body.image_url;
       }
     }
     md.filtros = filtros;

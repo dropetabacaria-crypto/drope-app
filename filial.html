@@ -865,13 +865,22 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div id="filtros-list" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 18px"></div>
       <label class="pf-lbl">Criar categoria personalizada</label>
       <input class="pf-input" id="filtro-nome" maxlength="30" placeholder="ex: Cervejas artesanais">
-      <div style="display:flex;gap:10px;margin-top:8px">
-        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar imagem</button>
-        <button class="pf-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar com IA</button>
+      <label class="pf-lbl" style="margin-top:10px;font-size:11px">Foto de referência p/ a IA (opcional)</label>
+      <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="pf-btn" id="filtro-gen-btn" style="flex:1" onclick="gerarFiltroIA()">Gerar arte com IA ✦</button>
+        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('filtro-file').click()">Enviar minha imagem</button>
       </div>
       <input type="file" id="filtro-file" accept="image/*" style="display:none" onchange="onFiltroFile(this)">
-      <label class="pf-lbl" style="margin-top:12px;font-size:11px">Imagem de referência p/ a IA (opcional)</label>
-      <input type="file" id="filtro-ref" accept="image/*" style="font-size:12px;color:var(--fg-dim);width:100%">
+      <!-- Pré-visualização: só cria a categoria depois que você confirma -->
+      <div id="filtro-preview" style="display:none;margin-top:14px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center">
+        <div style="font-size:12px;color:var(--fg-dim);margin-bottom:10px">Prévia da categoria <b id="filtro-preview-nome" style="color:var(--fg)"></b> — confira antes de criar</div>
+        <img id="filtro-preview-img" src="" alt="" style="width:150px;height:150px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="pf-btn" style="flex:1" onclick="confirmarFiltro()">Criar categoria ✦</button>
+          <button class="pf-btn sec" style="flex:1" onclick="_descartarFiltro()">Descartar</button>
+        </div>
+      </div>
       <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
     </div>
   </div>
@@ -2461,30 +2470,61 @@ async function _saveFiltro(extra, silent) {
 async function onFiltroFile(input) {
   const nome = (document.getElementById('filtro-nome').value || '').trim();
   const msg = document.getElementById('filtro-msg');
-  if (!nome) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome do filtro primeiro'; input.value = ''; return; }
-  const b64 = await _fileToDataUrl(input.files[0], 800); input.value = ''; if (!b64) return;
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando imagem...';
-  await _saveFiltro({ nome, photo_base64: b64 });
+  if (nome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome da categoria primeiro'; input.value = ''; return; }
+  const b64 = await _fileToDataUrl(input.files[0], 900); input.value = ''; if (!b64) return;
+  msg.textContent = '';
+  _showFiltroPreview({ nome: nome, photo_b64: b64 }); // pré-visualiza; só cria ao confirmar
+}
+// ===== Criar categoria = GERAR/ESCOLHER imagem → PRÉ-VISUALIZAR → CONFIRMAR → só então cria =====
+let _pendFiltro = null;
+function _setFiltroBusy(b) {
+  const btn = document.getElementById('filtro-gen-btn');
+  if (btn) { btn.disabled = b; btn.style.opacity = b ? '.6' : '1'; btn.textContent = b ? 'gerando… (até 1 min)' : 'Gerar arte com IA ✦'; }
+}
+function _showFiltroPreview(pend) {
+  _pendFiltro = pend;
+  const img = document.getElementById('filtro-preview-img'); if (img) img.src = pend.image_url || pend.photo_b64 || '';
+  const nm = document.getElementById('filtro-preview-nome'); if (nm) nm.textContent = pend.nome;
+  const wrap = document.getElementById('filtro-preview'); if (wrap) wrap.style.display = 'block';
+}
+function _descartarFiltro() {
+  _pendFiltro = null;
+  const wrap = document.getElementById('filtro-preview'); if (wrap) wrap.style.display = 'none';
+  const msg = document.getElementById('filtro-msg'); if (msg) msg.textContent = '';
 }
 async function gerarFiltroIA() {
   const nome = (document.getElementById('filtro-nome').value || '').trim();
   const msg = document.getElementById('filtro-msg');
-  if (!nome) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome do filtro primeiro'; return; }
-  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando filtro...';
-  const ok = await _saveFiltro({ nome }, true); if (!ok) return;
-  const novo = _filtros.find(f => f.nome === nome) || _filtros[_filtros.length - 1];
+  if (nome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'digite o nome da categoria primeiro'; return; }
   const refInput = document.getElementById('filtro-ref');
   let ref = null; if (refInput && refInput.files && refInput.files[0]) ref = await _fileToDataUrl(refInput.files[0], 1024);
-  msg.textContent = 'gerando imagem com IA... (pode levar ~15s)';
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'gerando a arte no estilo DROPE… pode levar até 1 minuto ✦';
+  _setFiltroBusy(true);
   try {
     const r = await fetch('/api/webhook?action=filial_filtro_art', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: novo && novo.id, nome, ref_base64: ref }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, nome: nome, ref_base64: ref }), // SEM id → NÃO cria o filtro ainda
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'imagem gerada ✦'; document.getElementById('filtro-nome').value = ''; if (refInput) refInput.value = ''; loadData(true); }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    if (r.ok && d.ok && d.image_url) { msg.textContent = ''; _showFiltroPreview({ nome: nome, image_url: d.image_url }); }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ✦'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra gerar ✦ tenta de novo'; }
+  _setFiltroBusy(false);
+}
+async function confirmarFiltro() {
+  if (!_pendFiltro) return;
+  const msg = document.getElementById('filtro-msg');
+  msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando categoria…';
+  const extra = { nome: _pendFiltro.nome };
+  if (_pendFiltro.image_url) extra.image_url = _pendFiltro.image_url;
+  else if (_pendFiltro.photo_b64) extra.photo_base64 = _pendFiltro.photo_b64;
+  const ok = await _saveFiltro(extra, true);
+  if (ok === true) {
+    _descartarFiltro();
+    const ni = document.getElementById('filtro-nome'); if (ni) ni.value = '';
+    const rf = document.getElementById('filtro-ref'); if (rf) rf.value = '';
+    msg.style.color = 'var(--green)'; msg.textContent = 'categoria criada ✦';
+  } else { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦'; }
 }
 async function delFiltro(id) {
   try {
@@ -2643,7 +2683,13 @@ function renderFiltroSugestoes() {
   if (!sug.length) { el.innerHTML = '<span style="font-size:12px;color:var(--fg-dim)">Todas as sugestões já foram adicionadas ✦</span>'; return; }
   el.innerHTML = sug.map(n => `<button class="pf-btn sec" style="padding:6px 12px;font-size:13px" onclick="addFiltroSugestao('${n.replace(/'/g, '')}')">+ ${esc(n)}</button>`).join('');
 }
-async function addFiltroSugestao(nome) { await _saveFiltro({ nome }, true); renderFiltroSugestoes(); }
+// Sugestão só PREENCHE o nome — não cria. O lojista gera a arte, pré-visualiza e confirma.
+function addFiltroSugestao(nome) {
+  const inp = document.getElementById('filtro-nome');
+  if (inp) { inp.value = nome; inp.focus(); }
+  const msg = document.getElementById('filtro-msg');
+  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'nome preenchido ✦ agora gere a arte (ou envie sua imagem) e confirme'; }
+}
 async function moveFiltro(id, dir) {
   const arr = (_filtros || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
   const idx = arr.findIndex(f => f.id === id); if (idx < 0) return;

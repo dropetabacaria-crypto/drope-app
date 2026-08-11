@@ -21,7 +21,7 @@
     { "src": "03_Logo/**", "use": "@vercel/static" },
     { "src": "04_Produto_Artes/**", "use": "@vercel/static" },
     { "src": "sounds/**", "use": "@vercel/static" },
-    { "src": "api/**/*.js", "use": "@vercel/node", "config": { "maxDuration": 60 } }
+    { "src": "api/**/*.js", "use": "@vercel/node", "config": { "maxDuration": 120 } }
   ],
   "routes": [
     { "src": "/api/infinitepay-checkout", "dest": "/api/webhook?action=infinitepay_checkout" },
