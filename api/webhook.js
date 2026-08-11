@@ -5004,10 +5004,25 @@ async function handleFilialProductArtFast(req, res) {
     const name = String(body.name || '').trim();
     const brand = String(body.brand || '').trim();
     const flavor = String(body.flavor || '').trim();
+    const type = String(body.type || '').trim();
     if (!name && !brand) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
-    let subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
-    if (body.ref_base64) { try { const desc = await _describeRefImage(body.ref_base64); if (desc) subject = desc; } catch (e) {} }
-    const tempUrl = await generateProductScene(subject);
+    const subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
+    // Referência p/ img2img: foto do próprio lojista OU imagem real buscada na web
+    // (deixa a arte fiel à embalagem, pra seda/essência/bebida também).
+    let refBuf = null;
+    if (body.ref_base64) {
+      try { const m = String(body.ref_base64).match(/base64,(.+)$/); refBuf = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
+    }
+    if (!refBuf) {
+      const q = [brand, name, (type && type !== 'pod' ? type : '')].filter(Boolean).join(' ').trim();
+      if (q.length >= 3) refBuf = await _findProductRefImage(q);
+    }
+    let tempUrl = null;
+    if (refBuf) {
+      const editPrompt = `Restyle this product photo into a cinematic dark premium e-commerce hero shot. KEEP THE PRODUCT EXACTLY as it is — same shape, colors, brand and label, fully legible and accurate. Center it as a single product on a matte black reflective surface with a subtle reflection. Deep dark background gradient (#0A0C1B to #12091F) with clean negative space. Atmospheric vapor/smoke behind, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E) with a faint ultraviolet fill. Glossy, premium, high detail. Remove clutter, extra objects, hands, and any text that is NOT the product's own label. Square 1024x1024.`;
+      tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' });
+    }
+    if (!tempUrl) tempUrl = await generateProductScene(subject); // fallback text-only
     if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
     const imgResp = await fetch(tempUrl);
     const buf = Buffer.from(await imgResp.arrayBuffer());
@@ -6710,6 +6725,33 @@ async function openaiGenerateImage(prompt, tag, opts) {
   return url || null;
 }
 
+// IMG2IMG real: transforma uma FOTO real do produto em arte DROPE (preserva a embalagem).
+// Usa /v1/images/edits do gpt-image-1 (multipart). Retorna data URL ou null.
+async function openaiEditImage(imageBuffer, prompt, opts) {
+  opts = opts || {};
+  if (!OPENAI_API_KEY) { console.error('[openaiEdit] OPENAI_API_KEY não configurada'); return null; }
+  const t0 = Date.now();
+  try {
+    const form = new FormData();
+    form.append('model', 'gpt-image-1');
+    form.append('prompt', prompt);
+    form.append('size', '1024x1024');
+    if (opts.quality) form.append('quality', opts.quality);
+    form.append('image', new Blob([imageBuffer], { type: 'image/png' }), 'ref.png');
+    const r = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+    });
+    const data = await r.json();
+    logApiCost('openai_edit', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
+    if (r.status >= 400) { console.error('[openaiEdit] status', r.status, JSON.stringify(data).slice(0, 300)); return null; }
+    const b64 = data.data?.[0]?.b64_json;
+    if (b64) return `data:image/png;base64,${b64}`;
+    return data.data?.[0]?.url || null;
+  } catch (e) { console.error('[openaiEdit]', e.message); return null; }
+}
+
 // Gera APENAS o cenário dark neon (frutas, vapor, iluminação) SEM NENHUM device.
 // O centro fica vazio pro pod ser colado depois.
 async function generateBackgroundScene(flavor, flavorElements, qcFeedback) {
@@ -6842,6 +6884,28 @@ async function generateProductScene(subject) {
     `NO people, NO hands, NO extra text or watermark beyond the product's own label. Square 1024x1024.`,
   ].join(' ');
   return await openaiGenerateImage(prompt, 'produto', { quality: 'low' });
+}
+
+// Busca uma imagem REAL do produto na web (Serper images) e baixa a 1ª válida.
+// Serve de referência pro img2img — deixa a arte fiel à embalagem (pra qualquer tipo).
+async function _findProductRefImage(query) {
+  try {
+    const data = await _serperSearch(query, 'images', 8);
+    const imgs = (data && data.images) || [];
+    for (const im of imgs.slice(0, 6)) {
+      const src = im && im.imageUrl;
+      if (!src) continue;
+      try {
+        const r = await fetch(src, { signal: AbortSignal.timeout(6000) });
+        if (!r.ok) continue;
+        const ct = r.headers.get('content-type') || '';
+        if (!/image\//.test(ct)) continue;
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 3000) return buf;
+      } catch (e) {}
+    }
+  } catch (e) { console.warn('[findRefImage]', e.message); }
+  return null;
 }
 
 // Descreve uma imagem de referência (1 frase em inglês) pra alimentar o gerador.
