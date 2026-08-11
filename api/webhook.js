@@ -4853,7 +4853,7 @@ async function handleFilialProductSave(req, res) {
       const upd = { hidden };
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
-      if (imageUrl !== undefined) upd.image_url = imageUrl || null;
+      if (imageUrl !== undefined) { upd.image_url = imageUrl || null; if (imageUrl) upd.image_status = 'ok'; } // arte/foto/link → publica
       if (body.photo_base64) upd.image_status = 'ok'; // foto enviada pelo lojista
       // código de barras (edição): 8–14 dígitos; vazio limpa
       if (Object.prototype.hasOwnProperty.call(body, 'barcode')) {

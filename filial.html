@@ -1576,28 +1576,31 @@ async function generateProductArt(id) {
   if (_artBusy[id]) return;
   _artBusy[id] = true;
   renderProdutos();
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
   try {
-    const r = await fetch('/api/webhook?action=filial_product_art', {
+    // 1) motor RÁPIDO (img2img via foto real da web ou descrição) — mesmo do wizard
+    const r = await fetch('/api/webhook?action=filial_product_art_fast', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, product_id: id }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', type: '' }),
     });
     const d = await r.json().catch(() => ({}));
-    _artBusy[id] = false;
     if (r.ok && d.ok && d.image_url) {
-      // atualiza a lista local com a nova imagem
-      const p = _lastProdutos.find(x => x.id === id);
-      if (p) { p.image_url = d.image_url; p.image_status = d.image_status; }
-      renderProdutos();
+      // 2) anexa a arte ao produto (image_url → publica)
+      const err = await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, image_url: d.image_url });
+      _artBusy[id] = false;
+      if (err === true) {
+        const pp = _lastProdutos.find(x => x.id === id);
+        if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
+        renderProdutos();
+      } else { renderProdutos(); alert(' ' + (typeof err === 'string' ? err : 'não deu pra salvar a arte')); }
     } else {
-      renderProdutos();
-      const err = (d && d.error) || (d && d.image_status === 'needs_manual_photo' ? 'a IA não achou uma boa referência — tenta de novo ou cola um link de foto' : 'não rolou gerar a arte agora');
-      alert(' ' + err);
+      _artBusy[id] = false; renderProdutos();
+      alert(' ' + ((d && d.error) || 'não rolou gerar a arte agora'));
     }
   } catch (e) {
     _artBusy[id] = false; renderProdutos();
     alert(' Erro de rede ao gerar a imagem');
   }
-  // sincroniza com o servidor
   loadData(false);
 }
 
