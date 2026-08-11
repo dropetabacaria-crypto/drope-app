@@ -4809,6 +4809,11 @@ async function handleFilialProductSave(req, res) {
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
       if (imageUrl !== undefined) upd.image_url = imageUrl || null;
       if (body.photo_base64) upd.image_status = 'ok'; // foto enviada pelo lojista
+      // código de barras (edição): 8–14 dígitos; vazio limpa
+      if (Object.prototype.hasOwnProperty.call(body, 'barcode')) {
+        const bc = String(body.barcode || '').replace(/\D/g, '');
+        upd.barcode = (bc.length >= 8 && bc.length <= 14) ? bc : null;
+      }
       // metadata: oferta e/ou filtro/categoria da loja
       const md = ex[0].metadata || {};
       let mdChanged = false;

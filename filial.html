@@ -772,6 +772,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
         <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
       </div>
+      <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">(pra escanear e vender no balcão)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0">
+        <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')">📷 Escanear</button>
+      </div>
+      <div class="pf-hint" style="margin-top:2px">Com o código salvo, é só escanear no balcão que o produto entra na venda.</div>
       <div style="display:flex; gap:10px">
         <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
         <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
@@ -1445,6 +1451,11 @@ function renderProdutos(list) {
         <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:6px;min-height:14px"></div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
+        <label class="pf-lbl" style="margin-top:10px">Código de barras <span style="color:var(--fg-dim);font-weight:400">(balcão)</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="pf-input" id="ep-barcode-${p.id}" inputmode="numeric" value="${p.barcode || ''}" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0">
+          <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ep-barcode-${p.id}')">📷</button>
+        </div>
         <label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
         <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0" onchange="_epFiltroChange(${p.id})">${_epFiltroOptions(p.filtro_id)}</select>
         <div id="ep-newcat-wrap-${p.id}" style="display:none;margin-top:6px">
@@ -2151,12 +2162,14 @@ async function saveNewProduct() {
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
+  const barcode = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+  if (barcode) payload.barcode = barcode; // código de barras → balcão puxa o produto
   if (isFinite(cost_price) && cost_price > 0) payload.cost_price = cost_price;
   if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
     _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
-    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
     document.getElementById('add-product-form').style.display = 'none';
@@ -2177,6 +2190,8 @@ async function saveEditProduct(id) {
   const payEl = document.getElementById('ep-payment-' + id);
   const custoEl = document.getElementById('ep-custo-' + id);
   const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
+  const bcEl = document.getElementById('ep-barcode-' + id);
+  if (bcEl) payload.barcode = (bcEl.value || '').replace(/\D/g, ''); // código de barras (vazio limpa)
   if (fEl) {
     let fval = fEl.value || null;
     if (fval === '__new__') { // criou a categoria na hora (só nome; arte é opcional pelo botão)
@@ -2238,7 +2253,7 @@ function renderPDV() {
 function pdvInc(id) { const p = _pdvProds().find(x => x.id === id); const max = (p && typeof p.stock === 'number') ? p.stock : 999; _pdvCart[id] = Math.min(max, (_pdvCart[id] || 0) + 1); renderPDV(); }
 
 // ===== Leitor de código de barras ao vivo (ZXing) — PDV: escaneia e vende =====
-let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 };
+let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 }, _scanTargetId = null;
 function _loadZxing() {
   return new Promise((resolve, reject) => {
     if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return resolve(window.ZXing);
@@ -2249,8 +2264,9 @@ function _loadZxing() {
     document.head.appendChild(s);
   });
 }
-async function openBarcodeScanner(ctx) {
+async function openBarcodeScanner(ctx, targetId) {
   _scanCtx = ctx || 'pdv';
+  _scanTargetId = targetId || null; // cadastro: id do input que recebe o código
   const ov = document.getElementById('scan-ov'), hint = document.getElementById('scan-hint');
   ov.classList.add('open');
   hint.textContent = 'Carregando leitor…';
@@ -2277,6 +2293,15 @@ function _onBarcode(raw) {
   if (code === _lastScan.code && now - _lastScan.t < 2500) return; // debounce leitura repetida
   _lastScan = { code, t: now };
   const hint = document.getElementById('scan-hint');
+  // CADASTRO: escaneou pra salvar no produto → preenche o campo e fecha.
+  if (_scanCtx === 'cadastro') {
+    const t = _scanTargetId && document.getElementById(_scanTargetId);
+    if (t) t.value = code;
+    try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
+    if (hint) hint.textContent = '✓ código ' + code + ' capturado';
+    setTimeout(closeBarcodeScanner, 650);
+    return;
+  }
   const p = (_lastProdutos || []).find(x => x.barcode === code || (Array.isArray(x.barcodes) && x.barcodes.includes(code)));
   if (p) {
     try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
