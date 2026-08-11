@@ -1639,6 +1639,8 @@ async function onScanFile(input) {
       const v = d.data; _scanMeta = v;
       // A foto do scan é INPUT pra IA gerar a arte DROPE (não vira a imagem crua).
       document.getElementById('add-product-form').style.display = 'block';
+      // Popula o seletor de categoria (o scan abre o form sem passar por toggleAddProduct).
+      try { const _sf = document.getElementById('ap-filtro'); if (_sf) _sf.innerHTML = _apFiltroOptions(); _apFiltroChange(); } catch (e) {}
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
       const genname = (v.name || '').trim();
