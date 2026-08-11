@@ -766,62 +766,86 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
-      <label class="pf-lbl">Nome do produto</label>
-      <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
-      <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
-        <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
+      <!-- progresso do wizard -->
+      <div id="wiz-steps" style="display:flex;gap:6px;margin-bottom:14px">
+        <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Produto</div>
+        <div class="wiz-dot" data-s="2" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">2 · Código</div>
+        <div class="wiz-dot" data-s="3" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">3 · Imagem</div>
       </div>
-      <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">(pra escanear e vender no balcão)</span></label>
-      <div style="display:flex;gap:8px">
-        <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0">
-        <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')">📷 Escanear</button>
-      </div>
-      <div class="pf-hint" style="margin-top:2px">Com o código salvo, é só escanear no balcão que o produto entra na venda.</div>
-      <div style="display:flex; gap:10px">
-        <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
-        <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
-      </div>
-      <!-- Calculadora de preço (opcional): custo + lucro → preço de venda, já com a comissão embutida -->
-      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-top:6px">
-        <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px">💡 Calculadora de preço <span style="opacity:.6">(opcional)</span></div>
-        <div style="display:flex;gap:10px">
-          <div style="flex:1"><label class="pf-lbl">Preço de custo (R$)</label><input class="pf-input" id="ap-custo" inputmode="decimal" placeholder="70,00" style="margin-bottom:0" oninput="apCalcPreco()"></div>
-          <div style="flex:1"><label class="pf-lbl">Lucro que quero</label>
-            <div style="display:flex;gap:6px">
-              <input class="pf-input" id="ap-lucro" inputmode="decimal" placeholder="30" style="flex:1;margin-bottom:0" oninput="apCalcPreco()">
-              <select class="pf-input" id="ap-lucro-tipo" style="width:60px;margin-bottom:0" onchange="apCalcPreco()"><option value="pct">%</option><option value="rs">R$</option></select>
+
+      <!-- ETAPA 1: identificar + básicos -->
+      <div class="wiz-step" id="wiz-1">
+        <label class="pf-lbl">Nome do produto</label>
+        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
+        <div style="display:flex; gap:10px">
+          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
+          <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
+        </div>
+        <div style="display:flex; gap:10px">
+          <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
+          <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
+        </div>
+        <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-top:6px">
+          <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px">💡 Calculadora de preço <span style="opacity:.6">(opcional)</span></div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1"><label class="pf-lbl">Preço de custo (R$)</label><input class="pf-input" id="ap-custo" inputmode="decimal" placeholder="70,00" style="margin-bottom:0" oninput="apCalcPreco()"></div>
+            <div style="flex:1"><label class="pf-lbl">Lucro que quero</label>
+              <div style="display:flex;gap:6px">
+                <input class="pf-input" id="ap-lucro" inputmode="decimal" placeholder="30" style="flex:1;margin-bottom:0" oninput="apCalcPreco()">
+                <select class="pf-input" id="ap-lucro-tipo" style="width:60px;margin-bottom:0" onchange="apCalcPreco()"><option value="pct">%</option><option value="rs">R$</option></select>
+              </div>
             </div>
           </div>
+          <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;min-height:16px"></div>
         </div>
-        <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;min-height:16px"></div>
+        <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
+        <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
+        <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
+          <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Essências)" maxlength="30" style="margin-bottom:0">
+          <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="apCriarCatArte()">Criar categoria com arte por IA ✦</button>
+          <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
+        </div>
+        <div class="pf-hint" id="ap-filtro-hint" style="margin-top:4px">Todo produto entra numa categoria — é assim que sua vitrine fica organizada, igual ao iFood.</div>
+        <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
+        <select class="pf-input" id="ap-payment">
+          <option value="both">Pix e cartão</option>
+          <option value="pix">Só Pix</option>
+        </select>
+        <div class="pf-hint" style="margin-top:2px">"Só Pix" = o cliente não vê a opção de cartão nesse produto.</div>
       </div>
-      <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
-      <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
-      <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
-        <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Essências)" maxlength="30" style="margin-bottom:0">
-        <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="apCriarCatArte()">Criar categoria com arte por IA ✦</button>
-        <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
+
+      <!-- ETAPA 2: código de barras -->
+      <div class="wiz-step" id="wiz-2" style="display:none">
+        <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">(pra escanear e vender no balcão)</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0">
+          <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')">📷 Escanear</button>
+        </div>
+        <div class="pf-hint" style="margin-top:6px">Com o código salvo, é só escanear no balcão que o produto entra na venda. Pode pular e adicionar depois.</div>
       </div>
-      <div class="pf-hint" id="ap-filtro-hint" style="margin-top:4px">Todo produto entra numa categoria — é assim que sua vitrine fica organizada, igual ao iFood.</div>
-      <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
-      <select class="pf-input" id="ap-payment">
-        <option value="both">Pix e cartão</option>
-        <option value="pix">Só Pix</option>
-      </select>
-      <div class="pf-hint" style="margin-top:2px">"Só Pix" = o cliente não vê a opção de cartão nesse produto.</div>
-      <label class="pf-lbl" style="margin-top:2px">Foto do produto</label>
-      <div style="display:flex;gap:10px">
-        <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
+
+      <!-- ETAPA 3: imagem (gerar IA ou foto própria) -->
+      <div class="wiz-step" id="wiz-3" style="display:none">
+        <div class="pf-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
+        <div style="display:flex;gap:10px">
+          <button class="pf-btn" id="ap-artgen-btn" style="flex:1" onclick="apGerarArte()">Gerar arte com IA ✦</button>
+          <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
+        </div>
+        <input type="file" id="ap-foto-file" accept="image/*" style="display:none" onchange="onApFotoFile(this)">
+        <div id="ap-art-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
+        <div id="ap-art-preview" style="display:none;margin-top:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px">
+          <img id="ap-art-img" src="" alt="" style="width:160px;height:160px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">Prévia da imagem do produto</div>
+        </div>
+        <input class="pf-input" id="ap-img" placeholder="ou cole o link de uma foto (opcional)" style="margin-top:10px" oninput="apLinkPreview()">
       </div>
-      <input type="file" id="ap-foto-file" accept="image/*" style="display:none" onchange="onApFotoFile(this)">
-      <div id="ap-foto-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
-      <div class="pf-hint">Envie uma foto do aparelho ou gere a arte com IA depois de adicionar (no card do produto).</div>
-      <input class="pf-input" id="ap-img" placeholder="ou cole o link da foto (opcional)">
-      <div style="display:flex; gap:10px; margin-top:4px">
-        <button class="pf-btn" onclick="saveNewProduct()">Adicionar ✦</button>
-        <button class="pf-btn sec" onclick="toggleAddProduct()">Cancelar</button>
+
+      <!-- navegação do wizard -->
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="pf-btn sec" id="wiz-back" style="flex:0 0 auto;visibility:hidden" onclick="wizGo(-1)">Voltar</button>
+        <button class="pf-btn" id="wiz-next" style="flex:1" onclick="wizNext()">Avançar</button>
       </div>
+      <div style="text-align:center;margin-top:8px"><span onclick="toggleAddProduct()" style="color:var(--fg-dim);font-size:12px;cursor:pointer">cancelar</span></div>
       <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
     <input class="prod-search" id="prod-search" placeholder="Buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
@@ -1587,22 +1611,95 @@ function toggleAddProduct() {
     const hint = document.getElementById('ap-filtro-hint');
     if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
     try { _apFiltroChange(); } catch (e) {}
-    _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
+    _apPhotoB64 = null; const afs = document.getElementById('ap-art-status'); if (afs) afs.textContent = '';
+    try { _wizReset(); } catch (e) {} // sempre abre na etapa 1
     try { helpShow('produtos'); } catch (e) {} // explica filtro-primeiro na 1ª vez
   }
+}
+// ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
+let _wizStep = 1;
+function _wizReset() { _wizStep = 1; _apClearArt(); wizRender(); }
+function wizRender() {
+  for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
+  document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
+    const s = +d.getAttribute('data-s'); const on = (s === _wizStep);
+    d.style.background = on ? 'var(--lime)' : 'var(--bg3)';
+    d.style.color = on ? '#0a0a0a' : (s < _wizStep ? 'var(--fg)' : 'var(--fg-dim)');
+  });
+  const back = document.getElementById('wiz-back'), next = document.getElementById('wiz-next');
+  if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
+  if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
+}
+function wizGo(delta) { _wizStep = Math.max(1, Math.min(3, _wizStep + delta)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+function wizNext() {
+  const msg = document.getElementById('ap-msg');
+  if (_wizStep === 1) {
+    const name = (document.getElementById('ap-name').value || '').trim();
+    const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
+    if (name.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do produto'; return; }
+    if (!isFinite(price) || price < 0) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe um preço válido'; return; }
+    const fv = (document.getElementById('ap-filtro') || {}).value || '';
+    const newcat = (document.getElementById('ap-newcat') || {}).value || '';
+    if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
+    msg.textContent = ''; _wizStep = 2; wizRender(); return;
+  }
+  if (_wizStep === 2) { msg.textContent = ''; _wizStep = 3; wizRender(); return; }
+  if (_wizStep === 3) { saveNewProduct(); return; }
+}
+// ----- Etapa 3: imagem (arte IA rápida / foto própria / link) -----
+function _apShowArtPreview(src) {
+  const img = document.getElementById('ap-art-img'); if (img) img.src = src;
+  const w = document.getElementById('ap-art-preview'); if (w) w.style.display = 'block';
+}
+function _apClearArt() {
+  _apPhotoB64 = null;
+  const w = document.getElementById('ap-art-preview'); if (w) w.style.display = 'none';
+  const img = document.getElementById('ap-art-img'); if (img) img.src = '';
+  const st = document.getElementById('ap-art-status'); if (st) st.textContent = '';
+  const link = document.getElementById('ap-img'); if (link) link.value = '';
+}
+function apLinkPreview() {
+  const v = (document.getElementById('ap-img').value || '').trim();
+  if (/^https?:\/\//.test(v)) { _apPhotoB64 = null; _apShowArtPreview(v); }
+}
+async function apGerarArte() {
+  const name = (document.getElementById('ap-name').value || '').trim();
+  const brand = (document.getElementById('ap-marca').value || '').trim();
+  const flavor = (document.getElementById('ap-sabor').value || '').trim();
+  const st = document.getElementById('ap-art-status');
+  if (name.length < 2 && brand.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'preencha o produto na etapa 1 primeiro'; } return; }
+  const btn = document.getElementById('ap-artgen-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = 'gerando… (até 1 min)'; }
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE…'; }
+  try {
+    const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
+    if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
+    const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.image_url) {
+      document.getElementById('ap-img').value = d.image_url; // vira a imagem do produto (image_url no save)
+      _apPhotoB64 = null; // arte tem prioridade sobre foto própria
+      _apShowArtPreview(d.image_url);
+      if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo'; } }
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
 }
 
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
 let _scanMeta = null;
 let _apPhotoB64 = null;
+let _scanRefB64 = null; // foto do scan → referência pra gerar a arte na etapa 3
 async function onApFotoFile(input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;
-  const st = document.getElementById('ap-foto-status');
+  const st = document.getElementById('ap-art-status');
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'preparando foto…'; }
   const b64 = await _fileToDataUrl(f, 900);
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
   _apPhotoB64 = b64;
-  if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta ✦ será salva ao adicionar'; }
+  const link = document.getElementById('ap-img'); if (link) link.value = ''; // foto própria tem prioridade sobre link/arte
+  _apShowArtPreview(b64);
+  if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta ✦ será usada como imagem do produto'; }
 }
 async function onEpFotoFile(id, input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;
@@ -1641,6 +1738,7 @@ async function onScanFile(input) {
   if (btn) btn.disabled = true;
   try {
     const b64 = await _fileToDataUrl(file, 1280);
+    _scanRefB64 = b64; // guarda a foto pra virar referência da arte na etapa 3
     const r = await fetch('/api/webhook?action=filial_analyze_photo', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, caixaBase64: b64 }),
@@ -1652,6 +1750,7 @@ async function onScanFile(input) {
       document.getElementById('add-product-form').style.display = 'block';
       // Popula o seletor de categoria (o scan abre o form sem passar por toggleAddProduct).
       try { const _sf = document.getElementById('ap-filtro'); if (_sf) _sf.innerHTML = _apFiltroOptions(); _apFiltroChange(); } catch (e) {}
+      try { _wizReset(); } catch (e) {} // começa na etapa 1 (produto identificado)
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
       const genname = (v.name || '').trim();
@@ -2171,14 +2270,15 @@ async function saveNewProduct() {
   if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
   const err = await _saveProduct(payload, () => {
-    _apPhotoB64 = null; const afs = document.getElementById('ap-foto-status'); if (afs) afs.textContent = '';
+    _apPhotoB64 = null; _scanRefB64 = null; try { _apClearArt(); } catch (e) {}
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
+    try { _wizStep = 1; wizRender(); } catch (e) {}
     document.getElementById('add-product-form').style.display = 'none';
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
     _scanMeta = null;
-    msg.textContent = 'produto adicionado ✦ agora clica em "gerar imagem com IA" no produto';
+    msg.textContent = 'produto adicionado ✦';
   });
   if (err !== true) msg.textContent = err;
 }

@@ -4988,6 +4988,38 @@ async function handleFilialProductArt(req, res) {
   }
 }
 
+// POST action=filial_product_art_fast — gera a arte DROPE do produto (motor rápido,
+// mesmo dos filtros) SEM salvar em produto: devolve image_url pra PRÉ-VISUALIZAR.
+// O save do produto (image_url) anexa a arte confirmada. Usado no wizard de cadastro.
+async function handleFilialProductArtFast(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const name = String(body.name || '').trim();
+    const brand = String(body.brand || '').trim();
+    const flavor = String(body.flavor || '').trim();
+    if (!name && !brand) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
+    let subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
+    if (body.ref_base64) { try { const desc = await _describeRefImage(body.ref_base64); if (desc) subject = desc; } catch (e) {} }
+    const tempUrl = await generateProductScene(subject);
+    if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
+    const imgResp = await fetch(tempUrl);
+    const buf = Buffer.from(await imgResp.arrayBuffer());
+    const url = await uploadToStorage(`prodgen-${filial.id}-${Date.now().toString(36)}`, buf, 'image/png');
+    if (!url) return res.status(502).json({ ok: false, error: 'falha ao salvar a imagem' });
+    return res.status(200).json({ ok: true, image_url: url + '?v=' + Date.now() });
+  } catch (e) {
+    console.error('[filial_product_art_fast] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
 // POST action=filial_analyze_photo — lojista tira UMA foto do pod e a IA (Claude
 // Vision) identifica marca/modelo/sabor/puffs + OCR do código de barras. Mesma
 // função do admin (analyzeProductImage), autenticada pela sessão da loja.
@@ -6797,6 +6829,19 @@ async function generateFilterScene(subjectEn) {
     `Square format 1024x1024.`,
   ].join(' ');
   return await openaiGenerateImage(prompt, 'filtro', { quality: 'low' }); // ícone pequeno → low é rápido (~24s) e suficiente
+}
+
+// Arte RÁPIDA do produto (mesmo motor dos filtros): cena dark-neon DROPE com o
+// produto no centro. quality=low (~24s). NÃO roda o pipeline pesado de referência.
+async function generateProductScene(subject) {
+  const prompt = [
+    `Dark cinematic product photography. HERO PRODUCT centered and in sharp focus: ${subject}. Single product, photorealistic, resting on a matte black reflective surface with a subtle mirror reflection.`,
+    `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space around the product.`,
+    `Atmospheric vapor/smoke drifting behind, catching neon rim lights with pink (#FF2D6F) and acid green (#D4FF2E) tints and a faint ultraviolet (#7B2FBE) fill.`,
+    `Low-key premium lighting, glossy, high detail. Keep the product's own packaging and label plausible and legible.`,
+    `NO people, NO hands, NO extra text or watermark beyond the product's own label. Square 1024x1024.`,
+  ].join(' ');
+  return await openaiGenerateImage(prompt, 'produto', { quality: 'low' });
 }
 
 // Descreve uma imagem de referência (1 frase em inglês) pra alimentar o gerador.
@@ -20385,6 +20430,11 @@ async function generateAll(){
   // action=filial_product_save — POST: lojista adiciona/edita produto da loja dele
   if (req.url && req.url.indexOf('action=filial_product_save') >= 0) {
     return await handleFilialProductSave(req, res);
+  }
+  // action=filial_product_art_fast — POST: arte rápida do produto (pré-visualiza, não salva)
+  // IMPORTANTE: checar ANTES de filial_product_art (que é prefixo).
+  if (req.url && req.url.indexOf('action=filial_product_art_fast') >= 0) {
+    return await handleFilialProductArtFast(req, res);
   }
   // action=filial_product_art — POST: lojista gera a arte (IA) de um produto dele
   if (req.url && req.url.indexOf('action=filial_product_art') >= 0) {
