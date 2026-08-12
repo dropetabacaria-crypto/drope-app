@@ -6622,11 +6622,17 @@
   }
 
   async function openInfinitePay(forceInfinite) {
-    // SaaS: se a loja conectou o Mercado Pago, usa o Pix do MP com split (comissão na hora).
-    // Senão (ou se o MP falhar → forceInfinite), mantém o fluxo InfinitePay atual (não quebra nada).
-    if (!forceInfinite && typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
+    // InfinitePay APOSENTADO (ago/2026): pagamento é 100% Mercado Pago — cada loja recebe
+    // na SUA conta conectada, com split. Se a loja tem MP → Pix do MP; senão, BLOQUEIA.
+    // NUNCA cai no InfinitePay (que ia 100% pro handle do Lucas, sem split — não fazia
+    // sentido com várias lojas na jogada).
+    if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
       return openMPPix();
     }
+    toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+    const _ipBtn = document.getElementById('infinitepay-btn'); if (_ipBtn) { _ipBtn.textContent = 'pagar agora ✦'; _ipBtn.disabled = false; }
+    return;
+    // ↓↓↓ código antigo do InfinitePay: INALCANÇÁVEL (mantido só pra não quebrar referências) ↓↓↓
     const btn = document.getElementById('infinitepay-btn');
     if (!btn) return;
     btn.textContent = 'gerando link...';
@@ -6814,11 +6820,12 @@
       go('pix-mp');
       _startMPPixPoll(d.payment_id, slug);
     } catch (e) {
-      console.error('[MP Pix] falhou, caindo pro InfinitePay:', e && e.message);
+      console.error('[MP Pix] falhou:', e && e.message);
       if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
-      // FALLBACK: se o Pix do MP falhar (loja mal configurada, MP fora do ar, etc.),
-      // o cliente NUNCA fica sem pagar — volta pro InfinitePay automaticamente.
-      return openInfinitePay(true);
+      // SEM fallback pro InfinitePay: o dinheiro só entra na conta da loja (MP com split).
+      // Se o MP falhar, avisa o cliente pra tentar de novo — nunca desvia pro handle do Lucas.
+      toast('Não deu pra gerar o Pix agora ✦ tenta de novo em instantes');
+      return;
     }
   }
 
@@ -11288,9 +11295,9 @@
     } else {
       // Caso 2: Pix antecipado (pickup pagar agora OU delivery sempre)
       const blockClick = "go('pix')";
-      // Cartão vai pro checkout REAL do InfinitePay (que aceita cartão) — não mais o
-      // formulário falso go('card'). Só aparece pra não-pod (ver cardLiberado abaixo).
-      const blockCard = "openInfinitePay(true)";
+      // Cartão vai pro Checkout Pro do Mercado Pago (crédito/débito, COM split na conta
+      // da loja). InfinitePay aposentado. Só aparece pra não-pod (ver cardLiberado abaixo).
+      const blockCard = "openMPCheckout()";
 
       html = `
         <div class="co-method" onclick="${blockClick}">
