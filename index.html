@@ -4871,7 +4871,7 @@
   <!-- ============ CHECKOUT (entrega + pagamento numa tela só) ============ -->
   <div class="screen no-nav" id="checkout">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('cart')">
+      <div class="icon-btn" onclick="checkoutBack()">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">Fechar pedido</div>
@@ -4888,62 +4888,73 @@
 
     <!-- Step indicator -->
     <div class="step-indicator">
-      <div class="step active"><span class="step-num">1</span> Entrega</div>
-      <div class="step-line"></div>
-      <div class="step"><span class="step-num">2</span> Pagamento</div>
+      <div class="step active" id="ci-step1"><span class="step-num" id="ci-num1">1</span> Entrega</div>
+      <div class="step-line" id="ci-line1"></div>
+      <div class="step" id="ci-step2"><span class="step-num">2</span> Pagamento</div>
       <div class="step-line"></div>
       <div class="step"><span class="step-num">3</span> Confirmar</div>
     </div>
 
     <div class="co-wrap">
-      <div class="co-section-lbl">como quer receber</div>
-      <div class="co-mode" id="co-mode">
-        <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">Entrega</div>
-        <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">Retirar na loja</div>
-      </div>
-      <div id="co-address-wrap"></div>
-
-      <div class="co-contact-mini" onclick="go('profile-edit')">
-        <div class="ic"></div>
-        <div class="info">
-          <div class="lbl">contato</div>
-          <div class="val" id="co-customer">—</div>
+      <!-- PASSO 1 — Entrega / endereço (sem pagamento aqui) -->
+      <div id="co-step-entrega">
+        <div class="co-section-lbl">como quer receber</div>
+        <div class="co-mode" id="co-mode">
+          <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">Entrega</div>
+          <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">Retirar na loja</div>
         </div>
-        <div class="chv">editar ›</div>
-      </div>
+        <div id="co-address-wrap"></div>
 
-      <div class="co-divider"></div>
-
-      <div class="co-section-lbl">total</div>
-      <div class="co-total">
-        <div class="co-total-lbl">seu pedido</div>
-        <div class="co-total-val display" id="co-total">R$ 0</div>
-      </div>
-
-      <div id="co-warning" style="display:none"></div>
-
-      <div class="pay-when-wrap" id="pay-when-wrap" style="display:none">
-        <div class="pw-title">quando você quer pagar?</div>
-        <div class="pw-toggle">
-          <button class="pw-opt active" id="pw-now" onclick="setPayWhen('now')">
-            <div class="pw-emoji"></div>
-            <div class="pw-lbl">pagar agora</div>
-            <div class="pw-sub">Pix antes de buscar</div>
-          </button>
-          <button class="pw-opt" id="pw-later" onclick="setPayWhen('later')">
-            <div class="pw-emoji"></div>
-            <div class="pw-lbl">pagar na retirada</div>
-            <div class="pw-sub">dinheiro, cartão ou Pix na loja</div>
-          </button>
+        <div class="co-contact-mini" onclick="go('profile-edit')">
+          <div class="ic"></div>
+          <div class="info">
+            <div class="lbl">contato</div>
+            <div class="val" id="co-customer">—</div>
+          </div>
+          <div class="chv">editar ›</div>
         </div>
+
+        <div class="co-divider"></div>
+
+        <div class="co-section-lbl">total</div>
+        <div class="co-total">
+          <div class="co-total-lbl">seu pedido</div>
+          <div class="co-total-val display" id="co-total">R$ 0</div>
+        </div>
+
+        <button class="btn-primary" id="co-to-pay" onclick="checkoutGoPay()" style="margin-top:20px">Ir para pagamento ✦</button>
       </div>
 
-      <div class="co-methods" id="co-methods"></div>
+      <!-- PASSO 2 — Pagamento (os métodos aparecem só aqui) -->
+      <div id="co-step-pagamento" style="display:none">
+        <div id="co-warning" style="display:none"></div>
 
-      <!-- Cupom fica só no carrinho (não pedir duas vezes). O desconto aplicado
-           aparece no resumo abaixo (linha "cupom -R$"). -->
+        <div class="pay-when-wrap" id="pay-when-wrap" style="display:none">
+          <div class="pw-title">quando você quer pagar?</div>
+          <div class="pw-toggle">
+            <button class="pw-opt active" id="pw-now" onclick="setPayWhen('now')">
+              <div class="pw-emoji"></div>
+              <div class="pw-lbl">pagar agora</div>
+              <div class="pw-sub">Pix antes de buscar</div>
+            </button>
+            <button class="pw-opt" id="pw-later" onclick="setPayWhen('later')">
+              <div class="pw-emoji"></div>
+              <div class="pw-lbl">pagar na retirada</div>
+              <div class="pw-sub">dinheiro, cartão ou Pix na loja</div>
+            </button>
+          </div>
+        </div>
 
-      <div class="co-recap" id="co-recap"></div>
+        <div class="co-section-lbl">como quer pagar</div>
+        <div class="co-methods" id="co-methods"></div>
+
+        <!-- Cupom fica só no carrinho (não pedir duas vezes). O desconto aplicado
+             aparece no resumo abaixo (linha "cupom -R$"). -->
+
+        <div class="co-recap" id="co-recap"></div>
+
+        <button class="btn-secondary" onclick="checkoutBackToEntrega()" style="margin-top:14px">← voltar pra entrega</button>
+      </div>
     </div>
 
     <div style="height: 40px"></div>
@@ -10978,6 +10989,8 @@
     }
     if (screen === 'pix') renderPixScreen();
     if (screen === 'checkout') {
+      // Sempre entra no passo 1 (entrega). Pagamento é o passo 2.
+      checkoutStep = 1; renderCheckoutStep();
       // BUGFIX cupom: NÃO zerar um cupom já aplicado ao (re)entrar no checkout.
       // Antes, voltar do fluxo de endereço apagava o cupom, e o auto-boas-vindas
       // (DROPE10) atropelava um cupom manual (ex.: TESTE100OFF → saía do modo teste).
@@ -11226,6 +11239,36 @@
     document.getElementById('pw-later').classList.toggle('active', mode === 'later');
     renderCheckout();
   }
+
+  // ===== Checkout em 2 passos: 1) entrega/endereço  2) pagamento =====
+  let checkoutStep = 1;
+  function renderCheckoutStep() {
+    const e = document.getElementById('co-step-entrega');
+    const p = document.getElementById('co-step-pagamento');
+    if (e) e.style.display = checkoutStep === 1 ? '' : 'none';
+    if (p) p.style.display = checkoutStep === 2 ? '' : 'none';
+    const s1 = document.getElementById('ci-step1'), s2 = document.getElementById('ci-step2');
+    const l1 = document.getElementById('ci-line1'), n1 = document.getElementById('ci-num1');
+    if (s1) s1.className = 'step' + (checkoutStep === 1 ? ' active' : ' done');
+    if (n1) n1.textContent = checkoutStep === 2 ? '✓' : '1';
+    if (l1) l1.className = 'step-line' + (checkoutStep === 2 ? ' done' : '');
+    if (s2) s2.className = 'step' + (checkoutStep === 2 ? ' active' : '');
+  }
+  function checkoutGoPay() {
+    // Só avança pro pagamento com a entrega resolvida.
+    if (deliveryMode === 'delivery' && !getSelectedAddress()) { toast('cadastra o endereço de entrega ✦'); return; }
+    checkoutStep = 2;
+    renderCheckoutStep();
+    renderCheckout();
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+  }
+  function checkoutBackToEntrega() {
+    checkoutStep = 1;
+    renderCheckoutStep();
+    try { window.scrollTo({ top: 0 }); } catch (e) {}
+  }
+  // Botão voltar do topo: no passo 2 volta pra entrega; no passo 1 volta pra sacola.
+  function checkoutBack() { if (checkoutStep === 2) checkoutBackToEntrega(); else go('cart'); }
 
   function reserveOrderPickup() {
     if (cart.length === 0) return;
