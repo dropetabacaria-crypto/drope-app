@@ -11837,14 +11837,16 @@
       if (st === 'picked_up') { statusCls = 'done'; label = 'retirado ✓'; }
       else if (st === 'ready' || st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar ✦'; }
       else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
-      else if (st === 'paid') { statusCls = 'separating'; label = 'pago ✦ separando'; }
-      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'separating'; label = 'reservado ✦ pague na retirada'; }
+      // pago/reservado = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
+      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja'; }
+      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'waiting'; label = 'reservado ✦ pague na retirada'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     } else {
       if (st === 'delivered') { statusCls = 'done'; label = 'entregue ✓'; }
       else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho ✦ motoboy retirou na loja'; }
       else if (st === 'preparing') { statusCls = 'confirmed'; label = 'preparando teu pedido'; }
-      else if (st === 'paid') { statusCls = 'confirmed'; label = 'pago ✦ preparando'; }
+      // pago = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
+      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja confirmar'; }
       else if (st === 'waiting_proof') { statusCls = 'waiting'; label = 'aguardando confirmação'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     }
@@ -12151,6 +12153,8 @@
       wrap.innerHTML = `<div class="empty"><div class="t">Você ainda não dropou nada</div><div class="s">bora começar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
     }
+    // Sempre mais recente primeiro (ordem de criação, desc).
+    orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     wrap.innerHTML = orders.map((o, idx) => {
       const steps = o.mode === 'pickup' ? ORDER_STEPS_PICKUP : ORDER_STEPS_DELIVERY;
       const curIdx = steps.findIndex(s => s.key === o.statusCls);
@@ -12198,7 +12202,10 @@
 
   // Pedido mais recente do cliente atual (exclui PDV do balcão)
   function getMyLastOrder() {
-    return orders.find(o => o.mode !== 'pos' && o.customer && o.customer.phone === profile.phone) || null;
+    // Sempre o pedido MAIS RECENTE do cliente (ordem de criação, desc).
+    const mine = (orders || []).filter(o => o.mode !== 'pos' && o.customer && o.customer.phone === profile.phone);
+    mine.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return mine[0] || null;
   }
 
   // ============ OSSO 21 — IA-FIRST CLIENTE (home personalizada) ============
