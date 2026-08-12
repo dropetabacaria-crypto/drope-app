@@ -10920,6 +10920,9 @@
     if (screen === 'addresses') loadAddressesFromAccount();
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
+    // Acompanhamento ao vivo: enquanto o cliente olha o pedido, atualiza sozinho o
+    // status (em separação → pronto/a caminho → entregue) sem precisar recarregar.
+    if (screen === 'order-tracking' || screen === 'orders') _startTrackPoll(); else _stopTrackPoll();
     if (screen === 'lojista-signup') _resetLojistaForm();
     if (screen === 'addresses') renderAddresses();
     if (screen === 'admin-orders') { renderAdminOrders(); loadAdminOrders(); }
@@ -11865,6 +11868,15 @@
       _backend: true,
     };
   }
+  // Polling do acompanhamento: atualiza o status do pedido ao vivo (a cada 8s) enquanto
+  // o cliente está na tela de acompanhar/meus pedidos. Pausa em background.
+  let _trackPoll = null;
+  function _startTrackPoll() {
+    if (_trackPoll) return;
+    _trackPoll = setInterval(function () { if (document.hidden) return; try { loadMyOrders(); } catch (e) {} }, 8000);
+  }
+  function _stopTrackPoll() { if (_trackPoll) { clearInterval(_trackPoll); _trackPoll = null; } }
+
   // Busca os pedidos do cliente no backend (fonte de verdade do status) e re-renderiza.
   let _loadingMyOrders = false;
   async function loadMyOrders() {
