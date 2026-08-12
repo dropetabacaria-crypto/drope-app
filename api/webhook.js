@@ -16825,7 +16825,16 @@ async function handleMPConnectStatus(req, res) {
     const filial = await _filialAuthBySlug(slug, token);
     if (!filial) return res.status(401).json({ ok: false });
     const pay = (filial.metadata || {}).payment || {};
-    return res.status(200).json({ ok: true, connected: pay.provider === 'mp' && !!pay.access_token, mp_user_id: pay.mp_user_id || null, connected_at: pay.connected_at || null, plan: _planFor(filial) });
+    const connected = pay.provider === 'mp' && !!pay.access_token;
+    // Conta HABILITADA pra receber? /users/me = 200 (ativa) / 403 (não ativada no MP).
+    let mp_active = null;
+    if (connected && pay.access_token) {
+      try {
+        const me = await fetch('https://api.mercadopago.com/users/me', { headers: { Authorization: `Bearer ${pay.access_token}` } });
+        mp_active = (me.status === 200);
+      } catch (e) { mp_active = null; }
+    }
+    return res.status(200).json({ ok: true, connected, mp_active, mp_user_id: pay.mp_user_id || null, connected_at: pay.connected_at || null, plan: _planFor(filial) });
   } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
 }
 

@@ -2860,7 +2860,9 @@ async function mpRefreshStatus() {
       if (el) el.innerHTML = '✅ <b style="color:var(--lime)">Mercado Pago conectado</b>'
         + (pct != null ? ` — comissão DROPE de <b>${String(pct).replace('.', ',')}%</b> por pedido.` : '')
         + (d.mp_user_id ? `<br><span style="font-size:12.5px;color:var(--fg-dim)">Conta conectada: <b style="color:var(--fg)">#${d.mp_user_id}</b>${d.connected_at ? ' · desde ' + new Date(d.connected_at).toLocaleDateString('pt-BR') : ''}</span>` : '')
-        + (isPlat ? `<br><span style="font-size:12.5px;color:#ff6b8f">⚠️ Essa é a conta da plataforma — reconecte com a conta da SUA loja pra o split funcionar.</span>` : '');
+        + (isPlat ? `<br><span style="font-size:12.5px;color:#ff6b8f">⚠️ Essa é a conta da plataforma — reconecte com a conta da SUA loja pra o split funcionar.</span>` : '')
+        + (d.mp_active === false && !isPlat ? `<br><span style="font-size:12.5px;color:#ff6b8f">⚠️ Conta conectada, mas <b>ainda não habilitada</b> pra receber no Mercado Pago. Complete o cadastro dela (verificar identidade + ativar "receber pagamentos") — enquanto isso, os pedidos não confirmam.</span>` : '')
+        + (d.mp_active === true ? `<br><span style="font-size:12.5px;color:var(--green)">✓ Conta habilitada pra receber — pedidos confirmam na hora.</span>` : '');
       if (btn) btn.textContent = 'Reconectar Mercado Pago';
     } else {
       if (el) el.innerHTML = '⚠️ Ainda <b>não conectado</b>. Os pedidos não caem na sua conta até conectar.';
