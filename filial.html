@@ -1504,6 +1504,7 @@ function renderProdutos(list) {
         <div id="fe-prodfoto-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:10px 0"><input type="checkbox" id="ep-hidden-${p.id}" ${p.hidden ? 'checked' : ''}> esconder do catálogo</label>
         <button class="pf-btn full" onclick="saveEditProduct(${p.id})">Salvar</button>
+        <button class="pf-btn sec full" style="margin-top:8px;color:#ff6b8f;border-color:rgba(255,107,143,.35)" onclick="deleteProduct(${p.id})">Excluir produto</button>
       </div>
     </div>`;
   }).join('');
@@ -1574,6 +1575,21 @@ function bumpStock(id, delta) {
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
+async function deleteProduct(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
+  if (!confirm('Excluir "' + (p.name || 'este produto') + '"? Essa ação não tem volta.')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_product_delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      _lastProdutos = (_lastProdutos || []).filter(x => x.id !== id);
+      renderProdutos(); loadData(false);
+    } else { alert(' ' + ((d && d.error) || 'não deu pra excluir')); }
+  } catch (e) { alert(' Erro de rede ao excluir'); }
+}
 // ===== Overlay animado de geração de arte (spinner + mensagens de processo) =====
 let _artMsgTimer = null;
 const _ART_MSGS = ['Buscando a melhor referência ✦', 'Gerando a imagem…', 'Aplicando o estilo DROPE…', 'Ajustando as luzes neon…', 'Dando os toques finais…'];
@@ -2319,11 +2335,14 @@ async function saveNewProduct() {
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
     const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
+    const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); // categorias atualizadas
+    // CADASTRO EM SÉRIE: mantém o form aberto na etapa 1 pra cadastrar o próximo.
     try { _wizStep = 1; wizRender(); } catch (e) {}
-    document.getElementById('add-product-form').style.display = 'none';
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
     _scanMeta = null;
-    msg.textContent = 'produto adicionado ✦';
+    try { document.getElementById('ap-name').focus(); } catch (e) {}
+    try { const sc = document.querySelector('#produtos-ov .sheet-scroll'); if (sc) sc.scrollTop = 0; } catch (e) {}
+    msg.style.color = 'var(--green)'; msg.textContent = 'produto adicionado ✦ cadastre o próximo (ou toque em cancelar)';
   });
   if (err !== true) msg.textContent = err;
 }
