@@ -4622,9 +4622,11 @@ async function handleFilialPainel(req, res) {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Pedidos da filial, pagos, do mês corrente
+    // Pedidos ATIVOS da filial no mês (inclui pending_pickup = pagar na retirada, e
+    // preparing/ready = em separação/pronto). 'created'/'waiting_proof' ficam de fora
+    // (checkout não concluído). Finalizados (delivered/picked_up/completed) vão pro histórico.
     const orders = await sbGet('drope_orders',
-      `filial_id=eq.${filial.id}&status=in.(paid,accepted,prepared,dispatched,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
 
     // Calcular ganho da fundadora como (price - cost) / 2 por item
     // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
