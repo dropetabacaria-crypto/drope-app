@@ -3151,41 +3151,78 @@ function renderHorario(hours) {
   renderDias(); renderOnline();
 }
 
+// Etapa do pedido a partir do status.
+function _orderStage(status) {
+  const s = String(status || '');
+  if (['delivered', 'picked_up', 'completed'].includes(s)) return 'done';
+  if (s === 'dispatched') return 'dispatched';
+  if (s === 'ready') return 'ready';
+  if (s === 'preparing') return 'preparing';
+  return 'new'; // paid, pending_pickup, confirmed, accepted
+}
 function renderPedidoCard(p, isEntregue) {
-  const cls = isEntregue ? 'entregue' : 'novo';
-  const statusBadge = isEntregue
-    ? '<span class="status-badge status-entregue">✓ entregue</span>'
-    : '<span class="status-badge status-novo">pra entregar</span>';
+  const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
+  const stage = isEntregue ? 'done' : _orderStage(p.status);
+  const cls = stage === 'done' ? 'entregue' : 'novo';
   const cust = p.customer || {};
   const items = (p.items || []).map(it => `<div>• <strong>${parseInt(it.qty || it.quantity || 1, 10) || 1}×</strong> ${esc(it.name)}</div>`).join('');
   const schedBadge = p.scheduled
     ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
     : '';
-  const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
-  let entregaBlock = '';
-  if (!isEntregue && isDelivery) {
-    if (p.corrida) {
-      entregaBlock = `<div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--fg-dim)">${_corridaLabel(p.corrida)}</div>`;
+  const badges = {
+    new: '<span class="status-badge status-novo">novo pedido</span>',
+    preparing: '<span class="status-badge status-novo">em separação</span>',
+    ready: '<span class="status-badge status-novo">pronto p/ retirada</span>',
+    dispatched: '<span class="status-badge status-novo">a caminho</span>',
+    done: `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
+  };
+  const modeChip = `<span style="font-size:11px;font-weight:700;color:var(--fg-dim);background:var(--bg3);border-radius:999px;padding:2px 8px;margin-left:6px">${isDelivery ? '🛵 entrega' : '🏪 retirada'}</span>`;
+  const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)">📍 ${esc((p.address.street || '') + (p.address.num ? ', ' + p.address.num : '') + (p.address.bairro ? ' · ' + p.address.bairro : ''))}</div>` : '';
+  const corr = p.corrida ? `<div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--fg-dim)">${_corridaLabel(p.corrida)}</div>` : '';
+  // Ações por etapa
+  let actions = '';
+  const b = (st, label, sec) => `<button class="pf-btn${sec ? ' sec' : ''}" style="margin-top:8px;width:100%" onclick="advanceOrder(${p.id},'${st}')">${label}</button>`;
+  if (stage === 'new') {
+    actions = b('preparing', 'Aceitar · começar separação');
+  } else if (stage === 'preparing') {
+    if (isDelivery) {
+      const chamar = p.corrida ? corr : `<button class="pf-btn sec" style="margin-top:8px;width:100%" onclick="openChamarEntregador(${p.id})">🛵 Chamar entregador do app</button>`;
+      actions = chamar + b('dispatched', 'Saiu pra entrega (motoboy da loja)');
     } else {
-      entregaBlock = `<button class="pf-btn sec" style="margin-top:10px;width:100%" onclick="openChamarEntregador(${p.id})">🛵 Chamar entregador</button>`;
+      actions = b('ready', 'Pronto pra retirada ✦');
     }
+  } else if (stage === 'ready') {
+    actions = b('picked_up', 'Cliente retirou ✓');
+  } else if (stage === 'dispatched') {
+    actions = corr + b('delivered', 'Entregue ✓');
   }
   return `
     <div class="pedido-card ${cls}">
       <div class="pedido-head">
-        <div class="cliente">${esc(cust.name) || '—'}</div>
-        ${statusBadge}
+        <div class="cliente">${esc(cust.name) || '—'}${modeChip}</div>
+        ${badges[stage] || badges.new}
       </div>
       ${schedBadge}
       <div class="cliente-info">${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
+      ${addrBlock}
       <div class="total">
         <span>Total: ${fmtBRL(p.total_cents)}</span>
         <span class="ganho">${fmtBRL(p.ganho_cents)} ✦ líquido pra você</span>
       </div>
-      ${entregaBlock}
+      ${actions}
     </div>
   `;
+}
+async function advanceOrder(id, status) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_order_status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, status }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) loadData(true); else alert(' ' + ((d && d.error) || 'não deu pra atualizar o status'));
+  } catch (e) { alert(' Erro de rede'); }
 }
 // Rótulo legível do estado da corrida (entrega)
 function _corridaLabel(c) {

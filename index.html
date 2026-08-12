@@ -11831,7 +11831,7 @@
     if (st === 'cancelled') { statusCls = 'cancelled'; label = 'cancelado'; }
     else if (mode === 'pickup') {
       if (st === 'picked_up') { statusCls = 'done'; label = 'retirado ✓'; }
-      else if (st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar'; }
+      else if (st === 'ready' || st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar ✦'; }
       else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
       else if (st === 'paid') { statusCls = 'separating'; label = 'pago ✦ separando'; }
       else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'separating'; label = 'reservado ✦ pague na retirada'; }

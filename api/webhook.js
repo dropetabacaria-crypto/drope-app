@@ -4968,6 +4968,40 @@ async function handleFilialProductDelete(req, res) {
   } catch (e) { console.error('[filial_product_delete] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_order_status — lojista avança o status de UM pedido dele.
+// Fluxo: novo → preparing (em separação) → [pickup] ready (pronto p/ retirada) →
+// picked_up (retirado) | [delivery] dispatched (a caminho) → delivered (entregue).
+// O cliente acompanha na tela "Acompanhar pedido" (lê o status/status_history).
+async function handleFilialOrderStatus(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const id = body.id;
+    const next = String(body.status || '').trim();
+    const ALLOWED = ['preparing', 'ready', 'dispatched', 'picked_up', 'delivered'];
+    if (!id || !ALLOWED.includes(next)) return res.status(400).json({ ok: false, error: 'status inválido' });
+    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history&limit=1`);
+    if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
+    const now = new Date().toISOString();
+    const upd = { status: next };
+    if (next === 'preparing') upd.prepared_at = now;
+    if (next === 'dispatched') upd.dispatched_at = now;
+    if (next === 'delivered') upd.delivered_at = now;
+    if (next === 'picked_up') upd.picked_up_at = now;
+    const hist = Array.isArray(ex[0].status_history) ? ex[0].status_history : [];
+    hist.push({ status: next, at: now });
+    upd.status_history = hist;
+    await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
+    return res.status(200).json({ ok: true, status: next });
+  } catch (e) { console.error('[filial_order_status] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=filial_product_art — lojista gera a arte (IA) de um produto DELE.
 // Auth pela sessão da loja; o ADMIN_TOKEN e a pipeline ficam 100% no servidor.
 // Roda a MESMA runArtGeneration do admin (inline, ~30s).
@@ -20608,6 +20642,10 @@ async function generateAll(){
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
+  }
+  // action=filial_order_status — POST: lojista avança o status de um pedido
+  if (req.url && req.url.indexOf('action=filial_order_status') >= 0) {
+    return await handleFilialOrderStatus(req, res);
   }
   // action=filial_product_delete — POST: lojista apaga um produto dele
   if (req.url && req.url.indexOf('action=filial_product_delete') >= 0) {
