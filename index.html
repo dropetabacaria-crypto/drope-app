@@ -6812,8 +6812,13 @@
           customer: { name: profile.name, email: profile.email || '', phone: profile.phone },
         }),
       });
-      const d = await res.json();
-      if (!res.ok || !d.qr_code) { throw new Error((d && d.error) || 'erro ao gerar Pix'); }
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.qr_code) {
+        if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; }
+        // Mensagem específica do backend (ex.: loja sem chave Pix) — senão, genérica.
+        toast((d && d.message) || 'Não deu pra gerar o Pix agora ✦ tenta de novo');
+        return;
+      }
 
       _mpPixCode = d.qr_code;
       _mpPixOrderNsu = orderNsu;

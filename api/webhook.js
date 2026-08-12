@@ -17386,8 +17386,14 @@ async function handleMPCreatePix(req, res) {
     console.log('[MercadoPago] Response:', response.status);
 
     if (!response.ok) {
-      console.error('[MercadoPago] Error:', JSON.stringify(data).substring(0, 500));
-      return res.status(502).json({ error: 'mercadopago_error', status: response.status, details: data.message || data.cause || data });
+      const raw = JSON.stringify(data);
+      console.error('[MercadoPago] Error:', raw.substring(0, 500));
+      // Conta da loja no Mercado Pago SEM chave Pix cadastrada → não dá pra gerar o QR.
+      // (Cartão via Checkout Pro continua funcionando; só o Pix direto depende da chave.)
+      if (/without key|key enabled|QR render/i.test(raw)) {
+        return res.status(409).json({ error: 'pix_sem_chave', message: 'A loja ainda não cadastrou uma chave Pix no Mercado Pago. Paga no cartão ou avisa a loja ✦' });
+      }
+      return res.status(502).json({ error: 'mercadopago_error', status: response.status, message: 'Não deu pra gerar o Pix agora ✦ tenta de novo', details: data.message || data.cause || data });
     }
 
     const txData = data.point_of_interaction?.transaction_data;
