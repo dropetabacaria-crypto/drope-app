@@ -12222,25 +12222,10 @@
           </div>`;
         // Recomendações e "ver tudo" removidos: a seção vai direto pra "Separei
         // pra você" → CATÁLOGO (mais limpo, sem card de teste nem link morto).
-      } else {
-        // Cliente novo (ou sem perfil ainda)
-        const greeting = `Qual vibe você curte hoje?`;
-        const sub = `Escolhe uma — ou explora tudo`;
-        html += `<div class="vibe-greet">${greeting}<small>${sub}</small></div>`;
-        const VIBE_DEFS = [
-          { fl: 'fruity',  label: 'Frutado' },
-          { fl: 'sweet',   label: 'Doce' },
-          { fl: 'icy',     label: 'Gelado' },
-          { fl: 'menthol', label: 'Mentol' },
-        ];
-        const vibeChipsHtml = VIBE_DEFS.map(function(v) {
-          const im = (VIBE_IMAGES && VIBE_IMAGES[v.fl]) || '';
-          const cls = im ? 'vibe-chip has-img' : 'vibe-chip';
-          const bg = im ? ` style="background-image:url('${escapeHtml(im).replace(/'/g, '%27')}')"` : '';
-          return `<div class="${cls}" data-flavor="${v.fl}"${bg} onclick="pickVibe('${v.fl}', this)"><span class="vibe-label">${v.label}</span></div>`;
-        }).join('');
-        html += `<div class="vibe-row">${vibeChipsHtml}</div>`;
       }
+      // Cliente novo: NÃO mostra vibes de sabor de pod (Frutado/Doce/Gelado/Mentol) —
+      // são hardcoded de vape e não servem pra tabacaria. Sem histórico, a seção fica vazia
+      // e o cliente navega direto pelas categorias reais da loja (filtros) + catálogo.
 
       wrap.innerHTML = html;
       // Restaura vibe ativa se houver
