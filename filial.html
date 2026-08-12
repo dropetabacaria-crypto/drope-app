@@ -1048,11 +1048,34 @@ async function loadData(showLoading) {
     render(data);
     document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     try { loadNotifs(); } catch (e) {}
+    try { _startPainelPoll(); } catch (e) {} // liga o auto-refresh (novas vendas aparecem sozinhas)
   } catch (e) {
     console.error('[load]', e);
     document.getElementById('last-update').textContent = 'erro ✦ tentando de novo';
   }
 }
+
+// Auto-refresh do painel: vendas/pedidos novos aparecem sozinhos (~10s), sem clicar
+// em Atualizar. PAUSA quando há overlay aberto (Meus produtos, PDV, Config…) pra não
+// interromper uma edição, e quando a aba está em segundo plano.
+let _painelPoll = null;
+function _startPainelPoll() {
+  if (_painelPoll) return;
+  _painelPoll = setInterval(function () {
+    try {
+      if (document.hidden) return;
+      if (document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open')) return;
+      loadData(false);
+    } catch (e) {}
+  }, 10000);
+}
+function _stopPainelPoll() { if (_painelPoll) { clearInterval(_painelPoll); _painelPoll = null; } }
+// Ao voltar pra aba, atualiza na hora (não espera o próximo ciclo do poll).
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && ACCESS_CODE && FILIAL_SLUG) {
+    try { if (!document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open')) loadData(false); } catch (e) {}
+  }
+});
 
 let _filialName = '';
 // Abre o app do cliente no catálogo DESTA loja em modo PRÉ-VISUALIZAÇÃO.
