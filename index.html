@@ -11524,25 +11524,37 @@
     // OSSO-FIX-NULLPUFFS: antes, p.puffs null/undefined renderizava "null puffs"
     // porque p.puffs >= 1000 era false e caía em null + ' puffs' = "null puffs".
     const metaEl = document.getElementById('d-meta');
-    if (metaEl && p.cat === 'pod') {
-      // FRICÇÃO #004 (04/06 Andrade): pills com cores da paleta neon
-      // marca=lime, modelo=violet, puffs=pink, sabor=neon-azul
+    if (metaEl) {
+      // Chips sem redundância: marca + CATEGORIA(filtro) + specs.
+      // Não repete o que já está no nome/título (ex.: "Natural Perfect King Size" já no título).
+      const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const nameN = norm(p.name);
       const pills = [];
-      if (p.marca) pills.push(`<span class="meta-pill marca">${escapeHtml(p.marca.toUpperCase())}</span>`);
-      if (p.modelo) pills.push(`<span class="meta-pill modelo">${escapeHtml(p.modelo.toUpperCase())}</span>`);
+      const used = new Set();
+      const add = (val, cls, upper) => {
+        const v = String(val || '').trim(); if (!v) return;
+        const n = norm(v);
+        if (used.has(n)) return;                         // já tem chip igual
+        if ((cls === 'sabor' || cls === 'modelo') && nameN.indexOf(n) !== -1) return; // variação já no nome
+        used.add(n);
+        pills.push(`<span class="meta-pill ${cls}">${escapeHtml(upper ? v.toUpperCase() : v)}</span>`);
+      };
+      // categoria = nome do filtro da loja (ex.: Seda)
+      let catNome = '';
+      try {
+        const fl = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
+        const f = fl.find(x => x.id === p.filtro_id);
+        if (f && f.nome) catNome = f.nome;
+      } catch (e) {}
+      add(p.marca, 'marca', true);                       // marca (lime)
+      add(catNome, 'modelo', true);                      // CATEGORIA/filtro (violeta)
+      add(p.modelo, 'modelo', true);                     // modelo (pod) — pulado se == categoria/nome
       if (typeof p.puffs === 'number' && p.puffs > 0) {
-        const puffsLabel = p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs';
-        pills.push(`<span class="meta-pill puffs">${puffsLabel}</span>`);
+        add(p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs', 'puffs', false);
       }
-      if (p.sabor) pills.push(`<span class="meta-pill sabor">${escapeHtml(p.sabor)}</span>`);
-      if (pills.length > 0) {
-        metaEl.innerHTML = pills.join('');
-        metaEl.style.display = 'flex';
-      } else {
-        metaEl.style.display = 'none';
-      }
-    } else if (metaEl) {
-      metaEl.style.display = 'none';
+      add(p.sabor, 'sabor', false);                      // sabor/variação — pulado se redundante
+      metaEl.innerHTML = pills.join('');
+      metaEl.style.display = pills.length ? 'flex' : 'none';
     }
     document.getElementById('d-desc').textContent = p.desc;
     // FRICÇÃO #004 (04/06): popula cards informativos com specs + perfil + vibe
