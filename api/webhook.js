@@ -5019,13 +5019,25 @@ async function handleFilialProductArtFast(req, res) {
     }
     let tempUrl = null;
     if (refBuf) {
-      const editPrompt = `Restyle this product photo into a cinematic dark premium e-commerce hero shot. KEEP THE PRODUCT EXACTLY as it is — same shape, colors, brand and label, fully legible and accurate. Center it as a single product on a matte black reflective surface with a subtle reflection. Deep dark background gradient (#0A0C1B to #12091F) with clean negative space. Atmospheric vapor/smoke behind, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E) with a faint ultraviolet fill. Glossy, premium, high detail. Remove clutter, extra objects, hands, and any text that is NOT the product's own label. Square 1024x1024.`;
-      tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' });
+      // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
+      const editPrompt = [
+        'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
+        'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
+        'Single product centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
+        ART_QUALITY_RULES.background,
+        ART_QUALITY_RULES.vapor,
+        ART_QUALITY_RULES.lighting,
+        ART_QUALITY_RULES.noText,
+        'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
+      ].join(' ');
+      tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'high' }); // high = texto nítido
     }
     if (!tempUrl) tempUrl = await generateProductScene(subject); // fallback text-only
     if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
     const imgResp = await fetch(tempUrl);
-    const buf = Buffer.from(await imgResp.arrayBuffer());
+    let buf = Buffer.from(await imgResp.arrayBuffer());
+    // Toque final DROPE: aplica o selo (mesmo dos pods).
+    try { const sealed = await applyDropeSeal(buf); if (sealed && sealed.length) buf = sealed; } catch (e) { console.warn('[art_fast] seal:', e.message); }
     const url = await uploadToStorage(`prodgen-${filial.id}-${Date.now().toString(36)}`, buf, 'image/png');
     if (!url) return res.status(502).json({ ok: false, error: 'falha ao salvar a imagem' });
     return res.status(200).json({ ok: true, image_url: url + '?v=' + Date.now() });
@@ -6883,7 +6895,7 @@ async function generateProductScene(subject) {
     `Low-key premium lighting, glossy, high detail. Keep the product's own packaging and label plausible and legible.`,
     `NO people, NO hands, NO extra text or watermark beyond the product's own label. Square 1024x1024.`,
   ].join(' ');
-  return await openaiGenerateImage(prompt, 'produto', { quality: 'low' });
+  return await openaiGenerateImage(prompt, 'produto', { quality: 'high' });
 }
 
 // Busca uma imagem REAL do produto na web (Serper images) e baixa a 1ª válida.
