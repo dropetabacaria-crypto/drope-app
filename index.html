@@ -1956,6 +1956,8 @@
   .ot-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); padding: 4px 0; }
   .ot-total { font-weight: 700; border-top: 1px dashed rgba(255,255,255,0.08); margin-top: 6px; padding-top: 10px; color: var(--lime); }
   .ot-where { font-size: 14px; color: var(--text); }
+  .ot-maps { margin-top: 12px; width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: var(--text); font-family: inherit; font-weight: 700; font-size: 13px; padding: 11px; border-radius: 14px; cursor: pointer; transition: background .15s; }
+  .ot-maps:active { background: rgba(255,255,255,0.12); }
   .ot-btns { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
 
   .co-total {
@@ -6020,6 +6022,18 @@
     <div class="confirm-btns">
       <button class="btn-secondary" onclick="closeConfirm()">cancelar</button>
       <button class="btn-primary" id="confirm-ok" onclick="confirmOk()">confirmar</button>
+    </div>
+  </div>
+
+  <!-- ============ SELETOR MAPS / WAZE (retirada na loja) ============ -->
+  <div id="maps-chooser" onclick="if(event.target===this)closeMapsChooser()" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);align-items:flex-end;justify-content:center">
+    <div style="width:100%;max-width:480px;background:linear-gradient(180deg,#15101f,#0d0a14);border-radius:22px 22px 0 0;border-top:1px solid rgba(255,255,255,.1);padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -12px 44px rgba(0,0,0,.55)">
+      <div style="width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:0 auto 16px"></div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Como você quer ir? ✦</div>
+      <div id="maps-chooser-addr" style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:18px"></div>
+      <button onclick="_goMaps('google')" style="width:100%;font-family:inherit;font-weight:800;font-size:15px;color:#fff;border:none;padding:14px;border-radius:16px;cursor:pointer;margin-bottom:10px;background:linear-gradient(135deg,#8C50FF,#FF2D6F)">Abrir no Google Maps</button>
+      <button onclick="_goMaps('waze')" style="width:100%;font-family:inherit;font-weight:800;font-size:15px;color:#04223a;border:none;padding:14px;border-radius:16px;cursor:pointer;margin-bottom:10px;background:linear-gradient(135deg,#33ccff,#0af)">Abrir no Waze</button>
+      <button onclick="closeMapsChooser()" style="width:100%;font-family:inherit;font-weight:700;font-size:14px;color:rgba(255,255,255,.6);background:transparent;border:none;padding:10px;cursor:pointer">Cancelar</button>
     </div>
   </div>
 
@@ -10971,6 +10985,17 @@
       if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') {
         setDeliveryMode('pickup');
       } else {
+        // Retirada só aparece se a loja cadastrou endereço.
+        const pEl = document.getElementById('co-mode-pickup');
+        const dEl = document.getElementById('co-mode-delivery');
+        if (!_pickupAvailable()) {
+          if (pEl) pEl.style.display = 'none';
+          if (dEl) dEl.style.width = '100%';
+          if (deliveryMode === 'pickup') deliveryMode = 'delivery';
+        } else {
+          if (pEl) { pEl.style.display = ''; pEl.style.width = ''; }
+          if (dEl) dEl.style.width = '';
+        }
         renderDelivery();
         renderCheckout();
       }
@@ -11023,9 +11048,53 @@
 
   let deliveryMode = 'delivery'; // 'delivery' | 'pickup'
   let payWhen = 'now'; // 'now' | 'later' — só relevante quando deliveryMode === 'pickup'
+  // Retirada só é possível se a loja cadastrou endereço (pickup_ok do backend).
+  // Santos é caso legado (combina a retirada pelo WhatsApp) → sempre permitido.
+  function _pickupAvailable() {
+    if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') return true;
+    const loja = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA) || {};
+    return !!loja.pickup_ok;
+  }
+  // Dados da loja pra retirada (nome + endereço + coordenadas).
+  function _storePickup() {
+    const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
+    const loja = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA) || {};
+    const name = loja.name || CLIENT_FILIAL_NAME || 'a loja';
+    const endereco = isSantos ? null : (loja.endereco || null);
+    const lat = (typeof loja.lat === 'number') ? loja.lat : null;
+    const lng = (typeof loja.lng === 'number') ? loja.lng : null;
+    return { name, endereco, lat, lng, isSantos, ok: isSantos || !!endereco || (lat != null && lng != null) };
+  }
+  // Abre o seletor Google Maps / Waze pra ir até a loja.
+  let _mapsTarget = null;
+  function openStoreMaps() {
+    const p = _storePickup();
+    if (p.isSantos || (!p.endereco && p.lat == null)) { toast('essa loja combina a retirada pelo whats ✦'); return; }
+    _mapsTarget = p;
+    const addrEl = document.getElementById('maps-chooser-addr');
+    if (addrEl) addrEl.textContent = `${p.name}${p.endereco ? ' ✦ ' + p.endereco : ''}`;
+    const el = document.getElementById('maps-chooser');
+    if (el) el.style.display = 'flex';
+  }
+  function closeMapsChooser() { const el = document.getElementById('maps-chooser'); if (el) el.style.display = 'none'; }
+  function _goMaps(app) {
+    const p = _mapsTarget || _storePickup();
+    const hasGeo = (p.lat != null && p.lng != null);
+    const q = encodeURIComponent(p.endereco || p.name);
+    let url;
+    if (app === 'waze') {
+      url = hasGeo ? `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes` : `https://waze.com/ul?q=${q}&navigate=yes`;
+    } else {
+      url = hasGeo ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+    try { window.open(url, '_blank'); } catch (e) { location.href = url; }
+    closeMapsChooser();
+  }
   function setDeliveryMode(m) {
     // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
     if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
+    // Retirada só se a loja cadastrou endereço.
+    else if (m === 'pickup' && !_pickupAvailable()) { toast('essa loja não faz retirada (sem endereço cadastrado)'); m = 'delivery'; }
     deliveryMode = m;
     const dEl = document.getElementById('co-mode-delivery');
     const pEl = document.getElementById('co-mode-pickup');
@@ -11047,16 +11116,18 @@
     const addrWrap = document.getElementById('co-address-wrap');
     if (addrWrap) {
       if (deliveryMode === 'pickup') {
-        const isSantos = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos');
-        const lojaNome = isSantos ? 'Drope Santos' : store.name;
-        const lojaEnd = isSantos ? 'combina a retirada pelo whatsapp da loja ✦' : store.address;
+        const p = _storePickup();
+        const lojaEnd = p.isSantos ? 'combina a retirada pelo whats da loja ✦' : (p.endereco || 'endereço com a loja');
+        const canRoute = !p.isSantos && (p.endereco || p.lat != null);
         addrWrap.innerHTML = `
-          <div class="co-address" style="cursor:default">
+          <div class="co-address" ${canRoute ? 'onclick="openStoreMaps()"' : 'style="cursor:default"'}>
             <div class="ic"></div>
             <div class="info">
               <div class="lbl">retirar em</div>
-              <div class="val">${lojaNome} ✦ ${lojaEnd}</div>
+              <div class="val">${escapeHtml(p.name)} ✦ ${escapeHtml(lojaEnd)}</div>
+              ${canRoute ? '<div style="font-size:11px;color:var(--store-accent,var(--lime));margin-top:3px;font-weight:700">como chegar ›</div>' : ''}
             </div>
+            ${canRoute ? '<div class="chv">📍</div>' : ''}
           </div>`;
       } else {
         const a = getSelectedAddress();
@@ -12617,8 +12688,11 @@
     const steps = o.mode === 'pickup' ? ORDER_STEPS_PICKUP : ORDER_STEPS_DELIVERY;
     const curIdx = Math.max(0, steps.findIndex(s => s.key === o.statusCls));
     const isDone = o.statusCls === 'done';
-    const where = o.mode === 'pickup'
-      ? `retirar em ${escapeHtml(store.name || '')}`
+    const isPickup = o.mode === 'pickup';
+    const pk = isPickup ? _storePickup() : null;
+    const canRoute = isPickup && pk && !pk.isSantos && (pk.endereco || pk.lat != null);
+    const where = isPickup
+      ? `retirar em ${escapeHtml(pk.name)}${pk.endereco ? ' ✦ ' + escapeHtml(pk.endereco) : ''}`
       : (o.address ? `${escapeHtml(o.address.street || '')}, ${escapeHtml(String(o.address.num || ''))}${o.address.comp ? ' — ' + escapeHtml(o.address.comp) : ''}${o.address.neigh ? ' — ' + escapeHtml(o.address.neigh) : ''}` : 'entrega');
     body.innerHTML = `
       <div class="ot-card">
@@ -12638,8 +12712,9 @@
         <div class="ot-row ot-total"><span>total</span><span>${money(o.total)}</span></div>
       </div>
       <div class="ot-sec">
-        <div class="ot-sec-t">entrega</div>
+        <div class="ot-sec-t">${isPickup ? 'retirada' : 'entrega'}</div>
         <div class="ot-where">${where}</div>
+        ${canRoute ? `<button class="ot-maps" onclick="openStoreMaps()">📍 como chegar — Maps ou Waze</button>` : ''}
       </div>
       <div class="ot-btns">
         ${!isDone ? `<button class="btn-primary" onclick="shareOnWhats()">falar com a loja no whats</button>` : `<button class="btn-primary" onclick="repeatOrder(0)">dropar de novo ✦</button>`}

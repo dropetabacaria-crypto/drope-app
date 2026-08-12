@@ -14891,8 +14891,20 @@ async function handleCatalog(req, res) {
       if (fr[0].id) filialId = fr[0].id;
       const prof = (fr[0].metadata || {}).profile || {};
       const flist = Array.isArray((fr[0].metadata || {}).filtros) ? (fr[0].metadata || {}).filtros : [];
+      const end = (fr[0].metadata || {}).endereco || {};
+      const geo = (fr[0].metadata || {}).geo || {};
+      // Endereço de RUA cadastrado pela loja (end.address). Só isso habilita retirada —
+      // o fallback de cidade (geo city_backfill) NÃO conta como endereço real.
+      const hasRealAddr = !!(end.address && String(end.address).trim().length >= 3);
+      const endStr = hasRealAddr ? [end.address, end.city || fr[0].city, end.state].filter(Boolean).join(' — ') : null;
+      // Coordenadas só quando são geocode real (não o backfill de centro de cidade).
+      const realGeo = (geo.source && geo.source !== 'city_backfill');
       lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, cover_url: prof.cover_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
         mp_connected: !!((((fr[0].metadata || {}).payment) || {}).access_token),
+        endereco: endStr,
+        lat: (hasRealAddr && realGeo && typeof geo.lat === 'number') ? geo.lat : null,
+        lng: (hasRealAddr && realGeo && typeof geo.lng === 'number') ? geo.lng : null,
+        pickup_ok: hasRealAddr, // só dá pra retirar se a loja cadastrou endereço de rua
         filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0, shape: f.shape || 'rect' })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }
