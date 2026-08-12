@@ -2856,7 +2856,11 @@ async function mpRefreshStatus() {
     const d = await r.json();
     if (d && d.connected) {
       const pct = (d.plan && typeof d.plan.commission_pct === 'number') ? d.plan.commission_pct : null;
-      if (el) el.innerHTML = '✅ <b style="color:var(--lime)">Mercado Pago conectado</b>' + (pct != null ? ` — comissão DROPE de <b>${String(pct).replace('.', ',')}%</b> por pedido.` : '');
+      const isPlat = String(d.mp_user_id || '') === '346182186'; // conta da plataforma DROPE
+      if (el) el.innerHTML = '✅ <b style="color:var(--lime)">Mercado Pago conectado</b>'
+        + (pct != null ? ` — comissão DROPE de <b>${String(pct).replace('.', ',')}%</b> por pedido.` : '')
+        + (d.mp_user_id ? `<br><span style="font-size:12.5px;color:var(--fg-dim)">Conta conectada: <b style="color:var(--fg)">#${d.mp_user_id}</b>${d.connected_at ? ' · desde ' + new Date(d.connected_at).toLocaleDateString('pt-BR') : ''}</span>` : '')
+        + (isPlat ? `<br><span style="font-size:12.5px;color:#ff6b8f">⚠️ Essa é a conta da plataforma — reconecte com a conta da SUA loja pra o split funcionar.</span>` : '');
       if (btn) btn.textContent = 'Reconectar Mercado Pago';
     } else {
       if (el) el.innerHTML = '⚠️ Ainda <b>não conectado</b>. Os pedidos não caem na sua conta até conectar.';
