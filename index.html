@@ -9159,8 +9159,13 @@
     fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'customer', phone: profile.phone, token: _custToken() }) }).then(() => _renderAppNotifBadge(0)).catch(() => {});
   }
   function closeNotifsApp() { document.getElementById('app-notif-ov').style.display = 'none'; }
-  // Toque num aviso → fecha os avisos e leva pra "Meus pedidos".
-  function notifGoToOrders() { closeNotifsApp(); try { go('orders'); } catch (e) {} }
+  // Toque num aviso → leva pra "Meus pedidos".
+  // Fecha e navega no próximo tick (80ms): o overlay opaco continua por cima durante
+  // a janela do "ghost click" do iOS, absorvendo o toque que senão vazava pro botão
+  // flutuante da sacola (FAB fixo embaixo) e abria o carrinho.
+  function notifGoToOrders() {
+    setTimeout(function () { closeNotifsApp(); try { go('orders'); } catch (e) {} }, 80);
+  }
   // Lightbox da foto da loja (toque na foto → vê maior)
   function openStorePhoto(url) {
     if (!url) return;
