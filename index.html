@@ -9138,7 +9138,8 @@
   }
   function closeStorePhoto() { const ov = document.getElementById('store-photo-ov'); if (ov) ov.style.display = 'none'; }
   setTimeout(() => { try { loadAppNotifs(); } catch (e) {} }, 2500);
-  setInterval(() => { try { loadAppNotifs(); } catch (e) {} }, 45000);
+  // Pin do sininho atualiza rápido (15s) — sensação iFood. Pausa em background.
+  setInterval(() => { try { if (!document.hidden) loadAppNotifs(); } catch (e) {} }, 15000);
   function _isLoggedIn() { return !PREVIEW_MODE && !!_custToken(); }
   function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
@@ -11873,7 +11874,7 @@
   let _trackPoll = null;
   function _startTrackPoll() {
     if (_trackPoll) return;
-    _trackPoll = setInterval(function () { if (document.hidden) return; try { loadMyOrders(); } catch (e) {} }, 8000);
+    _trackPoll = setInterval(function () { if (document.hidden) return; try { loadMyOrders(); } catch (e) {} try { loadAppNotifs(); } catch (e) {} }, 8000);
   }
   function _stopTrackPoll() { if (_trackPoll) { clearInterval(_trackPoll); _trackPoll = null; } }
 

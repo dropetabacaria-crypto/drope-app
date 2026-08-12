@@ -289,6 +289,23 @@ module.exports = async function handler(req, res) {
 
     const savedOrder = Array.isArray(orderData) ? orderData[0] : orderData;
 
+    // 🔔 Sininho do LOJISTA: pedido "pagar na retirada" (pending_pickup) é confirmado
+    // na hora — avisa a loja pra separar/enviar. (Pedidos online avisam ao confirmar o
+    // pagamento, no webhook.)
+    if (status === 'pending_pickup' && resolvedFilialId) {
+      try {
+        const _dm = delivery_mode === 'delivery' ? 'Entrega' : 'Retirada';
+        await fetch(`${SUPABASE_URL}/rest/v1/drope_notifications`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient_type: 'filial', recipient_key: String(resolvedFilialId), type: 'order_new',
+            title: 'Novo pedido ✦', body: `${_dm} · R$ ${Number(total).toFixed(2).replace('.', ',')} · ${(customer && customer.name) || 'cliente'} (pagar na retirada)`, link: null,
+          }),
+        });
+      } catch (e) { console.error('[save-order] notify filial:', e.message); }
+    }
+
     // OSSO 21 — IA-FIRST: enriquece drope_customers com dados de recompra
     // (last_product_id, last_order_date, last_delivery_address) e incrementa
     // total_orders. Isso alimenta:

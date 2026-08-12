@@ -4986,7 +4986,7 @@ async function handleFilialOrderStatus(req, res) {
     const next = String(body.status || '').trim();
     const ALLOWED = ['preparing', 'ready', 'dispatched', 'picked_up', 'delivered'];
     if (!id || !ALLOWED.includes(next)) return res.status(400).json({ ok: false, error: 'status inválido' });
-    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history&limit=1`);
+    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu&limit=1`);
     if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
     const now = new Date().toISOString();
     const upd = { status: next };
@@ -4998,6 +4998,20 @@ async function handleFilialOrderStatus(req, res) {
     hist.push({ status: next, at: now });
     upd.status_history = hist;
     await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
+    // Avisa o CLIENTE (sininho) da mudança de status.
+    try {
+      const phone = ((ex[0].customer_snapshot || {}).phone) || '';
+      const nsu = ex[0].order_nsu || id;
+      const M = {
+        preparing: ['Pedido em separação ✦', `A ${filial.name || 'loja'} começou a separar seu pedido #${nsu}`],
+        ready: ['Pronto pra retirar ✦', `Seu pedido #${nsu} está pronto pra retirar na loja`],
+        dispatched: ['Pedido a caminho 🛵', `Seu pedido #${nsu} saiu pra entrega`],
+        picked_up: ['Pedido retirado ✓', 'Valeu pela compra 🦎'],
+        delivered: ['Pedido entregue ✅', `Seu pedido #${nsu} chegou! Valeu 🦎`],
+      };
+      const m = M[next];
+      if (phone && m) _notify('customer', phone, 'order_status', m[0], m[1], null).catch(() => {});
+    } catch (e) {}
     return res.status(200).json({ ok: true, status: next });
   } catch (e) { console.error('[filial_order_status] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
