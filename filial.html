@@ -3223,13 +3223,15 @@ async function confirmChamar() {
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 
-// Boot: se há sessão salva (slug + token), entra direto; senão mostra o login
-// (o overlay já está visível por padrão). O slug agora vem do próprio login.
+// Boot: se há sessão salva (slug + token), entra DIRETO no painel — sem flash da
+// tela de login ao atualizar a página. loadData valida em background; se a sessão
+// tiver caído (401), o overlay de login reaparece. A sessão fica no localStorage e
+// só sai quando o lojista clica em "Sair".
 if (ACCESS_CODE && FILIAL_SLUG) {
+  try { document.getElementById('auth-overlay').style.display = 'none'; document.getElementById('painel').style.display = 'block'; } catch (e) {}
   loadData(true);
 }
-// Polling 30s (loadData sai cedo se não estiver logado)
-setInterval(() => loadData(false), 30000);
+// Auto-refresh: é o _startPainelPoll (10s, com guarda), ligado dentro do loadData.
 </script>
 
 </body>

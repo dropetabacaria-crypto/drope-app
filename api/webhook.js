@@ -17341,6 +17341,65 @@ async function handleMPCreatePix(req, res) {
   }
 }
 
+// POST action=mp_create_checkout — Checkout Pro do Mercado Pago (CARTÃO + Pix num
+// link hospedado pelo MP), COM split (marketplace_fee = comissão do DROPE). O
+// webhook (mp_webhook) confirma o pedido por external_reference = order_nsu.
+// Cartão: autorização em segundos → pedido cai como pago na hora (igual iFood).
+async function handleMPCreateCheckout(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const body = req.body || {};
+    const { total_cents, order_id, customer } = body;
+    if (!total_cents || !order_id) return res.status(400).json({ error: 'missing total_cents or order_id' });
+    // Split: token da loja + comissão do DROPE (mesma regra do Pix).
+    const slug = String(body.filial_slug || '').toLowerCase().trim();
+    let sellerToken = null, appFeeReais = 0, commissionPct = 0, split = false;
+    if (slug) {
+      const filial = await _filialBySlugRead(slug);
+      if (filial) {
+        const t = await _mpTokenForFilial(filial);
+        if (t) { sellerToken = t; commissionPct = _planFor(filial).commission_pct || 0; appFeeReais = Math.round(total_cents * commissionPct / 100) / 100; split = appFeeReais > 0; }
+      }
+    }
+    // Loja sem MP não vende (dinheiro nunca cai na plataforma).
+    if (slug && !sellerToken) return res.status(409).json({ error: 'loja_sem_pagamento', message: 'Esta loja ainda não ativou os recebimentos.' });
+    if (!sellerToken) return res.status(500).json({ error: 'pagamento indisponível no momento' });
+
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'drope-app.vercel.app';
+    const base = `https://${host}`;
+    const pref = {
+      items: [{ title: `Drope - Pedido ${order_id}`, quantity: 1, unit_price: total_cents / 100, currency_id: 'BRL' }],
+      external_reference: order_id,
+      payer: { email: (customer && customer.email) || 'cliente@drope.app', name: (customer && customer.name) || undefined },
+      back_urls: { success: `${base}/#success-pay`, pending: `${base}/#success-pay`, failure: `${base}/` },
+      auto_return: 'approved',
+      notification_url: `${base}/api/webhook?action=mp_webhook`,
+      statement_descriptor: 'DROPE',
+      binary_mode: true, // aprova ou recusa na hora (sem 'pending')
+    };
+    if (split && appFeeReais > 0) pref.marketplace_fee = appFeeReais; // comissão do DROPE (split)
+
+    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sellerToken}` },
+      body: JSON.stringify(pref),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('[MP Checkout] Error:', JSON.stringify(data).substring(0, 500));
+      return res.status(502).json({ error: 'mercadopago_error', status: response.status, details: data.message || data.cause || data });
+    }
+    return res.status(200).json({ ok: true, init_point: data.init_point || data.sandbox_init_point, preference_id: data.id, split, commission_amount: appFeeReais });
+  } catch (err) {
+    console.error('[MP Checkout] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // Checa status de pagamento existente (polling do frontend)
 async function handleMPCheckPix(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
@@ -20466,6 +20525,9 @@ async function generateAll(){
   // action=mp_create_pix — POST: cria pagamento Pix via API do Mercado Pago
   // action=mp_check_pix  — GET: checa status de pagamento existente (polling)
   // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
+  if (req.url && req.url.indexOf('action=mp_create_checkout') >= 0) {
+    return await handleMPCreateCheckout(req, res);
+  }
   if (req.url && req.url.indexOf('action=mp_create_pix') >= 0) {
     return await handleMPCreatePix(req, res);
   }

@@ -5053,6 +5053,10 @@
           <div style="color: var(--lime); font-size: 12px; margin-bottom: 20px;">dados já preenchidos ✦</div>
           <button class="btn-primary" id="infinitepay-btn" onclick="openInfinitePay()" style="background: var(--lime); color: #000; font-size: 17px; padding: 18px 24px; font-weight: 700;">pagar agora ✦</button>
         </div>
+        <div id="mp-card-wrap" style="display:none;margin-top:12px">
+          <button class="btn-primary" id="mp-card-btn" onclick="openMPCheckout()" style="background:transparent;color:var(--lime);border:1.5px solid var(--lime);font-size:16px;padding:16px 24px;font-weight:700;width:100%">Pagar com cartão ✦</button>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:8px;text-align:center">crédito ou débito · aprovação na hora</div>
+        </div>
       </div>
 
       <!-- Andrade 05/06: Pix manual (chave CNPJ) REMOVIDO permanentemente.
@@ -6567,6 +6571,54 @@
     // Andrade 05/06: sempre visível agora (Pix manual removido)
     const section = document.getElementById('infinitepay-section');
     if (section) section.style.display = 'block';
+    // Botão de CARTÃO (MP Checkout Pro) só quando a loja tem Mercado Pago conectado.
+    const cardWrap = document.getElementById('mp-card-wrap');
+    if (cardWrap) cardWrap.style.display = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) ? 'block' : 'none';
+  }
+
+  // CARTÃO via Mercado Pago (Checkout Pro): salva o pedido + abre o link hospedado do
+  // MP (crédito/débito) COM split. Aprovação em segundos → webhook confirma o pedido.
+  async function openMPCheckout() {
+    const btn = document.getElementById('mp-card-btn');
+    if (btn) { btn.textContent = 'gerando link…'; btn.disabled = true; }
+    const reset = () => { if (btn) { btn.textContent = 'Pagar com cartão ✦'; btn.disabled = false; } };
+    try {
+      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const discount = appliedCoupon ? appliedCoupon.discount : 0;
+      const total = Math.max(0, subtotal - discount);
+      const deliveryFeeReais = deliveryFee();
+      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+      if (chargeCents <= 100) { toast('pedido mínimo de R$ 1,00 ✦'); reset(); return; }
+      const slug = (CLIENT_LOJA && CLIENT_LOJA.slug) || (cart[0] && cart[0].slug) || '';
+      const orderNsu = `dr-${Date.now().toString(36)}`;
+      const addr = getSelectedAddress();
+      try {
+        const saveResp = await fetch('/api/save-order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_nsu: orderNsu, payment_method: 'mercadopago_card',
+            subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            delivery_mode: deliveryMode,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+            scheduled: _scheduledInfo(),
+            ambassador_ref: getAmbassadorRef() || undefined,
+          }),
+        });
+        const sd = await saveResp.json().catch(() => ({}));
+        if (saveResp.status === 409 && sd.error === 'out_of_stock') {
+          toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); reset(); go('cart'); renderCart(); renderGrid(); return;
+        }
+      } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
+      const res = await fetch('/api/webhook?action=mp_create_checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial_slug: slug, order_id: orderNsu, total_cents: chargeCents, customer: { name: profile.name, email: profile.email || '' } }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.init_point) { window.location.href = d.init_point; return; }
+      toast((d && d.message) || 'não deu pra abrir o cartão agora ✦'); reset();
+    } catch (e) { toast('erro de rede ✦'); reset(); }
   }
 
   async function openInfinitePay(forceInfinite) {
