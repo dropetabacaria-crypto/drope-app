@@ -465,6 +465,7 @@
     .cart-item .thumb { overflow: hidden; }
     .cart-item .thumb img,
     .cart-item .thumb .prod-img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
       transition: transform 0.3s cubic-bezier(.2,.9,.3,1);
     }
 
@@ -4861,6 +4862,7 @@
 
     <div class="sticky-cta" id="cart-cta">
       <button class="btn-primary" onclick="goCheckout()">Ir para pagamento ✦</button>
+      <div style="text-align:center;margin-top:10px"><span onclick="go('catalog')" style="color:var(--text-dim);font-size:13.5px;cursor:pointer;font-weight:600">← Continuar comprando na loja</span></div>
     </div>
   </div>
 
