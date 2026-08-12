@@ -4963,7 +4963,7 @@
   <!-- ============ CARD ============ -->
   <div class="screen no-nav" id="card">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('checkout')">
+      <div class="icon-btn" onclick="cardBack()">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">Cartão</div>
@@ -4971,48 +4971,15 @@
     </div>
 
     <div class="card-wrap">
-      <div class="card-preview">
-        <div class="card-preview-chip"></div>
-        <div class="card-preview-num">•••• •••• •••• ••••</div>
-        <div class="card-preview-row">
-          <div>
-            <div class="card-preview-lbl">nome</div>
-            <div class="card-preview-val" id="cp-name">seu nome</div>
-          </div>
-          <div>
-            <div class="card-preview-lbl">validade</div>
-            <div class="card-preview-val" id="cp-exp">••/••</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card-form">
-        <label class="card-lbl">número do cartão</label>
-        <input class="card-input" inputmode="numeric" maxlength="19" placeholder="1234 5678 9012 3456" oninput="formatCardNum(this)">
-
-        <label class="card-lbl">nome impresso no cartão</label>
-        <input class="card-input" placeholder="nome completo" oninput="document.getElementById('cp-name').textContent = this.value || 'seu nome'">
-
-        <div class="card-row">
-          <div style="flex:1">
-            <label class="card-lbl">validade</label>
-            <input class="card-input" inputmode="numeric" maxlength="5" placeholder="mm/aa" oninput="formatCardExp(this)">
-          </div>
-          <div style="flex:1">
-            <label class="card-lbl">cvv</label>
-            <input class="card-input" inputmode="numeric" maxlength="4" placeholder="123">
-          </div>
-        </div>
-
-        <div class="card-note">demo ✦ sem cobrança real</div>
-      </div>
+      <div class="co-section-lbl" style="margin-bottom:6px">Pague com cartão ✦</div>
+      <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.</div>
+      <!-- Formulário seguro do Mercado Pago (tokeniza no navegador; o cartão nunca passa pelo nosso servidor) -->
+      <div id="mp-card-brick"></div>
+      <div id="mp-card-status" style="text-align:center;color:var(--text-dim);font-size:13px;margin-top:14px"></div>
+      <div style="text-align:center;color:var(--text-dim);font-size:11px;margin-top:12px;line-height:1.5">🔒 Pagamento protegido ✦ o número do cartão não passa pelo DROPE</div>
     </div>
 
-    <div style="height: 100px"></div>
-
-    <div class="sticky-cta">
-      <button class="btn-primary" onclick="processCard()">pagar R$ <span id="card-btn-val">0</span></button>
-    </div>
+    <div style="height: 60px"></div>
   </div>
 
   <!-- ============ PROCESSING ============ -->
@@ -6596,49 +6563,41 @@
     if (section) section.style.display = 'block';
   }
 
-  // CARTÃO via Mercado Pago (Checkout Pro): salva o pedido + abre o link hospedado do
-  // MP (crédito/débito) COM split. Aprovação em segundos → webhook confirma o pedido.
+  // CARTÃO in-app: reserva o pedido (estoque) e abre o formulário de cartão DENTRO do app
+  // (Card Payment Brick do MP). Sem redirect, sem conta MP do cliente. Split pra loja mantido.
   async function openMPCheckout() {
-    const btn = document.getElementById('mp-card-btn');
-    if (btn) { btn.textContent = 'gerando link…'; btn.disabled = true; }
-    const reset = () => { if (btn) { btn.textContent = 'Pagar com cartão ✦'; btn.disabled = false; } };
+    if (cart.length === 0) return;
+    const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const discount = appliedCoupon ? appliedCoupon.discount : 0;
+    const total = Math.max(0, subtotal - discount);
+    const deliveryFeeReais = deliveryFee();
+    const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+    if (chargeCents <= 100) { toast('pedido mínimo de R$ 1,00 ✦'); return; }
+    const slug = (CLIENT_LOJA && CLIENT_LOJA.slug) || (cart[0] && cart[0].slug) || '';
+    const orderNsu = `dr-${Date.now().toString(36)}`;
+    const addr = getSelectedAddress();
+    // Reserva o pedido (segura estoque). Vira 'paid' só quando o cartão aprovar (webhook + local).
     try {
-      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-      const discount = appliedCoupon ? appliedCoupon.discount : 0;
-      const total = Math.max(0, subtotal - discount);
-      const deliveryFeeReais = deliveryFee();
-      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
-      if (chargeCents <= 100) { toast('pedido mínimo de R$ 1,00 ✦'); reset(); return; }
-      const slug = (CLIENT_LOJA && CLIENT_LOJA.slug) || (cart[0] && cart[0].slug) || '';
-      const orderNsu = `dr-${Date.now().toString(36)}`;
-      const addr = getSelectedAddress();
-      try {
-        const saveResp = await fetch('/api/save-order', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_nsu: orderNsu, payment_method: 'mercadopago_card',
-            subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
-            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
-            delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
-            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
-            scheduled: _scheduledInfo(),
-            ambassador_ref: getAmbassadorRef() || undefined,
-          }),
-        });
-        const sd = await saveResp.json().catch(() => ({}));
-        if (saveResp.status === 409 && sd.error === 'out_of_stock') {
-          toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); reset(); go('cart'); renderCart(); renderGrid(); return;
-        }
-      } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
-      const res = await fetch('/api/webhook?action=mp_create_checkout', {
+      const saveResp = await fetch('/api/save-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filial_slug: slug, order_id: orderNsu, total_cents: chargeCents, customer: { name: profile.name, email: profile.email || '' } }),
+        body: JSON.stringify({
+          order_nsu: orderNsu, payment_method: 'mercadopago_card',
+          subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+          items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+          delivery_mode: deliveryMode,
+          address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+          customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+          scheduled: _scheduledInfo(),
+          ambassador_ref: getAmbassadorRef() || undefined,
+        }),
       });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.init_point) { window.location.href = d.init_point; return; }
-      toast((d && d.message) || 'não deu pra abrir o cartão agora ✦'); reset();
-    } catch (e) { toast('erro de rede ✦'); reset(); }
+      const sd = await saveResp.json().catch(() => ({}));
+      if (saveResp.status === 409 && sd.error === 'out_of_stock') {
+        toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); go('cart'); renderCart(); renderGrid(); return;
+      }
+    } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
+    _cardCtx = { orderNsu, chargeCents, amount: chargeCents / 100, slug };
+    go('card'); // o handler de 'card' chama renderCardScreen() → renderCardBrick()
   }
 
   async function openInfinitePay(forceInfinite) {
@@ -6888,8 +6847,10 @@
   function _onMPPixApproved() {
     const st = document.getElementById('mppix-status');
     if (st) { st.innerHTML = '✅ pagamento aprovado!'; st.style.color = 'var(--lime)'; }
-    // Registra o pedido no histórico local (pago) — pra "acompanhar pedido" e
-    // "meus pedidos" mostrarem, igual ao checkout normal.
+    _finishPaidOrder('mercadopago_pix', _mpPixOrderNsu);
+  }
+  // Registra o pedido pago no histórico local + mostra sucesso. Usado por Pix e cartão.
+  function _finishPaidOrder(payMethod, nsu) {
     let orderNum = null;
     try {
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
@@ -6901,7 +6862,7 @@
       orderNum = maxOrder + 1; orderCounter = orderNum;
       orders.unshift({
         num: orderNum,
-        nsu: _mpPixOrderNsu || null,
+        nsu: nsu || null,
         status: 'pagamento aprovado ✦ preparando',
         statusCls: 'confirmed',
         summary: cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ '),
@@ -6911,7 +6872,7 @@
         address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
         mode: deliveryMode,
         payWhen: 'now',
-        payMethod: 'mercadopago_pix',
+        payMethod: payMethod,
         customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
         createdAt: Date.now(),
         store_name: _currentStore().name || CLIENT_FILIAL_NAME || null,
@@ -6919,12 +6880,12 @@
         store_slug: _currentStore().slug || CLIENT_FILIAL || null,
       });
       saveOrders();
-    } catch (e) { console.error('[MP Pix] registrar pedido:', e && e.message); }
+    } catch (e) { console.error('[pago] registrar pedido:', e && e.message); }
     try { cart = []; saveCart(); renderCart(); renderGrid(); } catch (e) {}
     try { appliedCoupon = null; } catch (e) {}
     try {
       const so = document.getElementById('success-order');
-      if (so) so.textContent = orderNum ? ('#dr-' + orderNum) : ('#' + (_mpPixOrderNsu || ''));
+      if (so) so.textContent = orderNum ? ('#dr-' + orderNum) : ('#' + (nsu || ''));
       const sBanner = document.getElementById('success-test-banner'); if (sBanner) sBanner.style.display = 'none';
       const sSub = document.getElementById('success-sub'); if (sSub) sSub.textContent = 'pagamento aprovado ✦ pedido confirmado';
       const sWhats = document.getElementById('success-whats-btn'); if (sWhats) sWhats.style.display = '';
@@ -11274,6 +11235,8 @@
   }
   // Botão voltar do topo: no passo 2 volta pra entrega; no passo 1 volta pra sacola.
   function checkoutBack() { if (checkoutStep === 2) checkoutBackToEntrega(); else go('cart'); }
+  // Voltar da tela de cartão → volta pro passo de pagamento do checkout.
+  function cardBack() { go('checkout'); checkoutStep = 2; renderCheckoutStep(); try { renderCheckout(); } catch (e) {} }
 
   function reserveOrderPickup() {
     if (cart.length === 0) return;
@@ -11549,9 +11512,103 @@
     }
   }
 
-  function renderCardScreen() {
-    document.getElementById('card-btn-val').textContent = finalTotal();
+  // ===== CARTÃO IN-APP (Mercado Pago Card Payment Brick, sem redirect) =====
+  let _mpInstance = null, _cardBrickController = null, _cardCtx = null;
+  function renderCardScreen() { renderCardBrick(); }
+  function _loadMPSdk() {
+    return new Promise((resolve, reject) => {
+      if (window.MercadoPago) return resolve();
+      let s = document.getElementById('mp-sdk-js');
+      if (s) { s.addEventListener('load', () => resolve()); s.addEventListener('error', () => reject(new Error('sdk'))); return; }
+      s = document.createElement('script');
+      s.id = 'mp-sdk-js'; s.src = 'https://sdk.mercadopago.com/js/v2';
+      s.onload = () => resolve(); s.onerror = () => reject(new Error('sdk'));
+      document.head.appendChild(s);
+    });
   }
+  async function renderCardBrick() {
+    const cont = document.getElementById('mp-card-brick');
+    const statusEl = document.getElementById('mp-card-status');
+    if (!cont || !_cardCtx) return;
+    const pk = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_public_key) || '';
+    // Loja sem public_key (conexão antiga) → cai no Checkout Pro (redirect) como reserva.
+    if (!pk) { if (statusEl) statusEl.textContent = 'abrindo pagamento seguro…'; return _cardCheckoutFallback(); }
+    if (statusEl) statusEl.textContent = '';
+    try { if (_cardBrickController) { await _cardBrickController.unmount(); _cardBrickController = null; } } catch (e) {}
+    cont.innerHTML = '';
+    try {
+      await _loadMPSdk();
+      if (!_mpInstance || _mpInstance._pk !== pk) { _mpInstance = new window.MercadoPago(pk, { locale: 'pt-BR' }); _mpInstance._pk = pk; }
+      _cardBrickController = await _mpInstance.bricks().create('cardPayment', 'mp-card-brick', {
+        initialization: { amount: _cardCtx.amount },
+        customization: { visual: { style: { theme: 'dark' } }, paymentMethods: { maxInstallments: 3 } },
+        callbacks: {
+          onReady: () => {},
+          onError: (err) => { console.error('[card brick]', err); if (statusEl) statusEl.textContent = 'erro no formulário ✦ tenta de novo'; },
+          onSubmit: (formData) => _cardBrickSubmit(formData),
+        },
+      });
+    } catch (e) {
+      console.error('[card brick] falhou:', e && e.message);
+      return _cardCheckoutFallback();
+    }
+  }
+  function _cardBrickSubmit(formData) {
+    const statusEl = document.getElementById('mp-card-status');
+    if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; }
+    return new Promise(async (resolve, reject) => {
+      try {
+        const r = await fetch('/api/webhook?action=mp_process_card', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filial_slug: _cardCtx.slug,
+            order_id: _cardCtx.orderNsu,
+            total_cents: _cardCtx.chargeCents,
+            token: formData.token,
+            payment_method_id: formData.payment_method_id,
+            issuer_id: formData.issuer_id,
+            installments: formData.installments,
+            payer: formData.payer,
+          }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok && d.status === 'approved') {
+          resolve();
+          _onCardApproved(_cardCtx.orderNsu);
+        } else {
+          // recusado/erro → mostra motivo e deixa tentar de novo (não navega)
+          const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro';
+          if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; }
+          reject(new Error((d && d.status_detail) || 'rejected'));
+        }
+      } catch (e) { if (statusEl) { statusEl.textContent = 'erro de rede ✦ tenta de novo'; statusEl.style.color = 'var(--pink)'; } reject(e); }
+    });
+  }
+  function _cardRejectMsg(detail) {
+    const m = {
+      cc_rejected_insufficient_amount: 'Cartão sem limite/saldo ✦ tenta outro',
+      cc_rejected_bad_filled_security_code: 'CVV incorreto ✦ confere',
+      cc_rejected_bad_filled_date: 'Validade incorreta ✦ confere',
+      cc_rejected_bad_filled_other: 'Dados do cartão incorretos ✦ confere',
+      cc_rejected_high_risk: 'Pagamento recusado pelo banco ✦ tenta outro cartão',
+      cc_rejected_call_for_authorize: 'Autoriza com seu banco e tenta de novo',
+      cc_rejected_other_reason: 'Banco recusou o pagamento ✦ tenta outro cartão',
+    };
+    return detail ? (m[detail] || null) : null;
+  }
+  async function _cardCheckoutFallback() {
+    // Reserva já foi salva; aqui só gera o link do Checkout Pro e redireciona.
+    try {
+      const r = await fetch('/api/webhook?action=mp_create_checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial_slug: _cardCtx.slug, order_id: _cardCtx.orderNsu, total_cents: _cardCtx.chargeCents, customer: { name: profile.name, email: profile.email || '' } }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.init_point) { window.location.href = d.init_point; return; }
+      toast((d && d.message) || 'não deu pra abrir o cartão agora ✦');
+    } catch (e) { toast('erro de rede ✦'); }
+  }
+  function _onCardApproved(nsu) { _finishPaidOrder('mercadopago_card', nsu); }
 
   function formatCardNum(el) {
     let v = el.value.replace(/\D/g, '').slice(0, 16);

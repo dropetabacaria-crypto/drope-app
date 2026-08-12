@@ -14901,6 +14901,7 @@ async function handleCatalog(req, res) {
       const realGeo = (geo.source && geo.source !== 'city_backfill');
       lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, cover_url: prof.cover_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
         mp_connected: !!((((fr[0].metadata || {}).payment) || {}).access_token),
+        mp_public_key: ((((fr[0].metadata || {}).payment) || {}).public_key) || null, // pro formulário de cartão in-app (tokenização)
         endereco: endStr,
         lat: (hasRealAddr && realGeo && typeof geo.lat === 'number') ? geo.lat : null,
         lng: (hasRealAddr && realGeo && typeof geo.lng === 'number') ? geo.lng : null,
@@ -17473,6 +17474,83 @@ async function handleMPCreateCheckout(req, res) {
     return res.status(200).json({ ok: true, init_point: data.init_point || data.sandbox_init_point, preference_id: data.id, split, commission_amount: appFeeReais });
   } catch (err) {
     console.error('[MP Checkout] ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST action=mp_process_card — CARTÃO TRANSPARENTE (formulário dentro do app).
+// O cliente digita o cartão no DROPE; o Brick do MP tokeniza no navegador (o número
+// NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
+// COM split (application_fee) na conta da LOJA. Sem redirect, sem conta MP do cliente.
+async function handleMPProcessCard(req, res) {
+  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers?.origin || '';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const body = req.body || {};
+    const { token, total_cents, order_id, payment_method_id, installments, issuer_id, payer } = body;
+    if (!token || !total_cents || !payment_method_id) {
+      return res.status(400).json({ error: 'missing token/total_cents/payment_method_id' });
+    }
+    // Split: token da loja + comissão do DROPE (mesma regra do Pix/Checkout).
+    const slug = String(body.filial_slug || '').toLowerCase().trim();
+    let sellerToken = null, appFeeReais = 0, commissionPct = 0, split = false;
+    if (slug) {
+      const filial = await _filialBySlugRead(slug);
+      if (filial) {
+        const t = await _mpTokenForFilial(filial);
+        if (t) { sellerToken = t; commissionPct = _planFor(filial).commission_pct || 0; appFeeReais = Math.round(total_cents * commissionPct / 100) / 100; split = appFeeReais > 0; }
+      }
+    }
+    if (slug && !sellerToken) return res.status(409).json({ error: 'loja_sem_pagamento', message: 'Esta loja ainda não ativou os recebimentos.' });
+    if (!sellerToken) return res.status(500).json({ error: 'pagamento indisponível no momento' });
+
+    const payload = {
+      transaction_amount: Math.round(total_cents) / 100,
+      token,
+      description: `Drope - Pedido ${order_id || 'avulso'}`,
+      installments: Math.max(1, parseInt(installments) || 1),
+      payment_method_id,
+      external_reference: order_id || `dr-${Date.now().toString(36)}`,
+      notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
+      statement_descriptor: 'DROPE',
+      binary_mode: true, // aprova ou recusa na hora (sem 'pending')
+      payer: {
+        email: (payer && payer.email) || 'cliente@drope.app',
+      },
+    };
+    if (issuer_id) payload.issuer_id = issuer_id;
+    if (payer && payer.identification && payer.identification.number) {
+      payload.payer.identification = { type: payer.identification.type || 'CPF', number: String(payer.identification.number).replace(/\D/g, '') };
+    }
+    if (split && appFeeReais > 0) payload.application_fee = appFeeReais;
+
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sellerToken}`,
+        'X-Idempotency-Key': (order_id || `dr-${Date.now()}`) + '-card',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    console.log('[MP Card] status:', response.status, 'payment:', data && data.status, data && data.status_detail);
+    if (!response.ok) {
+      console.error('[MP Card] Error:', JSON.stringify(data).substring(0, 500));
+      return res.status(502).json({ error: 'mercadopago_error', status: response.status, message: 'Não deu pra processar o cartão ✦', details: data.message || data.cause || data });
+    }
+    return res.status(200).json({
+      ok: true,
+      status: data.status, // approved | rejected | in_process
+      status_detail: data.status_detail,
+      payment_id: data.id,
+      split, commission_amount: appFeeReais,
+    });
+  } catch (err) {
+    console.error('[MP Card] ERROR:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -20602,6 +20680,9 @@ async function generateAll(){
   // action=mp_create_pix — POST: cria pagamento Pix via API do Mercado Pago
   // action=mp_check_pix  — GET: checa status de pagamento existente (polling)
   // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
+  if (req.url && req.url.indexOf('action=mp_process_card') >= 0) {
+    return await handleMPProcessCard(req, res);
+  }
   if (req.url && req.url.indexOf('action=mp_create_checkout') >= 0) {
     return await handleMPCreateCheckout(req, res);
   }
