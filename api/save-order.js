@@ -133,10 +133,32 @@ module.exports = async function handler(req, res) {
     const stockReleases = []; // pra rollback se algo der errado depois
     const itemsWithSlug = items.filter(i => i.slug && typeof i.slug === 'string');
 
-    // Estoque só sai na CONFIRMAÇÃO do pagamento. Pedido infinitepay nasce 'created'
-    // (pendente) e NÃO baixa estoque aqui — o webhook baixa quando o Pix cair.
-    // (pix_manual/pickup_later seguem reservando na criação, como antes.)
-    if (itemsWithSlug.length > 0 && payment_method !== 'infinitepay') {
+    // 🔒 CONTROLE DE ESTOQUE PRECISO — a baixa só acontece quando o pedido é REALMENTE pago.
+    //
+    // Pedido online (MP Pix/cartão, infinitepay) nasce 'created' e NÃO baixa estoque aqui:
+    //   se o cliente abandonar ou o pagamento falhar, o estoque NÃO some (sem vazamento).
+    //   A baixa real acontece na confirmação do pagamento (webhook → status 'paid').
+    //   Aqui a gente só VALIDA disponibilidade pra não deixar comprar o que não tem.
+    //
+    // Pedido de reserva sem webhook (pickup_later = pagar na loja, pix_manual) baixa
+    // na criação, porque é um compromisso que a loja segura de fato.
+    const RESERVA_NA_CRIACAO = (status !== 'created'); // waiting_proof / pending_pickup
+    if (itemsWithSlug.length > 0 && !RESERVA_NA_CRIACAO) {
+      // ONLINE: valida sem decrementar.
+      for (const it of itemsWithSlug) {
+        try {
+          const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_products?slug=eq.${encodeURIComponent(it.slug)}&select=qty_available&limit=1`, {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+          });
+          const rows = await r.json();
+          const q = (Array.isArray(rows) && rows[0]) ? rows[0].qty_available : null;
+          if (typeof q === 'number' && q < it.qty) {
+            return res.status(409).json({ error: 'out_of_stock', item: it.name, slug: it.slug, reason: 'insufficient', qty_available: q });
+          }
+        } catch (e) { console.error('[save-order] stock validate err:', e.message); }
+      }
+    } else if (itemsWithSlug.length > 0 && RESERVA_NA_CRIACAO) {
+      // RESERVA: decrementa atômico agora (com rollback se algo falhar).
       for (const it of itemsWithSlug) {
         try {
           const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {

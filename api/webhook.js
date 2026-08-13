@@ -17768,6 +17768,20 @@ async function handleMPWebhook(req, res) {
           }
           const _cph = (upd[0].customer_snapshot || {}).phone;
           if (_cph) _notify('customer', _cph, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
+          // ✅ Pagamento confirmado → AGORA baixa o estoque (só na 1ª transição pra paid;
+          // como o filtro é status=neq.paid, um webhook repetido não re-baixa = idempotente).
+          const _mpits = Array.isArray(upd[0].items) ? upd[0].items : [];
+          for (const it of _mpits) {
+            if (it && it.slug && it.qty) {
+              try {
+                await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {
+                  method: 'POST',
+                  headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+                });
+              } catch (eStock) { console.error('[MP Webhook] stock consume err:', eStock.message); }
+            }
+          }
         } else {
           console.log('[MP Webhook] order já estava paga (idempotente):', orderNsu);
         }

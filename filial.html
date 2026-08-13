@@ -154,6 +154,12 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .stepper .sv { min-width: 30px; text-align: center; font-weight: 800; font-size: 14px; }
 .stepper .sv.zero { color: var(--pink); }
 .stepper .sv small { display: block; font-size: 8px; color: var(--fg-dim); font-weight: 600; letter-spacing: .04em; }
+/* Estoque editável (digitável) */
+.stepper .sv-wrap { display: flex; flex-direction: column; align-items: center; }
+.stepper .sv-wrap.zero .sv-input { color: var(--pink); }
+.stepper .sv-input { width: 48px; text-align: center; font-weight: 800; font-size: 15px; color: var(--fg); background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 5px 2px; font-family: inherit; }
+.stepper .sv-input:focus { outline: none; border-color: var(--lime); }
+.stepper .sv-wrap small { display: block; font-size: 8px; color: var(--fg-dim); font-weight: 600; letter-spacing: .04em; margin-top: 2px; }
 .pf-input { width: 100%; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
 .pf-btn { background: var(--lime); color: #000; border: 0; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .pf-btn.sec { background: var(--bg3); color: var(--fg-dim); }
@@ -1484,7 +1490,10 @@ function renderProdutos(list) {
         </div>
         <div class="stepper">
           <button onclick="bumpStock(${p.id},-1)" title="menos">−</button>
-          <span class="sv ${stock === 0 ? 'zero' : ''}" id="sv-${p.id}">${stock}<small>estoque</small></span>
+          <span class="sv-wrap ${stock === 0 ? 'zero' : ''}" id="svw-${p.id}">
+            <input class="sv-input" id="sv-${p.id}" inputmode="numeric" value="${stock}" onfocus="this.select()" onchange="setStock(${p.id}, this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
+            <small>estoque</small>
+          </span>
           <button onclick="bumpStock(${p.id},1)" title="mais">+</button>
         </div>
       </div>
@@ -1581,20 +1590,41 @@ function setProdFilter(f, el) {
   document.querySelectorAll('#prod-filters .fchip').forEach(b => b.classList.toggle('active', b === el));
   renderProdutos();
 }
-// Estoque inline com +/− — atualiza na hora e salva sozinho (debounce), sem recarregar.
+// Estoque inline: digita o número OU usa +/−. Atualiza na hora e salva sozinho.
 const _stockTimers = {};
-function bumpStock(id, delta) {
+function _stockSync(id) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
-  p.stock = Math.max(0, (p.stock || 0) + delta);
-  const sv = document.getElementById('sv-' + id);
-  if (sv) { sv.innerHTML = p.stock + '<small>estoque</small>'; sv.classList.toggle('zero', p.stock === 0); }
+  const inp = document.getElementById('sv-' + id);
+  const wrap = document.getElementById('svw-' + id);
+  if (inp) inp.value = p.stock;
+  if (wrap) wrap.classList.toggle('zero', p.stock === 0);
+}
+function _stockPersist(id, immediate) {
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
   clearTimeout(_stockTimers[id]);
-  _stockTimers[id] = setTimeout(() => {
+  const doSave = () => {
     fetch('/api/webhook?action=filial_product_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: p.stock, hidden: !!p.hidden }),
     }).catch(() => {});
-  }, 700);
+  };
+  if (immediate) doSave(); else _stockTimers[id] = setTimeout(doSave, 700);
+}
+function bumpStock(id, delta) {
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
+  p.stock = Math.max(0, (p.stock || 0) + delta);
+  _stockSync(id);
+  _stockPersist(id, false);
+}
+// Digitar o estoque direto (aceita só número; salva na hora).
+function setStock(id, val) {
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
+  let n = parseInt(String(val).replace(/\D/g, ''), 10);
+  if (isNaN(n) || n < 0) n = 0;
+  p.stock = n;
+  _stockSync(id);
+  _stockPersist(id, true); // salva imediato ao digitar
+  try { toast('Estoque salvo ✦ ' + n); } catch (e) {}
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
