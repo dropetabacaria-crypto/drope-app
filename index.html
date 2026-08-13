@@ -11731,10 +11731,10 @@
           // 3DS 2.0: o banco pede autenticação → abre o desafio e acompanha o resultado.
           resolve();
           _run3DSChallenge(d);
-        } else if (r.ok && d.ok && (d.status === 'in_process' || d.status === 'pending')) {
-          // Em análise (sem 3DS) → o webhook confirma quando aprovar.
-          if (statusEl) { statusEl.textContent = 'Pagamento em análise ✦ a loja confirma assim que aprovar'; statusEl.style.color = 'var(--text-dim)'; }
+        } else if (r.ok && d.ok && (d.status === 'in_process' || d.status === 'pending') && d.payment_id) {
+          // Em análise (sem desafio) → acompanha até resolver (não deixa travado).
           resolve();
+          _watchCard(d, false);
         } else {
           // recusado/erro → mostra motivo e deixa tentar de novo (não navega)
           const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro';
@@ -11749,29 +11749,37 @@
   // Abre o formulário de autenticação do emissor num iframe e acompanha o pagamento
   // até aprovar/recusar (poll no MP com o token da loja).
   let _3dsPoll = null;
-  function _run3DSChallenge(d) {
-    const info = d.three_ds_info || {};
-    const ov = document.getElementById('tds-ov');
-    const frameWrap = document.getElementById('tds-frame-wrap');
-    if (!ov || !frameWrap || !info.external_resource_url) { _3dsFail('não deu pra abrir a autenticação ✦ tenta outro cartão'); return; }
-    // monta o iframe + form que dispara o desafio do emissor
-    frameWrap.innerHTML = '<iframe name="tdsFrame" id="tdsFrame" style="width:100%;height:100%;border:0;background:#fff;border-radius:12px"></iframe>'
-      + '<form id="tdsForm" target="tdsFrame" method="post" action="' + info.external_resource_url.replace(/"/g, '&quot;') + '">'
-      + (info.creq ? '<input type="hidden" name="creq" value="' + String(info.creq).replace(/"/g, '&quot;') + '">' : '')
-      + '</form>';
-    ov.style.display = 'flex';
-    try { document.getElementById('tdsForm').submit(); } catch (e) {}
-    // acompanha o resultado do pagamento
+  function _run3DSChallenge(d) { _watchCard(d, true); }
+  // Acompanha o pagamento do cartão até resolver. Com desafio 3DS, abre o iframe do
+  // banco; sem desafio (em análise), só faz o poll até aprovar/recusar.
+  function _watchCard(d, showChallenge) {
+    if (showChallenge) {
+      const info = d.three_ds_info || {};
+      const ov = document.getElementById('tds-ov');
+      const frameWrap = document.getElementById('tds-frame-wrap');
+      if (ov && frameWrap && info.external_resource_url) {
+        frameWrap.innerHTML = '<iframe name="tdsFrame" id="tdsFrame" style="width:100%;height:100%;border:0;background:#fff;border-radius:12px"></iframe>'
+          + '<form id="tdsForm" target="tdsFrame" method="post" action="' + info.external_resource_url.replace(/"/g, '&quot;') + '">'
+          + (info.creq ? '<input type="hidden" name="creq" value="' + String(info.creq).replace(/"/g, '&quot;') + '">' : '')
+          + '</form>';
+        ov.style.display = 'flex';
+        try { document.getElementById('tdsForm').submit(); } catch (e) {}
+      } else { showChallenge = false; }
+    }
+    if (!showChallenge) {
+      const statusEl = document.getElementById('mp-card-status');
+      if (statusEl) { statusEl.textContent = 'Confirmando o pagamento ✦ aguarde uns segundos…'; statusEl.style.color = 'var(--text-dim)'; }
+    }
     let tries = 0;
     if (_3dsPoll) clearInterval(_3dsPoll);
     _3dsPoll = setInterval(async () => {
       tries++;
-      if (tries > 60) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail('autenticação demorou ✦ tenta de novo ou paga no Pix'); return; }
+      if (tries > 60) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail('demorou pra confirmar ✦ tenta de novo ou paga no Pix'); return; }
       try {
         const r = await fetch(`/api/webhook?action=mp_check_pix&payment_id=${encodeURIComponent(d.payment_id)}&filial=${encodeURIComponent(_cardCtx.slug)}`, { cache: 'no-store' });
         const s = await r.json().catch(() => ({}));
         if (s && s.status === 'approved') { clearInterval(_3dsPoll); _3dsPoll = null; _close3DS(); _onCardApproved(_cardCtx.orderNsu); }
-        else if (s && (s.status === 'rejected' || s.status === 'cancelled')) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail(_cardRejectMsg(s.status_detail) || 'autenticação não aprovada ✦ tenta outro cartão'); }
+        else if (s && (s.status === 'rejected' || s.status === 'cancelled')) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail(_cardRejectMsg(s.status_detail) || 'cartão não aprovado ✦ tenta outro'); }
       } catch (e) {}
     }, 3000);
   }
