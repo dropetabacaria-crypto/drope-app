@@ -6803,17 +6803,17 @@ async function openaiGenerateImage(prompt, tag, opts) {
     data = await r.json();
   } catch (e) {
     console.error(`[openaiImage:${tag}] fetch error:`, e.message);
-    return null;
+    return await grokGenerateImage(prompt, tag); // fallback Grok
   }
   logApiCost('openai_image', { status: r.status, tag, ms: Date.now() - t0 }).catch(() => {});
   if (r.status >= 400) {
     console.error(`[openaiImage:${tag}] status ${r.status}:`, JSON.stringify(data).slice(0, 400));
-    return null;
+    return await grokGenerateImage(prompt, tag); // OpenAI sem crédito/erro → Grok
   }
   const b64 = data.data?.[0]?.b64_json;
   if (b64) return `data:image/png;base64,${b64}`;
   const url = data.data?.[0]?.url; // fallback caso a API mude
-  return url || null;
+  return url || (await grokGenerateImage(prompt, tag));
 }
 
 // IMG2IMG real: transforma uma FOTO real do produto em arte DROPE (preserva a embalagem).
@@ -6836,11 +6836,55 @@ async function openaiEditImage(imageBuffer, prompt, opts) {
     });
     const data = await r.json();
     logApiCost('openai_edit', { status: r.status, ms: Date.now() - t0 }).catch(() => {});
-    if (r.status >= 400) { console.error('[openaiEdit] status', r.status, JSON.stringify(data).slice(0, 300)); return null; }
+    if (r.status >= 400) { console.error('[openaiEdit] status', r.status, JSON.stringify(data).slice(0, 300)); return await grokEditFromBuffer(imageBuffer, prompt, 'edit'); }
     const b64 = data.data?.[0]?.b64_json;
     if (b64) return `data:image/png;base64,${b64}`;
-    return data.data?.[0]?.url || null;
-  } catch (e) { console.error('[openaiEdit]', e.message); return null; }
+    return data.data?.[0]?.url || (await grokEditFromBuffer(imageBuffer, prompt, 'edit'));
+  } catch (e) { console.error('[openaiEdit]', e.message); return await grokEditFromBuffer(imageBuffer, prompt, 'edit'); }
+}
+
+// ============ FALLBACK DE IMAGEM: xAI Grok (quando o OpenAI está sem crédito) ============
+// A conta OpenAI pode ficar sem saldo; o Grok (grok-imagine-image) segura a geração
+// pra loja NUNCA ficar sem conseguir criar a arte do produto.
+const GROK_IMAGE_MODEL = 'grok-imagine-image-quality';
+async function grokGenerateImage(prompt, tag) {
+  if (!XAI_API_KEY) return null;
+  const t0 = Date.now();
+  try {
+    const r = await fetch('https://api.x.ai/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${XAI_API_KEY}` },
+      body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt: String(prompt || '').slice(0, 1024), n: 1 }),
+    });
+    const d = await r.json().catch(() => ({}));
+    logApiCost('grok_image', { status: r.status, tag, ms: Date.now() - t0 }).catch(() => {});
+    if (!r.ok) { console.error(`[grokImage:${tag || ''}] status ${r.status}:`, JSON.stringify(d).slice(0, 300)); return null; }
+    return (d.data && d.data[0] && d.data[0].url) || null;
+  } catch (e) { console.error('[grokImage] err:', e.message); return null; }
+}
+async function grokEditImage(imageUrl, prompt, tag) {
+  if (!XAI_API_KEY || !imageUrl) return null;
+  const t0 = Date.now();
+  try {
+    const r = await fetch('https://api.x.ai/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${XAI_API_KEY}` },
+      body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt: String(prompt || '').slice(0, 1024), image_url: imageUrl, n: 1 }),
+    });
+    const d = await r.json().catch(() => ({}));
+    logApiCost('grok_edit', { status: r.status, tag, ms: Date.now() - t0 }).catch(() => {});
+    if (!r.ok) { console.error(`[grokEdit:${tag || ''}] status ${r.status}:`, JSON.stringify(d).slice(0, 300)); return null; }
+    return (d.data && d.data[0] && d.data[0].url) || null;
+  } catch (e) { console.error('[grokEdit] err:', e.message); return null; }
+}
+// img2img via Grok a partir de um BUFFER: sobe a ref pro storage (URL público) e edita.
+async function grokEditFromBuffer(imageBuffer, prompt, tag) {
+  if (!XAI_API_KEY || !imageBuffer) return null;
+  try {
+    const refUrl = await uploadToStorage(`grokref-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, imageBuffer, 'image/png');
+    if (!refUrl) return null;
+    return await grokEditImage(refUrl, prompt, tag);
+  } catch (e) { console.error('[grokEditFromBuffer]', e.message); return null; }
 }
 
 // Gera APENAS o cenário dark neon (frutas, vapor, iluminação) SEM NENHUM device.
