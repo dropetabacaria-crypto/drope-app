@@ -17478,6 +17478,67 @@ async function handleMPCreateCheckout(req, res) {
   }
 }
 
+// Cofre de cartões do Mercado Pago (por LOJA). O cliente vira um "Customer" na conta
+// MP da loja, identificado pelo e-mail. O cartão fica SÓ no MP (PCI) — nunca no DROPE.
+// Busca por e-mail; cria se não existir. Retorna o customer_id (ou null).
+async function _mpEnsureCustomer(sellerToken, email, opts) {
+  opts = opts || {};
+  if (!sellerToken || !email) return null;
+  const auth = { Authorization: `Bearer ${sellerToken}` };
+  try {
+    const sr = await fetch(`https://api.mercadopago.com/v1/customers/search?email=${encodeURIComponent(email)}`, { headers: auth });
+    const sd = await sr.json().catch(() => ({}));
+    if (sr.ok && sd && Array.isArray(sd.results) && sd.results.length) return sd.results[0].id;
+    const cr = await fetch('https://api.mercadopago.com/v1/customers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ email, first_name: ((opts.name || '').split(' ')[0]) || undefined }),
+    });
+    const cd = await cr.json().catch(() => ({}));
+    if (cr.ok && cd && cd.id) return cd.id;
+    // já existe (corrida) → busca de novo
+    if (cd && /already exists/i.test(JSON.stringify(cd))) {
+      const sr2 = await fetch(`https://api.mercadopago.com/v1/customers/search?email=${encodeURIComponent(email)}`, { headers: auth });
+      const sd2 = await sr2.json().catch(() => ({}));
+      if (sr2.ok && sd2 && sd2.results && sd2.results[0]) return sd2.results[0].id;
+    }
+  } catch (e) { console.warn('[mp customer]', e.message); }
+  return null;
+}
+
+// GET action=mp_saved_cards — cartões salvos do cliente NESTA loja (do cofre do MP).
+// Só devolve dados NÃO sensíveis: 4 últimos dígitos + bandeira. Exige sessão do cliente.
+async function handleMPSavedCards(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const slug = String(url.searchParams.get('filial') || '').toLowerCase().trim();
+    const phone = url.searchParams.get('phone') || '';
+    const token = url.searchParams.get('token') || '';
+    const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+    if (!(await _customerSessionOk(phone, token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!slug || !email) return res.status(200).json({ ok: true, cards: [] });
+    const filial = await _filialBySlugRead(slug);
+    const sellerToken = filial ? await _mpTokenForFilial(filial) : null;
+    if (!sellerToken) return res.status(200).json({ ok: true, cards: [] });
+    const customerId = await _mpEnsureCustomer(sellerToken, email, {});
+    if (!customerId) return res.status(200).json({ ok: true, cards: [], customer_id: null });
+    const r = await fetch(`https://api.mercadopago.com/v1/customers/${customerId}/cards`, { headers: { Authorization: `Bearer ${sellerToken}` } });
+    const d = await r.json().catch(() => ([]));
+    const list = Array.isArray(d) ? d : [];
+    const cards = list.map(c => ({
+      id: c.id,
+      last_four: c.last_four_digits,
+      brand: (c.payment_method && (c.payment_method.name || c.payment_method.id)) || 'cartão',
+      pm_id: c.payment_method && c.payment_method.id,
+      exp_month: c.expiration_month, exp_year: c.expiration_year,
+    }));
+    return res.status(200).json({ ok: true, customer_id: customerId, cards });
+  } catch (e) { console.error('[mp_saved_cards]', e.message); return res.status(200).json({ ok: true, cards: [] }); }
+}
+
 // POST action=mp_process_card — CARTÃO TRANSPARENTE (formulário dentro do app).
 // O cliente digita o cartão no DROPE; o Brick do MP tokeniza no navegador (o número
 // NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
@@ -17507,6 +17568,14 @@ async function handleMPProcessCard(req, res) {
     if (slug && !sellerToken) return res.status(409).json({ error: 'loja_sem_pagamento', message: 'Esta loja ainda não ativou os recebimentos.' });
     if (!sellerToken) return res.status(500).json({ error: 'pagamento indisponível no momento' });
 
+    // Cofre de cartões (opcional): salvar o cartão OU pagar com um cartão já salvo.
+    // Em ambos, o pagamento é associado ao "Customer" do cliente na conta MP da loja.
+    const vaultEmail = String(body.customer_email || (payer && payer.email) || '').trim().toLowerCase();
+    let customerId = body.payer_customer_id || null;    // pagando com cartão salvo
+    if (!customerId && body.save_card && vaultEmail) {   // salvando um cartão novo
+      customerId = await _mpEnsureCustomer(sellerToken, vaultEmail, { name: (payer && payer.name) || '' });
+    }
+
     const payload = {
       transaction_amount: Math.round(total_cents) / 100,
       token,
@@ -17518,9 +17587,11 @@ async function handleMPProcessCard(req, res) {
       statement_descriptor: 'DROPE',
       binary_mode: true, // aprova ou recusa na hora (sem 'pending')
       payer: {
-        email: (payer && payer.email) || 'cliente@drope.app',
+        email: vaultEmail || 'cliente@drope.app',
       },
     };
+    // Associa ao Customer → aprovado, o MP guarda o cartão no cofre (pra próxima compra).
+    if (customerId) { payload.payer.type = 'customer'; payload.payer.id = customerId; }
     if (issuer_id) payload.issuer_id = issuer_id;
     if (payer && payer.identification && payer.identification.number) {
       payload.payer.identification = { type: payer.identification.type || 'CPF', number: String(payer.identification.number).replace(/\D/g, '') };
@@ -20680,6 +20751,9 @@ async function generateAll(){
   // action=mp_create_pix — POST: cria pagamento Pix via API do Mercado Pago
   // action=mp_check_pix  — GET: checa status de pagamento existente (polling)
   // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
+  if (req.url && req.url.indexOf('action=mp_saved_cards') >= 0) {
+    return await handleMPSavedCards(req, res);
+  }
   if (req.url && req.url.indexOf('action=mp_process_card') >= 0) {
     return await handleMPProcessCard(req, res);
   }
