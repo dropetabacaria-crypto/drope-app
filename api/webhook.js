@@ -17635,10 +17635,10 @@ async function handleMPProcessCard(req, res) {
       external_reference: order_id || `dr-${Date.now().toString(36)}`,
       notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
       statement_descriptor: 'DROPE',
-      // 3DS 2.0 OBRIGATÓRIO: força a autenticação do banco (tipo Face ID/app). No 'optional'
-      // o MP escolhia NÃO desafiar e rejeitava como high_risk. No 'mandatory' ele SEMPRE
-      // pede o desafio 3DS → é isso que derruba o high_risk. NÃO usar binary_mode (bloqueia o 3DS).
-      three_d_secure_mode: 'mandatory',
+      // 3DS: a conta MP da sp NÃO está habilitada pra 3DS → 'mandatory' fazia o MP RECUSAR
+      // a requisição (nem criava o pagamento) e a tela travava. Voltamos ao decisão-na-hora
+      // (binary_mode) pra recusar limpo e cair no Pix. 3DS só quando a conta habilitar.
+      binary_mode: true,
       payer: {
         email: vaultEmail || 'cliente@drope.app',
       },
