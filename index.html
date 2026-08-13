@@ -2206,16 +2206,24 @@
   }
   .reserve-note b { color: var(--lime); }
   .co-method-icon {
-    width: 48px; height: 48px;
+    width: 46px; height: 46px;
     border-radius: 14px;
-    background: rgba(91, 33, 182, 0.25);
+    background: linear-gradient(150deg, rgba(140,80,255,0.22), rgba(255,45,111,0.16));
+    border: 1px solid rgba(255,255,255,0.08);
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
+    color: var(--lime);
+    flex: 0 0 auto;
   }
+  .co-method-icon svg { width: 23px; height: 23px; display: block; }
+  .co-method.disabled .co-method-icon { color: var(--text-dim); background: rgba(255,255,255,0.05); }
   .co-method-body { flex: 1; }
   .co-method-title { font-weight: 700; font-size: 16px; color: var(--text); margin-bottom: 4px; }
   .co-method-sub { font-size: 12px; color: var(--text-dim); }
-  .co-method-arrow { color: var(--text-dim); font-size: 20px; }
+  .co-method-arrow { color: var(--text-dim); font-size: 20px; display: flex; align-items: center; }
+  /* feedback imediato ao tocar no método (evita sensação de travado) */
+  .co-method.loading { opacity: 0.6; pointer-events: none; }
+  .co-spin { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.25); border-top-color: var(--lime); border-radius: 50%; display: inline-block; animation: cospin 0.7s linear infinite; }
+  @keyframes cospin { to { transform: rotate(360deg); } }
 
   /* Card form */
   .card-wrap { padding: 8px 20px 20px; }
@@ -11248,6 +11256,30 @@
   }
   // Botão voltar do topo: no passo 2 volta pra entrega; no passo 1 volta pra sacola.
   function checkoutBack() { if (checkoutStep === 2) checkoutBackToEntrega(); else go('cart'); }
+
+  // Ícones dos métodos de pagamento (SVG limpo no lugar do quadrado roxo vazio).
+  const _ICON_PIX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 15h3M17 14v3M20 14v4M14 20h3.5M20.5 20.5v.01"/></svg>';
+  const _ICON_CARD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg>';
+  const _ICON_PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  const _ICON_BAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>';
+
+  // Toque no método → feedback IMEDIATO (spinner no card) antes da chamada de rede,
+  // pra não parecer travado. Depois dispara Pix (rede) ou abre a tela do cartão.
+  function _coPay(el, kind) {
+    try {
+      if (el && !el.classList.contains('loading')) {
+        el.classList.add('loading');
+        const arr = el.querySelector('.co-method-arrow');
+        if (arr) arr.innerHTML = '<span class="co-spin"></span>';
+        // segurança: se algo falhar e continuarmos na tela, libera o card em 12s
+        setTimeout(function () { try { el.classList.remove('loading'); const a = el.querySelector('.co-method-arrow'); if (a) a.textContent = '→'; } catch (e) {} }, 12000);
+      }
+    } catch (e) {}
+    setTimeout(function () {
+      try { if (kind === 'card') openMPCheckout(); else openMPPix(); }
+      catch (e) { if (el) el.classList.remove('loading'); }
+    }, 30);
+  }
   // Voltar da tela de cartão → volta pro passo de pagamento do checkout.
   function cardBack() { go('checkout'); checkoutStep = 2; renderCheckoutStep(); try { renderCheckout(); } catch (e) {} }
 
@@ -11371,7 +11403,7 @@
     if (payBlocked) {
       html = `
         <div class="co-method disabled" style="border-color: rgba(255, 45, 111, 0.4)">
-          <div class="co-method-icon"></div>
+          <div class="co-method-icon">${_ICON_PIN}</div>
           <div class="co-method-body">
             <div class="co-method-title">cadastra o endereço de entrega</div>
             <div class="co-method-sub" style="color: var(--pink)">toca no card de endereço acima</div>
@@ -11382,7 +11414,7 @@
     else if (deliveryMode === 'pickup' && payWhen === 'later') {
       html = `
         <div class="co-method reserve" onclick="reserveOrderPickup()">
-          <div class="co-method-icon"></div>
+          <div class="co-method-icon">${_ICON_BAG}</div>
           <div class="co-method-body">
             <div class="co-method-title">reservar e pagar na loja</div>
             <div class="co-method-sub">dinheiro, cartão máquina ou Pix presencial</div>
@@ -11403,8 +11435,8 @@
       const blockCard = "openMPCheckout()";
 
       html = `
-        <div class="co-method" onclick="${blockClick}">
-          <div class="co-method-icon"></div>
+        <div class="co-method" onclick="_coPay(this,'pix')">
+          <div class="co-method-icon">${_ICON_PIX}</div>
           <div class="co-method-body">
             <div class="co-method-title">Pix</div>
             <div class="co-method-sub">aprovação automática ✦ sem comprovante</div>
@@ -11417,8 +11449,8 @@
       const cardLiberado = kind === 'tabac';
       if (cardLiberado) {
         html += `
-          <div class="co-method" onclick="${blockCard}">
-            <div class="co-method-icon"></div>
+          <div class="co-method" onclick="_coPay(this,'card')">
+            <div class="co-method-icon">${_ICON_CARD}</div>
             <div class="co-method-body">
               <div class="co-method-title">cartão</div>
               <div class="co-method-sub">crédito ou débito ✦ até 3x sem juros</div>
@@ -11429,7 +11461,7 @@
       } else {
         html += `
           <div class="co-method disabled">
-            <div class="co-method-icon"></div>
+            <div class="co-method-icon">${_ICON_CARD}</div>
             <div class="co-method-body">
               <div class="co-method-title">cartão</div>
               <div class="co-method-sub">indisponível pra drops</div>
