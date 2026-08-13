@@ -6588,6 +6588,7 @@
   // (Card Payment Brick do MP). Sem redirect, sem conta MP do cliente. Split pra loja mantido.
   async function openMPCheckout() {
     if (cart.length === 0) return;
+    if (!_requireLoginToBuy()) return;
     const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = appliedCoupon ? appliedCoupon.discount : 0;
     const total = Math.max(0, subtotal - discount);
@@ -6753,6 +6754,7 @@
   let _mpPixCode = '';
   let _mpPixOrderNsu = '';
   async function openMPPix() {
+    if (!_requireLoginToBuy()) return;
     const btn = document.getElementById('infinitepay-btn');
     if (btn) { btn.textContent = 'gerando Pix...'; btn.disabled = true; }
     try {
@@ -9160,6 +9162,15 @@
   // Pin do sininho atualiza rápido (15s) — sensação iFood. Pausa em background.
   setInterval(() => { try { if (!document.hidden) loadAppNotifs(); } catch (e) {} }, 15000);
   function _isLoggedIn() { return !PREVIEW_MODE && !!_custToken(); }
+  // REGRA: pra COMPRAR o cliente precisa estar LOGADO de verdade (sessão/senha), não só
+  // ter feito o onboarding local. Sem login → abre a tela de login e bloqueia o pagamento.
+  function _requireLoginToBuy() {
+    if (_isLoggedIn()) return true;
+    try { pendingAfterGate = 'checkout'; } catch (e) {}
+    toast('Entra na sua conta pra finalizar a compra ✦');
+    try { openCustomerLogin(); } catch (e) {}
+    return false;
+  }
   function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
   let _otpPhone = '';
@@ -9261,6 +9272,12 @@
     try { loadFavoritesFromAccount(); } catch (e) {}
     try { loadAddressesFromAccount(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
+    // Retoma o fluxo que exigiu login (ex.: cliente ia pagar → volta pro checkout logado).
+    try {
+      if (pendingAfterGate === 'checkout') { go('checkout'); }
+      else if (pendingAfterGate === 'cart') { go('cart'); renderCart(); }
+      pendingAfterGate = null;
+    } catch (e) {}
   }
   // Mostra/oculta o texto de um campo de senha (olho).
   function togglePw(id, el) { const i = document.getElementById(id); if (!i) return; const show = i.type === 'password'; i.type = show ? 'text' : 'password'; if (el) el.textContent = show ? 'ocultar' : 'mostrar'; }
@@ -11242,6 +11259,8 @@
     if (s2) s2.className = 'step' + (checkoutStep === 2 ? ' active' : '');
   }
   function checkoutGoPay() {
+    // Sem login não avança pro pagamento (regra: só compra logado).
+    if (!_requireLoginToBuy()) return;
     // Só avança pro pagamento com a entrega resolvida.
     if (deliveryMode === 'delivery' && !getSelectedAddress()) { toast('cadastra o endereço de entrega ✦'); return; }
     checkoutStep = 2;
@@ -13245,6 +13264,7 @@
 
   async function confirmOrder() {
     if (cart.length === 0) return;
+    if (!_requireLoginToBuy()) return;
     // Fix #1: re-valida estoque na hora de fechar (cliente pode ter ficado tempo no checkout, ou outro device comprou)
     const stockProblems = [];
     cart.forEach(item => {
