@@ -17635,11 +17635,27 @@ async function handleMPProcessCard(req, res) {
       external_reference: order_id || `dr-${Date.now().toString(36)}`,
       notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
       statement_descriptor: 'DROPE',
-      binary_mode: true, // aprova ou recusa na hora (sem 'pending')
+      // 3DS 2.0: autentica o cliente no banco (tipo Face ID/app) → derruba o high_risk
+      // e melhora MUITO a aprovação. NÃO usar binary_mode (ele impede o desafio 3DS).
+      three_d_secure_mode: 'optional',
       payer: {
         email: vaultEmail || 'cliente@drope.app',
       },
     };
+    // Dados complementares do comprador/compra → melhora a taxa de aprovação (recomendação MP).
+    const _items = Array.isArray(body.items) ? body.items : [];
+    payload.additional_info = {
+      items: _items.slice(0, 20).map((it, i) => ({
+        id: String(it.slug || it.id || ('item' + i)),
+        title: String(it.name || 'produto').slice(0, 60),
+        quantity: Math.max(1, parseInt(it.qty) || 1),
+        unit_price: Number(it.price) || (Math.round(total_cents) / 100),
+      })),
+    };
+    if (payer && payer.name) {
+      const _p = String(payer.name).trim().split(/\s+/);
+      payload.additional_info.payer = { first_name: _p[0] || undefined, last_name: _p.slice(1).join(' ') || undefined };
+    }
     // Associa ao Customer → aprovado, o MP guarda o cartão no cofre (pra próxima compra).
     if (customerId) { payload.payer.type = 'customer'; payload.payer.id = customerId; }
     if (issuer_id) payload.issuer_id = issuer_id;
@@ -17653,21 +17669,23 @@ async function handleMPProcessCard(req, res) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${sellerToken}`,
-        'X-Idempotency-Key': (order_id || `dr-${Date.now()}`) + '-card',
+        // Única por TENTATIVA (não reusar → evita o MP devolver o resultado antigo).
+        'X-Idempotency-Key': `${order_id || 'dr'}-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       },
       body: JSON.stringify(payload),
     });
     const data = await response.json();
-    console.log('[MP Card] status:', response.status, 'payment:', data && data.status, data && data.status_detail);
+    console.log('[MP Card] status:', response.status, 'payment:', data && data.status, data && data.status_detail, '3ds:', !!(data && data.three_ds_info));
     if (!response.ok) {
       console.error('[MP Card] Error:', JSON.stringify(data).substring(0, 500));
       return res.status(502).json({ error: 'mercadopago_error', status: response.status, message: 'Não deu pra processar o cartão ✦', details: data.message || data.cause || data });
     }
     return res.status(200).json({
       ok: true,
-      status: data.status, // approved | rejected | in_process
-      status_detail: data.status_detail,
+      status: data.status, // approved | rejected | in_process | pending
+      status_detail: data.status_detail, // ex.: pending_challenge (3DS)
       payment_id: data.id,
+      three_ds_info: data.three_ds_info || null, // { external_resource_url, creq } quando precisa do desafio 3DS
       split, commission_amount: appFeeReais,
     });
   } catch (err) {

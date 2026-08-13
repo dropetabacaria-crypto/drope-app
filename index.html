@@ -6025,6 +6025,16 @@
     </div>
   </div>
 
+  <!-- ============ DESAFIO 3DS 2.0 (autenticação do banco no cartão) ============ -->
+  <div id="tds-ov" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(5,4,12,.94);flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom))">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-weight:800;font-size:15px;color:#fff;font-family:'Space Grotesk',sans-serif">Autenticação do seu banco 🔒</div>
+      <button onclick="cancel3DS()" style="background:rgba(255,255,255,.1);border:none;color:#fff;font-family:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:12px;cursor:pointer">Cancelar</button>
+    </div>
+    <div id="tds-frame-wrap" style="flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#fff"></div>
+    <div style="text-align:center;color:rgba(255,255,255,.6);font-size:12px;margin-top:10px">Confirme no seu banco pra aprovar o pagamento ✦</div>
+  </div>
+
   <!-- ============ SELETOR MAPS / WAZE (retirada na loja) ============ -->
   <div id="maps-chooser" onclick="if(event.target===this)closeMapsChooser()" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);align-items:flex-end;justify-content:center">
     <div style="width:100%;max-width:480px;background:linear-gradient(180deg,#15101f,#0d0a14);border-radius:22px 22px 0 0;border-top:1px solid rgba(255,255,255,.1);padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -12px 44px rgba(0,0,0,.55)">
@@ -11640,11 +11650,13 @@
         body: JSON.stringify({
           filial_slug: _cardCtx.slug, order_id: _cardCtx.orderNsu, total_cents: _cardCtx.chargeCents,
           token: tok.id, payment_method_id: pmId, installments: 1,
+          items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
           payer_customer_id: _savedCustomerId, customer_email: _customerVaultEmail(),
         }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.status === 'approved') { _onCardApproved(_cardCtx.orderNsu); }
+      else if (r.ok && d.ok && d.three_ds_info && d.three_ds_info.external_resource_url) { _run3DSChallenge(d); }
       else { const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro'; if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; } _showCardPixFallback(true); }
     } catch (e) { console.error('[saved card]', e && e.message); if (statusEl) { statusEl.textContent = 'não deu pra pagar com esse cartão ✦'; statusEl.style.color = 'var(--pink)'; } }
   }
@@ -11705,6 +11717,7 @@
             issuer_id: formData.issuer_id,
             installments: formData.installments,
             payer: formData.payer,
+            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             // salvar cartão pra próxima (cofre do MP) — só se o cliente marcar
             save_card: !!(document.getElementById('save-card-chk') && document.getElementById('save-card-chk').checked),
             customer_email: _customerVaultEmail(),
@@ -11714,6 +11727,14 @@
         if (r.ok && d.ok && d.status === 'approved') {
           resolve();
           _onCardApproved(_cardCtx.orderNsu);
+        } else if (r.ok && d.ok && d.three_ds_info && d.three_ds_info.external_resource_url) {
+          // 3DS 2.0: o banco pede autenticação → abre o desafio e acompanha o resultado.
+          resolve();
+          _run3DSChallenge(d);
+        } else if (r.ok && d.ok && (d.status === 'in_process' || d.status === 'pending')) {
+          // Em análise (sem 3DS) → o webhook confirma quando aprovar.
+          if (statusEl) { statusEl.textContent = 'Pagamento em análise ✦ a loja confirma assim que aprovar'; statusEl.style.color = 'var(--text-dim)'; }
+          resolve();
         } else {
           // recusado/erro → mostra motivo e deixa tentar de novo (não navega)
           const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro';
@@ -11724,6 +11745,44 @@
       } catch (e) { if (statusEl) { statusEl.textContent = 'erro de rede ✦ tenta de novo'; statusEl.style.color = 'var(--pink)'; } reject(e); }
     });
   }
+  // ===== Desafio 3DS 2.0 (autenticação do banco) =====
+  // Abre o formulário de autenticação do emissor num iframe e acompanha o pagamento
+  // até aprovar/recusar (poll no MP com o token da loja).
+  let _3dsPoll = null;
+  function _run3DSChallenge(d) {
+    const info = d.three_ds_info || {};
+    const ov = document.getElementById('tds-ov');
+    const frameWrap = document.getElementById('tds-frame-wrap');
+    if (!ov || !frameWrap || !info.external_resource_url) { _3dsFail('não deu pra abrir a autenticação ✦ tenta outro cartão'); return; }
+    // monta o iframe + form que dispara o desafio do emissor
+    frameWrap.innerHTML = '<iframe name="tdsFrame" id="tdsFrame" style="width:100%;height:100%;border:0;background:#fff;border-radius:12px"></iframe>'
+      + '<form id="tdsForm" target="tdsFrame" method="post" action="' + info.external_resource_url.replace(/"/g, '&quot;') + '">'
+      + (info.creq ? '<input type="hidden" name="creq" value="' + String(info.creq).replace(/"/g, '&quot;') + '">' : '')
+      + '</form>';
+    ov.style.display = 'flex';
+    try { document.getElementById('tdsForm').submit(); } catch (e) {}
+    // acompanha o resultado do pagamento
+    let tries = 0;
+    if (_3dsPoll) clearInterval(_3dsPoll);
+    _3dsPoll = setInterval(async () => {
+      tries++;
+      if (tries > 60) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail('autenticação demorou ✦ tenta de novo ou paga no Pix'); return; }
+      try {
+        const r = await fetch(`/api/webhook?action=mp_check_pix&payment_id=${encodeURIComponent(d.payment_id)}&filial=${encodeURIComponent(_cardCtx.slug)}`, { cache: 'no-store' });
+        const s = await r.json().catch(() => ({}));
+        if (s && s.status === 'approved') { clearInterval(_3dsPoll); _3dsPoll = null; _close3DS(); _onCardApproved(_cardCtx.orderNsu); }
+        else if (s && (s.status === 'rejected' || s.status === 'cancelled')) { clearInterval(_3dsPoll); _3dsPoll = null; _3dsFail(_cardRejectMsg(s.status_detail) || 'autenticação não aprovada ✦ tenta outro cartão'); }
+      } catch (e) {}
+    }, 3000);
+  }
+  function _close3DS() { const ov = document.getElementById('tds-ov'); if (ov) ov.style.display = 'none'; const fw = document.getElementById('tds-frame-wrap'); if (fw) fw.innerHTML = ''; }
+  function _3dsFail(msg) {
+    _close3DS();
+    const statusEl = document.getElementById('mp-card-status');
+    if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; }
+    _showCardPixFallback(true);
+  }
+  function cancel3DS() { if (_3dsPoll) { clearInterval(_3dsPoll); _3dsPoll = null; } _3dsFail('autenticação cancelada ✦ tenta de novo ou paga no Pix'); }
   // Cartão recusado (ex.: antifraude MP) → oferece o Pix na hora, pra não perder a venda.
   function _showCardPixFallback(show) {
     const b = document.getElementById('card-pix-fallback');
