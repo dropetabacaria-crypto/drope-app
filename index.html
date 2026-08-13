@@ -4997,6 +4997,7 @@
         <span>Salvar este cartão pra próxima compra ✦</span>
       </label>
       <div id="mp-card-status" style="text-align:center;color:var(--text-dim);font-size:13px;margin-top:14px"></div>
+      <button id="card-pix-fallback" onclick="_cardToPix()" style="display:none;width:100%;margin-top:12px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);color:#fff;border:none;font-family:inherit;font-weight:800;font-size:15px;padding:15px;border-radius:16px;cursor:pointer">Pagar no Pix ✦ (aprova na hora)</button>
       <div style="text-align:center;color:var(--text-dim);font-size:11px;margin-top:12px;line-height:1.5">🔒 Pagamento protegido ✦ o cartão fica no cofre do Mercado Pago, nunca no DROPE</div>
     </div>
 
@@ -11627,7 +11628,7 @@
     const inp = document.getElementById('sc-cvv-inp-' + cardId);
     const cvv = (inp && inp.value || '').replace(/\D/g, '');
     if (!/^\d{3,4}$/.test(cvv)) { toast('Digita o CVV do cartão ✦'); if (inp) inp.focus(); return; }
-    if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; }
+    if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; } try { _showCardPixFallback(false); } catch (e) {}
     try {
       await _loadMPSdk();
       const pk = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_public_key) || '';
@@ -11644,7 +11645,7 @@
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.status === 'approved') { _onCardApproved(_cardCtx.orderNsu); }
-      else { const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro'; if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; } }
+      else { const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro'; if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; } _showCardPixFallback(true); }
     } catch (e) { console.error('[saved card]', e && e.message); if (statusEl) { statusEl.textContent = 'não deu pra pagar com esse cartão ✦'; statusEl.style.color = 'var(--pink)'; } }
   }
   function _loadMPSdk() {
@@ -11667,6 +11668,7 @@
     if (!pk) { if (statusEl) statusEl.textContent = 'abrindo pagamento seguro…'; return _cardCheckoutFallback(); }
     if (statusEl) statusEl.textContent = '';
     try { const chk = document.getElementById('save-card-chk'); if (chk) chk.checked = false; } catch (e) {}
+    try { _showCardPixFallback(false); } catch (e) {}
     try { _renderSavedCards(); } catch (e) {} // mostra cartões já salvos (se houver)
     try { if (_cardBrickController) { await _cardBrickController.unmount(); _cardBrickController = null; } } catch (e) {}
     cont.innerHTML = '';
@@ -11689,7 +11691,7 @@
   }
   function _cardBrickSubmit(formData) {
     const statusEl = document.getElementById('mp-card-status');
-    if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; }
+    if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; } try { _showCardPixFallback(false); } catch (e) {}
     return new Promise(async (resolve, reject) => {
       try {
         const r = await fetch('/api/webhook?action=mp_process_card', {
@@ -11716,10 +11718,20 @@
           // recusado/erro → mostra motivo e deixa tentar de novo (não navega)
           const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro';
           if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; }
+          _showCardPixFallback(true);
           reject(new Error((d && d.status_detail) || 'rejected'));
         }
       } catch (e) { if (statusEl) { statusEl.textContent = 'erro de rede ✦ tenta de novo'; statusEl.style.color = 'var(--pink)'; } reject(e); }
     });
+  }
+  // Cartão recusado (ex.: antifraude MP) → oferece o Pix na hora, pra não perder a venda.
+  function _showCardPixFallback(show) {
+    const b = document.getElementById('card-pix-fallback');
+    if (b) b.style.display = show ? '' : 'none';
+  }
+  function _cardToPix() {
+    _showCardPixFallback(false);
+    try { openMPPix(); } catch (e) { try { go('checkout'); } catch (e2) {} }
   }
   function _cardRejectMsg(detail) {
     const m = {
