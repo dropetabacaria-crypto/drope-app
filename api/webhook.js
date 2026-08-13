@@ -5103,10 +5103,16 @@ async function handleFilialProductArtFast(req, res) {
         ART_QUALITY_RULES.noText,
         'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
       ].join(' ');
-      tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'high' }); // high = texto nítido
+      // high = texto nítido. Se o edit falhar (imagem de ref ruim, moderação, timeout),
+      // NÃO estoura: cai pro fallback text2img abaixo.
+      try { tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'high' }); }
+      catch (e) { console.warn('[art_fast] edit falhou, tenta fallback:', e.message); }
     }
-    if (!tempUrl) tempUrl = await generateProductScene(subject); // fallback text-only
-    if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
+    if (!tempUrl) {
+      try { tempUrl = await generateProductScene(subject); } // fallback text-only
+      catch (e) { console.warn('[art_fast] scene falhou:', e.message); }
+    }
+    if (!tempUrl) return res.status(502).json({ ok: false, error: 'a IA não conseguiu gerar essa imagem agora — tenta de novo ou envie uma foto' });
     const imgResp = await fetch(tempUrl);
     let buf = Buffer.from(await imgResp.arrayBuffer());
     // Toque final DROPE: aplica o selo (mesmo dos pods).

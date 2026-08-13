@@ -1677,38 +1677,46 @@ function _artOverlayHide() {
   clearInterval(_artMsgTimer); _artMsgTimer = null;
   const ov = document.getElementById('art-ov'); if (ov) ov.style.display = 'none';
 }
-async function generateProductArt(id) {
+// Geração de arte em SEGUNDO PLANO — NÃO trava a tela. O lojista pode seguir
+// cadastrando outro produto enquanto a IA gera. O card do produto mostra ⏳ até ficar pronto.
+async function _bgArt(id, meta) {
+  meta = meta || {};
   if (_artBusy[id]) return;
   _artBusy[id] = true;
-  renderProdutos();
-  _artOverlayShow('Gerando arte do produto');
-  const p = (_lastProdutos || []).find(x => x.id === id) || {};
+  try { renderProdutos(); } catch (e) {}
+  const nm = meta.name || '';
+  try { toast('Gerando arte' + (nm ? ' de ' + nm : '') + ' em segundo plano ✦ pode seguir cadastrando'); } catch (e) {}
   try {
-    // 1) motor RÁPIDO (img2img via foto real da web ou descrição) — mesmo do wizard
+    const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: nm, brand: meta.brand || '', flavor: meta.flavor || '', type: meta.type || '' };
+    if (meta.ref) body.ref_base64 = meta.ref; // foto do lojista como referência
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', type: '' }),
+      body: JSON.stringify(body),
     });
     const d = await r.json().catch(() => ({}));
+    _artBusy[id] = false;
     if (r.ok && d.ok && d.image_url) {
-      // 2) anexa a arte ao produto (image_url → publica)
-      const err = await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, image_url: d.image_url });
-      _artBusy[id] = false;
-      if (err === true) {
-        const pp = _lastProdutos.find(x => x.id === id);
-        if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
-        _artOverlayHide(); renderProdutos();
-      } else { _artOverlayHide(); renderProdutos(); alert(' ' + (typeof err === 'string' ? err : 'não deu pra salvar a arte')); }
+      const save = { id, image_url: d.image_url };
+      if (typeof meta.hidden === 'boolean') save.hidden = meta.hidden; // preserva oculto (parcial preserva preço/estoque)
+      await _saveProduct(save);
+      const pp = (_lastProdutos || []).find(x => x.id === id);
+      if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
+      try { renderProdutos(); } catch (e) {}
+      try { toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e) {}
     } else {
-      _artBusy[id] = false; _artOverlayHide(); renderProdutos();
-      alert(' ' + ((d && d.error) || 'não rolou gerar a arte agora'));
+      try { renderProdutos(); } catch (e) {}
+      try { toast((d && d.error) || 'não rolou gerar a arte ✦ toca no ✨ do produto pra tentar de novo'); } catch (e) {}
     }
   } catch (e) {
-    _artBusy[id] = false; _artOverlayHide(); renderProdutos();
-    alert(' Erro de rede ao gerar a imagem');
+    _artBusy[id] = false; try { renderProdutos(); } catch (e2) {}
+    try { toast('erro de rede na arte ✦ toca no ✨ pra tentar de novo'); } catch (e2) {}
   }
-  _artOverlayHide();
-  loadData(false);
+  try { loadData(false); } catch (e) {}
+}
+// Botão ✨ do produto na lista → gera em segundo plano.
+function generateProductArt(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
+  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden });
 }
 
 function toggleAddProduct() {
@@ -1729,6 +1737,7 @@ function toggleAddProduct() {
 }
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
+let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
 function _wizReset() { _wizStep = 1; _apClearArt(); wizRender(); }
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
@@ -1782,8 +1791,7 @@ async function apGerarArte() {
   if (name.length < 2 && brand.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'preencha o produto na etapa 1 primeiro'; } return; }
   const btn = document.getElementById('ap-artgen-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = 'gerando… (até 1 min)'; }
-  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE…'; }
-  _artOverlayShow('Gerando arte do produto');
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE… (pode concluir o produto, ela entra depois)'; }
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
     if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
@@ -1794,9 +1802,8 @@ async function apGerarArte() {
       _apPhotoB64 = null; // arte tem prioridade sobre foto própria
       _apShowArtPreview(d.image_url, true);
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
-    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo'; } }
-  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo'; } }
-  _artOverlayHide();
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ou conclui e gera depois'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo ou conclui e gera depois'; } }
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
 }
 
@@ -2347,7 +2354,7 @@ async function _saveProduct(payload, onOk) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { onOk && onOk(); loadData(true); return true; }
+    if (r.ok && d.ok) { _lastSavedProduct = { id: d.id, slug: d.slug }; onOk && onOk(); loadData(true); return true; }
     return d.error || ('erro ' + r.status);
   } catch (e) { return 'Erro de rede'; }
 }
@@ -2383,6 +2390,9 @@ async function saveNewProduct() {
   if (isFinite(cost_price) && cost_price > 0) payload.cost_price = cost_price;
   if (_apPhotoB64) payload.photo_base64 = _apPhotoB64; // foto enviada pelo lojista
   if (_scanMeta) payload.meta = _scanMeta; // dados da Vision → arte melhor
+  // Capturado ANTES do reset: se o produto entra sem imagem, a arte é gerada em background.
+  const _hadImg = !!img || !!_apPhotoB64;
+  const _bgMeta = { name: name, brand: marca, flavor: sabor, type: (_scanMeta && _scanMeta.type) || '', ref: _scanRefB64 || null };
   const err = await _saveProduct(payload, () => {
     _apPhotoB64 = null; _scanRefB64 = null; try { _apClearArt(); } catch (e) {}
     ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
@@ -2397,7 +2407,11 @@ async function saveNewProduct() {
     try { const sc = document.querySelector('#produtos-ov .sheet-scroll'); if (sc) sc.scrollTop = 0; } catch (e) {}
     msg.style.color = 'var(--green)'; msg.textContent = 'produto adicionado ✦ cadastre o próximo (ou toque em cancelar)';
   });
-  if (err !== true) msg.textContent = err;
+  if (err !== true) { msg.textContent = err; return; }
+  // Produto salvo sem imagem → gera a arte em SEGUNDO PLANO (o lojista já pode cadastrar o próximo).
+  if (!_hadImg && _lastSavedProduct && _lastSavedProduct.id) {
+    _bgArt(_lastSavedProduct.id, _bgMeta);
+  }
 }
 
 async function saveEditProduct(id) {
