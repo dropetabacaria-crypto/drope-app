@@ -1124,7 +1124,7 @@
   .upsell-card .up { font-size: 13px; font-weight: 800; color: var(--lime); margin-top: 4px; }
   .upsell-card .uadd { margin-top: 8px; text-align: center; background: rgba(212,255,46,0.13); color: var(--lime); border: 1px solid rgba(212,255,46,0.3); border-radius: 999px; padding: 6px; font-size: 12px; font-weight: 800; }
   /* Barra "Ver sacola" fixa (resumo do carrinho, estilo iFood) */
-  .cart-fab { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: #1b1b28; box-shadow: 0 14px 34px rgba(0,0,0,0.55); cursor: pointer; border: 1px solid var(--border); }
+  .cart-fab { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: calc(100% - 28px); max-width: 402px; z-index: 70; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border-radius: 18px; background: #1b1b28; box-shadow: 0 14px 34px rgba(0,0,0,0.55); cursor: pointer; border: 1px solid var(--border); }
   .cart-fab.show { display: flex; }
   .cart-fab:active { transform: translateX(-50%) scale(0.99); }
   .cart-fab-left { color: var(--text); min-width: 0; }
@@ -1478,7 +1478,7 @@
     transform: translateX(-50%);
     width: 100%;
     max-width: 430px;
-    padding: 16px 20px 24px;
+    padding: 16px 20px calc(24px + env(safe-area-inset-bottom));
     background: linear-gradient(to top, var(--bg) 60%, transparent);
     z-index: 90;
   }
@@ -1673,6 +1673,13 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 32px;
     flex-shrink: 0;
+    overflow: hidden; /* trava a imagem dentro do 56x56 */
+  }
+  /* Dimensiona a imagem SEMPRE (não pode ficar só no @media hover do desktop,
+     senão no celular a imagem sai no tamanho natural e vaza pra tela toda). */
+  .cart-item .thumb img,
+  .cart-item .thumb .prod-img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
   }
   .cart-item .info { flex: 1; min-width: 0; }
   /* OSSO 25 — sabor hero + brand muted, lowercase */
@@ -12941,7 +12948,9 @@
   function updateCartFab() {
     const fab = document.getElementById('cart-fab'); if (!fab) return;
     const cur = (document.querySelector('.screen.active') || {}).id;
-    const onStore = ['home', 'catalog', 'detail'].includes(cur);
+    // NÃO mostra na tela de detalhe: lá o FAB cobria o botão "quero levar" e travava
+    // adicionar o 2º produto. Na detalhe o próprio botão de adicionar dá conta.
+    const onStore = ['home', 'catalog'].includes(cur);
     const n = cart.reduce((s, i) => s + i.qty, 0);
     if (!onStore || n <= 0) { fab.classList.remove('show'); return; }
     const sum = cart.reduce((s, i) => s + i.price * i.qty, 0);
