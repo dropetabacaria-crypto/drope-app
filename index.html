@@ -8541,7 +8541,7 @@
   // Mantém a essência DROPE (escamas/aurora continuam).
   // Override de tema/cor no modo preview (o painel manda por postMessage pra
   // pré-visualizar a aparência ao vivo, sem precisar salvar).
-  let _pvTheme = null, _pvAccent = null;
+  let _pvTheme = null, _pvAccent = null, _pvCover, _pvPhoto, _pvBio;
   function applyLojaTheme(loja) {
     loja = loja || {};
     let theme = loja.theme, accent = loja.accent;
@@ -8558,7 +8558,10 @@
         if (d.type === 'drope_preview_theme') {
           _pvTheme = d.theme || null;
           _pvAccent = d.accent || null;
-          try { applyLojaTheme(CLIENT_LOJA || {}); } catch (_) {}
+          if (d.cover !== undefined) _pvCover = d.cover;   // subcapa (data URL ou '' = removida)
+          if (d.photo !== undefined) _pvPhoto = d.photo;   // logo
+          if (d.bio !== undefined) _pvBio = d.bio;         // descrição
+          try { renderLojaBar(); } catch (_) { try { applyLojaTheme(CLIENT_LOJA || {}); } catch (e) {} }
         }
       });
     } catch (e) {}
@@ -8568,6 +8571,12 @@
     if (!el) return;
     el.style.opacity = ''; el.style.transform = ''; // reseta o efeito de scroll ao (re)entrar
     const loja = CLIENT_LOJA || {};
+    // Prévia ao vivo (painel do lojista): subcapa/foto/descrição sem precisar salvar.
+    if (PREVIEW_MODE) {
+      if (typeof _pvCover !== 'undefined') loja.cover_url = _pvCover || null;
+      if (_pvPhoto) loja.photo_url = _pvPhoto;
+      if (typeof _pvBio !== 'undefined') loja.bio = _pvBio || null;
+    }
     applyLojaTheme(loja);
     const nm = loja.name || CLIENT_FILIAL_NAME || (CLIENT_FILIAL === 'santos' ? 'Santos' : (CLIENT_FILIAL === 'sp' ? 'São Paulo' : CLIENT_FILIAL));
     const bio = loja.bio;

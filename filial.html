@@ -2622,7 +2622,11 @@ let _pageTheme = 'dark';
 let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
 let _currentLojaPhoto = null;
-function _bioCount() { const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80'; }
+let _pvBioTimer = null;
+function _bioCount() {
+  const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80';
+  clearTimeout(_pvBioTimer); _pvBioTimer = setTimeout(() => { try { _pvPostTheme(); } catch (e) {} }, 350); // prévia ao vivo (debounce)
+}
 function _segs() { return [...document.querySelectorAll('#seg-row .seg-btn.active')].map(b => b.dataset.seg); }
 function toggleSeg(el) { el.classList.toggle('active'); if (_segs().length === 0) el.classList.add('active'); }
 function renderSegs(segs) { segs = (Array.isArray(segs) && segs.length) ? segs : ['tabacaria']; document.querySelectorAll('#seg-row .seg-btn').forEach(b => b.classList.toggle('active', segs.includes(b.dataset.seg))); }
@@ -3039,7 +3043,7 @@ function renderLojaPreview() {
         <iframe id="loja-preview-frame" title="Prévia da loja" src="/?loja=${encodeURIComponent(slug)}&preview=1" style="width:100%;height:100%;border:0;display:block" onload="_pvPostTheme()"></iframe>
       </div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-top:10px">É a sua página real ✦ tema e cor mudam aqui na hora · foto e descrição aparecem depois de salvar</div>`;
+    <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-top:10px">É a sua página real ✦ tema, cor, subcapa, logo e descrição mudam aqui na hora</div>`;
   }
   _pvPostTheme();
 }
@@ -3047,9 +3051,15 @@ function _pvPostTheme() {
   const frame = document.getElementById('loja-preview-frame');
   if (!frame || !frame.contentWindow) return;
   const accent = (_pageAccent && /^#[0-9a-fA-F]{6}$/.test(_pageAccent)) ? _pageAccent : '';
-  try { frame.contentWindow.postMessage({ type: 'drope_preview_theme', theme: _pageTheme, accent }, '*'); } catch (e) {}
-  // reforço (caso a página ainda esteja carregando no 1º load)
-  setTimeout(() => { try { frame.contentWindow.postMessage({ type: 'drope_preview_theme', theme: _pageTheme, accent }, '*'); } catch (e) {} }, 800);
+  // Campos editados ao vivo (aparecem na prévia sem precisar salvar).
+  const bio = (document.getElementById('loja-bio') || {}).value;
+  const msg = { type: 'drope_preview_theme', theme: _pageTheme, accent, bio: (bio != null ? bio : undefined) };
+  if (_lojaCoverB64) msg.cover = _lojaCoverB64;          // subcapa nova (posicionada)
+  else if (_removeCover) msg.cover = '';                 // removeu a subcapa
+  if (_lojaPhotoB64) msg.photo = _lojaPhotoB64;          // logo novo
+  const send = () => { try { frame.contentWindow.postMessage(msg, '*'); } catch (e) {} };
+  send();
+  setTimeout(send, 800); // reforço no 1º load
 }
 function _fmtLojaCep(el) { let d = el.value.replace(/\D/g, '').slice(0, 8); el.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d; }
 async function _lookupLojaCep() {
