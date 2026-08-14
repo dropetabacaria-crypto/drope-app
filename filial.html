@@ -3039,12 +3039,16 @@ function renderLojaPreview() {
   const slug = FILIAL_SLUG;
   if (!slug) { el.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--fg-dim)">A prévia aparece depois que a loja é cadastrada.</div>'; return; }
   if (!document.getElementById('loja-preview-frame')) {
+    // FIEL AO APP REAL: renderiza o iframe numa largura de CELULAR real (390px) e
+    // escala tudo junto pra caber no mock — assim as proporções batem 100% com o app.
+    const DW = 390, DH = 780, SCALE = 0.7;               // viewport real de celular
+    const VW = Math.round(DW * SCALE), VH = Math.round(DH * SCALE);
     el.innerHTML = `<div style="background:#0A0A14;padding:16px 14px;display:flex;justify-content:center">
-      <div style="width:100%;max-width:290px;aspect-ratio:9/17;border-radius:26px;overflow:hidden;border:7px solid #000;box-shadow:0 10px 34px rgba(0,0,0,.55);background:#0A0A14">
-        <iframe id="loja-preview-frame" title="Prévia da loja" src="/?loja=${encodeURIComponent(slug)}&preview=1" style="width:100%;height:100%;border:0;display:block" onload="_pvPostTheme()"></iframe>
+      <div style="width:${VW}px;height:${VH}px;border-radius:26px;overflow:hidden;border:7px solid #000;box-shadow:0 10px 34px rgba(0,0,0,.55);background:#0A0A14;position:relative">
+        <iframe id="loja-preview-frame" title="Prévia da loja" src="/?loja=${encodeURIComponent(slug)}&preview=1" style="width:${DW}px;height:${DH}px;border:0;display:block;transform:scale(${SCALE});transform-origin:top left" onload="_pvPostTheme()"></iframe>
       </div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-top:10px">É a sua página real ✦ tema, cor, subcapa, logo e descrição mudam aqui na hora</div>`;
+    <div style="text-align:center;font-size:11px;color:var(--fg-dim);margin-top:10px">É a sua página real (proporção de celular) ✦ tema, cor, subcapa, logo e descrição mudam aqui na hora</div>`;
   }
   _pvPostTheme();
 }
