@@ -17721,9 +17721,14 @@ async function handleMPProcessCard(req, res) {
         unit_price: Number(it.price) || (Math.round(total_cents) / 100),
       })),
     };
-    if (payer && payer.name) {
-      const _p = String(payer.name).trim().split(/\s+/);
-      payload.additional_info.payer = { first_name: _p[0] || undefined, last_name: _p.slice(1).join(' ') || undefined };
+    // Nome do titular → completa payer.first_name/last_name (dado que estava chegando nulo).
+    const holderName = String((body.cardholder_name || (payer && payer.name) || '')).trim();
+    if (holderName) {
+      const _p = holderName.split(/\s+/);
+      const first = _p[0] || undefined, last = _p.slice(1).join(' ') || undefined;
+      payload.payer.first_name = first;
+      payload.payer.last_name = last;
+      payload.additional_info.payer = { first_name: first, last_name: last };
     }
     // Associa ao Customer → aprovado, o MP guarda o cartão no cofre (pra próxima compra).
     if (customerId) { payload.payer.type = 'customer'; payload.payer.id = customerId; }

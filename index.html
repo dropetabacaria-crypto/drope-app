@@ -11727,6 +11727,7 @@
           filial_slug: _cardCtx.slug, order_id: _cardCtx.orderNsu, total_cents: _cardCtx.chargeCents,
           token: tok.id, payment_method_id: pmId, installments: 1,
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+          cardholder_name: profile.name || '',
           device_id: _deviceId(),
           payer_customer_id: _savedCustomerId, customer_email: _customerVaultEmail(),
         }),
@@ -11838,6 +11839,7 @@
             installments: formData.installments,
             payer: formData.payer,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            cardholder_name: (formData.payer && formData.payer.name) || profile.name || '',
             device_id: _deviceId(), // fingerprint MP → melhora aprovação
             // salvar cartão pra próxima (cofre do MP) — só se o cliente marcar
             save_card: !!(document.getElementById('save-card-chk') && document.getElementById('save-card-chk').checked),
