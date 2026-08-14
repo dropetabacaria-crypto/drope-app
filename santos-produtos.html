@@ -127,7 +127,7 @@
   <div class="hdr-row">
     <button class="icon-btn" id="btn-back" style="display:none" onclick="goHome()">←</button>
     <div style="flex:1">
-      <h1 id="hdr-title">🦎 Drope Santos</h1>
+      <h1 id="hdr-title"><img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto"> Drope Santos</h1>
       <div class="sub" id="hdr-sub">28 produtos · revisão</div>
     </div>
     <button class="icon-btn" onclick="load()" title="recarregar">↻</button>
@@ -136,9 +136,9 @@
 
 <!-- ===== HOME — 4 buckets ===== -->
 <div id="view-home" class="home" style="display:none">
-  <button class="btn warn" id="btn-remap" onclick="actRemapAll()" style="margin-bottom:6px">🤖 Reorganizar fotos com Vision (1x)</button>
+  <button class="btn warn" id="btn-remap" onclick="actRemapAll()" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h0M15 13h0"/><path d="M4 12H2.5M21.5 12H20"/></svg> Reorganizar fotos com Vision (1x)</button>
   <div class="bucket urgent" id="bk-publish" onclick="enterWizard('publish')">
-    <div class="emoji">🎨</div>
+    <div class="emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5 1-2 2.2-2H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg></div>
     <div class="info">
       <div class="title">Aprovar arte gerada</div>
       <div class="desc">Grok já fez · só clicar publicar ou refazer</div>
@@ -146,7 +146,7 @@
     <div class="count" id="ct-publish">0</div>
   </div>
   <div class="bucket warn" id="bk-pick" onclick="enterWizard('pick')">
-    <div class="emoji">👀</div>
+    <div class="emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg></div>
     <div class="info">
       <div class="title">Escolher referência</div>
       <div class="desc">Tem candidatos · só clicar no que parece</div>
@@ -162,7 +162,7 @@
     <div class="count" id="ct-gen">0</div>
   </div>
   <div class="bucket danger" id="bk-search" onclick="enterWizard('search')">
-    <div class="emoji">🔍</div>
+    <div class="emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg></div>
     <div class="info">
       <div class="title">Buscar candidatos</div>
       <div class="desc">Sem candidatos ainda · Serper precisa rodar</div>
@@ -194,7 +194,7 @@
 <!-- Modal token -->
 <div class="modal-bg" id="modal-token">
   <div class="modal">
-    <h2>🔑 Token admin</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="8" cy="8" r="4.5"/><path d="m11.2 11.2 8 8M16.5 16.5l2-2M18.7 18.7 20.2 17.2"/></svg> Token admin</h2>
     <p>Cola o ADMIN_TOKEN do Drope (começa com <code>drope_...</code>). Fica salvo no celular.</p>
     <input id="inp-token" type="password" placeholder="drope_..." autocomplete="off" autocapitalize="off" spellcheck="false" />
     <div class="btn-row" style="margin-top:14px">
@@ -211,7 +211,7 @@
     <p>Clica na foto certa da caixa pra usar como referência visual.</p>
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <button class="btn ghost" style="flex:1;font-size:12px;padding:10px;min-height:auto" id="tab-prod" onclick="setPhotosTab('product')">Do produto</button>
-      <button class="btn ghost" style="flex:1;font-size:12px;padding:10px;min-height:auto" id="tab-all" onclick="setPhotosTab('all')">🔍 Todas as 62</button>
+      <button class="btn ghost" style="flex:1;font-size:12px;padding:10px;min-height:auto" id="tab-all" onclick="setPhotosTab('all')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> Todas as 62</button>
     </div>
     <div class="photos-grid" id="photos-grid"></div>
     <div style="margin-top:14px">
@@ -277,7 +277,7 @@ async function load(){
     renderHome();
     if(VIEW === 'wizard') renderWizard();
   }catch(e){
-    document.getElementById('view-home').innerHTML = '<div class="empty"><div class="big">⚠️</div><div class="ttl">Erro carregando</div><div class="desc">'+e.message+'</div></div>';
+    document.getElementById('view-home').innerHTML = '<div class="empty"><div class="big"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg></div><div class="ttl">Erro carregando</div><div class="desc">'+e.message+'</div></div>';
   }
 }
 
@@ -292,7 +292,7 @@ function renderHome(){
   // hide/show urgent class baseado em ter ou não
   document.getElementById('bk-publish').classList.toggle('urgent', b.publish.length > 0);
   document.getElementById('hdr-sub').textContent = `${ALL.length} produtos · ${b.done.length} publicadas`;
-  document.getElementById('hdr-title').textContent = '🦎 Drope Santos';
+  document.getElementById('hdr-title').innerHTML = '<img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto"> Drope Santos';
 }
 
 function goHome(){
@@ -309,7 +309,7 @@ function enterWizard(mode){
   const b = buckets();
   QUEUE = b[mode];
   if(QUEUE.length === 0){
-    toast('nada nesse bucket 👍');
+    toast('nada nesse bucket <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M7 11v9H4v-9h3Z"/><path d="M7 11l4-8a2 2 0 0 1 2 2v4h5.5a1.8 1.8 0 0 1 1.8 2.2l-1.3 6A2 2 0 0 1 17 20H7"/></svg>');
     return;
   }
   IDX = 0;
@@ -317,7 +317,7 @@ function enterWizard(mode){
   document.getElementById('view-home').style.display = 'none';
   document.getElementById('view-wiz').style.display = 'block';
   document.getElementById('btn-back').style.display = 'flex';
-  const titles = { publish:'🎨 Aprovar arte', pick:'👀 Escolher ref', gen:'⏳ Gerar arte', search:'🔍 Buscar refs', done:'✓ Publicadas' };
+  const titles = { publish:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5 1-2 2.2-2H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg> Aprovar arte', pick:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg> Escolher ref', gen:'⏳ Gerar arte', search:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> Buscar refs', done:'✓ Publicadas' };
   document.getElementById('hdr-title').textContent = titles[mode];
   renderWizard();
 }
@@ -340,7 +340,7 @@ function autoAdvance(){
   if(!p || stateOf(p) !== MODE){
     QUEUE = QUEUE.filter(q => stateOf(ALL.find(x=>x.id===q.id) || q) === MODE);
     if(QUEUE.length === 0){
-      toast('🎉 acabou! todos esse bucket prontos');
+      toast('<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 20 8 8l8 8-13 4Z"/><path d="M9 9c1-2 .5-4-1-5M13 6c2-1 4 0 5 2M15 3v0M20 8v0M20.5 13v0"/></svg> acabou! todos esse bucket prontos');
       setTimeout(goHome, 1200);
       return;
     }
@@ -361,7 +361,7 @@ function renderWizard(){
   const boxImg = p.box_lh_thumb || p.box_drive_thumb;
   const boxLink = p.box_drive_view;
   const nPhotos = (p.drive_photos||[]).length;
-  const switchBtn = nPhotos > 1 ? `<button class="icon-btn" style="position:absolute;bottom:8px;right:8px;width:32px;height:32px;font-size:13px;background:rgba(0,0,0,0.8)" onclick="event.stopPropagation();openPhotosModal()">📸</button>` : '';
+  const switchBtn = nPhotos > 1 ? `<button class="icon-btn" style="position:absolute;bottom:8px;right:8px;width:32px;height:32px;font-size:13px;background:rgba(0,0,0,0.8)" onclick="event.stopPropagation();openPhotosModal()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg></button>` : '';
 
   const boxCell = boxImg
     ? `<div class="wiz-cell" onclick="window.open('${boxLink}','_blank')"><span class="tag">FOTO CAIXA</span><img src="${boxImg}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=placeholder>abrir Drive ↗</div>'"/>${switchBtn}</div>`
@@ -377,16 +377,16 @@ function renderWizard(){
     rightCell = `<div class="wiz-cell done" style="grid-column:span 2;min-height:380px"><span class="tag">✓ NO APP</span><img src="${p.image_url}" loading="lazy"/></div>`;
     stateBanner = `<div class="wiz-state s-done">✓ PUBLICADA NO APP</div>`;
     actionsHtml = `
-      <button class="btn ghost" onclick="actRejectArt(${p.id})">🔄 Refazer arte</button>
+      <button class="btn ghost" onclick="actRejectArt(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M20 11a8 8 0 0 0-14-4.5L3.5 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20.5 15"/><path d="M20 19v-4h-4"/></svg> Refazer arte</button>
     `;
   } else if(state === 'publish'){
     hideBox = true;
-    rightCell = `<div class="wiz-cell art" style="grid-column:span 2;min-height:420px"><span class="tag">🎨 GERADA · QC ${p.qc_score||'?'}</span><img src="${p.pending_art_url}" loading="lazy"/></div>`;
-    stateBanner = `<div class="wiz-state s-publish">🎨 ARTE PRONTA — APROVA?</div>`;
+    rightCell = `<div class="wiz-cell art" style="grid-column:span 2;min-height:420px"><span class="tag"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5 1-2 2.2-2H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg> GERADA · QC ${p.qc_score||'?'}</span><img src="${p.pending_art_url}" loading="lazy"/></div>`;
+    stateBanner = `<div class="wiz-state s-publish"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5 1-2 2.2-2H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg> ARTE PRONTA — APROVA?</div>`;
     actionsHtml = `
-      <button class="btn publish" onclick="actPublishArt(${p.id})">✅ Publicar no app</button>
+      <button class="btn publish" onclick="actPublishArt(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> Publicar no app</button>
       <div class="btn-row">
-        <button class="btn ghost" onclick="actRejectArt(${p.id})">🔄 Gerar outra</button>
+        <button class="btn ghost" onclick="actRejectArt(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M20 11a8 8 0 0 0-14-4.5L3.5 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20.5 15"/><path d="M20 19v-4h-4"/></svg> Gerar outra</button>
         <button class="btn ghost" onclick="navProd(1)">⏭ Pular</button>
       </div>
     `;
@@ -398,7 +398,7 @@ function renderWizard(){
     if(cands.length > 0){
       candsHtml = `
         <div class="cands">
-          <div class="lbl">⚠️ ref errada? clica em outra abaixo (${cands.length} opções)</div>
+          <div class="lbl"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> ref errada? clica em outra abaixo (${cands.length} opções)</div>
           <div class="cand-grid">
             ${cands.slice(0,12).map(c => {
               const u = c.url || c.image_url || c;
@@ -410,16 +410,16 @@ function renderWizard(){
       `;
     }
     actionsHtml = `
-      <button class="btn warn" onclick="actGenerateOne(${p.id})">🎨 Gerar arte com essa ref <span style="opacity:0.6">(40-60s)</span></button>
+      <button class="btn warn" onclick="actGenerateOne(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.5 1-2 2.2-2H18a3 3 0 0 0 3-3c0-5-4-9-9-9Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg> Gerar arte com essa ref <span style="opacity:0.6">(40-60s)</span></button>
       <div class="btn-row">
-        <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar outras refs</button>
-        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa</button>` : ''}
+        <button class="btn ghost" onclick="actSearch(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M20 11a8 8 0 0 0-14-4.5L3.5 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20.5 15"/><path d="M20 19v-4h-4"/></svg> Buscar outras refs</button>
+        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> Usar caixa</button>` : ''}
       </div>
       <button class="btn ghost" onclick="navProd(1)">⏭ Pular</button>
     `;
   } else if(state === 'pick'){
     rightCell = `<div class="wiz-cell"><span class="tag">REFERÊNCIA</span><div class="placeholder">escolhe<br>abaixo ↓</div></div>`;
-    stateBanner = `<div class="wiz-state s-pick">👀 ESCOLHE A REFERÊNCIA</div>`;
+    stateBanner = `<div class="wiz-state s-pick"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg> ESCOLHE A REFERÊNCIA</div>`;
     const cands = p.reference_candidates || [];
     candsHtml = `
       <div class="cands">
@@ -435,16 +435,16 @@ function renderWizard(){
     `;
     actionsHtml = `
       <div class="btn-row">
-        <button class="btn ghost" onclick="actSearch(${p.id})">🔄 Buscar de novo</button>
-        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})">📦 Usar caixa</button>` : ''}
+        <button class="btn ghost" onclick="actSearch(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M20 11a8 8 0 0 0-14-4.5L3.5 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20.5 15"/><path d="M20 19v-4h-4"/></svg> Buscar de novo</button>
+        ${boxImg ? `<button class="btn ghost" onclick="actBoxAsRef(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> Usar caixa</button>` : ''}
       </div>
       <button class="btn ghost" onclick="navProd(1)">⏭ Pular</button>
     `;
   } else { // search
     rightCell = `<div class="wiz-cell"><span class="tag">REFERÊNCIA</span><div class="placeholder">sem candidatos<br>aperta buscar</div></div>`;
-    stateBanner = `<div class="wiz-state s-search">🔍 SEM CANDIDATOS</div>`;
+    stateBanner = `<div class="wiz-state s-search"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> SEM CANDIDATOS</div>`;
     actionsHtml = `
-      <button class="btn primary" onclick="actSearch(${p.id})">🚀 Buscar candidatos</button>
+      <button class="btn primary" onclick="actSearch(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M5 15c-1 1-1.5 4-1.5 4s3-.5 4-1.5"/><path d="M9 15l-3-3c1-5 5-9 11-9 0 6-4 10-9 11l-3-3 4-2Z"/><circle cx="14.5" cy="9.5" r="1.3"/></svg> Buscar candidatos</button>
       <button class="btn ghost" onclick="navProd(1)">⏭ Pular</button>
     `;
   }
@@ -539,7 +539,7 @@ async function actGenerateOne(productId){
 
 async function actPublishArt(productId){
   const j = await apiPost('santos_publish_art', { id: productId, action: 'publish' });
-  if(j){ toast('🎉 publicada no app'); await load(); autoAdvance(); }
+  if(j){ toast('<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 20 8 8l8 8-13 4Z"/><path d="M9 9c1-2 .5-4-1-5M13 6c2-1 4 0 5 2M15 3v0M20 8v0M20.5 13v0"/></svg> publicada no app'); await load(); autoAdvance(); }
 }
 
 async function actRejectArt(productId){
@@ -558,7 +558,7 @@ async function actRemapAll(){
   try{
     // Loop até processar todas as fotos
     while(offset < total){
-      btn.textContent = `🤖 Analisando ${offset}/${total}…`;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h0M15 13h0"/><path d="M4 12H2.5M21.5 12H20"/></svg> Analisando ${offset}/${total}…`;
       const r = await fetch('/api/webhook?action=santos_vision_remap', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-admin-token': TOKEN },
@@ -571,7 +571,7 @@ async function actRemapAll(){
       if(j.done) break;
     }
     // Aplica o remap
-    btn.textContent = '🤖 Aplicando remapeamento…';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h0M15 13h0"/><path d="M4 12H2.5M21.5 12H20"/></svg> Aplicando remapeamento…';
     const r2 = await fetch('/api/webhook?action=santos_apply_remap', {
       method:'POST',
       headers:{ 'x-admin-token': TOKEN }
@@ -584,7 +584,7 @@ async function actRemapAll(){
     toast('erro: '+e.message, true);
   }
   btn.disabled = false;
-  btn.textContent = '🤖 Reorganizar fotos com Vision (1x)';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h0M15 13h0"/><path d="M4 12H2.5M21.5 12H20"/></svg> Reorganizar fotos com Vision (1x)';
 }
 
 // ===== Photos modal =====

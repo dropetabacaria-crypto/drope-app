@@ -138,7 +138,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- Auth -->
 <div class="auth-overlay" id="auth-overlay">
   <div class="auth-box">
-    <h1>🦎 Drope ✦ Dashboard</h1>
+    <h1><img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto"> Drope ✦ Dashboard</h1>
     <p>cola teu token de admin pra começar</p>
     <input type="password" id="token-input" placeholder="admin token" autofocus>
     <button onclick="saveToken()">entrar</button>
@@ -148,16 +148,16 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 
 <!-- Tabs -->
 <div class="tabs" id="tabs-bar" style="display:none">
-  <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
-  <button class="tab" onclick="showTab('operacao')">🛵 Operação <span class="notif-dot" id="operacao-dot" style="display:none"></span></button>
-  <button class="tab" onclick="showTab('orders')">🛒 Pedidos <span class="notif-dot" id="orders-dot" style="display:none"></span></button>
-  <button class="tab" onclick="showTab('stock')">📦 Estoque</button>
-  <button class="tab" onclick="showTab('ambassador')">🤝 Embaixadoras</button>
-  <button class="tab" onclick="showTab('sim')">🧪 Simular Cliente</button>
+  <button class="tab active" onclick="showTab('overview')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="10" width="3" height="7"/></svg> Overview</button>
+  <button class="tab" onclick="showTab('operacao')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Operação <span class="notif-dot" id="operacao-dot" style="display:none"></span></button>
+  <button class="tab" onclick="showTab('orders')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg> Pedidos <span class="notif-dot" id="orders-dot" style="display:none"></span></button>
+  <button class="tab" onclick="showTab('stock')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> Estoque</button>
+  <button class="tab" onclick="showTab('ambassador')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="m11 16.5-2.6-2.6a1.5 1.5 0 0 1 0-2.1l3.5-3.5a2 2 0 0 1 1.4-.6H16"/><path d="m13 18.5-1.6-1.6M17 14.5l-2.4-2.4"/><path d="M3 8.5 7 7l3.2 3.2M21 8.5 17 7"/><path d="M3 8.5v4.5l3 2M21 8.5v4.5l-3 2"/></svg> Embaixadoras</button>
+  <button class="tab" onclick="showTab('sim')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 15h9"/></svg> Simular Cliente</button>
   <div class="tab-spacer"></div>
   <div class="tab-status">
-    <button class="btn-mini" id="silence-btn" onclick="silenceAll()" style="display:none;background:var(--red);color:#fff;border-color:var(--red);font-weight:600">🔕 silenciar <span id="silence-count">0</span></button>
-    <button class="btn-mini" id="sound-test-btn" onclick="testSound()" title="testar o sininho">🔔 testar som</button>
+    <button class="btn-mini" id="silence-btn" onclick="silenceAll()" style="display:none;background:var(--red);color:#fff;border-color:var(--red);font-weight:600"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M8.5 5.2A6 6 0 0 1 18 9c0 3 .8 4.6 1.5 5.5M6.2 8A6 6 0 0 0 6 9c0 5-2 6-2 6h13"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/><path d="M3 3l18 18"/></svg> silenciar <span id="silence-count">0</span></button>
+    <button class="btn-mini" id="sound-test-btn" onclick="testSound()" title="testar o sininho"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg> testar som</button>
     <span class="dot" id="status-dot"></span>
     <span id="status-text">atualizando…</span>
     <button class="btn-mini" onclick="logout()" style="margin-left:8px">sair</button>
@@ -170,10 +170,10 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- GATE FULL-SCREEN — impossível de ignorar. Só fecha clicando -->
 <div class="audio-gate" id="audio-gate">
   <div class="audio-gate-card">
-    <span class="gate-icon">🔔</span>
+    <span class="gate-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg></span>
     <h1>Ativar som dos pedidos</h1>
     <p>O Safari bloqueia som por padrão. Toca no botão pra ativar o sininho que vai tocar quando rolar venda nova.</p>
-    <button onclick="unlockAudio()">🔊 ativar sininho</button>
+    <button onclick="unlockAudio()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 9v6h3l5 4V5L7 9H4Z"/><path d="M16 8.5a4 4 0 0 1 0 7M18.5 6a7 7 0 0 1 0 12"/></svg> ativar sininho</button>
   </div>
 </div>
 
@@ -208,12 +208,12 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
   </div>
 
   <div class="section">
-    <h2>📈 últimos 7 dias</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 17l6-6 4 4 7-8"/><path d="M17 7h4v4"/></svg> últimos 7 dias</h2>
     <div id="week-chart"></div>
   </div>
 
   <div class="section">
-    <h2>🛒 pedidos de hoje <span class="count" id="today-count">0</span></h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg> pedidos de hoje <span class="count" id="today-count">0</span></h2>
     <div id="today-orders"></div>
   </div>
 </section>
@@ -222,7 +222,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <section class="screen" id="screen-operacao">
   <div class="op-info">
     <span class="pulse"></span>
-    <span>🛵 painel iFood ✦ som ao detectar venda nova ✦ botões pra avançar status</span>
+    <span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> painel iFood ✦ som ao detectar venda nova ✦ botões pra avançar status</span>
     <span style="margin-left:auto"><button class="btn-mini" onclick="reloadOp()">↻ recarregar</button></span>
   </div>
   <div class="op-frame-wrap">
@@ -233,7 +233,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- Orders tab (full list) -->
 <section class="screen" id="screen-orders">
   <div class="section">
-    <h2>🛒 todos os pedidos de hoje</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg> todos os pedidos de hoje</h2>
     <div id="orders-full"></div>
   </div>
 </section>
@@ -241,11 +241,11 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- Stock -->
 <section class="screen" id="screen-stock">
   <div class="section">
-    <h2>⚠️ estoque crítico (≤ 2 unidades)</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> estoque crítico (≤ 2 unidades)</h2>
     <div id="low-stock-list"></div>
   </div>
   <div class="section">
-    <h2>📋 pendências de cadastro</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M9 11h6M9 15h4"/></svg> pendências de cadastro</h2>
     <p style="font-size:12px;color:var(--fg-dim);margin-bottom:10px">pods que a equipe vendeu mas ainda não foram cadastrados</p>
     <div id="pending-list"></div>
   </div>
@@ -254,7 +254,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <!-- Ambassador -->
 <section class="screen" id="screen-ambassador">
   <div class="section">
-    <h2>🤝 embaixadoras ✦ 10% por venda vitalício</h2>
+    <h2><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="m11 16.5-2.6-2.6a1.5 1.5 0 0 1 0-2.1l3.5-3.5a2 2 0 0 1 1.4-.6H16"/><path d="m13 18.5-1.6-1.6M17 14.5l-2.4-2.4"/><path d="M3 8.5 7 7l3.2 3.2M21 8.5 17 7"/><path d="M3 8.5v4.5l3 2M21 8.5v4.5l-3 2"/></svg> embaixadoras ✦ 10% por venda vitalício</h2>
     <div id="ambassadors-list" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px"></div>
   </div>
 </section>
@@ -263,7 +263,7 @@ body { background: var(--bg); color: var(--fg); font-family: -apple-system, Blin
 <section class="screen" id="screen-sim">
   <div class="sim-wrapper">
     <div class="sim-info">
-      🧪 modo simulação ✦ esse iframe abre o app como se você fosse cliente. testa fluxos, cupons, checkout. Cupom <code>TESTE100OFF</code> zera o total e pula InfinitePay.
+      <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 15h9"/></svg> modo simulação ✦ esse iframe abre o app como se você fosse cliente. testa fluxos, cupons, checkout. Cupom <code>TESTE100OFF</code> zera o total e pula InfinitePay.
     </div>
     <div class="sim-frame-wrap">
       <div class="sim-controls">
@@ -457,7 +457,7 @@ function renderAll(data) {
 }
 
 function renderOrdersList(orders) {
-  if (!orders || orders.length === 0) return '<div class="empty-state">nenhum pedido ainda hoje 📭</div>';
+  if (!orders || orders.length === 0) return '<div class="empty-state">nenhum pedido ainda hoje <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M4 13 6 5h12l2 8v5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18Z"/></svg></div>';
   let html = `
     <div class="row row-orders header">
       <div>pedido</div>
@@ -470,7 +470,7 @@ function renderOrdersList(orders) {
   for (const o of orders) {
     const cust = o.customer_snapshot || {};
     const nome = cust.name || cust.nome || '—';
-    let addr = o.delivery_type === 'pickup' ? '🏪 retirada' : (o.delivery_address ? `🛵 ${o.delivery_address.slice(0, 30)}${(o.delivery_address.length > 30) ? '…' : ''}` : '—');
+    let addr = o.delivery_type === 'pickup' ? '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4.5 9.5h15L18 5H6L4.5 9.5Z"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-4.5h5V20"/></svg> retirada' : (o.delivery_address ? `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> ${o.delivery_address.slice(0, 30)}${(o.delivery_address.length > 30) ? '…' : ''}` : '—');
     html += `
       <div class="row row-orders">
         <div><code style="font-size:11px;color:var(--lime)">#${o.order_nsu || o.id}</code></div>
@@ -505,7 +505,7 @@ function renderWeekChart(week) {
 }
 
 function renderLowStock(items) {
-  if (items.length === 0) return '<div class="empty-state">tudo ok ✦ nenhum estoque crítico 🎉</div>';
+  if (items.length === 0) return '<div class="empty-state">tudo ok ✦ nenhum estoque crítico <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 20 8 8l8 8-13 4Z"/><path d="M9 9c1-2 .5-4-1-5M13 6c2-1 4 0 5 2M15 3v0M20 8v0M20.5 13v0"/></svg></div>';
   let html = `
     <div class="row row-stock header">
       <div>produto</div>
@@ -563,8 +563,8 @@ function renderAmbassadors(items) {
         <div style="font-size:11px;color:var(--fg-dim)">pendente ✦ ${a.sales_count_pending} venda${a.sales_count_pending === 1 ? '' : 's'}</div>
         <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">já pago: ${fmtBRL(a.paid_cents)}</div>
         <div class="amb-actions">
-          <button class="btn-mini" onclick="copyText('${a.share_url}')">📋 copiar link</button>
-          <button class="btn-mini" onclick="openWhats('${a.phone}', '${a.share_url}')">💬 mandar pra ela</button>
+          <button class="btn-mini" onclick="copyText('${a.share_url}')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M9 11h6M9 15h4"/></svg> copiar link</button>
+          <button class="btn-mini" onclick="openWhats('${a.phone}', '${a.share_url}')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 5h16v11H9l-4 3.5V5Z"/><path d="M8 9h8M8 12h5"/></svg> mandar pra ela</button>
         </div>
       </div>
     `;
@@ -576,7 +576,7 @@ function copyText(text) {
   navigator.clipboard.writeText(text).then(() => toast('copiado ✦'));
 }
 function openWhats(phone, url) {
-  const msg = encodeURIComponent(`fala ✦ teu link de embaixadora do Drope:\n\n${url}\n\nmanda pros teus contatos. cada venda que chegar pelo teu link = R$ acumula no teu saldo (vitalício 🦎)`);
+  const msg = encodeURIComponent(`fala ✦ teu link de embaixadora do Drope:\n\n${url}\n\nmanda pros teus contatos. cada venda que chegar pelo teu link = R$ acumula no teu saldo (vitalício <img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto">)`);
   window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
 }
 
@@ -614,7 +614,7 @@ function silenceAll() {
   alertingOrderIds.clear();
   stopBeepLoop();
   updateSilenceUI();
-  toast('🔕 alertas silenciados');
+  toast('<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M8.5 5.2A6 6 0 0 1 18 9c0 3 .8 4.6 1.5 5.5M6.2 8A6 6 0 0 0 6 9c0 5-2 6-2 6h13"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/><path d="M3 3l18 18"/></svg> alertas silenciados');
 }
 // Verifica se algum pedido alertando saiu de "paid" (foi aceito) → tira do set
 function reconcileAlerting(orders) {
@@ -757,7 +757,7 @@ function testSound() {
     setTimeout(() => {
       btn.style.background = '';
       btn.style.color = '';
-      btn.textContent = '🔔 testar som';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg> testar som';
     }, 1500);
   }
 }
@@ -788,7 +788,7 @@ function _doNotify(qtd, orders) {
   if ('Notification' in window && Notification.permission === 'granted') {
     const ultimo = orders[0];
     const nome = ultimo?.customer_snapshot?.name || 'novo cliente';
-    new Notification('🦎 Drope ✦ nova venda!', {
+    new Notification('<img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto"> Drope ✦ nova venda!', {
       body: `${nome} ✦ ${fmtBRL(ultimo?.amount_paid_cents)}`,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',

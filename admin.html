@@ -544,9 +544,9 @@
   </div>
 
   <div class="tabs" id="tabsBar">
-    <button class="tab active" data-tab="orders" onclick="switchTab('orders')">📦 pedidos</button>
-    <button class="tab" data-tab="stock" onclick="switchTab('stock')">📊 estoque</button>
-    <button class="tab" data-tab="tarefas" onclick="switchTab('tarefas')">✅ tarefas</button>
+    <button class="tab active" data-tab="orders" onclick="switchTab('orders')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> pedidos</button>
+    <button class="tab" data-tab="stock" onclick="switchTab('stock')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="10" width="3" height="7"/></svg> estoque</button>
+    <button class="tab" data-tab="tarefas" onclick="switchTab('tarefas')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> tarefas</button>
   </div>
 
   <!-- TAB: ORDERS -->
@@ -621,11 +621,11 @@
 
     <div class="filters" id="tasksFilters">
       <button class="filter-chip active" data-tfilter="ativas"   onclick="setTaskFilter('ativas')">ativas</button>
-      <button class="filter-chip"        data-tfilter="andrade"  onclick="setTaskFilter('andrade')">⚖️ minhas</button>
-      <button class="filter-chip"        data-tfilter="rafa"     onclick="setTaskFilter('rafa')">👤 rafa</button>
-      <button class="filter-chip"        data-tfilter="code"     onclick="setTaskFilter('code')">🤖 code</button>
+      <button class="filter-chip"        data-tfilter="andrade"  onclick="setTaskFilter('andrade')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4v16M7 20h10"/><path d="M12 6 5 8l-2.5 5a3 3 0 0 0 5 0L5 8"/><path d="M12 6l7 2 2.5 5a3 3 0 0 1-5 0L19 8"/></svg> minhas</button>
+      <button class="filter-chip"        data-tfilter="rafa"     onclick="setTaskFilter('rafa')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg> rafa</button>
+      <button class="filter-chip"        data-tfilter="code"     onclick="setTaskFilter('code')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M12 4v4M9 13h0M15 13h0"/><path d="M4 12H2.5M21.5 12H20"/></svg> code</button>
       <button class="filter-chip"        data-tfilter="done"     onclick="setTaskFilter('done')">aguard. martelo</button>
-      <button class="filter-chip"        data-tfilter="alta"     onclick="setTaskFilter('alta')">🔴 alta</button>
+      <button class="filter-chip"        data-tfilter="alta"     onclick="setTaskFilter('alta')"><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="6" fill="#ff4d4f"/></svg> alta</button>
       <button class="filter-chip"        data-tfilter="all"      onclick="setTaskFilter('all')">tudo</button>
     </div>
 
@@ -667,9 +667,9 @@
       <div class="field">
         <div class="field-label">prioridade</div>
         <select id="ntPriority">
-          <option value="alta">🔴 alta</option>
-          <option value="media" selected>🟡 média</option>
-          <option value="baixa">🟢 baixa</option>
+          <option value="alta"><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="6" fill="#ff4d4f"/></svg> alta</option>
+          <option value="media" selected><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="6" fill="#ffce3a"/></svg> média</option>
+          <option value="baixa"><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="6" fill="#2ecc71"/></svg> baixa</option>
         </select>
       </div>
     </div>
@@ -694,7 +694,7 @@
 <div id="toastContainer"></div>
 
 <script>
-// 🔒 token nunca commitado — só vive no localStorage do admin
+// <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg> token nunca commitado — só vive no localStorage do admin
 const STORAGE_KEY = 'drope_admin_token_v1';
 let adminToken = '';
 let currentTab = 'orders';
@@ -786,7 +786,7 @@ async function loadOrders() {
     document.getElementById('lastUpdate').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
   } catch(e) {
     console.error(e);
-    document.getElementById('lastUpdate').textContent = 'offline ⚠';
+    document.getElementById('lastUpdate').innerHTML = 'offline <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg>';
   }
 }
 
@@ -811,7 +811,7 @@ function renderOrders() {
   const list = filteredOrders();
   const wrap = document.getElementById('ordersList');
   if (list.length === 0) {
-    wrap.innerHTML = `<div class="empty"><div class="icon">📭</div><div>nenhum pedido nesse filtro</div></div>`;
+    wrap.innerHTML = `<div class="empty"><div class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M4 13 6 5h12l2 8v5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18Z"/></svg></div><div>nenhum pedido nesse filtro</div></div>`;
     return;
   }
   wrap.innerHTML = list.map(o => renderOrder(o)).join('');
@@ -821,7 +821,7 @@ function renderOrder(o) {
   const items = (o.items || []).map(i => `<div class="item">${escapeHtml(i.qty || 1)}× ${escapeHtml(i.name)} — r$ ${escapeHtml(((i.price || 0) * (i.qty || 1)))}</div>`).join('');
   const customer = o.customer_snapshot || {};
   const addr = o.address;
-  let where = o.delivery_mode === 'pickup' ? '🏪 retirada' : '🛵 entrega';
+  let where = o.delivery_mode === 'pickup' ? '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4.5 9.5h15L18 5H6L4.5 9.5Z"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-4.5h5V20"/></svg> retirada' : '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> entrega';
   if (addr) where += ` — ${escapeHtml(addr.street || '')}, ${escapeHtml(addr.num || '')}${addr.comp ? ' · ' + escapeHtml(addr.comp) : ''}`;
   if (addr?.neigh) where += ` · ${escapeHtml(addr.neigh)}`;
 
@@ -926,11 +926,11 @@ function renderStock() {
   if (countEl) countEl.textContent = filtered.length === lastProducts.length ? ` produtos` : ` de `;
 
   if (lastProducts.length === 0) {
-    wrap.innerHTML = `<div class="empty"><div class="icon">📦</div><div>sem produtos cadastrados<br><small>roda a migration osso8 no Supabase</small></div></div>`;
+    wrap.innerHTML = `<div class="empty"><div class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></div><div>sem produtos cadastrados<br><small>roda a migration osso8 no Supabase</small></div></div>`;
     return;
   }
   if (filtered.length === 0) {
-    wrap.innerHTML = `<div class="empty"><div class="icon">🔍</div><div>nada encontrado pra esse filtro</div></div>`;
+    wrap.innerHTML = `<div class="empty"><div class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg></div><div>nada encontrado pra esse filtro</div></div>`;
     return;
   }
   wrap.innerHTML = filtered.map(p => {
@@ -951,8 +951,8 @@ function renderStock() {
         </div>
         <button class="btn-action advance" onclick="saveStock('${escapeHtml(p.slug)}')">salvar</button>
         <button class="btn-action cancel" onclick="toggleHidden('${escapeHtml(p.slug)}', ${!p.hidden})">${p.hidden ? 'mostrar' : 'esconder'}</button>
-        <button class="btn-action" style="background:#3a1a5a;color:#c4b5fd;border:1px solid #4a2a6a;" onclick="regenerateArt('${escapeHtml(p.slug)}', this)">🔄 arte</button>
-        ${p.hidden ? '<span class="btn-action" style="opacity:0.4;cursor:not-allowed;" title="publica primeiro pra ver no app">🔗 app</span>' : `<button class="btn-action" style="background:#1a3a5a;color:#7dd3fc;border:1px solid #2a4a6a;" onclick="window.open('/#produto/' + encodeURIComponent('${escapeHtml(p.slug)}'), '_blank')">🔗 app</button>`}
+        <button class="btn-action" style="background:#3a1a5a;color:#c4b5fd;border:1px solid #4a2a6a;" onclick="regenerateArt('${escapeHtml(p.slug)}', this)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M20 11a8 8 0 0 0-14-4.5L3.5 9"/><path d="M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4.5L20.5 15"/><path d="M20 19v-4h-4"/></svg> arte</button>
+        ${p.hidden ? '<span class="btn-action" style="opacity:0.4;cursor:not-allowed;" title="publica primeiro pra ver no app"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9 15a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M15 9a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> app</span>' : `<button class="btn-action" style="background:#1a3a5a;color:#7dd3fc;border:1px solid #2a4a6a;" onclick="window.open('/#produto/' + encodeURIComponent('${escapeHtml(p.slug)}'), '_blank')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9 15a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M15 9a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg> app</button>`}
       </div>
     `;
   }).join('');
@@ -1110,7 +1110,7 @@ function renderTasks() {
   const list = filteredTasks();
   const wrap = document.getElementById('tasksList');
   if (list.length === 0) {
-    wrap.innerHTML = `<div class="empty"><div class="icon">✨</div><div>nenhuma tarefa nesse filtro</div></div>`;
+    wrap.innerHTML = `<div class="empty"><div class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg></div><div>nenhuma tarefa nesse filtro</div></div>`;
     return;
   }
   wrap.innerHTML = list.map(t => renderTaskCard(t)).join('');

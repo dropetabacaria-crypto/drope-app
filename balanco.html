@@ -99,25 +99,25 @@ main { padding: 12px 16px 100px; }
 
 <header>
   <button class="btn-back" onclick="goHome()" aria-label="voltar">←</button>
-  <h1>📊 Balanço <small id="session-info">novo</small></h1>
-  <button class="btn-back" onclick="resetBalanco()" aria-label="zerar balanço" title="zerar">🗑️</button>
+  <h1><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="10" width="3" height="7"/></svg> Balanço <small id="session-info">novo</small></h1>
+  <button class="btn-back" onclick="resetBalanco()" aria-label="zerar balanço" title="zerar"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg></button>
 </header>
 
-<div class="banner" id="banner">📸 escaneia cada pod ✦ ao final, clica "finalizar e reconciliar"</div>
+<div class="banner" id="banner"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> escaneia cada pod ✦ ao final, clica "finalizar e reconciliar"</div>
 <div id="staff-banner" style="display:none;background:linear-gradient(90deg,rgba(212,255,46,0.18),rgba(255,77,143,0.18));border-bottom:1px solid var(--border);padding:12px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--lime)"></div>
 
 <!-- TELA "QUEM É VOCÊ?" — primeira coisa que aparece -->
 <div id="staff-picker" style="position:fixed;inset:0;background:rgba(10,10,20,0.97);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:20px">
   <div style="max-width:480px;width:100%;text-align:center">
-    <div style="font-size:48px;margin-bottom:8px">📊</div>
+    <div style="font-size:48px;margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="10" width="3" height="7"/></svg></div>
     <h2 style="color:#fff;font-size:22px;margin-bottom:6px">Quem está fazendo o balanço?</h2>
     <p style="color:var(--fg-dim);font-size:14px;margin-bottom:24px">Escolhe teu nome pra começar ✦</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button onclick="pickStaff('Andrade')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">🦎 Andrade</button>
-      <button onclick="pickStaff('Yasmin')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">💜 Yasmin</button>
-      <button onclick="pickStaff('Karla')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">🌸 Karla (Cacau)</button>
-      <button onclick="pickStaff('Jailma')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">✨ Jailma</button>
-      <button onclick="pickStaff('Pai Osmar')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;grid-column:1/-1">👨 Pai Osmar</button>
+      <button onclick="pickStaff('Andrade')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer"><img src="icons/camaleao-olho.webp" alt="DROPE" style="width:1em;height:1em;border-radius:50%;object-fit:cover;vertical-align:-.18em;display:inline-block;flex:0 0 auto"> Andrade</button>
+      <button onclick="pickStaff('Yasmin')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.4-7 10-7 10Z"/></svg> Yasmin</button>
+      <button onclick="pickStaff('Karla')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8c0-3-1.5-4.5 0-6 1.5 1.5 0 3 0 6M12 14.2c0 3 1.5 4.5 0 6-1.5-1.5 0-3 0-6M9.8 12c-3 0-4.5-1.5-6 0 1.5 1.5 3 0 6 0M14.2 12c3 0 4.5 1.5 6 0-1.5-1.5-3 0-6 0"/></svg> Karla (Cacau)</button>
+      <button onclick="pickStaff('Jailma')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> Jailma</button>
+      <button onclick="pickStaff('Pai Osmar')" style="background:var(--lime);color:#000;border:0;padding:16px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;grid-column:1/-1"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg> Pai Osmar</button>
       <button onclick="pickStaffOther()" style="background:transparent;border:1px dashed var(--border);color:var(--fg-dim);padding:16px;border-radius:12px;font-size:14px;cursor:pointer;grid-column:1/-1">+ Outro nome</button>
     </div>
   </div>
@@ -132,7 +132,7 @@ main { padding: 12px 16px 100px; }
   <div class="toast" id="toast"></div>
 
   <div style="text-align:center;color:var(--fg-dim);font-size:12px;padding:8px 16px;line-height:1.5">
-    📷 <b style="color:var(--lime)">câmera ao vivo</b> ✦ passa o código de barras na frente — o app bipa sozinho<br>
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> <b style="color:var(--lime)">câmera ao vivo</b> ✦ passa o código de barras na frente — o app bipa sozinho<br>
     <a href="#" onclick="event.preventDefault();capturePhoto()" style="color:var(--fg-dim);text-decoration:underline;font-size:11px;margin-right:14px">tirar foto manual</a>
     <a href="#" onclick="event.preventDefault();manualInput()" style="color:var(--fg-dim);text-decoration:underline;font-size:11px">digitar código</a>
   </div>
@@ -146,7 +146,7 @@ main { padding: 12px 16px 100px; }
   <div class="counted-list" id="counted-list">
     <h3>contados nessa sessão</h3>
     <div class="empty" id="empty-state">
-      <div class="icon">📸</div>
+      <div class="icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg></div>
       <div>escaneia o primeiro pod pra começar</div>
     </div>
   </div>
@@ -156,18 +156,18 @@ main { padding: 12px 16px 100px; }
 
 <!-- Botão FIXO no rodapé — sempre visível enquanto tu rolar -->
 <div id="sticky-bottom" style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(10,10,20,0.95) 40%);padding:14px 16px;z-index:50;pointer-events:none">
-  <button class="btn btn-finalize" onclick="finalizar()" style="pointer-events:auto;width:100%;font-size:16px;padding:16px;box-shadow:0 8px 24px rgba(255,77,143,0.4)">✅ finalizar e reconciliar</button>
+  <button class="btn btn-finalize" onclick="finalizar()" style="pointer-events:auto;width:100%;font-size:16px;padding:16px;box-shadow:0 8px 24px rgba(255,77,143,0.4)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> finalizar e reconciliar</button>
 </div>
 
 <!-- MODAL: cadastro inline de produto desconhecido -->
 <div id="cadastro-inline" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:480px;width:100%;margin-top:24px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <h2 style="font-size:18px;color:#fff">📦 cadastrar pod</h2>
+      <h2 style="font-size:18px;color:#fff"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> cadastrar pod</h2>
       <button onclick="fecharCadastroInline()" style="background:transparent;border:0;color:var(--fg-dim);font-size:24px;cursor:pointer">✕</button>
     </div>
     <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">código: <span id="ci-bc" style="color:var(--lime);font-family:monospace"></span></div>
-    <button onclick="buscarPorEan()" id="ci-search-btn" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.15),rgba(212,255,46,0.15));border:1px dashed var(--lime);color:var(--lime);padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px">🔍 buscar nome do pod na internet</button>
+    <button onclick="buscarPorEan()" id="ci-search-btn" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.15),rgba(212,255,46,0.15));border:1px dashed var(--lime);color:var(--lime);padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> buscar nome do pod na internet</button>
     <div style="margin-bottom:10px">
       <label style="display:block;font-size:11px;color:var(--fg-dim);margin-bottom:4px">marca</label>
       <input type="text" id="ci-brand" placeholder="ex: ELFBAR" style="width:100%;background:var(--bg);border:1px solid var(--border);color:#fff;padding:10px;border-radius:8px;font-size:14px">
@@ -205,7 +205,7 @@ main { padding: 12px 16px 100px; }
 <!-- ============ TELA DE RECONCILIAÇÃO (OSSO 35) ============ -->
 <section id="report-screen">
   <div style="padding: 12px 16px 140px">
-    <h2 style="font-size:18px;margin-bottom:4px">🧮 reconciliação do balanço</h2>
+    <h2 style="font-size:18px;margin-bottom:4px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg> reconciliação do balanço</h2>
     <div class="sub" id="recon-time" style="color:var(--fg-dim);font-size:12px;margin-bottom:14px">—</div>
     <div id="recon-loading" style="text-align:center;padding:40px 16px;color:var(--fg-dim);font-size:14px">⏳ calculando contra o estoque atual…</div>
     <div id="recon-body" style="display:none"></div>
@@ -217,7 +217,7 @@ main { padding: 12px 16px 100px; }
 <div id="recon-bottom" style="display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(10,10,20,0.97) 35%);padding:14px 16px;z-index:50">
   <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;max-width:560px;margin:0 auto">
     <button class="btn btn-ghost" onclick="voltarPraScanner()">← continuar</button>
-    <button id="btn-gravar" class="btn btn-finalize" onclick="confirmarEGravar()" style="font-weight:800">✅ confirmar e gravar</button>
+    <button id="btn-gravar" class="btn btn-finalize" onclick="confirmarEGravar()" style="font-weight:800"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> confirmar e gravar</button>
   </div>
 </div>
 
@@ -272,12 +272,12 @@ function applyStaffUI() {
   if (b) {
     if (STAFF_NAME) {
       b.style.display = '';
-      b.innerHTML = `👋 ${STAFF_NAME} ✦ <button onclick="trocarStaff()" style="background:transparent;border:1px solid var(--lime);color:var(--lime);padding:2px 10px;border-radius:8px;margin-left:8px;font-size:11px;cursor:pointer">trocar</button>`;
+      b.innerHTML = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M8 12.5V6.7a1.3 1.3 0 0 1 2.5 0V11M10.5 11V5.6a1.3 1.3 0 0 1 2.5 0V11M13 11V6.6a1.3 1.3 0 0 1 2.5 0V12M15.5 8.6a1.3 1.3 0 0 1 2.5 0v3a6 6 0 0 1-6 6c-2.8 0-4.3-1.4-5.7-3.8l-1.4-2.5a1.3 1.3 0 0 1 2.2-1.2L6.5 12"/></svg> ${STAFF_NAME} ✦ <button onclick="trocarStaff()" style="background:transparent;border:1px solid var(--lime);color:var(--lime);padding:2px 10px;border-radius:8px;margin-left:8px;font-size:11px;cursor:pointer">trocar</button>`;
     } else {
       b.style.display = 'none';
     }
   }
-  if (STAFF_NAME) document.title = `📊 Balanço da ${STAFF_NAME}`;
+  if (STAFF_NAME) document.title = `Balanço da ${STAFF_NAME}`;
 }
 
 function loadState() {
@@ -388,7 +388,7 @@ async function startScanner() {
     // Tenta mostrar o erro visualmente também
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);color:#fff;padding:24px;text-align:center;font-size:14px';
-    overlay.innerHTML = '⚠️ <b>' + msg + '</b><br><br><button onclick="location.reload()" style="background:var(--lime);color:#000;border:0;padding:10px 20px;border-radius:8px;margin-top:12px;cursor:pointer;font-weight:600">tentar de novo</button>';
+    overlay.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> <b>' + msg + '</b><br><br><button onclick="location.reload()" style="background:var(--lime);color:#000;border:0;padding:10px 20px;border-radius:8px;margin-top:12px;cursor:pointer;font-weight:600">tentar de novo</button>';
     const area = document.getElementById('scanner-area');
     if (area) area.appendChild(overlay);
   }
@@ -444,7 +444,7 @@ async function processBarcode(barcode) {
     const alreadyCountedProduct = Object.values(state.counts).find(c => c.barcode === barcode);
     if (alreadyCountedProduct) {
       const confirm = window.confirm(
-        `⚠️ "${alreadyCountedProduct.name}" já foi contado com ${alreadyCountedProduct.qty_counted} unidades.\n\nOK = somar +1\nCancelar = ignorar`
+        `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> "${alreadyCountedProduct.name}" já foi contado com ${alreadyCountedProduct.qty_counted} unidades.\n\nOK = somar +1\nCancelar = ignorar`
       );
       if (confirm) {
         alreadyCountedProduct.qty_counted += 1;
@@ -455,7 +455,7 @@ async function processBarcode(barcode) {
       return;
     }
     if (state.unknown[barcode] !== undefined && !(state.current && state.current.kind === 'unknown' && state.current.barcode === barcode)) {
-      const confirm = window.confirm(`⚠️ Código "${barcode}" já foi contado.\n\nOK = somar +1\nCancelar = ignorar`);
+      const confirm = window.confirm(`Código "${barcode}" já foi contado.\n\nOK = somar +1\nCancelar = ignorar`);
       if (confirm) {
         state.unknown[barcode] += 1;
         persistState();
@@ -509,7 +509,7 @@ async function processBarcode(barcode) {
         qty_pending: 1,
       };
       if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-      showToast('⚠️ código não cadastrado', 'err');
+      showToast('<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> código não cadastrado', 'err');
     }
     persistState();
     render();
@@ -602,7 +602,7 @@ function marcarDefeito() {
   }
   state.current = null;
   if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-  showToast(`⚠️ ${qty} lançado como perda (${motivo})`, 'ok');
+  showToast(`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> ${qty} lançado como perda (${motivo})`, 'ok');
   persistState();
   render();
 }
@@ -667,7 +667,7 @@ function render() {
     const corPrincipal = isProduct ? 'var(--lime)' : 'var(--orange)';
     const corCorFundoRgba = isProduct ? '212,255,46' : '255,133,51';
     const corCorBordaShadow = isProduct ? '212,255,46' : '255,133,51';
-    const headerLabel = isProduct ? '✓ POD LIDO ✦ confirma a quantidade' : '⚠️ CÓDIGO NOVO ✦ cadastra ou confirma';
+    const headerLabel = isProduct ? '✓ POD LIDO ✦ confirma a quantidade' : '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> CÓDIGO NOVO ✦ cadastra ou confirma';
     const nome = isProduct ? cur.name : 'não cadastrado';
     const subLabel = isProduct ? `Sistema: ${cur.qty_system}` : `código: ${cur.barcode}`;
 
@@ -684,8 +684,8 @@ function render() {
         <div style="cursor:pointer;font-size:48px;font-weight:800;color:${corPrincipal};min-width:100px;text-align:center;line-height:1" onclick="editarPending()">${cur.qty_pending || 1}</div>
         <button onclick="ajustarPending(1)" style="background:var(--green);border:0;color:#000;width:56px;height:56px;border-radius:14px;font-size:28px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(74,222,128,0.3)">+</button>
       </div>
-      ${!isProduct ? `<button onclick="cadastrarAgora('${cur.barcode}')" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.18),rgba(212,255,46,0.12));border:1px dashed var(--lime);color:var(--lime);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">📦 cadastrar esse pod agora</button>` : ''}
-      <button onclick="marcarDefeito()" style="width:100%;background:transparent;border:1px solid var(--yellow);color:var(--yellow);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px">⚠️ defeito/aberto/vencido (não vende)</button>
+      ${!isProduct ? `<button onclick="cadastrarAgora('${cur.barcode}')" style="width:100%;background:linear-gradient(90deg,rgba(91,202,255,0.18),rgba(212,255,46,0.12));border:1px dashed var(--lime);color:var(--lime);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> cadastrar esse pod agora</button>` : ''}
+      <button onclick="marcarDefeito()" style="width:100%;background:transparent;border:1px solid var(--yellow);color:var(--yellow);padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> defeito/aberto/vencido (não vende)</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button onclick="descartarAtual()" style="background:transparent;border:1px solid var(--red);color:var(--red);padding:14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">✕ descartar</button>
         <button onclick="confirmarAtual()" style="background:${corPrincipal};border:0;color:#000;padding:14px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(${corCorBordaShadow},0.4)">✓ confirmar</button>
@@ -731,7 +731,7 @@ function render() {
         <div class="qty" style="cursor:pointer" onclick="editQty('unknown','${bc}')">${qty}</div>
         <button onclick="event.stopPropagation();adjustQty('unknown','${bc}',1)" style="background:rgba(74,222,128,0.15);border:1px solid var(--green);color:var(--green);width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">+</button>
       </div>
-      <button onclick="cadastrarAgora('${bc}')" style="margin-top:6px;flex-basis:100%;background:linear-gradient(90deg,rgba(212,255,46,0.15),rgba(255,77,143,0.15));border:1px dashed var(--lime);color:var(--lime);padding:8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📦 cadastrar esse pod agora</button>
+      <button onclick="cadastrarAgora('${bc}')" style="margin-top:6px;flex-basis:100%;background:linear-gradient(90deg,rgba(212,255,46,0.15),rgba(255,77,143,0.15));border:1px dashed var(--lime);color:var(--lime);padding:8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg> cadastrar esse pod agora</button>
     `;
     list.appendChild(div);
   });
@@ -742,7 +742,7 @@ function render() {
     const ph = document.createElement('div');
     ph.className = 'perdas-header';
     ph.style.cssText = 'font-size:11px;color:var(--yellow);text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:8px;padding:0 4px;font-weight:600';
-    ph.textContent = `⚠️ perdas/defeito (${perdasEntries.length})`;
+    ph.innerHTML = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> perdas/defeito (${perdasEntries.length})`;
     list.appendChild(ph);
     perdasEntries.forEach(([key, p]) => {
       const div = document.createElement('div');
@@ -786,7 +786,7 @@ async function buscarPorEan() {
   if (!CI_BARCODE) return;
   const btn = document.getElementById('ci-search-btn');
   const msg = document.getElementById('ci-msg');
-  if (btn) { btn.textContent = '🔍 buscando...'; btn.disabled = true; }
+  if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> buscando...'; btn.disabled = true; }
   try {
     const r = await fetch('/api/webhook?action=ean_lookup&barcode=' + encodeURIComponent(CI_BARCODE));
     const data = await r.json();
@@ -799,14 +799,14 @@ async function buscarPorEan() {
       msg.textContent = `✓ achei: ${data.result.name || 'dados parciais'}`;
       msg.style.color = 'var(--green)';
     } else {
-      msg.textContent = '😕 não achei nada online — preenche manual';
+      msg.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="M8.5 15.5c1-1 5-1 6 0M9 9.5h0M15 9.5h0"/></svg> não achei nada online — preenche manual';
       msg.style.color = 'var(--orange)';
     }
   } catch (e) {
     msg.textContent = 'erro de rede ao buscar';
     msg.style.color = 'var(--red)';
   } finally {
-    if (btn) { btn.textContent = '🔍 buscar nome do pod na internet'; btn.disabled = false; }
+    if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg> buscar nome do pod na internet'; btn.disabled = false; }
   }
 }
 
@@ -818,7 +818,7 @@ async function salvarCadastroInline() {
   const priceStr = document.getElementById('ci-price').value.trim();
   const msg = document.getElementById('ci-msg');
   if (!brand || !flavor) {
-    msg.textContent = '⚠️ marca e sabor são obrigatórios';
+    msg.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> marca e sabor são obrigatórios';
     msg.style.color = 'var(--orange)';
     return;
   }
@@ -1025,14 +1025,14 @@ function renderRecon(d) {
   // BLOCO 1 — vendável
   let html = `
     <div class="recon-block">
-      <h3>✅ vendável</h3>
+      <h3><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> vendável</h3>
       <div class="recon-big" style="color:var(--green)">${d.vendavel_un} <span style="font-size:13px;color:var(--fg-dim);font-weight:500">un em ${d.vendavel_skus} sabores</span></div>
     </div>`;
 
   // BLOCO 2 — divergências (sobrou/faltou + R$)
-  html += `<div class="recon-block"><h3>⚠️ divergências (${d.divergencias.length})</h3>`;
+  html += `<div class="recon-block"><h3><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> divergências (${d.divergencias.length})</h3>`;
   if (d.divergencias.length === 0) {
-    html += `<div class="recon-empty">tudo bateu com o sistema 🎯</div>`;
+    html += `<div class="recon-empty">tudo bateu com o sistema <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></div>`;
   } else {
     d.divergencias.forEach(x => {
       const sobrou = x.diff > 0;
@@ -1045,13 +1045,13 @@ function renderRecon(d) {
         </div>`;
     });
     if (d.perda_total_cents > 0) {
-      html += `<div class="recon-line" style="border-top:1px solid var(--border);margin-top:4px"><div class="r-name" style="color:var(--red);font-weight:700">💸 perda estimada nas faltas</div><div class="diverg-faltou">${_r$(d.perda_total_cents)}</div></div>`;
+      html += `<div class="recon-line" style="border-top:1px solid var(--border);margin-top:4px"><div class="r-name" style="color:var(--red);font-weight:700"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="M12 7.2v9.6"/><path d="M14.6 9.5c-.5-.9-1.4-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2 0 2.7 5.2 1.4 5.2 4 0 1.2-1.1 2-2.6 2-1.2 0-2.1-.5-2.6-1.4"/></svg> perda estimada nas faltas</div><div class="diverg-faltou">${_r$(d.perda_total_cents)}</div></div>`;
     }
   }
   html += `</div>`;
 
   // BLOCO 3 — achados
-  html += `<div class="recon-block"><h3>🆕 achados (${d.achados.length})</h3>`;
+  html += `<div class="recon-block"><h3><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> achados (${d.achados.length})</h3>`;
   if (d.achados.length === 0) {
     html += `<div class="recon-empty">nenhum código novo</div>`;
   } else {
@@ -1063,7 +1063,7 @@ function renderRecon(d) {
   html += `</div>`;
 
   // BLOCO 4 — perda/defeito (situação 6)
-  html += `<div class="recon-block"><h3>⚠️ perda/defeito (${perdas.length})</h3>`;
+  html += `<div class="recon-block"><h3><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> perda/defeito (${perdas.length})</h3>`;
   if (perdas.length === 0) {
     html += `<div class="recon-empty">nenhuma perda lançada</div>`;
   } else {
@@ -1076,9 +1076,9 @@ function renderRecon(d) {
 
   // BLOCO 5 — esconder não-escaneados (DESTRUTIVO — situação 4)
   const ne = d.nao_escaneados || [];
-  html += `<div class="recon-block ${ne.length ? 'esconder-warn' : ''}"><h3>🙈 não escaneados (${ne.length})</h3>`;
+  html += `<div class="recon-block ${ne.length ? 'esconder-warn' : ''}"><h3><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M10 5.7A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15 15 0 0 1-2.4 3.1M6.4 6.4A14.5 14.5 0 0 0 2.5 12S6 18.5 12 18.5a9.6 9.6 0 0 0 4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg> não escaneados (${ne.length})</h3>`;
   if (ne.length === 0) {
-    html += `<div class="recon-empty">todo produto com estoque foi conferido 👏</div>`;
+    html += `<div class="recon-empty">todo produto com estoque foi conferido <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M8.5 13 6.5 8.5a1.3 1.3 0 0 1 2.3-1L10.5 11"/><path d="M11 11 9.2 6.3a1.3 1.3 0 0 1 2.4-.8L13 11"/><path d="M13.5 6.5a1.3 1.3 0 0 1 2.4-.6L17.5 12a5 5 0 0 1-9.5 2.3"/><path d="M16 3l1 1.5M19 5.5l-1.3 1M20 9.5h-1.6"/></svg></div>`;
   } else {
     html += `<div class="recon-empty">${ne.length} produtos visíveis (${d.nao_escaneados_un} un no sistema) que ninguém contou. Se esconder, somem do app pro cliente e zeram.</div>`;
     html += `<label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--red)">
@@ -1109,7 +1109,7 @@ async function confirmarEGravar() {
   const ne = RECON.nao_escaneados || [];
   const esconderQtd = ESCONDER_ON ? ne.length : 0;
   let msg = 'Confirmar e GRAVAR no estoque real?';
-  if (esconderQtd) msg += `\n\n⚠️ ${esconderQtd} produtos NÃO escaneados vão ser ZERADOS e ESCONDIDOS do app.`;
+  if (esconderQtd) msg += `\n\n<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.2"/><path d="M12 17.4h0"/></svg> ${esconderQtd} produtos NÃO escaneados vão ser ZERADOS e ESCONDIDOS do app.`;
   if (!confirm(msg)) return;
 
   const btn = document.getElementById('btn-gravar');
@@ -1136,11 +1136,11 @@ async function confirmarEGravar() {
       mostrarSucesso(data);
     } else {
       showToast('erro ao gravar: ' + ((data && data.error) || r.status), 'err');
-      if (btn) { btn.textContent = '✅ confirmar e gravar'; btn.disabled = false; }
+      if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> confirmar e gravar'; btn.disabled = false; }
     }
   } catch (e) {
     showToast('erro de rede: ' + e.message, 'err');
-    if (btn) { btn.textContent = '✅ confirmar e gravar'; btn.disabled = false; }
+    if (btn) { btn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg> confirmar e gravar'; btn.disabled = false; }
   }
 }
 
@@ -1151,7 +1151,7 @@ function mostrarSucesso(d) {
   done.style.display = '';
   done.innerHTML = `
     <div class="recon-block" style="border-color:var(--green);text-align:center">
-      <div style="font-size:42px;margin-bottom:6px">✅</div>
+      <div style="font-size:42px;margin-bottom:6px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></div>
       <h3 style="justify-content:center;color:var(--green)">balanço gravado no estoque</h3>
       <div class="recon-line"><div class="r-name">vendável</div><div style="color:var(--green);font-weight:700">${d.vendavel_un} un / ${d.vendavel_skus} sabores</div></div>
       <div class="recon-line"><div class="r-name">divergências</div><div style="font-weight:700">${d.divergencias.length}</div></div>
@@ -1160,7 +1160,7 @@ function mostrarSucesso(d) {
       <div class="recon-line"><div class="r-name">perdas/defeito</div><div style="font-weight:700">${d.perdas_count}</div></div>
       <div class="recon-line"><div class="r-name">escondidos</div><div style="font-weight:700">${d.escondidos}</div></div>
     </div>
-    <div style="text-align:center;color:var(--fg-dim);font-size:12px;margin-bottom:14px">📲 resumo enviado pro Andrade no WhatsApp</div>
+    <div style="text-align:center;color:var(--fg-dim);font-size:12px;margin-bottom:14px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg> resumo enviado pro Andrade no WhatsApp</div>
     <button class="btn btn-primary" style="width:100%" onclick="location.href='/balanco.html'">novo balanço</button>
   `;
 }
