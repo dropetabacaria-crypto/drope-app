@@ -434,6 +434,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
           <label class="pf-lbl">Subcapa (banner do topo)</label>
           <div id="loja-cover" style="width:100%;height:120px;border-radius:14px;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-dim);margin-bottom:8px;background-size:cover;background-position:center">Toque pra adicionar uma imagem larga</div>
+          <div id="cover-editor-controls" style="display:none;margin-bottom:12px">
+            <div style="font-size:11px;color:var(--fg-dim);margin-bottom:6px">✋ Arraste a imagem pra posicionar · use a barra pra dar zoom</div>
+            <input type="range" id="cover-zoom" min="1" max="3" step="0.01" value="1" oninput="_coverSetZoom(this.value)" style="width:100%;accent-color:var(--lime)">
+          </div>
           <div style="display:flex;gap:8px;margin-bottom:14px">
             <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('loja-cover-input').click()">Enviar subcapa</button>
             <button class="pf-btn sec" id="loja-cover-remove" style="flex:0 0 auto;display:none" onclick="removeLojaCover()">Remover</button>
@@ -3068,24 +3072,75 @@ async function onLojaFoto(input) {
     renderLojaPreview();
   } catch (e) {}
 }
+// ===== Editor de subcapa: arrastar (posicionar) + zoom, com canvas =====
+let _coverImg = null, _coverZoom = 1, _coverOffX = 0, _coverOffY = 0, _coverDrag = null;
 async function onLojaCover(input) {
   const file = input.files && input.files[0]; input.value = '';
   if (!file) return;
   try {
-    const b64 = await _fileToDataUrl(file, 1200);
-    _lojaCoverB64 = b64; _removeCover = false;
-    const el = document.getElementById('loja-cover');
-    if (el) { el.style.backgroundImage = `url('${b64}')`; el.textContent = ''; }
-    const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = '';
-    document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
-    document.getElementById('loja-msg').textContent = 'subcapa pronta — clica em salvar';
-    renderLojaPreview();
+    const b64 = await _fileToDataUrl(file, 1600);
+    _removeCover = false;
+    const img = new Image();
+    img.onload = () => {
+      _coverImg = img; _coverZoom = 1; _coverOffX = 0; _coverOffY = 0;
+      const el = document.getElementById('loja-cover');
+      if (el) {
+        el.style.backgroundImage = '';
+        el.innerHTML = '<canvas id="cover-canvas" width="1200" height="400" style="width:100%;height:100%;display:block;cursor:grab;touch-action:none"></canvas>';
+        _bindCoverCanvas();
+      }
+      const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'block';
+      const zi = document.getElementById('cover-zoom'); if (zi) zi.value = '1';
+      const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = '';
+      _drawCover(); _commitCover();
+      document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
+      document.getElementById('loja-msg').textContent = 'posicione a subcapa e clica em salvar';
+    };
+    img.src = b64;
   } catch (e) {}
 }
+function _drawCover() {
+  const c = document.getElementById('cover-canvas'); if (!c || !_coverImg) return;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  const base = Math.max(c.width / _coverImg.width, c.height / _coverImg.height); // cobre o canvas
+  const s = base * _coverZoom;
+  const w = _coverImg.width * s, h = _coverImg.height * s;
+  let x = (c.width - w) / 2 + _coverOffX;
+  let y = (c.height - h) / 2 + _coverOffY;
+  x = Math.min(0, Math.max(c.width - w, x)); // sem borda vazia
+  y = Math.min(0, Math.max(c.height - h, y));
+  _coverOffX = x - (c.width - w) / 2;
+  _coverOffY = y - (c.height - h) / 2;
+  ctx.drawImage(_coverImg, x, y, w, h);
+}
+function _commitCover() {
+  const c = document.getElementById('cover-canvas'); if (!c) return;
+  try { _lojaCoverB64 = c.toDataURL('image/jpeg', 0.9); renderLojaPreview(); } catch (e) {}
+}
+function _coverSetZoom(v) { _coverZoom = Math.max(1, parseFloat(v) || 1); _drawCover(); _commitCover(); }
+function _bindCoverCanvas() {
+  const c = document.getElementById('cover-canvas'); if (!c) return;
+  const ratio = () => c.width / (c.clientWidth || c.width);
+  const start = (px, py) => { _coverDrag = { px, py }; c.style.cursor = 'grabbing'; };
+  const move = (px, py) => {
+    if (!_coverDrag) return;
+    const r = ratio();
+    _coverOffX += (px - _coverDrag.px) * r;
+    _coverOffY += (py - _coverDrag.py) * r;
+    _coverDrag = { px, py };
+    _drawCover();
+  };
+  const end = () => { if (_coverDrag) { _coverDrag = null; c.style.cursor = 'grab'; _commitCover(); } };
+  c.onpointerdown = (e) => { c.setPointerCapture(e.pointerId); start(e.clientX, e.clientY); };
+  c.onpointermove = (e) => move(e.clientX, e.clientY);
+  c.onpointerup = end; c.onpointercancel = end;
+}
 function removeLojaCover() {
-  _lojaCoverB64 = null; _removeCover = true;
+  _lojaCoverB64 = null; _removeCover = true; _coverImg = null;
   const el = document.getElementById('loja-cover');
-  if (el) { el.style.backgroundImage = ''; el.textContent = 'Toque pra adicionar uma imagem larga'; }
+  if (el) { el.innerHTML = ''; el.style.backgroundImage = ''; el.textContent = 'Toque pra adicionar uma imagem larga'; }
+  const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'none';
   const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = 'none';
   document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
   document.getElementById('loja-msg').textContent = 'subcapa removida — clica em salvar';
@@ -3136,9 +3191,10 @@ function renderLojaProfile(prof, endereco) {
   }
   if (!_lojaCoverB64 && !_removeCover) {
     const cv = document.getElementById('loja-cover'), rm = document.getElementById('loja-cover-remove');
+    const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'none'; // sem edição → esconde zoom
     if (cv) {
-      if (prof.cover_url) { cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = ''; if (rm) rm.style.display = ''; }
-      else { cv.style.backgroundImage = ''; cv.textContent = 'Toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
+      if (prof.cover_url) { cv.innerHTML = ''; cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = ''; if (rm) rm.style.display = ''; }
+      else { cv.innerHTML = ''; cv.style.backgroundImage = ''; cv.textContent = 'Toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
     }
   }
   setPageTheme(prof.theme || 'dark');
