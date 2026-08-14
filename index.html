@@ -11666,6 +11666,7 @@
           filial_slug: _cardCtx.slug, order_id: _cardCtx.orderNsu, total_cents: _cardCtx.chargeCents,
           token: tok.id, payment_method_id: pmId, installments: 1,
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+          device_id: _deviceId(),
           payer_customer_id: _savedCustomerId, customer_email: _customerVaultEmail(),
         }),
       });
@@ -11675,8 +11676,21 @@
       else { const msg = _cardRejectMsg(d && d.status_detail) || (d && d.message) || 'cartão não aprovado ✦ tenta outro'; if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--pink)'; } _showCardPixFallback(true); }
     } catch (e) { console.error('[saved card]', e && e.message); if (statusEl) { statusEl.textContent = 'não deu pra pagar com esse cartão ✦'; statusEl.style.color = 'var(--pink)'; } }
   }
+  // Device ID / fingerprint do MP — recomendação nº1 do MP pra subir a aprovação do cartão.
+  function _loadMPSecurity() {
+    return new Promise((resolve) => {
+      if (document.getElementById('mp-security-js')) return resolve();
+      const s = document.createElement('script');
+      s.id = 'mp-security-js'; s.src = 'https://www.mercadopago.com/v2/security.js';
+      s.setAttribute('view', 'checkout');
+      s.onload = () => resolve(); s.onerror = () => resolve();
+      document.head.appendChild(s);
+    });
+  }
+  function _deviceId() { try { return window.MP_DEVICE_SESSION_ID || null; } catch (e) { return null; } }
   function _loadMPSdk() {
     return new Promise((resolve, reject) => {
+      try { _loadMPSecurity(); } catch (e) {} // carrega o fingerprint junto
       if (window.MercadoPago) return resolve();
       let s = document.getElementById('mp-sdk-js');
       if (s) { s.addEventListener('load', () => resolve()); s.addEventListener('error', () => reject(new Error('sdk'))); return; }
@@ -11733,6 +11747,7 @@
             installments: formData.installments,
             payer: formData.payer,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+            device_id: _deviceId(), // fingerprint MP → melhora aprovação
             // salvar cartão pra próxima (cofre do MP) — só se o cliente marcar
             save_card: !!(document.getElementById('save-card-chk') && document.getElementById('save-card-chk').checked),
             customer_email: _customerVaultEmail(),

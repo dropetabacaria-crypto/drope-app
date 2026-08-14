@@ -17665,14 +17665,17 @@ async function handleMPProcessCard(req, res) {
     }
     if (split && appFeeReais > 0) payload.application_fee = appFeeReais;
 
+    const _cardHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${sellerToken}`,
+      // Única por TENTATIVA (não reusar → evita o MP devolver o resultado antigo).
+      'X-Idempotency-Key': `${order_id || 'dr'}-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+    // Device ID (fingerprint) → recomendação nº1 do MP pra melhorar a aprovação do cartão.
+    if (body.device_id) _cardHeaders['X-meli-session-id'] = String(body.device_id);
     const response = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sellerToken}`,
-        // Única por TENTATIVA (não reusar → evita o MP devolver o resultado antigo).
-        'X-Idempotency-Key': `${order_id || 'dr'}-card-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      },
+      headers: _cardHeaders,
       body: JSON.stringify(payload),
     });
     const data = await response.json();
