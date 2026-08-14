@@ -1139,6 +1139,11 @@
   .loja-cat-sticky-scroll::-webkit-scrollbar { display: none; }
   .lcp { flex: 0 0 auto; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text-dim); border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
   .lcp.active { background: var(--store-accent, var(--lime)); color: #0A0A14; border-color: transparent; }
+  /* NÍVEL 1 — categorias amplas (pílulas) */
+  .loja-broadcat-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .loja-broadcat-row::-webkit-scrollbar { display: none; }
+  .lbc { flex: 0 0 auto; border: 1px solid var(--border); background: var(--card); color: var(--text-dim); font-family: inherit; font-weight: 700; font-size: 13px; padding: 8px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .lbc.active { background: var(--store-accent, var(--lime)); color: #0A0A14; border-color: var(--store-accent, var(--lime)); }
   .loja-cover { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
   .loja-cover-ph { width: 76px; height: 76px; border-radius: 18px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 30px; background: linear-gradient(135deg,#8C50FF,#FF2D6F); }
   .loja-body { flex: 1; min-width: 0; }
@@ -4581,6 +4586,11 @@
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
     <div id="home-loja-bar" style="position:relative;margin:0 0 10px;overflow:hidden;background:var(--card)"></div>
 
+    <!-- NÍVEL 1 — categorias amplas (tipo de produto: Seda, Tabaco, Pods…) logo abaixo da loja -->
+    <div id="loja-broadcat-row" class="loja-broadcat-row" style="display:none"></div>
+    <!-- NÍVEL 2 — marcas/produtos específicos da loja (chips redondos) -->
+    <div id="loja-filtros-row" class="loja-filtros-row" style="display:none;margin-bottom:6px"></div>
+
     <!-- Busca vira ícone de lupa no header; ao tocar, esta barra abre em overlay no topo -->
     <div class="search-bar-wrap" id="home-search-wrap" style="display:none">
       <div class="search-bar">
@@ -4619,9 +4629,6 @@
     <div class="hero-carousel" id="hero-carousel"></div>
 
     <div id="home-last-order-wrap"></div>
-
-    <!-- Categorias/filtros da loja (aparecem só quando a loja criou filtros) -->
-    <div id="loja-filtros-row" class="loja-filtros-row" style="display:none"></div>
 
     <!-- Seções dinâmicas por categoria da loja (substitui os antigos drops/tabacaria fixos) -->
     <div id="home-cat-sections"></div>
@@ -9030,9 +9037,10 @@
       const _prevLojaSlug = CLIENT_LOJA && CLIENT_LOJA.slug;
       CLIENT_LOJA = data.loja || null;
       // Trocou de loja → zera o filtro de categoria selecionado (não vaza entre lojas)
-      if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; } catch(e) {} try { closeStoreSearch(); } catch(e) {} }
+      if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; homeState.broadCat = null; } catch(e) {} try { closeStoreSearch(); } catch(e) {} }
       if (CLIENT_LOJA && CLIENT_LOJA.name) { CLIENT_FILIAL_NAME = CLIENT_LOJA.name; try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME); } catch(e) {} }
       try { renderLojaBar(); } catch(e) {}
+      try { renderBroadCats(); } catch(e) {}
       try { renderLojaFiltros(); } catch(e) {}
       // Cache local pra próxima abertura ser fast-paint (por filial)
       try {
@@ -10165,17 +10173,52 @@
         ].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      // Filtro/categoria da loja (ex.: Cervejas)
+      // Nível 1 — categoria ampla (tipo de produto)
+      if (homeState.broadCat && _broadCat(p) !== homeState.broadCat) return false;
+      // Nível 2 — filtro/categoria da loja (ex.: ZOMO, Amsterdam)
       if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
     }
     return true;
   }
 
+  // NÍVEL 1 — categorias amplas (tipo de produto), pílulas de texto logo abaixo da loja.
+  function renderBroadCats() {
+    const row = document.getElementById('loja-broadcat-row');
+    if (!row) return;
+    const prods = (typeof allProducts !== 'undefined' && Array.isArray(allProducts)) ? allProducts : [];
+    const counts = {};
+    prods.forEach(p => { const c = _broadCat(p); counts[c] = (counts[c] || 0) + 1; });
+    const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    if (cats.length < 2) { row.style.display = 'none'; row.innerHTML = ''; return; } // 1 tipo só → não precisa
+    const cur = homeState.broadCat || null;
+    const q = s => String(s).replace(/'/g, '');
+    const pill = (name, active) => `<button class="lbc${active ? ' active' : ''}" onclick="setBroadCat(${name === null ? 'null' : `'${q(name)}'`})">${escapeHtml(name === null ? 'Tudo' : name)}</button>`;
+    row.style.display = 'flex';
+    row.innerHTML = pill(null, !cur) + cats.map(c => pill(c, c === cur)).join('');
+  }
+  function setBroadCat(name) {
+    homeState.broadCat = name || null;
+    // Se a marca/categoria (Nível 2) escolhida não existe na categoria ampla, limpa
+    if (homeState.filtroId) {
+      const ok = (allProducts || []).some(p => (p.filtro_id || null) === homeState.filtroId && (!homeState.broadCat || _broadCat(p) === homeState.broadCat));
+      if (!ok) homeState.filtroId = null;
+    }
+    renderBroadCats();
+    renderLojaFiltros();
+    try { renderGrid(); } catch (e) {}
+    const cs = document.getElementById('catalog');
+    if (cs && cs.classList.contains('active') && typeof renderCatalog === 'function') renderCatalog();
+  }
   // Categorias/filtros que a loja criou — barra visual navegável (formato: círculo/quadrado/retângulo).
   function renderLojaFiltros() {
     const row = document.getElementById('loja-filtros-row');
     if (!row) return;
-    const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
+    let filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
+    // Nível 2 mostra só as marcas/categorias que têm produto na categoria ampla escolhida
+    if (homeState.broadCat) {
+      const rel = new Set((allProducts || []).filter(p => _broadCat(p) === homeState.broadCat).map(p => p.filtro_id).filter(Boolean));
+      filtros = filtros.filter(f => rel.has(f.id));
+    }
     if (!filtros.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
     const cur = homeState.filtroId || null;
     const acc = 'var(--store-accent, var(--lime))';
@@ -10621,7 +10664,28 @@
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
-  const homeState = { searchText: '', selectedBrand: null, filtroId: null };
+  const homeState = { searchText: '', selectedBrand: null, filtroId: null, broadCat: null };
+  // Categoria AMPLA (tipo de produto) inferida do nome/marca — Nível 1 do filtro.
+  // Sem campo extra pro lojista: deduz do texto do produto.
+  function _broadCat(p) {
+    const s = `${p.name || ''} ${p.marca || ''} ${p.sabor || ''} ${p.desc || ''}`.toLowerCase();
+    const has = (...ws) => ws.some(w => s.includes(w));
+    if (has('seda', 'papel', 'rolling', 'king size', 'slim')) return 'Seda';
+    if (has('tabaco', 'fumo', 'cavendish')) return 'Tabaco';
+    if (has('essenc', 'essên', 'narguile', 'narguilé', 'shisha', 'melaç')) return 'Essência';
+    if (has('carvão', 'carvao', 'coco briquete')) return 'Carvão';
+    if (has('filtro', 'tips ')) return 'Filtro';
+    if (has('pod', 'vape', 'ignite', 'elfbar', 'oxbar', 'pods')) return 'Pods';
+    if (has('isqueiro', 'clipper', 'bic ')) return 'Isqueiro';
+    if (has('cerveja', 'beer', 'heineken', 'brahma', 'budweiser', 'lager', 'ipa')) return 'Cerveja';
+    if (has('vinho', 'wine', 'tinto', 'espumante')) return 'Vinho';
+    if (has('whisky', 'whiskey', 'vodka', ' gin', 'cachaça', 'destilado', 'tequila', ' rum', 'conhaque')) return 'Destilado';
+    if (has('energét', 'energet', 'red bull', 'monster', 'baly')) return 'Energético';
+    if (has('gelo', ' ice')) return 'Gelo';
+    if (has('refri', 'coca', 'guaraná', 'água', 'agua ', 'suco')) return 'Bebida';
+    if (has('doce', 'bala', 'chocolate', 'trident')) return 'Doces';
+    return 'Outros';
+  }
 
   function searchProducts(text) {
     homeState.searchText = (text || '').toLowerCase().trim();
