@@ -3175,7 +3175,12 @@ async function saveLojaProfile() {
       body: JSON.stringify(payload),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { _lojaPhotoB64 = null; _lojaCoverB64 = null; _removeCover = false; msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦'; }
+    if (r.ok && d.ok) {
+      _lojaPhotoB64 = null; _lojaCoverB64 = null; _removeCover = false;
+      msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦';
+      try { loadData(true); } catch (e) {}                 // atualiza o painel com os novos dados
+      setTimeout(() => { try { cfgBack(); } catch (e) {} }, 650); // fecha e volta pra tela anterior
+    }
     else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
