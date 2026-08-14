@@ -7390,8 +7390,16 @@
         _pendingLojaSlug = lojaSlug; go('onboard'); return;
       }
     } catch(e) {}
+    // Ao atualizar a página, volta pra tela em que o cliente estava (não pro início).
+    if (confirmed) {
+      let saved = null;
+      try { saved = localStorage.getItem(LAST_SCREEN_KEY); } catch (e) {}
+      if (saved && _RESTORABLE_SCREENS.has(saved) && document.getElementById(saved)) { go(saved); return; }
+      go('inicio');
+      return;
+    }
     // Landing = descoberta de tabacarias (Início), estilo Rappi.
-    go(confirmed ? 'inicio' : 'onboard');
+    go('onboard');
   }
   // Efeito camaleão: dispara a camuflagem do logo pouco antes de trocar de tela
   function _startChameleon() {
@@ -10924,6 +10932,10 @@
     _navBack = true;
     try { go(prev || fallback || 'inicio'); } finally { _navBack = false; }
   }
+  // Telas que devem ser restauradas ao dar F5/atualizar (as demais — pagamento,
+  // detalhe, sucesso — voltam pra um lugar seguro).
+  const LAST_SCREEN_KEY = 'drope_last_screen_v1';
+  const _RESTORABLE_SCREENS = new Set(['inicio', 'home', 'catalog', 'cart', 'orders', 'order-tracking', 'favorites', 'ofertas', 'profile', 'addresses', 'search']);
   function go(screen) {
     // Empilha a tela atual antes de trocar (menos quando é o próprio "voltar")
     try {
@@ -10942,6 +10954,9 @@
 
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screen).classList.add('active');
+    // Lembra a tela atual pra, ao ATUALIZAR a página, voltar nela (e não no início).
+    // Só telas "seguras" (não as transitórias de pagamento) entram aqui.
+    try { if (_RESTORABLE_SCREENS.has(screen)) localStorage.setItem(LAST_SCREEN_KEY, screen); } catch (e) {}
     document.querySelectorAll('.nav-btn').forEach(b => {
       const s = b.dataset.screen;
       // dentro de uma loja (home/catalog/detail) mantém "Início" destacado
