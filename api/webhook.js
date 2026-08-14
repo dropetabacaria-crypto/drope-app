@@ -17625,6 +17625,35 @@ async function handleMPSaveCard(req, res) {
   } catch (e) { console.error('[mp_save_card] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=mp_delete_card — remove um cartão salvo do cofre do MP.
+async function handleMPDeleteCard(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const slug = String(body.filial_slug || '').toLowerCase().trim();
+    const phone = body.phone || '';
+    const token = body.token || '';
+    const email = String(body.customer_email || '').trim().toLowerCase();
+    const cardId = String(body.card_id || '').trim();
+    if (!(await _customerSessionOk(phone, token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!cardId || !email || !slug) return res.status(400).json({ ok: false, error: 'dados faltando' });
+    const filial = await _filialBySlugRead(slug);
+    const sellerToken = filial ? await _mpTokenForFilial(filial) : null;
+    if (!sellerToken) return res.status(409).json({ ok: false, error: 'loja sem pagamento ativo' });
+    const customerId = await _mpEnsureCustomer(sellerToken, email, {});
+    if (!customerId) return res.status(200).json({ ok: true }); // sem customer = nada a excluir
+    const r = await fetch(`https://api.mercadopago.com/v1/customers/${customerId}/cards/${encodeURIComponent(cardId)}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${sellerToken}` },
+    });
+    if (!r.ok && r.status !== 404) { const d = await r.json().catch(() => ({})); console.error('[mp_delete_card]', JSON.stringify(d).slice(0, 200)); return res.status(502).json({ ok: false, error: 'não deu pra excluir' }); }
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[mp_delete_card] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=mp_process_card — CARTÃO TRANSPARENTE (formulário dentro do app).
 // O cliente digita o cartão no DROPE; o Brick do MP tokeniza no navegador (o número
 // NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
@@ -20878,6 +20907,9 @@ async function generateAll(){
   // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
   if (req.url && req.url.indexOf('action=mp_save_card') >= 0) {
     return await handleMPSaveCard(req, res);
+  }
+  if (req.url && req.url.indexOf('action=mp_delete_card') >= 0) {
+    return await handleMPDeleteCard(req, res);
   }
   if (req.url && req.url.indexOf('action=mp_saved_cards') >= 0) {
     return await handleMPSavedCards(req, res);

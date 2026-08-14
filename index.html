@@ -4988,19 +4988,24 @@
     <div class="card-wrap">
       <!-- Cartões salvos (cofre do MP) — populado por _renderSavedCards() -->
       <div id="saved-cards"></div>
-      <!-- Modo: pagar agora OU só cadastrar o cartão pra reusar -->
-      <div id="card-mode-tabs" style="display:flex;gap:8px;margin-bottom:14px">
-        <button id="cmt-pay" onclick="setCardMode('pay')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--lime);background:rgba(212,255,46,0.12);color:var(--lime);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Pagar agora</button>
-        <button id="cmt-save" onclick="setCardMode('save')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Só cadastrar cartão</button>
+      <!-- Botão pra revelar o form de cartão novo (aparece só quando já tem cartão salvo) -->
+      <button id="add-other-card-btn" onclick="showNewCardForm()" style="display:none;width:100%;margin-bottom:6px;background:transparent;border:1px dashed var(--border);color:var(--text);font-family:inherit;font-weight:700;font-size:14px;padding:14px;border-radius:14px;cursor:pointer">+ Adicionar outro cartão</button>
+      <!-- Formulário de cartão novo (escondido quando já há cartão salvo) -->
+      <div id="new-card-section">
+        <!-- Modo: pagar agora OU só cadastrar o cartão pra reusar -->
+        <div id="card-mode-tabs" style="display:flex;gap:8px;margin-bottom:14px">
+          <button id="cmt-pay" onclick="setCardMode('pay')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--lime);background:rgba(212,255,46,0.12);color:var(--lime);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Pagar agora</button>
+          <button id="cmt-save" onclick="setCardMode('save')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Só cadastrar cartão</button>
+        </div>
+        <div class="co-section-lbl" id="card-mode-lbl" style="margin-bottom:6px">Pague com cartão ✦</div>
+        <div id="card-mode-hint" style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.</div>
+        <!-- Formulário seguro do Mercado Pago (tokeniza no navegador; o cartão nunca passa pelo nosso servidor) -->
+        <div id="mp-card-brick"></div>
+        <label id="save-card-row" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;font-size:14px;color:var(--text)">
+          <input type="checkbox" id="save-card-chk" style="width:18px;height:18px;accent-color:var(--lime)">
+          <span>Salvar este cartão pra próxima compra ✦</span>
+        </label>
       </div>
-      <div class="co-section-lbl" id="card-mode-lbl" style="margin-bottom:6px">Pague com cartão ✦</div>
-      <div id="card-mode-hint" style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.</div>
-      <!-- Formulário seguro do Mercado Pago (tokeniza no navegador; o cartão nunca passa pelo nosso servidor) -->
-      <div id="mp-card-brick"></div>
-      <label id="save-card-row" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;font-size:14px;color:var(--text)">
-        <input type="checkbox" id="save-card-chk" style="width:18px;height:18px;accent-color:var(--lime)">
-        <span>Salvar este cartão pra próxima compra ✦</span>
-      </label>
       <div id="mp-card-status" style="text-align:center;color:var(--text-dim);font-size:13px;margin-top:14px"></div>
       <button id="card-pix-fallback" onclick="_cardToPix()" style="display:none;width:100%;margin-top:12px;background:linear-gradient(135deg,#8C50FF,#FF2D6F);color:#fff;border:none;font-family:inherit;font-weight:800;font-size:15px;padding:15px;border-radius:16px;cursor:pointer">Pagar no Pix ✦ (aprova na hora)</button>
       <div style="text-align:center;color:var(--text-dim);font-size:11px;margin-top:12px;line-height:1.5">🔒 Pagamento protegido ✦ o cartão fica no cofre do Mercado Pago, nunca no DROPE</div>
@@ -11609,7 +11614,7 @@
 
   // ===== CARTÃO IN-APP (Mercado Pago Card Payment Brick, sem redirect) =====
   let _mpInstance = null, _cardBrickController = null, _cardCtx = null, _savedCustomerId = null, _cardMode = 'pay';
-  function renderCardScreen() { try { setCardMode('pay'); } catch (e) { _cardMode = 'pay'; renderCardBrick(); } }
+  function renderCardScreen() { _forceNewCard = false; try { setCardMode('pay'); } catch (e) { _cardMode = 'pay'; renderCardBrick(); } }
   // Alterna entre "Pagar agora" e "Só cadastrar cartão" (salvar no cofre sem cobrar).
   function setCardMode(m) {
     _cardMode = (m === 'save') ? 'save' : 'pay';
@@ -11634,32 +11639,66 @@
     return d ? (d + '@cliente.drope.app') : '';
   }
   // Lista os cartões salvos do cliente NESTA loja (só 4 últimos + bandeira; nada sensível).
+  // Mostra/esconde o formulário de cartão novo. Com cartão salvo, o form fica escondido
+  // atrás do botão "Adicionar outro cartão" (menos poluição na tela).
+  let _forceNewCard = false;
+  function _setNewCardVisible(showForm, hasSaved) {
+    const sec = document.getElementById('new-card-section');
+    const btn = document.getElementById('add-other-card-btn');
+    if (sec) sec.style.display = showForm ? '' : 'none';
+    if (btn) btn.style.display = (hasSaved && !showForm) ? '' : 'none';
+  }
+  function showNewCardForm() {
+    _forceNewCard = true;
+    _setNewCardVisible(true, true);
+    try { setCardMode('pay'); } catch (e) {}
+    try { document.getElementById('new-card-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+  }
   async function _renderSavedCards() {
     const box = document.getElementById('saved-cards');
     if (!box) return;
     box.innerHTML = ''; _savedCustomerId = null;
-    if (typeof isGuest === 'function' && isGuest()) return;
-    if (!profile.phone || !_custToken() || !_cardCtx) return;
+    const noneShowForm = () => _setNewCardVisible(true, false); // sem cartão salvo → form direto
+    if (typeof isGuest === 'function' && isGuest()) { noneShowForm(); return; }
+    if (!profile.phone || !_custToken() || !_cardCtx) { noneShowForm(); return; }
     const email = _customerVaultEmail();
-    if (!email) return;
+    if (!email) { noneShowForm(); return; }
     try {
       const r = await fetch(`/api/webhook?action=mp_saved_cards&filial=${encodeURIComponent(_cardCtx.slug)}&phone=${encodeURIComponent(profile.phone)}&token=${encodeURIComponent(_custToken())}&email=${encodeURIComponent(email)}`, { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
-      if (!d || !d.ok) return;
+      if (!d || !d.ok) { noneShowForm(); return; }
       _savedCustomerId = d.customer_id || null;
-      if (!d.cards || !d.cards.length) return;
+      if (!d.cards || !d.cards.length) { noneShowForm(); return; }
       box.innerHTML = `<div class="co-section-lbl" style="margin-bottom:8px">Seus cartões salvos</div>` + d.cards.map(c => `
         <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden">
           <div onclick="_toggleSavedCard('${c.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
             <div style="font-weight:700;font-size:14px">💳 ${escapeHtml(String(c.brand || 'cartão'))} •••• ${escapeHtml(String(c.last_four || '••••'))}</div>
             <div style="color:var(--text-dim)">›</div>
           </div>
-          <div id="sc-cvv-${c.id}" style="display:none;gap:10px;padding:0 16px 14px;align-items:center">
-            <input inputmode="numeric" maxlength="4" placeholder="CVV" id="sc-cvv-inp-${c.id}" class="card-input" style="max-width:110px;margin:0">
-            <button class="btn-primary" style="width:auto;padding:12px 20px;margin:0" onclick="payWithSavedCard('${c.id}','${c.pm_id || ''}')">Pagar</button>
+          <div id="sc-cvv-${c.id}" style="display:none;flex-direction:column;gap:10px;padding:0 16px 14px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <input inputmode="numeric" maxlength="4" placeholder="CVV" id="sc-cvv-inp-${c.id}" class="card-input" style="max-width:110px;margin:0">
+              <button class="btn-primary" style="width:auto;padding:12px 20px;margin:0" onclick="payWithSavedCard('${c.id}','${c.pm_id || ''}')">Pagar</button>
+            </div>
+            <div id="sc-msg-${c.id}" style="font-size:12.5px;min-height:14px"></div>
+            <div style="text-align:right"><span onclick="deleteSavedCard('${c.id}')" style="color:var(--pink);font-size:12px;font-weight:700;cursor:pointer">excluir cartão</span></div>
           </div>
-        </div>`).join('') + `<div style="text-align:center;color:var(--text-dim);font-size:12px;margin:6px 0 16px">— ou paga com um cartão novo —</div>`;
-    } catch (e) {}
+        </div>`).join('');
+      _setNewCardVisible(_forceNewCard, true); // tem salvo → form só se o cliente pediu "adicionar outro"
+    } catch (e) { noneShowForm(); }
+  }
+  // Exclui um cartão salvo do cofre do MP.
+  async function deleteSavedCard(cardId) {
+    if (!confirm('Excluir este cartão salvo?')) return;
+    try {
+      const r = await fetch('/api/webhook?action=mp_delete_card', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial_slug: _cardCtx.slug, phone: profile.phone, token: _custToken(), customer_email: _customerVaultEmail(), card_id: cardId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { toast('Cartão excluído ✦'); _forceNewCard = false; _renderSavedCards(); }
+      else { toast((d && d.error) || 'não deu pra excluir ✦'); }
+    } catch (e) { toast('erro de rede ✦'); }
   }
   function _toggleSavedCard(id) {
     const el = document.getElementById('sc-cvv-' + id);
@@ -11670,7 +11709,8 @@
   }
   // Pagar com um cartão salvo: tokeniza (cardId + CVV) no navegador e processa com split.
   async function payWithSavedCard(cardId, pmId) {
-    const statusEl = document.getElementById('mp-card-status');
+    // Mensagem PERTO do cartão (inline), não lá embaixo.
+    const statusEl = document.getElementById('sc-msg-' + cardId) || document.getElementById('mp-card-status');
     const inp = document.getElementById('sc-cvv-inp-' + cardId);
     const cvv = (inp && inp.value || '').replace(/\D/g, '');
     if (!/^\d{3,4}$/.test(cvv)) { toast('Digita o CVV do cartão ✦'); if (inp) inp.focus(); return; }
