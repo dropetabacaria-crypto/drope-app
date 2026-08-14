@@ -17635,10 +17635,13 @@ async function handleMPProcessCard(req, res) {
       external_reference: order_id || `dr-${Date.now().toString(36)}`,
       notification_url: `https://drope-app.vercel.app/api/webhook?action=mp_webhook`,
       statement_descriptor: 'DROPE',
-      // 3DS: a conta MP da sp NÃO está habilitada pra 3DS → 'mandatory' fazia o MP RECUSAR
-      // a requisição (nem criava o pagamento) e a tela travava. Voltamos ao decisão-na-hora
-      // (binary_mode) pra recusar limpo e cair no Pix. 3DS só quando a conta habilitar.
-      binary_mode: true,
+      // 3DS 2.0 (config confirmada pelo suporte MP em 18/08): valores válidos no Checkout API
+      // são só 'not_supported' e 'optional' — 'mandatory' NÃO existe (era o que quebrava a
+      // requisição). Com 'optional' + binary_mode:false, quando o emissor exigir autenticação
+      // a resposta vem 'pending/pending_challenge' + three_ds_info → abrimos o desafio no iframe.
+      three_d_secure_mode: 'optional',
+      binary_mode: false,
+      capture: true,
       payer: {
         email: vaultEmail || 'cliente@drope.app',
       },
