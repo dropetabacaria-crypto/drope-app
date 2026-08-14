@@ -224,20 +224,17 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
   /* ===== Configuração da loja em OVERLAY de tela cheia (estilo Ajustes) ===== */
   #cfg-topbar { display: none; }
+  /* Drawer que desliza da DIREITA pra esquerda */
   #config-wrap.cfg-open {
-    position: fixed; inset: 0; z-index: 300; margin: 0 auto !important; max-width: 640px;
+    position: fixed; top: 0; right: 0; bottom: 0; left: auto; z-index: 300;
+    width: 100%; max-width: 440px; margin: 0 !important;
     background: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.5px) 0 0 / 23px 23px, var(--bg);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 0 16px calc(34px + env(safe-area-inset-bottom));
-    animation: cfgIn .2s ease;
-    box-shadow: 0 0 0 1px var(--border), 0 30px 80px rgba(0,0,0,0.6);
+    animation: cfgSlideIn .26s cubic-bezier(.2,.9,.3,1);
+    box-shadow: -2px 0 0 var(--border), -24px 0 60px rgba(0,0,0,0.6);
   }
-  /* escurece o fundo atrás do overlay (aparece em telas largas; no mobile o painel cobre tudo) */
-  #config-wrap.cfg-open::before {
-    content: ''; position: fixed; inset: 0; z-index: -1;
-    background: rgba(5,4,12,0.78); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  }
-  @keyframes cfgIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+  @keyframes cfgSlideIn { from { transform: translateX(100%); opacity: .5 } to { transform: none; opacity: 1 } }
   #config-wrap.cfg-open #cfg-topbar {
     display: flex; align-items: center; gap: 12px;
     position: sticky; top: 0; z-index: 2;
@@ -311,6 +308,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="refresh-btn" style="margin-left:auto;position:relative" onclick="openNotifs()" title="Avisos">🔔<span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px">0</span></button>
     <button class="refresh-btn" onclick="verLojaCliente()">Ver como cliente</button>
     <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
+    <button class="refresh-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações" style="font-size:18px;line-height:1">⚙</button>
   </div>
 
   <div class="section sec-resumo">
@@ -371,6 +369,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
     </button>
   </div>
+
+  <!-- Fundo escuro do drawer de config — clique fora fecha -->
+  <div id="cfg-backdrop" onclick="closeConfigOverlay()" style="display:none;position:fixed;inset:0;z-index:299;background:rgba(5,4,12,0.78);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)"></div>
 
   <!-- ============ CONFIGURAÇÃO DA LOJA (recolhível — uso ocasional) ============ -->
   <div class="section sec-config">
@@ -2818,6 +2819,7 @@ function openConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
   if (!w) return;
   w.style.display = 'block'; w.classList.add('cfg-open');
+  const bd = document.getElementById('cfg-backdrop'); if (bd) bd.style.display = 'block';
   document.body.style.overflow = 'hidden';
   if (c) c.textContent = 'Fechar ▴';
   closeCfg();          // sempre abre no menu
@@ -2827,6 +2829,7 @@ function closeConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
   if (!w) return;
   w.classList.remove('cfg-open'); w.style.display = 'none';
+  const bd = document.getElementById('cfg-backdrop'); if (bd) bd.style.display = 'none';
   document.body.style.overflow = '';
   if (c) c.textContent = 'Abrir ▾';
 }
