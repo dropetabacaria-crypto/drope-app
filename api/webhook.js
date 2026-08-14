@@ -17589,6 +17589,42 @@ async function handleMPSavedCards(req, res) {
   } catch (e) { console.error('[mp_saved_cards]', e.message); return res.status(200).json({ ok: true, cards: [] }); }
 }
 
+// POST action=mp_save_card — CADASTRA um cartão no cofre do MP SEM cobrar (pra reusar).
+// O cartão nunca passa pelo DROPE: o front tokeniza (card_token) e o MP guarda no cofre.
+async function handleMPSaveCard(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', 'https://drope-app.vercel.app');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const slug = String(body.filial_slug || '').toLowerCase().trim();
+    const phone = body.phone || '';
+    const token = body.token || '';           // sessão do cliente
+    const cardToken = body.card_token || '';   // token do cartão (tokenizado no navegador)
+    const email = String(body.customer_email || '').trim().toLowerCase();
+    if (!(await _customerSessionOk(phone, token))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!cardToken || !email || !slug) return res.status(400).json({ ok: false, error: 'dados faltando' });
+    const filial = await _filialBySlugRead(slug);
+    const sellerToken = filial ? await _mpTokenForFilial(filial) : null;
+    if (!sellerToken) return res.status(409).json({ ok: false, error: 'loja sem pagamento ativo' });
+    const customerId = await _mpEnsureCustomer(sellerToken, email, { name: body.name || '' });
+    if (!customerId) return res.status(502).json({ ok: false, error: 'não deu pra preparar o cofre' });
+    const r = await fetch(`https://api.mercadopago.com/v1/customers/${customerId}/cards`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sellerToken}` },
+      body: JSON.stringify({ token: cardToken }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      console.error('[mp_save_card]', JSON.stringify(d).slice(0, 300));
+      const msg = (d && (d.message || (d.cause && d.cause[0] && d.cause[0].description))) || 'não deu pra salvar o cartão';
+      return res.status(502).json({ ok: false, error: msg });
+    }
+    return res.status(200).json({ ok: true, card: { id: d.id, last_four: d.last_four_digits, brand: (d.payment_method || {}).name || 'cartão' } });
+  } catch (e) { console.error('[mp_save_card] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=mp_process_card — CARTÃO TRANSPARENTE (formulário dentro do app).
 // O cliente digita o cartão no DROPE; o Brick do MP tokeniza no navegador (o número
 // NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
@@ -20840,6 +20876,9 @@ async function generateAll(){
   // action=mp_create_pix — POST: cria pagamento Pix via API do Mercado Pago
   // action=mp_check_pix  — GET: checa status de pagamento existente (polling)
   // action=mp_webhook    — POST: recebe notificação do MP quando pagamento é aprovado
+  if (req.url && req.url.indexOf('action=mp_save_card') >= 0) {
+    return await handleMPSaveCard(req, res);
+  }
   if (req.url && req.url.indexOf('action=mp_saved_cards') >= 0) {
     return await handleMPSavedCards(req, res);
   }

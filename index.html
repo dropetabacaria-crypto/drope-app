@@ -4988,8 +4988,13 @@
     <div class="card-wrap">
       <!-- Cartões salvos (cofre do MP) — populado por _renderSavedCards() -->
       <div id="saved-cards"></div>
-      <div class="co-section-lbl" style="margin-bottom:6px">Pague com cartão ✦</div>
-      <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.</div>
+      <!-- Modo: pagar agora OU só cadastrar o cartão pra reusar -->
+      <div id="card-mode-tabs" style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="cmt-pay" onclick="setCardMode('pay')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--lime);background:rgba(212,255,46,0.12);color:var(--lime);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Pagar agora</button>
+        <button id="cmt-save" onclick="setCardMode('save')" style="flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">Só cadastrar cartão</button>
+      </div>
+      <div class="co-section-lbl" id="card-mode-lbl" style="margin-bottom:6px">Pague com cartão ✦</div>
+      <div id="card-mode-hint" style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.</div>
       <!-- Formulário seguro do Mercado Pago (tokeniza no navegador; o cartão nunca passa pelo nosso servidor) -->
       <div id="mp-card-brick"></div>
       <label id="save-card-row" style="display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;font-size:14px;color:var(--text)">
@@ -11603,8 +11608,24 @@
   }
 
   // ===== CARTÃO IN-APP (Mercado Pago Card Payment Brick, sem redirect) =====
-  let _mpInstance = null, _cardBrickController = null, _cardCtx = null, _savedCustomerId = null;
-  function renderCardScreen() { renderCardBrick(); }
+  let _mpInstance = null, _cardBrickController = null, _cardCtx = null, _savedCustomerId = null, _cardMode = 'pay';
+  function renderCardScreen() { try { setCardMode('pay'); } catch (e) { _cardMode = 'pay'; renderCardBrick(); } }
+  // Alterna entre "Pagar agora" e "Só cadastrar cartão" (salvar no cofre sem cobrar).
+  function setCardMode(m) {
+    _cardMode = (m === 'save') ? 'save' : 'pay';
+    const pay = document.getElementById('cmt-pay'), sav = document.getElementById('cmt-save');
+    const on = 'flex:1;padding:11px;border-radius:12px;border:1px solid var(--lime);background:rgba(212,255,46,0.12);color:var(--lime);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer';
+    const off = 'flex:1;padding:11px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:inherit;font-weight:800;font-size:13px;cursor:pointer';
+    if (pay) pay.style.cssText = _cardMode === 'pay' ? on : off;
+    if (sav) sav.style.cssText = _cardMode === 'save' ? on : off;
+    const lbl = document.getElementById('card-mode-lbl'), hint = document.getElementById('card-mode-hint');
+    if (lbl) lbl.textContent = _cardMode === 'save' ? 'Cadastrar cartão ✦' : 'Pague com cartão ✦';
+    if (hint) hint.textContent = _cardMode === 'save' ? 'Salva o cartão pra reusar nas próximas — sem cobrar agora.' : 'Crédito ou débito ✦ qualquer banco. Sem sair do DROPE.';
+    const scr = document.getElementById('save-card-row'); if (scr) scr.style.display = _cardMode === 'save' ? 'none' : '';
+    const st = document.getElementById('mp-card-status'); if (st) st.textContent = '';
+    try { _showCardPixFallback(false); } catch (e) {}
+    renderCardBrick(); // re-render pra trocar o texto do botão (Pagar / Salvar)
+  }
   // E-mail que identifica o cliente no cofre do MP (usa o real; senão deriva do telefone).
   function _customerVaultEmail() {
     const e = (profile.email || '').trim().toLowerCase();
@@ -11718,7 +11739,10 @@
       if (!_mpInstance || _mpInstance._pk !== pk) { _mpInstance = new window.MercadoPago(pk, { locale: 'pt-BR' }); _mpInstance._pk = pk; }
       _cardBrickController = await _mpInstance.bricks().create('cardPayment', 'mp-card-brick', {
         initialization: { amount: _cardCtx.amount },
-        customization: { visual: { style: { theme: 'dark' } }, paymentMethods: { maxInstallments: 3 } },
+        customization: {
+          visual: { style: { theme: 'dark' }, texts: { formSubmit: _cardMode === 'save' ? 'Salvar cartão ✦' : 'Pagar' } },
+          paymentMethods: { maxInstallments: _cardMode === 'save' ? 1 : 3 },
+        },
         callbacks: {
           onReady: () => {},
           onError: (err) => { console.error('[card brick]', err); if (statusEl) statusEl.textContent = 'erro no formulário ✦ tenta de novo'; },
@@ -11732,6 +11756,33 @@
   }
   function _cardBrickSubmit(formData) {
     const statusEl = document.getElementById('mp-card-status');
+    // MODO CADASTRAR: salva o cartão no cofre do MP, SEM cobrar.
+    if (_cardMode === 'save') {
+      if (statusEl) { statusEl.textContent = 'salvando cartão…'; statusEl.style.color = 'var(--text-dim)'; }
+      return new Promise(async (resolve, reject) => {
+        try {
+          if (!_isLoggedIn()) { if (statusEl) { statusEl.textContent = 'entra na conta pra salvar o cartão ✦'; statusEl.style.color = 'var(--pink)'; } try { openCustomerLogin(); } catch (e) {} return reject(new Error('login')); }
+          const r = await fetch('/api/webhook?action=mp_save_card', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filial_slug: _cardCtx.slug, phone: profile.phone, token: _custToken(),
+              card_token: formData.token, customer_email: _customerVaultEmail(), name: profile.name || '',
+            }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d.ok) {
+            resolve();
+            if (statusEl) { statusEl.textContent = 'cartão salvo ✦'; statusEl.style.color = 'var(--lime)'; }
+            try { toast('Cartão salvo ✦ na próxima é só o CVV'); } catch (e) {}
+            _cardMode = 'pay';
+            setTimeout(() => { try { setCardMode('pay'); } catch (e) {} }, 500); // volta pro modo pagar + mostra o salvo
+          } else {
+            if (statusEl) { statusEl.textContent = (d && d.error) || 'não deu pra salvar o cartão ✦'; statusEl.style.color = 'var(--pink)'; }
+            reject(new Error('save failed'));
+          }
+        } catch (e) { if (statusEl) { statusEl.textContent = 'erro de rede ✦ tenta de novo'; statusEl.style.color = 'var(--pink)'; } reject(e); }
+      });
+    }
     if (statusEl) { statusEl.textContent = 'processando pagamento…'; statusEl.style.color = 'var(--text-dim)'; } try { _showCardPixFallback(false); } catch (e) {}
     return new Promise(async (resolve, reject) => {
       try {
