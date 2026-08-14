@@ -4586,10 +4586,10 @@
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
     <div id="home-loja-bar" style="position:relative;margin:0 0 10px;overflow:hidden;background:var(--card)"></div>
 
-    <!-- NÍVEL 1 — categorias amplas (tipo de produto: Seda, Tabaco, Pods…) logo abaixo da loja -->
-    <div id="loja-broadcat-row" class="loja-broadcat-row" style="display:none"></div>
-    <!-- NÍVEL 2 — marcas/produtos específicos da loja (chips redondos) -->
-    <div id="loja-filtros-row" class="loja-filtros-row" style="display:none;margin-bottom:6px"></div>
+    <!-- NÍVEL 1 — categorias/tipos da loja (Seda, Tabaco, Pods…) logo abaixo da loja -->
+    <div id="loja-filtros-row" class="loja-filtros-row" style="display:none;margin-bottom:2px"></div>
+    <!-- NÍVEL 2 — marcas dos produtos (Zomo, Smoking, Amsterdam…), filtrado pela categoria -->
+    <div class="brands-wrap" id="brands-wrap" style="display:none"><div class="brands-scroll" id="brands-scroll"></div></div>
 
     <!-- Busca vira ícone de lupa no header; ao tocar, esta barra abre em overlay no topo -->
     <div class="search-bar-wrap" id="home-search-wrap" style="display:none">
@@ -4615,10 +4615,6 @@
     <!-- Barra de categorias COMPACTA sticky (aparece ao rolar, estilo iFood) -->
     <div class="loja-cat-sticky" id="loja-cat-sticky"><div class="loja-cat-sticky-scroll" id="loja-cat-sticky-scroll"></div></div>
 
-    <!-- DROPE HOME v2 — Carrossel horizontal de marcas (substitui chips redundantes embaixo) -->
-    <div class="brands-wrap" id="brands-wrap" style="display:none">
-      <div class="brands-scroll" id="brands-scroll"></div>
-    </div>
 
     <!-- OSSO 21 — Home personalizada (vibes pra novo, recompra+reco pra recorrente) -->
     <div id="home-personalized-wrap"></div>
@@ -9040,8 +9036,8 @@
       if (!CLIENT_LOJA || CLIENT_LOJA.slug !== _prevLojaSlug) { try { homeState.filtroId = null; homeState.broadCat = null; } catch(e) {} try { closeStoreSearch(); } catch(e) {} }
       if (CLIENT_LOJA && CLIENT_LOJA.name) { CLIENT_FILIAL_NAME = CLIENT_LOJA.name; try { localStorage.setItem(FILIAL_NAME_KEY, CLIENT_FILIAL_NAME); } catch(e) {} }
       try { renderLojaBar(); } catch(e) {}
-      try { renderBroadCats(); } catch(e) {}
       try { renderLojaFiltros(); } catch(e) {}
+      try { renderBrandsCarousel(); } catch(e) {}
       // Cache local pra próxima abertura ser fast-paint (por filial)
       try {
         const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
@@ -10173,52 +10169,17 @@
         ].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      // Nível 1 — categoria ampla (tipo de produto)
-      if (homeState.broadCat && _broadCat(p) !== homeState.broadCat) return false;
-      // Nível 2 — filtro/categoria da loja (ex.: ZOMO, Amsterdam)
+      // Nível 2 — filtro/categoria da loja (o TIPO: Seda, Tabaco…) — Nível 1 na UI
       if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
     }
     return true;
   }
 
-  // NÍVEL 1 — categorias amplas (tipo de produto), pílulas de texto logo abaixo da loja.
-  function renderBroadCats() {
-    const row = document.getElementById('loja-broadcat-row');
-    if (!row) return;
-    const prods = (typeof allProducts !== 'undefined' && Array.isArray(allProducts)) ? allProducts : [];
-    const counts = {};
-    prods.forEach(p => { const c = _broadCat(p); counts[c] = (counts[c] || 0) + 1; });
-    const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-    if (cats.length < 2) { row.style.display = 'none'; row.innerHTML = ''; return; } // 1 tipo só → não precisa
-    const cur = homeState.broadCat || null;
-    const q = s => String(s).replace(/'/g, '');
-    const pill = (name, active) => `<button class="lbc${active ? ' active' : ''}" onclick="setBroadCat(${name === null ? 'null' : `'${q(name)}'`})">${escapeHtml(name === null ? 'Tudo' : name)}</button>`;
-    row.style.display = 'flex';
-    row.innerHTML = pill(null, !cur) + cats.map(c => pill(c, c === cur)).join('');
-  }
-  function setBroadCat(name) {
-    homeState.broadCat = name || null;
-    // Se a marca/categoria (Nível 2) escolhida não existe na categoria ampla, limpa
-    if (homeState.filtroId) {
-      const ok = (allProducts || []).some(p => (p.filtro_id || null) === homeState.filtroId && (!homeState.broadCat || _broadCat(p) === homeState.broadCat));
-      if (!ok) homeState.filtroId = null;
-    }
-    renderBroadCats();
-    renderLojaFiltros();
-    try { renderGrid(); } catch (e) {}
-    const cs = document.getElementById('catalog');
-    if (cs && cs.classList.contains('active') && typeof renderCatalog === 'function') renderCatalog();
-  }
   // Categorias/filtros que a loja criou — barra visual navegável (formato: círculo/quadrado/retângulo).
   function renderLojaFiltros() {
     const row = document.getElementById('loja-filtros-row');
     if (!row) return;
-    let filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
-    // Nível 2 mostra só as marcas/categorias que têm produto na categoria ampla escolhida
-    if (homeState.broadCat) {
-      const rel = new Set((allProducts || []).filter(p => _broadCat(p) === homeState.broadCat).map(p => p.filtro_id).filter(Boolean));
-      filtros = filtros.filter(f => rel.has(f.id));
-    }
+    const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
     if (!filtros.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
     const cur = homeState.filtroId || null;
     const acc = 'var(--store-accent, var(--lime))';
@@ -10315,7 +10276,9 @@
   }
   function setLojaFiltro(id) {
     homeState.filtroId = id || null;
+    homeState.selectedBrand = null;      // trocar de categoria zera a marca (Nível 2)
     renderLojaFiltros();
+    try { renderBrandsCarousel(); } catch (e) {} // Nível 2 (marcas da categoria)
     renderGrid();
     const cs = document.getElementById('catalog');
     if (cs && cs.classList.contains('active') && typeof renderCatalog === 'function') renderCatalog();
@@ -10664,29 +10627,9 @@
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
-  const homeState = { searchText: '', selectedBrand: null, filtroId: null, broadCat: null };
+  const homeState = { searchText: '', selectedBrand: null, filtroId: null };
   // Categoria AMPLA (tipo de produto) inferida do nome/marca — Nível 1 do filtro.
   // Sem campo extra pro lojista: deduz do texto do produto.
-  function _broadCat(p) {
-    const s = `${p.name || ''} ${p.marca || ''} ${p.sabor || ''} ${p.desc || ''}`.toLowerCase();
-    const has = (...ws) => ws.some(w => s.includes(w));
-    if (has('seda', 'papel', 'rolling', 'king size', 'slim')) return 'Seda';
-    if (has('tabaco', 'fumo', 'cavendish')) return 'Tabaco';
-    if (has('essenc', 'essên', 'narguile', 'narguilé', 'shisha', 'melaç')) return 'Essência';
-    if (has('carvão', 'carvao', 'coco briquete')) return 'Carvão';
-    if (has('filtro', 'tips ')) return 'Filtro';
-    if (has('pod', 'vape', 'ignite', 'elfbar', 'oxbar', 'pods')) return 'Pods';
-    if (has('isqueiro', 'clipper', 'bic ')) return 'Isqueiro';
-    if (has('cerveja', 'beer', 'heineken', 'brahma', 'budweiser', 'lager', 'ipa')) return 'Cerveja';
-    if (has('vinho', 'wine', 'tinto', 'espumante')) return 'Vinho';
-    if (has('whisky', 'whiskey', 'vodka', ' gin', 'cachaça', 'destilado', 'tequila', ' rum', 'conhaque')) return 'Destilado';
-    if (has('energét', 'energet', 'red bull', 'monster', 'baly')) return 'Energético';
-    if (has('gelo', ' ice')) return 'Gelo';
-    if (has('refri', 'coca', 'guaraná', 'água', 'agua ', 'suco')) return 'Bebida';
-    if (has('doce', 'bala', 'chocolate', 'trident')) return 'Doces';
-    return 'Outros';
-  }
-
   function searchProducts(text) {
     homeState.searchText = (text || '').toLowerCase().trim();
     const clearBtn = document.getElementById('search-clear');
@@ -10733,9 +10676,12 @@
     const wrap = document.getElementById('brands-wrap');
     const scroll = document.getElementById('brands-scroll');
     if (!wrap || !scroll || !products || products.length === 0) return;
+    // NÍVEL 2 = marcas. Só as marcas dos produtos da categoria (Nível 1) selecionada.
+    const inCat = p => !homeState.filtroId || (p.filtro_id || null) === homeState.filtroId;
     // Conta produtos por marca, ignora vazias
     const brandMap = {};
     products.forEach(p => {
+      if (!inCat(p)) return;
       const b = (p.marca || p.brand || '').trim().toUpperCase();
       if (!b) return;
       brandMap[b] = (brandMap[b] || 0) + 1;
