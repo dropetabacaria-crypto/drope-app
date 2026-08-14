@@ -2622,6 +2622,7 @@ let _pageTheme = 'dark';
 let _pageAccent = null;
 const ACCENTS = ['#D4FF2E', '#FF2D6F', '#B026FF', '#2DD4FF', '#FF8533', '#4ADE80'];
 let _currentLojaPhoto = null;
+let _currentLojaCover = null;
 let _pvBioTimer = null;
 function _bioCount() {
   const b = document.getElementById('loja-bio'), c = document.getElementById('bio-count'); if (b && c) c.textContent = (b.value || '').length + '/80';
@@ -3087,27 +3088,38 @@ let _coverImg = null, _coverZoom = 1, _coverOffX = 0, _coverOffY = 0, _coverDrag
 async function onLojaCover(input) {
   const file = input.files && input.files[0]; input.value = '';
   if (!file) return;
+  try { const b64 = await _fileToDataUrl(file, 1600); _initCoverEditor(b64); } catch (e) {}
+}
+// Abre o editor de subcapa (arrastar + zoom) com uma imagem (nova ou a já salva).
+function _initCoverEditor(b64) {
+  _removeCover = false;
+  const img = new Image();
+  img.onload = () => {
+    _coverImg = img; _coverZoom = 1; _coverOffX = 0; _coverOffY = 0;
+    const el = document.getElementById('loja-cover');
+    if (el) {
+      el.style.backgroundImage = ''; el.onclick = null; el.style.cursor = ''; el.title = ''; // modo edição: canvas cuida do arrasto
+      el.innerHTML = '<canvas id="cover-canvas" width="1200" height="480" style="width:100%;height:auto;display:block;cursor:grab;touch-action:none"></canvas>';
+      _bindCoverCanvas();
+    }
+    const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'block';
+    const zi = document.getElementById('cover-zoom'); if (zi) zi.value = '1';
+    const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = '';
+    _drawCover(); _commitCover();
+    document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
+    document.getElementById('loja-msg').textContent = 'posicione a subcapa e clica em salvar';
+  };
+  img.src = b64;
+}
+// Clique na subcapa JÁ SALVA → reabre o editor com ela (reposicionar/zoom).
+async function editSavedCover() {
+  if (!_currentLojaCover) { const inp = document.getElementById('loja-cover-input'); if (inp) inp.click(); return; }
   try {
-    const b64 = await _fileToDataUrl(file, 1600);
-    _removeCover = false;
-    const img = new Image();
-    img.onload = () => {
-      _coverImg = img; _coverZoom = 1; _coverOffX = 0; _coverOffY = 0;
-      const el = document.getElementById('loja-cover');
-      if (el) {
-        el.style.backgroundImage = '';
-        el.innerHTML = '<canvas id="cover-canvas" width="1200" height="480" style="width:100%;height:auto;display:block;cursor:grab;touch-action:none"></canvas>';
-        _bindCoverCanvas();
-      }
-      const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'block';
-      const zi = document.getElementById('cover-zoom'); if (zi) zi.value = '1';
-      const rm = document.getElementById('loja-cover-remove'); if (rm) rm.style.display = '';
-      _drawCover(); _commitCover();
-      document.getElementById('loja-msg').style.color = 'var(--fg-dim)';
-      document.getElementById('loja-msg').textContent = 'posicione a subcapa e clica em salvar';
-    };
-    img.src = b64;
-  } catch (e) {}
+    const resp = await fetch(_currentLojaCover, { cache: 'no-store' });
+    const blob = await resp.blob();
+    const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+    _initCoverEditor(b64);
+  } catch (e) { const inp = document.getElementById('loja-cover-input'); if (inp) inp.click(); }
 }
 function _drawCover() {
   const c = document.getElementById('cover-canvas'); if (!c || !_coverImg) return;
@@ -3205,11 +3217,20 @@ function renderLojaProfile(prof, endereco) {
     }
   }
   if (!_lojaCoverB64 && !_removeCover) {
+    _currentLojaCover = prof.cover_url || null;
     const cv = document.getElementById('loja-cover'), rm = document.getElementById('loja-cover-remove');
     const zc = document.getElementById('cover-editor-controls'); if (zc) zc.style.display = 'none'; // sem edição → esconde zoom
     if (cv) {
-      if (prof.cover_url) { cv.innerHTML = ''; cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = ''; if (rm) rm.style.display = ''; }
-      else { cv.innerHTML = ''; cv.style.backgroundImage = ''; cv.textContent = 'Toque pra adicionar uma imagem larga'; if (rm) rm.style.display = 'none'; }
+      if (prof.cover_url) {
+        // Subcapa salva → clicável pra reposicionar/zoom
+        cv.innerHTML = ''; cv.style.backgroundImage = `url('${prof.cover_url}')`; cv.textContent = '';
+        cv.style.cursor = 'pointer'; cv.title = 'Toque pra reposicionar / dar zoom'; cv.onclick = editSavedCover;
+        if (rm) rm.style.display = '';
+      } else {
+        cv.innerHTML = ''; cv.style.backgroundImage = ''; cv.textContent = 'Toque pra adicionar uma imagem larga';
+        cv.style.cursor = 'pointer'; cv.onclick = () => { const inp = document.getElementById('loja-cover-input'); if (inp) inp.click(); };
+        if (rm) rm.style.display = 'none';
+      }
     }
   }
   setPageTheme(prof.theme || 'dark');
