@@ -397,7 +397,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <!-- MENU hierárquico da configuração -->
       <div id="config-menu" style="display:flex;flex-direction:column;gap:8px">
         <button class="cfg-item" onclick="openCfg('loja')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">Foto, nome, descrição, endereço e aparência</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Minha loja</span><br><small style="color:var(--fg-dim);font-weight:400">Foto, nome, descrição e endereço</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
+        <button class="cfg-item" onclick="openCfg('aparencia')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Aparência da página</span><br><small style="color:var(--fg-dim);font-weight:400">Fundo, cor de destaque e prévia do que o cliente vê</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('func')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionamento</span><br><small style="color:var(--fg-dim);font-weight:400">Dias, horário e visibilidade</small></span><span style="color:var(--fg-dim)">›</span>
@@ -472,7 +475,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <input class="pf-input" id="loja-address" maxlength="90" placeholder="ex: Rua X, 123">
           <div style="font-size:11px;color:var(--fg-dim);margin-top:4px">Mostra sua loja pros clientes mais perto e habilita a retirada na loja (o cliente abre a rota no Maps/Waze)</div>
 
-          <div class="pf-lbl" style="margin-top:16px">Aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
+          <button class="pf-btn full" onclick="saveLojaProfile('loja-msg')" style="margin-top:16px">Salvar ✦</button>
+          <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+        </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: Aparência da página -->
+      <div class="cfg-sec" id="cfg-aparencia" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
+        <h2>Aparência da página<span class="help-q" onclick="helpShow('loja',true)" title="O que é isso?">?</span></h2>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
+          <div class="pf-lbl">Aparência da sua página <span style="color:var(--fg-dim);font-weight:400">(o que o cliente vê)</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
             <span style="font-size:13px;color:var(--fg-dim)">Fundo</span>
             <div class="theme-toggle">
@@ -487,8 +502,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div class="pf-lbl" style="margin-top:16px">Prévia da sua página</div>
           <div id="loja-preview" style="border-radius:16px;overflow:hidden;border:1px solid var(--border)"></div>
 
-          <button class="pf-btn full" onclick="saveLojaProfile()" style="margin-top:14px">Salvar ✦</button>
-          <div id="loja-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
+          <button class="pf-btn full" onclick="saveLojaProfile('aparencia-msg')" style="margin-top:14px">Salvar ✦</button>
+          <div id="aparencia-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
         </div>
         </div>
       </div>
@@ -2821,7 +2836,7 @@ async function delFiltro(id) {
 
 // ===== Configuração da loja (bloco recolhível) =====
 // Configuração = OVERLAY de tela cheia (estilo Ajustes): menu → seção → voltar.
-const CFG_TITLES = { loja: 'Minha loja', filtros: 'Meus filtros', func: 'Funcionamento', qr: 'QR da loja', pagamento: 'Pagamentos', funcionarios: 'Funcionários', entregadores: 'Entregadores', parceiros: 'Parceiros / Indicadores', plano: 'Meu plano' };
+const CFG_TITLES = { loja: 'Minha loja', aparencia: 'Aparência da página', filtros: 'Meus filtros', func: 'Funcionamento', qr: 'QR da loja', pagamento: 'Pagamentos', funcionarios: 'Funcionários', entregadores: 'Entregadores', parceiros: 'Parceiros / Indicadores', plano: 'Meu plano' };
 function openConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
   if (!w) return;
@@ -2857,7 +2872,7 @@ function openCfg(name) {
   const sec = document.getElementById('cfg-' + name); if (sec) sec.style.display = 'block';
   const t = document.getElementById('cfg-title'); if (t) t.textContent = (CFG_TITLES[name] || 'Configuração');
   try {
-    if (name === 'loja') renderLojaPreview();
+    if (name === 'aparencia') renderLojaPreview();
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
     if (name === 'qr') renderQR();
     if (name === 'pagamento') mpRefreshStatus();
@@ -3182,12 +3197,12 @@ function removeLojaCover() {
   document.getElementById('loja-msg').textContent = 'subcapa removida — clica em salvar';
   renderLojaPreview();
 }
-async function saveLojaProfile() {
+async function saveLojaProfile(msgId) {
   const bio = (document.getElementById('loja-bio').value || '').trim().slice(0, 80);
   const cep = (document.getElementById('loja-cep').value || '').replace(/\D/g, '');
   const address = (document.getElementById('loja-address').value || '').trim();
   const whats = (document.getElementById('loja-whats').value || '').replace(/\D/g, '');
-  const msg = document.getElementById('loja-msg');
+  const msg = document.getElementById(msgId || 'loja-msg') || document.getElementById('loja-msg');
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const payload = { filial: FILIAL_SLUG, token: ACCESS_CODE, bio, whats, theme: _pageTheme, segmentos: _segs() };
   if (_pageAccent) payload.accent = _pageAccent;
@@ -3203,7 +3218,7 @@ async function saveLojaProfile() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
       _lojaPhotoB64 = null; _lojaCoverB64 = null; _removeCover = false;
-      msg.style.color = 'var(--green)'; msg.textContent = 'loja atualizada ✦';
+      msg.style.color = 'var(--green)'; msg.textContent = 'Loja atualizada ✦';
       try { loadData(true); } catch (e) {}                 // atualiza o painel com os novos dados
       setTimeout(() => { try { cfgBack(); } catch (e) {} }, 650); // fecha e volta pra tela anterior
     }
