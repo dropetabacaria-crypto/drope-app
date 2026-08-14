@@ -5016,6 +5016,74 @@ async function handleFilialOrderStatus(req, res) {
   } catch (e) { console.error('[filial_order_status] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_order_cancel — lojista CANCELA um pedido dele.
+// Devolve o estoque (se já tinha sido baixado) e, se foi pago online, ESTORNA no MP.
+async function handleFilialOrderCancel(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const id = body.id;
+    if (!id) return res.status(400).json({ ok: false, error: 'id faltando' });
+    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,items,transaction_id,delivery_mode,payment_method&limit=1`);
+    if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
+    const o = ex[0];
+    if (['cancelled', 'delivered', 'picked_up', 'completed'].includes(o.status)) {
+      return res.status(400).json({ ok: false, error: 'pedido já finalizado — não dá pra cancelar' });
+    }
+    const now = new Date().toISOString();
+    const hist = Array.isArray(o.status_history) ? o.status_history : [];
+    hist.push({ status: 'cancelled', at: now });
+    await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, { status: 'cancelled', cancelled_at: now, status_history: hist });
+    // Devolve o estoque — só se ele já tinha sido baixado (pago ou reserva de retirada).
+    const STOCK_CONSUMED = ['paid', 'preparing', 'prepared', 'ready', 'dispatched', 'pending_pickup', 'confirmed', 'accepted'];
+    if (STOCK_CONSUMED.includes(o.status)) {
+      const its = Array.isArray(o.items) ? o.items : [];
+      for (const it of its) {
+        if (it && it.slug && it.qty) {
+          try {
+            await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_release_stock`, {
+              method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+            });
+          } catch (e) { console.error('[cancel] release stock:', e.message); }
+        }
+      }
+    }
+    // Estorno no Mercado Pago — só se foi pago online (tem transaction_id).
+    let refunded = false;
+    const paidOnline = o.transaction_id && /mercadopago/i.test(o.payment_method || '');
+    if (paidOnline) {
+      try {
+        const sellerToken = await _mpTokenForFilial(filial);
+        if (sellerToken) {
+          const rf = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(o.transaction_id)}/refunds`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sellerToken}`, 'X-Idempotency-Key': `refund-${o.order_nsu}-${Date.now()}` },
+            body: JSON.stringify({}),
+          });
+          if (rf.ok) refunded = true; else console.error('[cancel refund]', JSON.stringify(await rf.json().catch(() => ({}))).slice(0, 200));
+        }
+      } catch (e) { console.error('[cancel refund] err:', e.message); }
+    }
+    // Avisa o cliente.
+    try {
+      const phone = ((o.customer_snapshot || {}).phone) || '';
+      const nsu = o.order_nsu || id;
+      const msg = refunded
+        ? `Seu pedido #${nsu} foi cancelado pela loja. O estorno já foi solicitado ✦`
+        : `Seu pedido #${nsu} foi cancelado pela loja.`;
+      if (phone) _notify('customer', phone, 'order_status', 'Pedido cancelado', msg, null).catch(() => {});
+    } catch (e) {}
+    return res.status(200).json({ ok: true, refunded });
+  } catch (e) { console.error('[filial_order_cancel] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // POST action=filial_product_art — lojista gera a arte (IA) de um produto DELE.
 // Auth pela sessão da loja; o ADMIN_TOKEN e a pipeline ficam 100% no servidor.
 // Roda a MESMA runArtGeneration do admin (inline, ~30s).
@@ -20994,6 +21062,10 @@ async function generateAll(){
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
+  }
+  // action=filial_order_cancel — POST: lojista cancela um pedido (devolve estoque + estorna)
+  if (req.url && req.url.indexOf('action=filial_order_cancel') >= 0) {
+    return await handleFilialOrderCancel(req, res);
   }
   // action=filial_order_status — POST: lojista avança o status de um pedido
   if (req.url && req.url.indexOf('action=filial_order_status') >= 0) {

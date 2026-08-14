@@ -3240,6 +3240,10 @@ function renderPedidoCard(p, isEntregue) {
   } else if (stage === 'dispatched') {
     actions = corr + b('delivered', 'Entregue ✓');
   }
+  // Cancelar pedido — some quando já foi entregue/retirado.
+  const cancelBtn = (stage !== 'done')
+    ? `<div style="text-align:center;margin-top:12px"><span onclick="cancelOrder(${p.id})" style="color:var(--pink);font-size:12px;font-weight:700;cursor:pointer">✕ Cancelar pedido</span></div>`
+    : '';
   return `
     <div class="pedido-card ${cls}">
       <div class="pedido-head">
@@ -3255,8 +3259,21 @@ function renderPedidoCard(p, isEntregue) {
         <span class="ganho">${fmtBRL(p.ganho_cents)} ✦ líquido pra você</span>
       </div>
       ${actions}
+      ${cancelBtn}
     </div>
   `;
+}
+async function cancelOrder(id) {
+  if (!confirm('Cancelar este pedido?\n\nSe já foi pago online, o valor é estornado ao cliente e o estoque volta pro catálogo.')) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_order_cancel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { alert(d.refunded ? ' Pedido cancelado ✦ estorno solicitado ao cliente' : ' Pedido cancelado ✦'); loadData(true); }
+    else alert(' ' + ((d && d.error) || 'não deu pra cancelar'));
+  } catch (e) { alert(' Erro de rede'); }
 }
 async function advanceOrder(id, status) {
   try {
