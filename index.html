@@ -4482,6 +4482,11 @@
     .ff-prod .st{ font-size:11px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ff-prod .pr{ font-size:13px; font-weight:800; color:var(--lime); margin-top:3px; }
     .ff-prod .pr s{ color:var(--text-dim); font-weight:500; font-size:11px; margin-left:4px; }
+    /* Skeleton de carregamento (evita o "pop-in" fora de ordem ao abrir o app) */
+    .skel{ position:relative; overflow:hidden; background:var(--card); border:1px solid var(--border); }
+    .skel::after{ content:''; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent); animation:skelShimmer 1.25s infinite; }
+    @keyframes skelShimmer{ 100%{ transform:translateX(100%); } }
+    @media (prefers-reduced-motion: reduce){ .skel::after{ animation:none; } }
     .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:16px 20px 40px; }
     .cat-grid .ff-prod{ width:auto; }
     .cat-grid .ff-prod .th{ width:100%; height:130px; }
@@ -8846,24 +8851,55 @@
       if (t) { const arr = (typeof addresses !== 'undefined' && addresses) || []; const a = arr.find(x => x.id === selectedAddressId) || arr[0]; t.textContent = (a && a.street) ? (a.street + (a.num ? (', ' + a.num) : '')) : 'Adicionar endereço de entrega'; }
     } catch (e) {}
   }
+  // Skeletons pra reservar o layout desde o 1º frame — a página aparece "completa"
+  // e o conteúdo entra no lugar (sem pop-in fora de ordem). Só na 1ª vez (containers vazios).
+  function _inicioSkeletons() {
+    const gr = document.getElementById('inicio-vibe-greet'); if (gr) gr.style.display = '';
+    const c = document.getElementById('inicio-cats');
+    if (c && !c.innerHTML.trim()) {
+      c.innerHTML = Array.from({ length: 5 }).map(() =>
+        '<div class="skel" style="flex:0 0 auto;width:150px;height:96px;border-radius:16px"></div>').join('');
+    }
+    const rr = document.getElementById('inicio-rails');
+    if (rr && !rr.innerHTML.trim()) {
+      rr.innerHTML = '<div class="ff-rail-h"><div class="skel" style="width:150px;height:18px;border-radius:7px"></div></div>'
+        + '<div class="ff-rail">' + Array.from({ length: 5 }).map(() =>
+          '<div style="flex:0 0 auto;width:142px">'
+          + '<div class="skel" style="width:142px;height:120px;border-radius:16px"></div>'
+          + '<div class="skel" style="width:85%;height:12px;border-radius:6px;margin-top:8px"></div>'
+          + '<div class="skel" style="width:55%;height:11px;border-radius:6px;margin-top:6px"></div>'
+          + '<div class="skel" style="width:42%;height:12px;border-radius:6px;margin-top:7px"></div>'
+          + '</div>').join('') + '</div>';
+    }
+    const l = document.getElementById('inicio-list');
+    if (l && !l.innerHTML.trim()) {
+      l.innerHTML = Array.from({ length: 4 }).map(() =>
+        '<div class="skel" style="height:76px;border-radius:16px;margin-bottom:10px"></div>').join('');
+    }
+  }
   async function renderInicio() {
     const list = document.getElementById('inicio-list');
     if (!list) return;
     _updateInicioHeader();
     _requestClientGeo();
     renderFlyers();
-    // Lojas recomendadas
-    try {
-      const r = await fetch('/api/webhook?action=filiais_list', { cache: 'no-store' });
-      const d = await r.json();
-      if (d && Array.isArray(d.filiais)) { _inicioLojas = d.filiais; _lojasCache = d.filiais; filterInicio((document.getElementById('inicio-search-input') || {}).value || ''); }
-    } catch (e) {}
-    // Feed estilo iFood: categorias + rails de produto (cruzando lojas)
-    try {
-      const r = await fetch('/api/webhook?action=home_feed', { cache: 'no-store' });
-      const d = await r.json();
-      if (d && d.ok) { _homeFeedCache = d; renderInicioCats(d.categories || []); renderInicioRails(d); }
-    } catch (e) {}
+    _inicioSkeletons();
+    // Lojas + feed em PARALELO; renderiza tudo junto quando ambos chegam (nada de escalonado).
+    const [dLojas, dFeed] = await Promise.all([
+      fetch('/api/webhook?action=filiais_list', { cache: 'no-store' }).then(r => r.json()).catch(() => null),
+      fetch('/api/webhook?action=home_feed', { cache: 'no-store' }).then(r => r.json()).catch(() => null),
+    ]);
+    if (dLojas && Array.isArray(dLojas.filiais)) {
+      _inicioLojas = dLojas.filiais; _lojasCache = dLojas.filiais;
+      filterInicio((document.getElementById('inicio-search-input') || {}).value || '');
+    } else if (list.querySelector('.skel')) { list.innerHTML = ''; }
+    if (dFeed && dFeed.ok) {
+      _homeFeedCache = dFeed; renderInicioCats(dFeed.categories || []); renderInicioRails(dFeed);
+    } else {
+      const c = document.getElementById('inicio-cats'); if (c && c.querySelector('.skel')) c.innerHTML = '';
+      const rr = document.getElementById('inicio-rails'); if (rr && rr.querySelector('.skel')) rr.innerHTML = '';
+      const gr = document.getElementById('inicio-vibe-greet'); if (gr && (!c || !c.innerHTML.trim())) gr.style.display = 'none';
+    }
   }
   function renderInicioCats(cats) {
     const el = document.getElementById('inicio-cats'); if (!el) return;
