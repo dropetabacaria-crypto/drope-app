@@ -946,7 +946,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
       <!-- ETAPA 3: imagem (gerar IA ou foto própria) -->
       <div class="wiz-step" id="wiz-3" style="display:none">
-        <div class="pf-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
+        <div class="pf-hint" id="ap-img-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
+        <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
         <div style="display:flex;gap:10px">
           <button class="pf-btn" id="ap-artgen-btn" style="flex:1" onclick="apGerarArte()">Gerar arte com IA ✦</button>
           <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
@@ -2518,7 +2519,11 @@ function apSetMode(mode) {
   const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
   const pl = document.getElementById('ap-price-lbl'); if (pl) pl.textContent = combo ? 'Preço do combo (R$)' : 'Preço (R$)';
   const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo do Fumante' : 'ex: Cigarro Marlboro Box';
-  if (combo) { _apRenderComboList(); _apComboRecalc(); }
+  // Passo 3 (imagem): combo NÃO usa arte-IA — a imagem é a colagem das fotos reais dos itens.
+  const artBtn = document.getElementById('ap-artgen-btn'); if (artBtn) artBtn.style.display = combo ? 'none' : '';
+  const imgHint = document.getElementById('ap-img-hint'); if (imgHint) imgHint.style.display = combo ? 'none' : 'block';
+  const comboNote = document.getElementById('ap-combo-img-note'); if (comboNote) comboNote.style.display = combo ? 'block' : 'none';
+  if (combo) { _apRenderComboList(); _apComboRecalc(); try { _apClearArt(); } catch (e) {} }
 }
 function _apRenderComboList() {
   const el = document.getElementById('ap-combo-list'); if (!el) return;
@@ -2625,7 +2630,8 @@ async function saveNewProduct() {
   });
   if (err !== true) { msg.textContent = err; return; }
   // Produto salvo sem imagem → gera a arte em SEGUNDO PLANO (o lojista já pode cadastrar o próximo).
-  if (!_hadImg && _lastSavedProduct && _lastSavedProduct.id) {
+  // Combo NÃO gera arte-IA em background (a imagem é a colagem das fotos reais, feita no backend).
+  if (_apMode !== 'combo' && !_hadImg && _lastSavedProduct && _lastSavedProduct.id) {
     _bgArt(_lastSavedProduct.id, _bgMeta);
   }
 }
