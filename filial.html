@@ -44,9 +44,12 @@ body::after {
 header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,77,143,0.15), rgba(255,133,51,0.1)); border-bottom: 0.5px solid var(--border); }
 .hello { font-size: 22px; font-weight: 600; }
 .subtitle { font-size: 12px; color: var(--fg-dim); margin-top: 2px; }
-.hd-icon-btn { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 13px; background: rgba(0,0,0,0.28); border: 1px solid var(--border); color: var(--fg); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.hd-icon-btn { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 13px; background: rgba(0,0,0,0.28); border: 1px solid var(--border); color: var(--fg); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, transform .1s; }
+.hd-icon-btn:hover { background: rgba(0,0,0,0.42); }
 .hd-icon-btn:active { transform: scale(0.94); }
-.hd-icon-btn svg { width: 22px; height: 22px; }
+.hd-icon-btn svg { width: 21px; height: 21px; }
+.hd-actions { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.hd-live { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); }
 .section { padding: 16px; }
 .section h2 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 10px; }
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -281,23 +284,25 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
 <!-- Painel -->
 <div id="painel" style="display:none">
-  <header style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:14px">
     <div style="min-width:0">
       <div class="hello" id="hello">Oi, ...</div>
       <div class="subtitle" id="subtitle">filial ...</div>
+      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span></div>
     </div>
-    <button class="hd-icon-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
+    <div class="hd-actions">
+      <button class="hd-icon-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="hd-icon-btn" onclick="openNotifs()" title="Avisos" aria-label="Avisos" style="position:relative">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px;line-height:1.4">0</span>
+      </button>
+      <button class="hd-icon-btn" onclick="verLojaCliente()" title="Ver como cliente" aria-label="Ver como cliente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
   </header>
-
-  <div class="status-bar">
-    <div class="dot"></div>
-    <span id="last-update">Atualizando...</span>
-    <button class="refresh-btn" style="margin-left:auto;position:relative;display:inline-flex;align-items:center" onclick="openNotifs()" title="Avisos" aria-label="Avisos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="notif-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px">0</span></button>
-    <button class="refresh-btn" onclick="verLojaCliente()">Ver como cliente</button>
-    <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
-  </div>
 
     <style>
   .panel-tabs{display:flex;gap:6px;margin:12px 0 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:15px;padding:5px}
@@ -1078,7 +1083,7 @@ async function loadData(showLoading) {
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('painel').style.display = 'block';
     render(data);
-    document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     try { loadNotifs(); } catch (e) {}
     try { _startPainelPoll(); } catch (e) {} // liga o auto-refresh (novas vendas aparecem sozinhas)
   } catch (e) {
