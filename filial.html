@@ -93,6 +93,15 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .status-entregue { background: rgba(74,222,128,0.15); color: var(--green); }
 .cliente-info { font-size: 11px; color: var(--fg-dim); margin-bottom: 8px; font-family: monospace; }
 .items { font-size: 12px; color: var(--fg); line-height: 1.6; }
+.pitem.clickable { cursor: pointer; border-radius: 7px; margin: 0 -4px; padding: 1px 4px; transition: background .12s; }
+.pitem.clickable:hover { background: rgba(255,255,255,0.05); }
+.pitem-cam { width: 13px; height: 13px; color: var(--fg-dim); vertical-align: -0.1em; margin-left: 4px; }
+.photo-ov { position: fixed; inset: 0; background: rgba(4,3,10,0.88); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); z-index: 260; display: none; align-items: center; justify-content: center; padding: 24px; }
+.photo-ov.open { display: flex; }
+.photo-box { position: relative; max-width: 460px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.photo-box img { max-width: 100%; max-height: 74vh; border-radius: 18px; border: 1px solid var(--border); box-shadow: 0 24px 70px rgba(0,0,0,0.6); background: var(--bg2); object-fit: contain; }
+.photo-cap { font-size: 14px; font-weight: 700; color: var(--fg); text-align: center; }
+.photo-x { position: absolute; top: -12px; right: -12px; background: var(--bg3); border: 1px solid var(--border); color: var(--fg); width: 38px; height: 38px; border-radius: 12px; font-size: 18px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
 .items strong { color: var(--lime); }
 .total { font-size: 14px; font-weight: 700; color: var(--fg); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
 .ganho { color: var(--green); font-weight: 800; }
@@ -771,6 +780,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-scroll" id="pedidos-all-list"></div>
 </div>
 
+<!-- LIGHTBOX: foto do produto do pedido -->
+<div class="photo-ov" id="photo-ov" onclick="if(event.target===this)closePhoto()">
+  <div class="photo-box">
+    <img id="photo-img" src="" alt="">
+    <div class="photo-cap" id="photo-cap"></div>
+    <button class="photo-x" onclick="closePhoto()" aria-label="Fechar">✕</button>
+  </div>
+</div>
+
 <!-- MODAL: detalhe de um pedido -->
 <div class="pdet-ov" id="pdet-ov" onclick="if(event.target===this)closePedidoDetail()">
   <div class="pdet-card">
@@ -1204,6 +1222,7 @@ function render(d) {
   const _ls = document.getElementById('liq-sub'); if (_ls) _ls.textContent = `após comissão de ${String(_commPct).replace('.', ',')}%`;
   try { renderDash(d); } catch (e) {}
 
+  _buildProdImgIndex(d.produtos || []);  // pra mostrar a foto ao tocar no item do pedido
   const pendentes = d.pedidos_pendentes || [];
   _pendentesAll = pendentes;
   const pendList = document.getElementById('pendentes-list');
@@ -3389,6 +3408,34 @@ function _orderStage(status) {
 let _pendentesAll = [];
 let _detailOrderId = null;
 
+// Índice de fotos dos produtos (pra mostrar a foto ao tocar no item do pedido)
+let _prodImg = {};
+function _norm(s) { return String(s || '').trim().toLowerCase(); }
+function _buildProdImgIndex(list) {
+  _prodImg = {};
+  (list || []).forEach(p => {
+    if (!p || !p.image_url) return;
+    if (p.slug) _prodImg['s:' + p.slug] = p.image_url;
+    if (p.name) _prodImg['n:' + _norm(p.name)] = p.image_url;
+  });
+}
+function _itemImg(it) {
+  if (!it) return '';
+  if (it.image_url) return it.image_url;
+  if (it.slug && _prodImg['s:' + it.slug]) return _prodImg['s:' + it.slug];
+  return _prodImg['n:' + _norm(it.name)] || '';
+}
+function _jsStr(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]+/g, ' '); }
+function showPhoto(url, name) {
+  const img = document.getElementById('photo-img'); if (img) img.src = url;
+  const cap = document.getElementById('photo-cap'); if (cap) cap.textContent = name || '';
+  document.getElementById('photo-ov').classList.add('open');
+}
+function closePhoto() {
+  document.getElementById('photo-ov').classList.remove('open');
+  const img = document.getElementById('photo-img'); if (img) img.src = '';
+}
+
 function _waitLabel(ts) {
   try {
     const min = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000));
@@ -3458,7 +3505,12 @@ function renderPedidoCard(p, isEntregue) {
   const stage = isEntregue ? 'done' : _orderStage(p.status);
   const cls = stage === 'done' ? 'entregue' : 'novo';
   const cust = p.customer || {};
-  const items = (p.items || []).map(it => `<div>• <strong>${parseInt(it.qty || it.quantity || 1, 10) || 1}×</strong> ${esc(it.name)}</div>`).join('');
+  const items = (p.items || []).map(it => {
+    const q = parseInt(it.qty || it.quantity || 1, 10) || 1;
+    const img = _itemImg(it);
+    const cam = img ? ` <svg class="pitem-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg>` : '';
+    return `<div class="pitem${img ? ' clickable' : ''}"${img ? ` onclick="showPhoto('${_jsStr(img)}','${_jsStr(it.name)}')"` : ''}>• <strong>${q}×</strong> ${esc(it.name)}${cam}</div>`;
+  }).join('');
   const schedBadge = p.scheduled
     ? `<div style="margin-top:8px;background:rgba(140,80,255,0.16);border:1px solid rgba(140,80,255,0.4);border-radius:9px;padding:7px 10px;font-size:12px;color:#c8b6ff;font-weight:600">pedido agendado — loja estava fechada${p.scheduled_opens_text ? ` · abre ${p.scheduled_opens_text}` : ''}</div>`
     : '';
