@@ -48,7 +48,7 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .hd-icon-btn:hover { background: rgba(0,0,0,0.42); }
 .hd-icon-btn:active { transform: scale(0.94); }
 .hd-icon-btn svg { width: 21px; height: 21px; }
-.hd-actions { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.hd-actions { display: flex; flex-direction: row; gap: 8px; flex: 0 0 auto; }
 .hd-live { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); }
 .section { padding: 16px; }
 .section h2 { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim); margin-bottom: 11px; }
@@ -303,13 +303,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--pink);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px;line-height:1.4">0</span>
       </button>
-      <button class="hd-icon-btn" onclick="verLojaCliente()" title="Ver como cliente" aria-label="Ver como cliente">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>
     </div>
   </header>
 
     <style>
+  .tabs-row{display:flex;align-items:stretch;gap:8px;margin:12px 0 6px}
+  .tabs-row .panel-tabs{flex:1;margin:0}
+  .ver-cliente-btn{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:0 14px;border-radius:15px;background:var(--bg2);border:0.5px solid var(--border);color:var(--fg-dim);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:color .15s,border-color .15s}
+  .ver-cliente-btn:hover{color:var(--fg);border-color:rgba(255,255,255,0.16)}
+  .ver-cliente-btn:active{transform:scale(0.97)}
+  .ver-cliente-btn svg{width:17px;height:17px;flex:0 0 auto}
   .panel-tabs{display:flex;gap:6px;margin:12px 0 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:15px;padding:5px}
   .panel-tabs .ptab{flex:1;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--fg-dim);font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:background .18s,color .18s}
   .panel-tabs .ptab.active{color:#fff}
@@ -317,10 +320,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   #ptab-inicio.active{background:linear-gradient(135deg,#FF4D8F,#D63C8E);box-shadow:0 5px 16px -7px rgba(255,77,143,.85)}
   #ptab-resumo.active{background:linear-gradient(135deg,#5FDB4A,#35B24A);color:#08140a;box-shadow:0 5px 16px -7px rgba(74,222,128,.75)}
   </style>
-  <!-- Abas do painel: Início (operação) / Resumo (desempenho) -->
-  <div class="panel-tabs">
-    <button class="ptab active" id="ptab-inicio" onclick="switchPanelTab('inicio')">Início<span id="ptab-inicio-badge" style="display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;background:var(--yellow);color:#000;border-radius:9px;font-size:11px;font-weight:800;vertical-align:middle">0</span></button>
-    <button class="ptab" id="ptab-resumo" onclick="switchPanelTab('resumo')">Resumo</button>
+  <!-- Abas do painel: Início (operação) / Resumo (desempenho) + Ver loja -->
+  <div class="tabs-row">
+    <div class="panel-tabs">
+      <button class="ptab active" id="ptab-inicio" onclick="switchPanelTab('inicio')">Início<span id="ptab-inicio-badge" style="display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;background:var(--yellow);color:#000;border-radius:9px;font-size:11px;font-weight:800;vertical-align:middle">0</span></button>
+      <button class="ptab" id="ptab-resumo" onclick="switchPanelTab('resumo')">Resumo</button>
+    </div>
+    <button class="ver-cliente-btn" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>Ver loja</span>
+    </button>
   </div>
 
   <!-- ABA: Início -->
