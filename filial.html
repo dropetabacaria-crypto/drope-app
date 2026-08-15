@@ -107,29 +107,10 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 /* Layout dashboard: centraliza e usa a largura da tela em colunas (mobile continua empilhado) */
 #painel { max-width: 780px; margin: 0 auto; }
 @media (min-width: 940px) {
-  #painel {
-    max-width: 1180px;
-    display: grid !important; /* vence o style="display:block" inline setado via JS */
-    grid-template-columns: 1.5fr 1fr;
-    grid-template-areas:
-      "header header"
-      "status status"
-      "resumo resumo"
-      "acoes  acoes"
-      "pend   prod"
-      "hist   config";
-    column-gap: 24px;
-    align-items: start;
-    padding: 0 22px 40px;
-  }
-  #painel > header { grid-area: header; border-radius: 0 0 18px 18px; margin-bottom: 4px; }
-  #painel > .status-bar { grid-area: status; }
-  #painel > .sec-resumo { grid-area: resumo; }
-  #painel > .sec-acoes { grid-area: acoes; }
-  #painel > .sec-pend { grid-area: pend; }
-  #painel > .sec-prod { grid-area: prod; }   /* Meus produtos sobe (ao lado de Pra entregar) */
-  #painel > .sec-hist { grid-area: hist; }
-  #painel > .sec-config { grid-area: config; }
+  /* Abas Início/Resumo cuidam da priorização — no desktop fica coluna única,
+     centralizada e um pouco mais larga (nada de grid de 2 colunas). */
+  #painel { max-width: 840px; padding: 0 22px 40px; }
+  #painel > header { border-radius: 0 0 18px 18px; margin-bottom: 4px; }
 }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -318,7 +299,50 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="refresh-btn" onclick="loadData(true)">↻ Atualizar</button>
   </div>
 
-  <div class="section sec-resumo">
+    <style>
+  .panel-tabs{display:flex;gap:6px;margin:12px 0 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:15px;padding:5px}
+  .panel-tabs .ptab{flex:1;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--fg-dim);font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:background .18s,color .18s}
+  .panel-tabs .ptab.active{background:linear-gradient(135deg,#8C50FF,#FF2D6F);color:#fff;box-shadow:0 4px 14px -6px rgba(140,80,255,.7)}
+  </style>
+  <!-- Abas do painel: Início (operação) / Resumo (desempenho) -->
+  <div class="panel-tabs">
+    <button class="ptab active" id="ptab-inicio" onclick="switchPanelTab('inicio')">Início<span id="ptab-inicio-badge" style="display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;background:var(--yellow);color:#000;border-radius:9px;font-size:11px;font-weight:800;vertical-align:middle">0</span></button>
+    <button class="ptab" id="ptab-resumo" onclick="switchPanelTab('resumo')">Resumo</button>
+  </div>
+
+  <!-- ABA: Início -->
+  <div id="tab-inicio">
+<div class="section sec-acoes">
+    <h2>Ações rápidas</h2>
+    <div class="qa-row">
+      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
+    </div>
+  </div>
+
+  <div class="section sec-pend">
+    <h2>Pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
+    <div id="pendentes-list"></div>
+  </div>
+
+  <div class="section sec-prod">
+    <h2>Meus produtos<span class="help-q" onclick="helpShow('produtos',true)" title="O que é isso?">?</span></h2>
+    <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
+      <span style="font-size:22px;flex:0 0 auto"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-size:15px;font-weight:800">Gerenciar produtos</span>
+        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">Cadastrar por foto, preço, estoque, imagens</span>
+      </span>
+      <span id="prod-count-badge" style="font-size:13px;font-weight:800;color:var(--fg-dim);flex:0 0 auto"></span>
+      <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
+    </button>
+  </div>
+
+    </div>
+
+  <!-- ABA: Resumo -->
+  <div id="tab-resumo" style="display:none">
+<div class="section sec-resumo">
     <h2>Resumo</h2>
     <div class="kpis" style="grid-template-columns:1fr 1fr 1fr">
       <div class="kpi lime">
@@ -346,46 +370,18 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
   </div>
 
-  <div class="section sec-acoes">
-    <h2>Ações rápidas</h2>
-    <div class="qa-row">
-      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
-      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
-    </div>
-  </div>
-
-  <div class="section sec-pend">
-    <h2>Pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
-    <div id="pendentes-list"></div>
-  </div>
-
   <div class="section sec-hist">
     <h2>Últimas vendas</h2>
     <div id="historico-list"></div>
   </div>
 
-  <div class="section sec-prod">
-    <h2>Meus produtos<span class="help-q" onclick="helpShow('produtos',true)" title="O que é isso?">?</span></h2>
-    <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
-      <span style="font-size:22px;flex:0 0 auto"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span>
-      <span style="flex:1;min-width:0">
-        <span style="display:block;font-size:15px;font-weight:800">Gerenciar produtos</span>
-        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">Cadastrar por foto, preço, estoque, imagens</span>
-      </span>
-      <span id="prod-count-badge" style="font-size:13px;font-weight:800;color:var(--fg-dim);flex:0 0 auto"></span>
-      <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
-    </button>
-  </div>
+    </div>
 
-  <!-- Fundo escuro do drawer de config — clique fora fecha -->
+<!-- Fundo escuro do drawer de config — clique fora fecha -->
   <div id="cfg-backdrop" onclick="closeConfigOverlay()" style="display:none;position:fixed;inset:0;z-index:299;background:rgba(5,4,12,0.78);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)"></div>
 
   <!-- ============ CONFIGURAÇÃO DA LOJA (recolhível — uso ocasional) ============ -->
-  <div class="section sec-config">
-    <button onclick="toggleConfig()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">
-      <span>Configuração da loja</span>
-      <span id="config-chev" style="color:var(--fg-dim);font-weight:400">Abrir ▾</span>
-    </button>
+  <div class="sec-config">
     <div id="config-wrap" style="display:none;margin-top:6px">
 
       <!-- Barra de topo do overlay (só aparece em tela cheia) -->
@@ -1164,6 +1160,9 @@ function render(d) {
     pendCount.style.display = 'none';
     pendList.innerHTML = '<div class="empty">Sem pedidos pendentes</div>';
   }
+  // espelha os pendentes no badge da aba Início (avisa mesmo quando está no Resumo)
+  const tabBadge = document.getElementById('ptab-inicio-badge');
+  if (tabBadge) { tabBadge.textContent = pendentes.length; tabBadge.style.display = pendentes.length ? 'inline-flex' : 'none'; }
 
   const historico = d.historico || [];
   const histList = document.getElementById('historico-list');
@@ -3452,6 +3451,18 @@ if (ACCESS_CODE && FILIAL_SLUG) {
   try { document.getElementById('auth-overlay').style.display = 'none'; document.getElementById('painel').style.display = 'block'; } catch (e) {}
   loadData(true);
 }
+function switchPanelTab(tab){
+  tab = (tab === 'resumo') ? 'resumo' : 'inicio';
+  var ti=document.getElementById('tab-inicio'), tr=document.getElementById('tab-resumo');
+  if(ti) ti.style.display = (tab==='inicio')?'':'none';
+  if(tr) tr.style.display = (tab==='resumo')?'':'none';
+  var bi=document.getElementById('ptab-inicio'), br=document.getElementById('ptab-resumo');
+  if(bi) bi.classList.toggle('active', tab==='inicio');
+  if(br) br.classList.toggle('active', tab==='resumo');
+  try{ localStorage.setItem('drope_panel_tab', tab); }catch(e){}
+}
+(function(){ function r(){ try{ switchPanelTab(localStorage.getItem('drope_panel_tab')||'inicio'); }catch(e){} }
+  if(document.readyState!=='loading') r(); else document.addEventListener('DOMContentLoaded', r); })();
 // Auto-refresh: é o _startPainelPoll (10s, com guarda), ligado dentro do loadData.
 </script>
 
