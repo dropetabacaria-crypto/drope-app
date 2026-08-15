@@ -4696,6 +4696,8 @@ async function handleFilialPainel(req, res) {
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
       cat_global: ((p.metadata || {}).cat_global) || null, // vitrine global do DROPE (home)
+      combo: !!((p.metadata || {}).combo),
+      combo_items: Array.isArray((p.metadata || {}).combo_items) ? (p.metadata || {}).combo_items : null,
       featured: !!((p.metadata || {}).featured),
       pix_only: (typeof (p.metadata || {}).pix_only === 'boolean') ? (p.metadata).pix_only : ((p.category || 'pod') === 'pod'),
       cost_cents: ((p.metadata || {}).cost_cents) || null,
@@ -4918,10 +4920,30 @@ async function handleFilialProductSave(req, res) {
     // código de barras (do escaneamento por IA/leitor) — pro PDV achar o produto na venda
     const bcRaw = String(body.barcode || vmeta.barcode || '').replace(/\D/g, '');
     const barcodeVal = (bcRaw.length >= 8 && bcRaw.length <= 14) ? bcRaw : null;
+
+    // COMBO — produto composto por outros produtos ativos da MESMA loja.
+    // Estoque do combo é DERIVADO: quantos dá pra montar = menor (estoque_componente / qty).
+    let _combo = null, _comboStock = null;
+    if (Array.isArray(body.combo_items) && body.combo_items.length >= 2) {
+      const wanted = body.combo_items.map(c => String((c && c.slug) || '')).filter(Boolean);
+      const comps = wanted.length
+        ? await sbGet('drope_products', `filial_id=eq.${filial.id}&slug=in.(${wanted.map(encodeURIComponent).join(',')})&select=slug,name,qty_available`)
+        : [];
+      const bySlug = {}; (comps || []).forEach(c => { bySlug[c.slug] = c; });
+      const items = body.combo_items.map(c => {
+        const cp = bySlug[String((c && c.slug) || '')]; if (!cp) return null;
+        return { slug: cp.slug, name: cp.name, qty: Math.max(1, parseInt(c && c.qty, 10) || 1) };
+      }).filter(Boolean);
+      if (items.length < 2) return res.status(400).json({ ok: false, error: 'combo precisa de pelo menos 2 produtos da sua loja' });
+      _combo = items;
+      _comboStock = Math.min(...items.map(it => Math.floor((bySlug[it.slug].qty_available || 0) / it.qty)));
+      if (!isFinite(_comboStock) || _comboStock < 0) _comboStock = 0;
+    }
+
     const row = await sbInsert('drope_products', {
       filial_id: filial.id, slug, name,
       price_cents: priceCents,
-      qty_available: Number.isInteger(stock) && stock >= 0 ? stock : 0,
+      qty_available: _combo ? _comboStock : (Number.isInteger(stock) && stock >= 0 ? stock : 0),
       hidden: false, image_status: 'ok',
       barcode: barcodeVal,
       image_url: imageUrl || null,
@@ -4938,7 +4960,8 @@ async function handleFilialProductSave(req, res) {
         flavor_pt: sabor || vmeta.flavor_pt || null,
         flavor_en: vmeta.flavor_en || null,
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
-        ...(body.cat_global ? { cat_global: String(body.cat_global) } : {}), // vitrine global do DROPE (home); vazio = automático
+        // combo força a vitrine "Combos"; senão respeita o que o lojista escolheu (ou automático)
+        ...(_combo ? { combo: true, combo_items: _combo, cat_global: 'combos' } : (body.cat_global ? { cat_global: String(body.cat_global) } : {})),
         ...(body.featured ? { featured: true } : {}), // destaque na vitrine (manual)
         ...(Object.prototype.hasOwnProperty.call(body, 'pix_only') ? { pix_only: !!body.pix_only } : {}), // só Pix x Pix+cartão
         ...(body.cost_price && Number(body.cost_price) > 0 ? { cost_cents: Math.round(Number(body.cost_price) * 100) } : {}), // preço de custo
@@ -15100,7 +15123,23 @@ async function handleCatalog(req, res) {
         filtro_id: (p.metadata && p.metadata.filtro_id) || null, // filtro/categoria da loja
         featured: !!(p.metadata && p.metadata.featured), // destaque na vitrine (manual)
         pix_only: (typeof meta.pix_only === 'boolean') ? meta.pix_only : ((p.category || 'pod') === 'pod'), // só Pix x Pix+cartão
+        combo: !!meta.combo, // é um combo (composto por outros produtos)
+        combo_items: Array.isArray(meta.combo_items) ? meta.combo_items : null,
       };
+    });
+
+    // Estoque DERIVADO dos combos: quantos dá pra montar = menor (estoque_componente / qty).
+    // (Componente oculto/sem imagem some do catálogo → conta como 0 → combo indisponível.)
+    const _bySlug = {}; products.forEach(pp => { _bySlug[pp.slug] = pp; });
+    products.forEach(pp => {
+      if (!pp.combo || !Array.isArray(pp.combo_items) || !pp.combo_items.length) return;
+      let s = Infinity;
+      for (const it of pp.combo_items) {
+        const comp = _bySlug[it.slug];
+        const cs = (comp && typeof comp.stock === 'number') ? comp.stock : 0;
+        s = Math.min(s, Math.floor(cs / (it.qty || 1)));
+      }
+      pp.stock = isFinite(s) ? Math.max(0, s) : 0;
     });
 
     // Cache de 5min na CDN — o app cliente também tem cache localStorage local.

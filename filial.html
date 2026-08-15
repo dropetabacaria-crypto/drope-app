@@ -877,15 +877,30 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
       <!-- ETAPA 1: identificar + básicos -->
       <div class="wiz-step" id="wiz-1">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button type="button" id="apmode-normal" class="seg-btn active" onclick="apSetMode('normal')">Produto</button>
+          <button type="button" id="apmode-combo" class="seg-btn" onclick="apSetMode('combo')">Combo</button>
+        </div>
         <label class="pf-lbl">Nome do produto</label>
         <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
-        <div style="display:flex; gap:10px">
+        <!-- COMBO: escolher os produtos que formam o combo -->
+        <div id="ap-combo-wrap" style="display:none">
+          <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: Tabaco + Seda + Piteira). Só produtos ativos e com estoque.</div>
+          <div id="ap-combo-list" style="max-height:230px;overflow-y:auto;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:8px;margin-bottom:8px"></div>
+          <div id="ap-combo-sum" style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px;min-height:16px"></div>
+          <label class="pf-lbl">Desconto do combo <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
+          <div style="display:flex;gap:6px;margin-bottom:2px">
+            <input class="pf-input" id="ap-combo-disc" inputmode="decimal" placeholder="ex: 10" style="flex:1;margin-bottom:0" oninput="_apComboRecalc()">
+            <select class="pf-input" id="ap-combo-disc-tipo" style="width:64px;margin-bottom:0" onchange="_apComboRecalc()"><option value="pct">%</option><option value="rs">R$</option></select>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px" id="ap-row-marca">
           <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
           <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
         </div>
         <div style="display:flex; gap:10px">
-          <div style="flex:1"><label class="pf-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
-          <div style="flex:1"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
+          <div style="flex:1"><label class="pf-lbl" id="ap-price-lbl">Preço (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco()"></div>
+          <div style="flex:1" id="ap-stock-wrap"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
         </div>
         <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-top:6px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.6c.7.6 1.1 1.2 1.2 2.4h5.2c.1-1.2.5-1.8 1.2-2.4A6 6 0 0 0 12 3Z"/></svg> Calculadora de preço <span style="opacity:.6">(opcional)</span></div>
@@ -1862,7 +1877,7 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
-function _wizReset() { _wizStep = 1; _apClearArt(); wizRender(); }
+function _wizReset() { _wizStep = 1; _apClearArt(); _apComboSel = {}; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; try { apSetMode('normal'); } catch (e) {} wizRender(); }
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
@@ -2484,6 +2499,66 @@ async function _saveProduct(payload, onOk) {
   } catch (e) { return 'Erro de rede'; }
 }
 
+// ===== Combo: montar um produto a partir de outros produtos da loja =====
+let _apMode = 'normal';           // 'normal' | 'combo'
+let _apComboSel = {};             // slug -> { qty, price_cents, name }
+function apSetMode(mode) {
+  _apMode = (mode === 'combo') ? 'combo' : 'normal';
+  const combo = _apMode === 'combo';
+  const bn = document.getElementById('apmode-normal'), bc = document.getElementById('apmode-combo');
+  if (bn) bn.classList.toggle('active', !combo);
+  if (bc) bc.classList.toggle('active', combo);
+  const cw = document.getElementById('ap-combo-wrap'); if (cw) cw.style.display = combo ? 'block' : 'none';
+  const rm = document.getElementById('ap-row-marca'); if (rm) rm.style.display = combo ? 'none' : 'flex';
+  const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
+  const pl = document.getElementById('ap-price-lbl'); if (pl) pl.textContent = combo ? 'Preço do combo (R$)' : 'Preço (R$)';
+  const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo do Fumante' : 'ex: Cigarro Marlboro Box';
+  if (combo) { _apRenderComboList(); _apComboRecalc(); }
+}
+function _apRenderComboList() {
+  const el = document.getElementById('ap-combo-list'); if (!el) return;
+  const ativos = (_lastProdutos || []).filter(p => !p.hidden && !p.combo && (p.stock == null || p.stock > 0));
+  if (!ativos.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-dim);padding:8px">Você ainda não tem produtos ativos com estoque pra montar um combo.</div>'; return; }
+  el.innerHTML = ativos.map(p => {
+    const sel = _apComboSel[p.slug];
+    const preco = 'R$ ' + ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:0.5px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer">
+        <input type="checkbox" ${sel ? 'checked' : ''} onchange="_apComboToggle('${p.slug}')">
+        <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px">${esc(p.name)}</span>
+      </label>
+      <span style="font-size:11.5px;color:var(--fg-dim);flex:0 0 auto">${preco}</span>
+      ${sel ? `<span style="display:flex;align-items:center;gap:5px;flex:0 0 auto"><button type="button" class="pf-btn sec" style="width:26px;height:26px;padding:0;margin:0" onclick="_apComboQty('${p.slug}',-1)">−</button><span style="min-width:14px;text-align:center;font-weight:800;font-size:13px">${sel.qty}</span><button type="button" class="pf-btn sec" style="width:26px;height:26px;padding:0;margin:0" onclick="_apComboQty('${p.slug}',1)">+</button></span>` : ''}
+    </div>`;
+  }).join('');
+}
+function _apComboToggle(slug) {
+  if (_apComboSel[slug]) { delete _apComboSel[slug]; }
+  else { const p = (_lastProdutos || []).find(x => x.slug === slug); if (p) _apComboSel[slug] = { qty: 1, price_cents: p.price_cents || 0, name: p.name }; }
+  _apRenderComboList(); _apComboRecalc();
+}
+function _apComboQty(slug, d) {
+  const s = _apComboSel[slug]; if (!s) return;
+  s.qty = Math.max(1, (s.qty || 1) + d);
+  _apRenderComboList(); _apComboRecalc();
+}
+function _apComboRecalc() {
+  const sels = Object.values(_apComboSel);
+  const somaC = sels.reduce((a, s) => a + (s.price_cents || 0) * (s.qty || 1), 0);
+  const soma = somaC / 100;
+  const disc = _num((document.getElementById('ap-combo-disc') || {}).value);
+  const tipo = ((document.getElementById('ap-combo-disc-tipo') || {}).value) || 'pct';
+  let sugerido = soma;
+  if (isFinite(disc) && disc > 0) sugerido = tipo === 'pct' ? soma * (1 - Math.min(disc, 90) / 100) : Math.max(0, soma - disc);
+  const sumEl = document.getElementById('ap-combo-sum');
+  if (sumEl) sumEl.innerHTML = sels.length
+    ? `Soma dos itens: <b>R$ ${soma.toFixed(2).replace('.', ',')}</b>${(sugerido < soma) ? ` · combo por <b style="color:var(--lime)">R$ ${sugerido.toFixed(2).replace('.', ',')}</b>` : ''}`
+    : 'Selecione ao menos 2 produtos.';
+  // Preenche o preço sugerido (o lojista pode sobrescrever livremente)
+  const priceEl = document.getElementById('ap-price');
+  if (priceEl && sels.length) priceEl.value = sugerido.toFixed(2).replace('.', ',');
+}
+
 async function saveNewProduct() {
   const name = (document.getElementById('ap-name').value || '').trim();
   const marca = (document.getElementById('ap-marca').value || '').trim();
@@ -2494,6 +2569,12 @@ async function saveNewProduct() {
   const msg = document.getElementById('ap-msg');
   if (name.length < 2) { msg.textContent = 'põe o nome do produto'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
+  // COMBO: precisa de pelo menos 2 produtos selecionados
+  let combo_items = null;
+  if (_apMode === 'combo') {
+    combo_items = Object.entries(_apComboSel).map(([slug, s]) => ({ slug, qty: s.qty || 1 }));
+    if (combo_items.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione pelo menos 2 produtos pro combo'; return; }
+  }
   // CATEGORIA OBRIGATÓRIA — resolve a existente ou cria a nova ali mesmo (filtro-primeiro)
   let filtro_id = (document.getElementById('ap-filtro') || {}).value || '';
   if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
@@ -2511,6 +2592,7 @@ async function saveNewProduct() {
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
   const cat_global = (document.getElementById('ap-catglobal') || {}).value || '';
   const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only, cat_global };
+  if (combo_items) payload.combo_items = combo_items; // combo → backend monta o produto composto
   const barcode = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
   if (barcode) payload.barcode = barcode; // código de barras → balcão puxa o produto
   if (isFinite(cost_price) && cost_price > 0) payload.cost_price = cost_price;

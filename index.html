@@ -1313,6 +1313,19 @@
     margin-bottom: 16px;
     line-height: 1.5;
   }
+  .d-combo-box {
+    margin: 0 24px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .d-combo-box .d-combo-h {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .d-combo-box .d-combo-ul { margin: 0; padding-left: 18px; }
+  .d-combo-box .d-combo-ul li { font-size: 14px; color: var(--text); margin: 3px 0; }
   /* FRICÇÃO #004 (04/06 Andrade): cards informativos com specs + perfil sabor + vibe */
   .product-info-cards {
     padding: 24px 20px 0;
@@ -4809,6 +4822,7 @@
     <div class="product-name display" id="d-name"></div>
     <div class="product-meta" id="d-meta"></div>
     <div class="product-desc" id="d-desc">gelado intenso ✦ menta + limão</div>
+    <div id="d-combo" class="d-combo-box" style="display:none"></div>
     <div class="product-price" id="d-price">R$ 45</div>
     <div id="d-paybadge" class="pay-badge pix pay-badge-lg">só Pix</div>
 
@@ -12240,6 +12254,15 @@
       metaEl.style.display = pills.length ? 'flex' : 'none';
     }
     document.getElementById('d-desc').textContent = p.desc;
+    // Combo: mostra "vem no combo: X + Y + Z"
+    const comboBox = document.getElementById('d-combo');
+    if (comboBox) {
+      if (p.combo && Array.isArray(p.combo_items) && p.combo_items.length) {
+        const lis = p.combo_items.map(it => `<li>${(it.qty || 1)}× ${escapeHtml(it.name || it.slug || 'item')}</li>`).join('');
+        comboBox.innerHTML = `<div class="d-combo-h">Vem no combo</div><ul class="d-combo-ul">${lis}</ul>`;
+        comboBox.style.display = '';
+      } else { comboBox.innerHTML = ''; comboBox.style.display = 'none'; }
+    }
     // FRICÇÃO #004 (04/06): popula cards informativos com specs + perfil + vibe
     if (typeof populateInfoCards === 'function') populateInfoCards(p);
     // OSSO-FIX-PRECO-ZERO: produto sem preço (0/null/undefined) não pode vazar
