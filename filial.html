@@ -50,6 +50,10 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .hd-icon-btn svg { width: 21px; height: 21px; }
 .hd-actions { display: flex; flex-direction: row; gap: 8px; flex: 0 0 auto; }
 .hd-live { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); }
+.hd-sep { opacity: 0.45; }
+.hd-ver { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 0; margin: 0; color: rgba(255,255,255,0.78); font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer; transition: color .15s; }
+.hd-ver:hover { color: #fff; }
+.hd-ver svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .section { padding: 16px; }
 .section h2 { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim); margin-bottom: 11px; }
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -293,7 +297,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <div style="min-width:0">
       <div class="hello" id="hello">Oi, ...</div>
       <div class="subtitle" id="subtitle">filial ...</div>
-      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span></div>
+      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span><span class="hd-sep">·</span><button class="hd-ver" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>Ver loja</button></div>
     </div>
     <div class="hd-actions">
       <button class="hd-icon-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações">
@@ -307,12 +311,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </header>
 
     <style>
-  .tabs-row{display:flex;align-items:stretch;gap:8px;margin:12px 0 6px}
-  .tabs-row .panel-tabs{flex:1;margin:0}
-  .ver-cliente-btn{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:0 14px;border-radius:15px;background:var(--bg2);border:0.5px solid var(--border);color:var(--fg-dim);font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:color .15s,border-color .15s}
-  .ver-cliente-btn:hover{color:var(--fg);border-color:rgba(255,255,255,0.16)}
-  .ver-cliente-btn:active{transform:scale(0.97)}
-  .ver-cliente-btn svg{width:17px;height:17px;flex:0 0 auto}
   .panel-tabs{display:flex;gap:6px;margin:12px 0 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:15px;padding:5px}
   .panel-tabs .ptab{flex:1;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--fg-dim);font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:background .18s,color .18s}
   .panel-tabs .ptab.active{color:#fff}
@@ -320,16 +318,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   #ptab-inicio.active{background:linear-gradient(135deg,#FF4D8F,#D63C8E);box-shadow:0 5px 16px -7px rgba(255,77,143,.85)}
   #ptab-resumo.active{background:linear-gradient(135deg,#5FDB4A,#35B24A);color:#08140a;box-shadow:0 5px 16px -7px rgba(74,222,128,.75)}
   </style>
-  <!-- Abas do painel: Início (operação) / Resumo (desempenho) + Ver loja -->
-  <div class="tabs-row">
-    <div class="panel-tabs">
-      <button class="ptab active" id="ptab-inicio" onclick="switchPanelTab('inicio')">Início<span id="ptab-inicio-badge" style="display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;background:var(--yellow);color:#000;border-radius:9px;font-size:11px;font-weight:800;vertical-align:middle">0</span></button>
-      <button class="ptab" id="ptab-resumo" onclick="switchPanelTab('resumo')">Resumo</button>
-    </div>
-    <button class="ver-cliente-btn" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-      <span>Ver loja</span>
-    </button>
+  <!-- Abas do painel: Início (operação) / Resumo (desempenho) -->
+  <div class="panel-tabs">
+    <button class="ptab active" id="ptab-inicio" onclick="switchPanelTab('inicio')">Início<span id="ptab-inicio-badge" style="display:none;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;background:var(--yellow);color:#000;border-radius:9px;font-size:11px;font-weight:800;vertical-align:middle">0</span></button>
+    <button class="ptab" id="ptab-resumo" onclick="switchPanelTab('resumo')">Resumo</button>
   </div>
 
   <!-- ABA: Início -->
