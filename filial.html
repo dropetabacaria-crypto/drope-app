@@ -302,7 +302,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <style>
   .panel-tabs{display:flex;gap:6px;margin:12px 0 6px;background:var(--bg2);border:0.5px solid var(--border);border-radius:15px;padding:5px}
   .panel-tabs .ptab{flex:1;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--fg-dim);font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:background .18s,color .18s}
-  .panel-tabs .ptab.active{background:linear-gradient(135deg,#8C50FF,#FF2D6F);color:#fff;box-shadow:0 4px 14px -6px rgba(140,80,255,.7)}
+  .panel-tabs .ptab.active{color:#fff}
+  /* Cores do personagem DROPE: rosa das escamas no Início, verde do olho no Resumo */
+  #ptab-inicio.active{background:linear-gradient(135deg,#FF4D8F,#D63C8E);box-shadow:0 5px 16px -7px rgba(255,77,143,.85)}
+  #ptab-resumo.active{background:linear-gradient(135deg,#5FDB4A,#35B24A);color:#08140a;box-shadow:0 5px 16px -7px rgba(74,222,128,.75)}
   </style>
   <!-- Abas do painel: Início (operação) / Resumo (desempenho) -->
   <div class="panel-tabs">
