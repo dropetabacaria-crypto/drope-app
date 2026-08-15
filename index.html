@@ -8499,7 +8499,7 @@
   // truth = drope_products no Supabase, populada via bot WhatsApp + admin gallery. O app
   // só LÊ via /api/webhook?action=catalog. localStorage é apenas cache pra fast-paint
   // entre visitas. saveProducts() vira persistência de cache, não de dados.
-  const PRODUCTS_KEY = 'drope_products_v6'; // v6: schema vindo da API (não mais hardcoded)
+  const PRODUCTS_KEY = 'drope_products_v7'; // v7: bump p/ abandonar caches velhos (produtos fantasma na preview)
   const PRODUCTS_CACHE_TTL = 5 * 60 * 1000; // 5min — bate com o cache do CDN
 
   function saveProducts() {
@@ -9003,6 +9003,10 @@
   function loadProducts() {
     // Cache primeiro (fast-paint), depois fetchCatalog() async atualiza.
     // Cache é específico por filial (chave inclui slug)
+    // PREVIEW ("ver como cliente"): NÃO usa o cache — em preview o localStorage é
+    // só-leitura, então um cache velho de sessão normal nunca era substituído e
+    // mostrava produtos fantasma. Aqui a preview sempre renderiza do fetch fresco.
+    try { if (/[?&]preview=1(?:&|$)/.test(location.search || '')) return; } catch (e) {}
     try {
       const cacheKey = PRODUCTS_KEY + '_' + CLIENT_FILIAL;
       const saved = localStorage.getItem(cacheKey);
