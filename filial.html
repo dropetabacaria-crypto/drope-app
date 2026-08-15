@@ -964,6 +964,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div id="ap-combo-preview" style="display:none;margin-top:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px">
           <img id="ap-combo-img" src="" alt="" style="width:180px;height:180px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
           <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">Prévia da arte do combo (fotos dos produtos)</div>
+          <div id="ap-combo-items" style="font-size:12px;color:var(--fg);margin-top:8px;font-weight:600;line-height:1.4"></div>
           <div id="ap-combo-prev-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
           <button class="pf-btn sec" id="ap-combo-again" style="margin-top:10px;width:100%" onclick="apComboPreview(1)">Gerar outra ✦</button>
         </div>
@@ -2518,7 +2519,15 @@ async function _saveProduct(payload, onOk) {
 let _apMode = 'normal';           // 'normal' | 'combo'
 let _apComboSel = {};             // slug -> { qty, price_cents, name }
 function apSetMode(mode) {
-  _apMode = (mode === 'combo') ? 'combo' : 'normal';
+  const want = (mode === 'combo') ? 'combo' : 'normal';
+  // GARANTIA: ao ENTRAR no modo combo (vindo de fora), começa com seleção LIMPA —
+  // nunca herda item "fantasma" de uma tentativa anterior. O combo salva exatamente o marcado.
+  if (want === 'combo' && _apMode !== 'combo') {
+    _apComboSel = {}; _apComboVariant = 0;
+    const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = '';
+    const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none';
+  }
+  _apMode = want;
   const combo = _apMode === 'combo';
   const bn = document.getElementById('apmode-normal'), bc = document.getElementById('apmode-combo');
   if (bn) bn.classList.toggle('active', !combo);
@@ -2545,6 +2554,8 @@ async function apComboPreview(bump) {
   const img = document.getElementById('ap-combo-img');
   const st = document.getElementById('ap-combo-prev-status');
   const btn = document.getElementById('ap-combo-again');
+  const itEl = document.getElementById('ap-combo-items');
+  if (itEl) itEl.textContent = 'Combo: ' + Object.values(_apComboSel).map(x => `${x.qty}× ${x.name}`).join(' · ');
   if (box) box.style.display = 'block';
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'montando a arte do combo…'; }
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
