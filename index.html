@@ -4794,7 +4794,7 @@
   <!-- ============ DETAIL ============ -->
   <div class="screen no-nav" id="detail">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go(detailOrigin || 'home')">
+      <div class="icon-btn" onclick="_productBack()">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small">DROPE</div>
@@ -8946,31 +8946,57 @@
     el.innerHTML = html;
   }
   function _railHtml(title, items) {
-    return `<div class="ff-rail-h"><b>${title}</b></div><div class="ff-rail">${(items || []).map(_ffProd).join('')}</div>`;
+    return `<div class="ff-rail-h"><b>${title}</b></div><div class="ff-rail">${(items || []).map(p => _ffProd(p, 'inicio')).join('')}</div>`;
   }
-  function _ffProd(p) {
+  function _ffProd(p, origin) {
     const img = p.image_url ? `background-image:url('${escapeHtml(String(p.image_url).replace(/'/g, ''))}')` : '';
     const pc = (p.price_cents || 0) / 100, pm = p.promo_cents ? p.promo_cents / 100 : null;
     const brl = n => 'R$ ' + n.toFixed(2).replace('.', ',');
     const price = pm != null ? `${brl(pm)} <s>${brl(pc)}</s>` : brl(pc);
-    return `<div class="ff-prod" onclick="pickClientFilial('${escapeHtml(p.store_slug)}')"><div class="th" style="${img}">${p.promo_cents ? '<span class="promo">promo</span>' : ''}</div><div class="nm">${escapeHtml(p.name)}</div><div class="st">${escapeHtml(p.store_name || '')}</div><div class="pr">${price}</div></div>`;
+    const st = escapeHtml(String(p.store_slug || '').replace(/'/g, ''));
+    const sl = escapeHtml(String(p.slug || '').replace(/'/g, ''));
+    const org = (origin === 'category') ? 'category' : 'inicio';
+    return `<div class="ff-prod" onclick="openFeedProduct('${st}','${sl}','${org}')"><div class="th" style="${img}">${p.promo_cents ? '<span class="promo">promo</span>' : ''}</div><div class="nm">${escapeHtml(p.name)}</div><div class="st">${escapeHtml(p.store_name || '')}</div><div class="pr">${price}</div></div>`;
   }
+  let _catFrom = null; // categoria (key/label) de onde um produto foi aberto → back volta pra cá
   async function openCategory(key, label) {
     const ov = document.getElementById('cat-ov'), body = document.getElementById('cat-ov-body'), ttl = document.getElementById('cat-ov-title');
     if (!ov) return;
+    _catFrom = { key: key, label: label || 'Categoria' };
     ttl.textContent = label || 'Categoria';
     body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">Carregando…</div>';
     ov.style.display = 'flex';
+    try { window.scrollTo(0, 0); } catch (e) {}
     try {
       const r = await fetch('/api/webhook?action=home_feed&cat=' + encodeURIComponent(key), { cache: 'no-store' });
       const d = await r.json();
       const items = (d && d.produtos) || [];
       body.innerHTML = items.length
-        ? '<div class="cat-grid">' + items.map(_ffProd).join('') + '</div>'
+        ? '<div class="cat-grid">' + items.map(p => _ffProd(p, 'category')).join('') + '</div>'
         : '<div style="text-align:center;padding:50px 24px;color:var(--text-dim)"><div style="font-size:15px;font-weight:700;color:var(--text)">Nada em ' + escapeHtml(label || 'nessa categoria') + ' ainda ✦</div><div style="font-size:13px;margin-top:6px;line-height:1.5">As lojas ainda não marcaram produtos aqui. Volta em breve!</div></div>';
     } catch (e) { body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--pink)">Erro ao carregar</div>'; }
   }
-  function closeCatOv() { const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none'; }
+  // Voltar da categoria → sempre pra home (é de lá que ela é aberta).
+  function closeCatOv() { const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none'; try { go('inicio'); } catch (e) {} }
+  // Abre um produto do feed/categoria DENTRO da loja dele (igual clicar na loja).
+  // origin = 'category' → back volta pra categoria; senão volta pra home global.
+  async function openFeedProduct(storeSlug, productSlug, origin) {
+    if (!storeSlug || !productSlug) return;
+    const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none'; // esconde overlay (sem ir pra home)
+    const loja = (_lojasCache || []).find(l => l.slug === storeSlug);
+    setClientFilial(storeSlug, loja ? (loja.name || loja.city || '') : '');
+    if (typeof renderLojaBar === 'function') renderLojaBar();
+    try { await fetchCatalog(); } catch (e) {}
+    const idx = products.findIndex(p => p.slug === productSlug);
+    if (idx >= 0) openProduct(idx, origin || 'inicio');
+    else { if (typeof go === 'function') go('home'); } // fallback: abre a loja se o produto sumiu
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  // Back do detalhe do produto: se veio de uma categoria (overlay), reabre a categoria.
+  function _productBack() {
+    if (detailOrigin === 'category' && _catFrom) { openCategory(_catFrom.key, _catFrom.label); return; }
+    go(detailOrigin && detailOrigin !== 'detail' ? detailOrigin : 'inicio');
+  }
   let _inicioSeg = ''; // '' = todas | 'tabacaria' | 'adega'
   function setInicioSeg(seg, el) {
     _inicioSeg = seg;
@@ -13319,8 +13345,9 @@
     clearTimeout(window._atTimeout);
     window._atTimeout = setTimeout(() => {
       t.classList.remove('show');
-      // Volta auto pro home/catálogo
-      if (detailOrigin && detailOrigin !== 'detail') go(detailOrigin);
+      // Volta auto pro home/catálogo (ou pra categoria, se veio de lá)
+      if (detailOrigin === 'category' && _catFrom) openCategory(_catFrom.key, _catFrom.label);
+      else if (detailOrigin && detailOrigin !== 'detail') go(detailOrigin);
       else go('home');
     }, 1800);
   }
