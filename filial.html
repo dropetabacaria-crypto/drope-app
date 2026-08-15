@@ -908,6 +908,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
         <div class="pf-hint" id="ap-filtro-hint" style="margin-top:4px">Todo produto entra numa categoria — é assim que sua vitrine fica organizada, igual ao iFood.</div>
+        <label class="pf-lbl" style="margin-top:2px">Vitrine do DROPE <span style="color:var(--fg-dim);font-weight:400">(busca geral da home)</span></label>
+        <select class="pf-input" id="ap-catglobal"></select>
+        <div class="pf-hint" style="margin-top:2px">Onde o produto aparece na home do DROPE (ex: Cervejas, Tabaco). No <b>Automático</b>, o DROPE classifica sozinho pelo nome.</div>
         <label class="pf-lbl" style="margin-top:2px">Formas de pagamento</label>
         <select class="pf-input" id="ap-payment">
           <option value="both">Pix e cartão</option>
@@ -1455,6 +1458,18 @@ function _filtroOptions(sel) {
   return opts.join('');
 }
 // Cadastro de novo produto: categorias existentes + opção de criar uma nova ali mesmo.
+// Taxonomia global da home do DROPE (MANTER EM SINCRONIA com DROPE_CATS no api/webhook.js)
+const DROPE_HOME_CATS = [
+  { k: 'combos', l: 'Combos' }, { k: 'cerveja', l: 'Cervejas' }, { k: 'vinho', l: 'Vinhos' },
+  { k: 'destilado', l: 'Destilados' }, { k: 'energetico', l: 'Energéticos' }, { k: 'bebida', l: 'Bebidas geladas' },
+  { k: 'cigarro', l: 'Cigarros' }, { k: 'tabaco', l: 'Tabaco' }, { k: 'narguile', l: 'Narguilé' },
+  { k: 'gelo', l: 'Gelo' }, { k: 'doces', l: 'Doces & snacks' }, { k: 'acessorios', l: 'Acessórios' },
+];
+function _catGlobalOptions(sel) {
+  sel = sel || '';
+  return '<option value="">Automático (o DROPE decide)</option>'
+    + DROPE_HOME_CATS.map(c => `<option value="${c.k}"${c.k === sel ? ' selected' : ''}>${c.l}</option>`).join('');
+}
 function _apFiltroOptions() {
   const has = (_filtros || []).length;
   const parts = [];
@@ -1628,6 +1643,8 @@ function renderProdutos(list) {
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="epCriarCatArte(${p.id})">Criar categoria com arte por IA ✦</button>
           <div id="ep-newcat-status-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
+        <label class="pf-lbl" style="margin-top:10px">Vitrine do DROPE <span style="color:var(--fg-dim);font-weight:400">(busca geral da home)</span></label>
+        <select class="pf-input" id="ep-catglobal-${p.id}" style="margin-bottom:0">${_catGlobalOptions(p.cat_global)}</select>
         <label class="pf-lbl" style="margin-top:10px">Formas de pagamento</label>
         <select class="pf-input" id="ep-payment-${p.id}" style="margin-bottom:0">
           <option value="both"${p.pix_only ? '' : ' selected'}>Pix e cartão</option>
@@ -1832,6 +1849,7 @@ function toggleAddProduct() {
   if (opening) {
     const sel = document.getElementById('ap-filtro');
     if (sel) sel.innerHTML = _apFiltroOptions();
+    const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions('');
     // Loja nova (sem categorias) → já abre no modo "criar categoria" com aviso.
     const hint = document.getElementById('ap-filtro-hint');
     if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
@@ -1977,6 +1995,7 @@ async function onScanFile(input) {
       document.getElementById('add-product-form').style.display = 'block';
       // Popula o seletor de categoria (o scan abre o form sem passar por toggleAddProduct).
       try { const _sf = document.getElementById('ap-filtro'); if (_sf) _sf.innerHTML = _apFiltroOptions(); _apFiltroChange(); } catch (e) {}
+      try { const _scg = document.getElementById('ap-catglobal'); if (_scg && !_scg.innerHTML) _scg.innerHTML = _catGlobalOptions(''); } catch (e) {}
       try { _wizReset(); } catch (e) {} // começa na etapa 1 (produto identificado)
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
@@ -2490,7 +2509,8 @@ async function saveNewProduct() {
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
-  const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only };
+  const cat_global = (document.getElementById('ap-catglobal') || {}).value || '';
+  const payload = { name, marca, sabor, price, stock, image_url: img, filtro_id, pix_only, cat_global };
   const barcode = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
   if (barcode) payload.barcode = barcode; // código de barras → balcão puxa o produto
   if (isFinite(cost_price) && cost_price > 0) payload.cost_price = cost_price;
@@ -2505,6 +2525,7 @@ async function saveNewProduct() {
     const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
     const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); // categorias atualizadas
+    const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions(''); // volta pro Automático
     // CADASTRO EM SÉRIE: mantém o form aberto na etapa 1 pra cadastrar o próximo.
     try { _wizStep = 1; wizRender(); } catch (e) {}
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
@@ -2544,6 +2565,8 @@ async function saveEditProduct(id) {
     payload.filtro_id = fval || null; // categoria/filtro da loja
   }
   if (payEl) payload.pix_only = (payEl.value === 'pix'); // forma de pagamento do produto
+  const cgEl = document.getElementById('ep-catglobal-' + id);
+  if (cgEl) payload.cat_global = cgEl.value || ''; // vitrine global da home ('' = automático)
   if (custoEl) { const cc = _num(custoEl.value); payload.cost_price = (isFinite(cc) && cc > 0) ? cc : 0; } // preço de custo (0 limpa)
   await _saveProduct(payload);
 }

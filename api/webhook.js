@@ -4695,6 +4695,7 @@ async function handleFilialPainel(req, res) {
       sabor: ((p.metadata || {}).sabor) || null,
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
+      cat_global: ((p.metadata || {}).cat_global) || null, // vitrine global do DROPE (home)
       featured: !!((p.metadata || {}).featured),
       pix_only: (typeof (p.metadata || {}).pix_only === 'boolean') ? (p.metadata).pix_only : ((p.category || 'pod') === 'pod'),
       cost_cents: ((p.metadata || {}).cost_cents) || null,
@@ -4877,6 +4878,12 @@ async function handleFilialProductSave(req, res) {
         if (fid) md.filtro_id = fid; else delete md.filtro_id;
         mdChanged = true;
       }
+      // vitrine global do DROPE (home) — vazio = automático (backend infere)
+      if (Object.prototype.hasOwnProperty.call(body, 'cat_global')) {
+        const cg = body.cat_global ? String(body.cat_global) : null;
+        if (cg) md.cat_global = cg; else delete md.cat_global;
+        mdChanged = true;
+      }
       // destaque na vitrine (modo manual)
       if (Object.prototype.hasOwnProperty.call(body, 'featured')) {
         if (body.featured) md.featured = true; else delete md.featured;
@@ -4931,6 +4938,7 @@ async function handleFilialProductSave(req, res) {
         flavor_pt: sabor || vmeta.flavor_pt || null,
         flavor_en: vmeta.flavor_en || null,
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
+        ...(body.cat_global ? { cat_global: String(body.cat_global) } : {}), // vitrine global do DROPE (home); vazio = automático
         ...(body.featured ? { featured: true } : {}), // destaque na vitrine (manual)
         ...(Object.prototype.hasOwnProperty.call(body, 'pix_only') ? { pix_only: !!body.pix_only } : {}), // só Pix x Pix+cartão
         ...(body.cost_price && Number(body.cost_price) > 0 ? { cost_cents: Math.round(Number(body.cost_price) * 100) } : {}), // preço de custo
