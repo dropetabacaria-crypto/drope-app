@@ -1897,9 +1897,14 @@ function wizNext() {
     const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
     if (name.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do produto'; return; }
     if (!isFinite(price) || price < 0) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe um preço válido'; return; }
-    const fv = (document.getElementById('ap-filtro') || {}).value || '';
-    const newcat = (document.getElementById('ap-newcat') || {}).value || '';
-    if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
+    if (_apMode === 'combo') {
+      // Combo precisa de pelo menos 2 produtos; categoria da loja é opcional (vai pra vitrine Combos).
+      if (Object.keys(_apComboSel).length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione pelo menos 2 produtos pro combo'; return; }
+    } else {
+      const fv = (document.getElementById('ap-filtro') || {}).value || '';
+      const newcat = (document.getElementById('ap-newcat') || {}).value || '';
+      if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
+    }
     msg.textContent = ''; _wizStep = 2; wizRender(); return;
   }
   if (_wizStep === 2) { msg.textContent = ''; _wizStep = 3; wizRender(); return; }
@@ -2575,18 +2580,20 @@ async function saveNewProduct() {
     combo_items = Object.entries(_apComboSel).map(([slug, s]) => ({ slug, qty: s.qty || 1 }));
     if (combo_items.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione pelo menos 2 produtos pro combo'; return; }
   }
-  // CATEGORIA OBRIGATÓRIA — resolve a existente ou cria a nova ali mesmo (filtro-primeiro)
+  // CATEGORIA — obrigatória pro produto normal; OPCIONAL pro combo (vai pra vitrine Combos).
   let filtro_id = (document.getElementById('ap-filtro') || {}).value || '';
-  if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
-    const novoNome = (document.getElementById('ap-newcat').value || '').trim();
-    if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'dá um nome pra categoria do produto (ex: Tabaco)'; return; }
-    msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando a categoria...';
-    const okCat = await _saveFiltro({ nome: novoNome }, true);
-    if (okCat !== true) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦ tenta de novo'; return; }
-    const novo = (_filtros || []).find(f => (f.nome || '').toLowerCase() === novoNome.toLowerCase()) || (_filtros || [])[_filtros.length - 1];
-    filtro_id = novo && novo.id;
-  }
-  if (!filtro_id) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha (ou crie) uma categoria pro produto'; return; }
+  if (_apMode !== 'combo') {
+    if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
+      const novoNome = (document.getElementById('ap-newcat').value || '').trim();
+      if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'dá um nome pra categoria do produto (ex: Tabaco)'; return; }
+      msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando a categoria...';
+      const okCat = await _saveFiltro({ nome: novoNome }, true);
+      if (okCat !== true) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦ tenta de novo'; return; }
+      const novo = (_filtros || []).find(f => (f.nome || '').toLowerCase() === novoNome.toLowerCase()) || (_filtros || [])[_filtros.length - 1];
+      filtro_id = novo && novo.id;
+    }
+    if (!filtro_id) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha (ou crie) uma categoria pro produto'; return; }
+  } else if (filtro_id === '__new__') { filtro_id = ''; } // combo não usa a criação inline de categoria
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Salvando...';
   const pix_only = ((document.getElementById('ap-payment') || {}).value || 'both') === 'pix';
   const cost_price = _num((document.getElementById('ap-custo') || {}).value);
