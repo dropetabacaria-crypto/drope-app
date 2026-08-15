@@ -41,7 +41,7 @@ body::after {
   background-size: 54px 94px;
 }
 #painel { position: relative; z-index: 1; }
-header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,77,143,0.15), rgba(255,133,51,0.1)); border-bottom: 0.5px solid var(--border); }
+header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,77,143,0.16), rgba(140,80,255,0.12)); border-bottom: 0.5px solid var(--border); }
 .hello { font-size: 22px; font-weight: 600; }
 .subtitle { font-size: 12px; color: var(--fg-dim); margin-top: 2px; }
 .hd-icon-btn { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 13px; background: rgba(0,0,0,0.28); border: 1px solid var(--border); color: var(--fg); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, transform .1s; }
@@ -51,9 +51,9 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .hd-actions { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
 .hd-live { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); }
 .section { padding: 16px; }
-.section h2 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 10px; }
+.section h2 { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim); margin-bottom: 11px; }
 .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.kpi { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--card-shadow); }
+.kpi { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--card-shadow); }
 .kpi.lime { background: linear-gradient(135deg, rgba(212,255,46,0.12), var(--bg2)); border-color: rgba(212,255,46,0.3); }
 .kpi.pink { background: linear-gradient(135deg, rgba(255,77,143,0.12), var(--bg2)); border-color: rgba(255,77,143,0.3); }
 .kpi-label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
@@ -62,7 +62,7 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .kpi.pink .kpi-value { color: var(--pink); }
 .kpi-sub { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
 /* Dashboard: gráfico 7 dias + top produtos */
-.dash-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-top: 10px; box-shadow: var(--card-shadow); }
+.dash-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin-top: 10px; box-shadow: var(--card-shadow); }
 .dash-card .dh { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
 .dash-card .dh .t { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .04em; }
 .dash-card .dh .tot { font-size: 18px; font-weight: 800; color: var(--lime); }
@@ -79,7 +79,7 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .top-qty { font-size: 11px; color: var(--fg-dim); flex: 0 0 auto; }
 .top-qty b { color: var(--pink); font-weight: 800; }
 .dash-empty { font-size: 12px; color: var(--fg-dim); text-align: center; padding: 14px 0; }
-.pedido-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.pedido-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 10px; box-shadow: var(--card-shadow); }
 .pedido-card.novo { border-color: var(--yellow); background: linear-gradient(135deg, rgba(255,184,0,0.1), var(--bg2)); }
 .pedido-card.entregue { opacity: 0.6; }
 .pedido-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
@@ -90,9 +90,9 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .cliente-info { font-size: 11px; color: var(--fg-dim); margin-bottom: 8px; font-family: monospace; }
 .items { font-size: 12px; color: var(--fg); line-height: 1.6; }
 .items strong { color: var(--lime); }
-.total { font-size: 14px; font-weight: 700; color: var(--pink); margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border); display: flex; justify-content: space-between; }
-.ganho { color: var(--lime); }
-.empty { text-align: center; padding: 18px 16px; color: var(--fg-dim); font-size: 13px; background: var(--bg2); border: 1px dashed var(--border); border-radius: 14px; }
+.total { font-size: 14px; font-weight: 700; color: var(--fg); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
+.ganho { color: var(--green); font-weight: 800; }
+.empty { text-align: center; padding: 18px 16px; color: var(--fg-dim); font-size: 13px; background: var(--bg2); border: 1px dashed var(--border); border-radius: 16px; }
 .auth-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px;
   background: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1.5px) 0 0 / 23px 23px, radial-gradient(60% 45% at 20% 0%, rgba(140,80,255,0.20), transparent 60%), radial-gradient(50% 40% at 100% 100%, rgba(255,45,111,0.14), transparent 60%), var(--bg); }
 .auth-box { position: relative; background: linear-gradient(158deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015) 60%), var(--bg2); border: 1px solid var(--border); border-radius: 22px; padding: 30px 24px 26px; max-width: 380px; width: 100%; box-shadow: 0 24px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06); }
@@ -162,9 +162,14 @@ header { padding: 18px 16px 14px; background: linear-gradient(135deg, rgba(255,7
 .pf-btn.full { width: 100%; }
 /* Ações rápidas (tiles) */
 .qa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.qa-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; border-radius: 16px; padding: 16px; cursor: pointer; text-align: left; color: #0a0a14; font-family: inherit; }
-.qa-tile.pink { background: var(--pink); } .qa-tile.yellow { background: var(--yellow); }
-.qa-emoji { font-size: 22px; } .qa-tt { font-size: 15px; font-weight: 800; } .qa-ts { font-size: 11px; opacity: 0.85; }
+.qa-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; border: 1px solid var(--border); border-radius: 16px; padding: 15px; cursor: pointer; text-align: left; color: var(--fg); font-family: inherit; background: var(--bg2); box-shadow: var(--card-shadow); transition: border-color .15s, transform .1s; }
+.qa-tile:hover { border-color: rgba(255,255,255,0.16); }
+.qa-tile:active { transform: scale(0.98); }
+.qa-emoji { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.qa-tile.sell .qa-emoji { background: rgba(74,222,128,0.14); color: var(--green); }     /* vender = dinheiro */
+.qa-tile.stock .qa-emoji { background: rgba(140,80,255,0.16); color: #B79CFF; }          /* balanço = utilitário */
+.qa-tt { font-size: 15px; font-weight: 800; color: var(--fg); }
+.qa-ts { font-size: 11.5px; color: var(--fg-dim); }
 /* Overlays (PDV / balanço) */
 .sheet-ov { position: fixed; inset: 0; background: var(--bg); z-index: 90; display: none; flex-direction: column; }
 .sheet-ov.open { display: flex; }
@@ -323,8 +328,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
-      <button class="qa-tile pink" onclick="openPDV()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
-      <button class="qa-tile yellow" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
+      <button class="qa-tile sell" onclick="openPDV()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile stock" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
     </div>
   </div>
 
@@ -3370,7 +3375,7 @@ function renderPedidoCard(p, isEntregue) {
   }
   // Cancelar pedido — some quando já foi entregue/retirado.
   const cancelBtn = (stage !== 'done')
-    ? `<div style="text-align:center;margin-top:12px"><span onclick="cancelOrder(${p.id})" style="color:var(--pink);font-size:12px;font-weight:700;cursor:pointer">✕ Cancelar pedido</span></div>`
+    ? `<div style="text-align:center;margin-top:12px"><span onclick="cancelOrder(${p.id})" style="color:var(--fg-dim);font-size:12px;font-weight:700;cursor:pointer">✕ Cancelar pedido</span></div>`
     : '';
   return `
     <div class="pedido-card ${cls}">
