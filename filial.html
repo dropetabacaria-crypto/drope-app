@@ -2598,8 +2598,9 @@ function _apComboRecalc() {
   let sugerido = soma;
   if (isFinite(disc) && disc > 0) sugerido = tipo === 'pct' ? soma * (1 - Math.min(disc, 90) / 100) : Math.max(0, soma - disc);
   const sumEl = document.getElementById('ap-combo-sum');
+  const lista = Object.values(_apComboSel).map(x => `${x.qty}× ${esc(x.name)}`).join(' · ');
   if (sumEl) sumEl.innerHTML = sels.length
-    ? `Soma dos itens: <b>R$ ${soma.toFixed(2).replace('.', ',')}</b>${(sugerido < soma) ? ` · combo por <b style="color:var(--lime)">R$ ${sugerido.toFixed(2).replace('.', ',')}</b>` : ''}`
+    ? `<b>${sels.length} ${sels.length === 1 ? 'item' : 'itens'} no combo:</b> ${lista}<br>Soma: <b>R$ ${soma.toFixed(2).replace('.', ',')}</b>${(sugerido < soma) ? ` · combo por <b style="color:var(--lime)">R$ ${sugerido.toFixed(2).replace('.', ',')}</b>` : ''}`
     : 'Selecione ao menos 2 produtos.';
   // Preenche o preço sugerido (o lojista pode sobrescrever livremente)
   const priceEl = document.getElementById('ap-price');

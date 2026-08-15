@@ -4823,14 +4823,12 @@ async function _filialAuthBySlug(filialSlug, token) {
   return (bySession || byLegacy) ? filial : null;
 }
 
-// Monta a arte do COMBO juntando as FOTOS REAIS dos componentes (colagem no fundo DROPE).
-// Não inventa imagem — usa as capas dos próprios produtos, preservando o aspecto de cada uma.
-async function comboCollage(urls, tag, variant) {
+// Compõe as FOTOS REAIS dos componentes num único buffer (referência p/ a IA + fallback).
+async function comboCollageBuffer(urls, variant) {
   let sharp; try { sharp = require('sharp'); } catch (e) { return null; }
   let list = (urls || []).filter(Boolean).slice(0, 4);
   if (!list.length) return null;
   const v = ((parseInt(variant, 10) || 0) % 1000 + 1000) % 1000;
-  // "Gerar outra": rotaciona a ORDEM das fotos conforme o variant
   if (list.length > 1) { const off = v % list.length; list = list.slice(off).concat(list.slice(0, off)); }
   const bufs = [];
   for (const u of list) {
@@ -4842,7 +4840,6 @@ async function comboCollage(urls, tag, variant) {
   let cells;
   if (n === 1) cells = [{ x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad }];
   else if (n === 2) {
-    // variant par → lado a lado; ímpar → empilhado
     if (v % 2 === 0) { const cw = (W - 2 * pad - gap) / 2, ch = Math.min(cw, H - 2 * pad), y = Math.round((H - ch) / 2); cells = [{ x: pad, y, w: cw, h: ch }, { x: pad + cw + gap, y, w: cw, h: ch }]; }
     else { const ch = (H - 2 * pad - gap) / 2, cw = W - 2 * pad; cells = [{ x: pad, y: pad, w: cw, h: ch }, { x: pad, y: pad + ch + gap, w: cw, h: ch }]; }
   }
@@ -4862,11 +4859,29 @@ async function comboCollage(urls, tag, variant) {
   }
   if (!comps.length) return null;
   try {
-    const out = await sharp({ create: { width: W, height: H, channels: 4, background: bg } })
+    return await sharp({ create: { width: W, height: H, channels: 4, background: bg } })
       .composite(comps).jpeg({ quality: 90 }).toBuffer();
-    const url = await uploadToStorage(tag, out, 'image/jpeg');
+  } catch (e) { console.error('[comboCollageBuffer]', e.message); return null; }
+}
+
+// Arte do COMBO: a IA compõe UMA imagem coesa a partir das fotos REAIS dos componentes
+// (usa a colagem como referência img2img → fica fiel aos produtos, sem inventar coisa aleatória).
+// Se a IA falhar (ex.: sem crédito), cai no fallback = a própria colagem.
+async function comboArtGenerate(urls, tag, variant) {
+  const collageBuf = await comboCollageBuffer(urls, variant);
+  if (!collageBuf) return null;
+  let finalBuf = collageBuf;
+  try {
+    const arr = ['arranged side by side', 'grouped together', 'fanned out artfully', 'stacked in a neat pile'];
+    const lay = arr[((parseInt(variant, 10) || 0) % arr.length + arr.length) % arr.length];
+    const prompt = `This reference image shows REAL products of a Brazilian tobacconist (tabacaria). Compose them into ONE cohesive premium COMBO/kit product photo, ${lay}, presented together as a single bundle. Keep each product's real packaging clearly recognizable and faithful (do not invent other products). Matte black reflective surface, deep dark background gradient (#0A0C1B to #12091F), wispy translucent neon smoke with pink (#FF2D6F) and acid green (#D4FF2E) rim light, faint ultraviolet fill. Glossy, high detail, premium. NO people, NO hands, NO text, NO watermarks. Square 1024x1024.`;
+    const t = await openaiEditImage(collageBuf, prompt, { quality: 'low' });
+    if (t) { const r = await fetch(t); if (r.ok) finalBuf = Buffer.from(await r.arrayBuffer()); }
+  } catch (e) { console.error('[comboArtGenerate AI]', e.message); }
+  try {
+    const url = await uploadToStorage(tag, finalBuf, 'image/jpeg');
     return url ? url + '?v=' + Date.now() : null;
-  } catch (e) { console.error('[comboCollage build]', e.message); return null; }
+  } catch (e) { console.error('[comboArtGenerate upload]', e.message); return null; }
 }
 
 // POST action=filial_combo_art — prévia da arte do combo (colagem das fotos reais).
@@ -4887,7 +4902,7 @@ async function handleFilialComboArt(req, res) {
     const bySlug = {}; (comps || []).forEach(c => { bySlug[c.slug] = c; });
     const urls = wanted.map(s => (bySlug[s] || {}).image_url).filter(Boolean);
     if (!urls.length) return res.status(422).json({ ok: false, error: 'os produtos escolhidos não têm foto pra montar o combo' });
-    const url = await comboCollage(urls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, body.variant);
+    const url = await comboArtGenerate(urls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, body.variant);
     if (!url) return res.status(502).json({ ok: false, error: 'não deu pra montar a arte' });
     return res.status(200).json({ ok: true, image_url: url });
   } catch (e) { console.error('[filial_combo_art]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
@@ -5016,7 +5031,7 @@ async function handleFilialProductSave(req, res) {
     if (_combo && !body.photo_base64 && !imageUrl) {
       // sem colagem previewada (ap-img vazio) → monta agora
       try {
-        imageUrl = await comboCollage(_comboImgUrls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, 0);
+        imageUrl = await comboArtGenerate(_comboImgUrls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, 0);
       } catch (e) { console.error('[combo-collage]', e.message); imageUrl = null; }
     }
 
@@ -7171,7 +7186,9 @@ const _FILTRO_SUBJECTS = {
 function _filtroSubject(nome) {
   const k = String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   for (const key in _FILTRO_SUBJECTS) { if (k.includes(key)) return _FILTRO_SUBJECTS[key]; }
-  return `${nome}, premium products still-life`;
+  // Categoria desconhecida (ex.: "Combo"): NÃO deixa a IA buscar algo aleatório (relógio, perfume…).
+  // Sempre ancora no universo tabacaria/adega.
+  return `an assortment of Brazilian tobacconist & convenience products (rolling papers, tobacco pouches, cigarette packs, hookah accessories, lighters, and cold canned/bottled drinks) arranged as a still-life, representing a "${nome}" section of a tobacco & drinks shop`;
 }
 
 // Cena estilo DROPE (dark neon still-life) pra imagem de um filtro.
