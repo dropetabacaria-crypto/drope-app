@@ -8982,14 +8982,17 @@
   // origin = 'category' → back volta pra categoria; senão volta pra home global.
   async function openFeedProduct(storeSlug, productSlug, origin) {
     if (!storeSlug || !productSlug) return;
-    const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none'; // esconde overlay (sem ir pra home)
+    // NÃO esconde o overlay ainda: enquanto carrega, a categoria segue por cima.
+    // (Se escondesse agora, apareceria a tela de detalhe com a imagem do produto ANTERIOR.)
     const loja = (_lojasCache || []).find(l => l.slug === storeSlug);
     setClientFilial(storeSlug, loja ? (loja.name || loja.city || '') : '');
     if (typeof renderLojaBar === 'function') renderLojaBar();
     try { await fetchCatalog(); } catch (e) {}
     const idx = products.findIndex(p => p.slug === productSlug);
-    if (idx >= 0) openProduct(idx, origin || 'inicio');
+    if (idx >= 0) openProduct(idx, origin || 'inicio'); // monta o detalhe novo (imagem já trocada)
     else { if (typeof go === 'function') go('home'); } // fallback: abre a loja se o produto sumiu
+    // Agora sim revela: o detalhe já está com o produto certo, sem flash do anterior.
+    const ov = document.getElementById('cat-ov'); if (ov) ov.style.display = 'none';
     try { window.scrollTo(0, 0); } catch (e) {}
   }
   // Back do detalhe do produto: se veio de uma categoria (overlay), reabre a categoria.
