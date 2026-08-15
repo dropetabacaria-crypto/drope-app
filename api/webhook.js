@@ -4825,10 +4825,13 @@ async function _filialAuthBySlug(filialSlug, token) {
 
 // Monta a arte do COMBO juntando as FOTOS REAIS dos componentes (colagem no fundo DROPE).
 // Não inventa imagem — usa as capas dos próprios produtos, preservando o aspecto de cada uma.
-async function comboCollage(urls, tag) {
+async function comboCollage(urls, tag, variant) {
   let sharp; try { sharp = require('sharp'); } catch (e) { return null; }
-  const list = (urls || []).filter(Boolean).slice(0, 4);
+  let list = (urls || []).filter(Boolean).slice(0, 4);
   if (!list.length) return null;
+  const v = ((parseInt(variant, 10) || 0) % 1000 + 1000) % 1000;
+  // "Gerar outra": rotaciona a ORDEM das fotos conforme o variant
+  if (list.length > 1) { const off = v % list.length; list = list.slice(off).concat(list.slice(0, off)); }
   const bufs = [];
   for (const u of list) {
     try { const r = await fetch(u); if (!r.ok) continue; bufs.push(Buffer.from(await r.arrayBuffer())); } catch (e) {}
@@ -4838,7 +4841,11 @@ async function comboCollage(urls, tag) {
   const n = bufs.length;
   let cells;
   if (n === 1) cells = [{ x: pad, y: pad, w: W - 2 * pad, h: H - 2 * pad }];
-  else if (n === 2) { const cw = (W - 2 * pad - gap) / 2, ch = Math.min(cw, H - 2 * pad), y = Math.round((H - ch) / 2); cells = [{ x: pad, y, w: cw, h: ch }, { x: pad + cw + gap, y, w: cw, h: ch }]; }
+  else if (n === 2) {
+    // variant par → lado a lado; ímpar → empilhado
+    if (v % 2 === 0) { const cw = (W - 2 * pad - gap) / 2, ch = Math.min(cw, H - 2 * pad), y = Math.round((H - ch) / 2); cells = [{ x: pad, y, w: cw, h: ch }, { x: pad + cw + gap, y, w: cw, h: ch }]; }
+    else { const ch = (H - 2 * pad - gap) / 2, cw = W - 2 * pad; cells = [{ x: pad, y: pad, w: cw, h: ch }, { x: pad, y: pad + ch + gap, w: cw, h: ch }]; }
+  }
   else { const cw = (W - 2 * pad - gap) / 2, ch = (H - 2 * pad - gap) / 2; cells = [
     { x: pad, y: pad, w: cw, h: ch }, { x: pad + cw + gap, y: pad, w: cw, h: ch },
     { x: pad, y: pad + ch + gap, w: cw, h: ch }, { x: pad + cw + gap, y: pad + ch + gap, w: cw, h: ch }]; }
@@ -4860,6 +4867,30 @@ async function comboCollage(urls, tag) {
     const url = await uploadToStorage(tag, out, 'image/jpeg');
     return url ? url + '?v=' + Date.now() : null;
   } catch (e) { console.error('[comboCollage build]', e.message); return null; }
+}
+
+// POST action=filial_combo_art — prévia da arte do combo (colagem das fotos reais).
+// Body: { filial, token, combo_items:[{slug,qty}], variant }. Retorna { ok, image_url }.
+async function handleFilialComboArt(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const wanted = (Array.isArray(body.combo_items) ? body.combo_items : []).map(c => String((c && c.slug) || '')).filter(Boolean);
+    if (wanted.length < 2) return res.status(400).json({ ok: false, error: 'combo precisa de 2+ produtos' });
+    const comps = await sbGet('drope_products', `filial_id=eq.${filial.id}&slug=in.(${wanted.map(encodeURIComponent).join(',')})&select=slug,image_url`);
+    const bySlug = {}; (comps || []).forEach(c => { bySlug[c.slug] = c; });
+    const urls = wanted.map(s => (bySlug[s] || {}).image_url).filter(Boolean);
+    if (!urls.length) return res.status(422).json({ ok: false, error: 'os produtos escolhidos não têm foto pra montar o combo' });
+    const url = await comboCollage(urls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, body.variant);
+    if (!url) return res.status(502).json({ ok: false, error: 'não deu pra montar a arte' });
+    return res.status(200).json({ ok: true, image_url: url });
+  } catch (e) { console.error('[filial_combo_art]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_product_save — lojista adiciona/edita produto da loja dele.
@@ -4982,9 +5013,10 @@ async function handleFilialProductSave(req, res) {
     // Imagem do combo = COLAGEM das fotos REAIS dos componentes (não IA reinventando).
     // Só quando o lojista não enviou uma foto própria. Se a colagem falhar, fica sem imagem
     // (melhor que a arte-IA que não tem a ver com os produtos).
-    if (_combo && !body.photo_base64) {
+    if (_combo && !body.photo_base64 && !imageUrl) {
+      // sem colagem previewada (ap-img vazio) → monta agora
       try {
-        imageUrl = await comboCollage(_comboImgUrls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`);
+        imageUrl = await comboCollage(_comboImgUrls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, 0);
       } catch (e) { console.error('[combo-collage]', e.message); imageUrl = null; }
     }
 
@@ -21169,6 +21201,10 @@ async function generateAll(){
   // action=filial_product_delete — POST: lojista apaga um produto dele
   if (req.url && req.url.indexOf('action=filial_product_delete') >= 0) {
     return await handleFilialProductDelete(req, res);
+  }
+  // action=filial_combo_art — POST: prévia da arte do combo (colagem das fotos reais)
+  if (req.url && req.url.indexOf('action=filial_combo_art') >= 0) {
+    return await handleFilialComboArt(req, res);
   }
   // action=filial_product_save — POST: lojista adiciona/edita produto da loja dele
   if (req.url && req.url.indexOf('action=filial_product_save') >= 0) {

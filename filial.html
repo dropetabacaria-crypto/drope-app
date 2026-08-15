@@ -960,6 +960,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <button class="pf-btn sec" id="ap-art-again" style="margin-top:10px;width:100%;display:none" onclick="apGerarArte()">Não gostou? Gerar outra ✦</button>
         </div>
         <input class="pf-input" id="ap-img" placeholder="ou cole o link de uma foto (opcional)" style="margin-top:10px" oninput="apLinkPreview()">
+        <!-- COMBO: prévia da colagem das fotos reais + gerar outra -->
+        <div id="ap-combo-preview" style="display:none;margin-top:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px">
+          <img id="ap-combo-img" src="" alt="" style="width:180px;height:180px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
+          <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">Prévia da arte do combo (fotos dos produtos)</div>
+          <div id="ap-combo-prev-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
+          <button class="pf-btn sec" id="ap-combo-again" style="margin-top:10px;width:100%" onclick="apComboPreview(1)">Gerar outra ✦</button>
+        </div>
       </div>
 
       <!-- navegação do wizard -->
@@ -1878,7 +1885,7 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
-function _wizReset() { _wizStep = 1; _apClearArt(); _apComboSel = {}; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; try { apSetMode('normal'); } catch (e) {} wizRender(); }
+function _wizReset() { _wizStep = 1; _apClearArt(); _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
@@ -1890,7 +1897,7 @@ function wizRender() {
   if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
   if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
 }
-function wizGo(delta) { _wizStep = Math.max(1, Math.min(3, _wizStep + delta)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+function wizGo(delta) { let ns = _wizStep + delta; if (_apMode === 'combo' && ns === 2) ns += delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 function wizNext() {
   const msg = document.getElementById('ap-msg');
   if (_wizStep === 1) {
@@ -1906,7 +1913,9 @@ function wizNext() {
       const newcat = (document.getElementById('ap-newcat') || {}).value || '';
       if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
     }
-    msg.textContent = ''; _wizStep = 2; wizRender(); return;
+    msg.textContent = '';
+    if (_apMode === 'combo') { _wizStep = 3; wizRender(); if (!((document.getElementById('ap-img') || {}).value)) apComboPreview(0); return; } // combo pula a etapa Código
+    _wizStep = 2; wizRender(); return;
   }
   if (_wizStep === 2) { msg.textContent = ''; _wizStep = 3; wizRender(); return; }
   if (_wizStep === 3) { saveNewProduct(); return; }
@@ -2523,7 +2532,35 @@ function apSetMode(mode) {
   const artBtn = document.getElementById('ap-artgen-btn'); if (artBtn) artBtn.style.display = combo ? 'none' : '';
   const imgHint = document.getElementById('ap-img-hint'); if (imgHint) imgHint.style.display = combo ? 'none' : 'block';
   const comboNote = document.getElementById('ap-combo-img-note'); if (comboNote) comboNote.style.display = combo ? 'block' : 'none';
+  const artPrev = document.getElementById('ap-art-preview'); if (artPrev && combo) artPrev.style.display = 'none';
+  const comboPrev = document.getElementById('ap-combo-preview'); if (comboPrev && !combo) comboPrev.style.display = 'none';
   if (combo) { _apRenderComboList(); _apComboRecalc(); try { _apClearArt(); } catch (e) {} }
+}
+let _apComboVariant = 0;
+async function apComboPreview(bump) {
+  if (bump) _apComboVariant++;
+  const slugs = Object.keys(_apComboSel);
+  if (slugs.length < 2) return;
+  const box = document.getElementById('ap-combo-preview');
+  const img = document.getElementById('ap-combo-img');
+  const st = document.getElementById('ap-combo-prev-status');
+  const btn = document.getElementById('ap-combo-again');
+  if (box) box.style.display = 'block';
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'montando a arte do combo…'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_combo_art', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, variant: _apComboVariant, combo_items: slugs.map(s => ({ slug: s, qty: (_apComboSel[s].qty || 1) })) }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.image_url) {
+      if (img) img.src = d.image_url;
+      const ai = document.getElementById('ap-img'); if (ai) ai.value = d.image_url;
+      if (st) st.textContent = '';
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'não deu pra montar a arte ✦ (os produtos têm foto?)'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 function _apRenderComboList() {
   const el = document.getElementById('ap-combo-list'); if (!el) return;
