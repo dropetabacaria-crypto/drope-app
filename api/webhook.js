@@ -4989,6 +4989,34 @@ async function handleFilialProductSave(req, res) {
         if (isFinite(cc) && cc > 0) md.cost_cents = cc; else delete md.cost_cents;
         mdChanged = true;
       }
+      // COMBO — editar composição (produtos/quantidades). Recalcula o estoque derivado
+      // e, se a composição mudou, regenera a imagem (das novas fotos). Slug do combo fica estável.
+      if (Array.isArray(body.combo_items) && body.combo_items.length >= 2) {
+        const wanted = body.combo_items.map(c => String((c && c.slug) || '')).filter(Boolean);
+        const comps = wanted.length
+          ? await sbGet('drope_products', `filial_id=eq.${filial.id}&slug=in.(${wanted.map(encodeURIComponent).join(',')})&select=slug,name,qty_available,image_url`)
+          : [];
+        const bySlug = {}; (comps || []).forEach(c => { bySlug[c.slug] = c; });
+        const items = body.combo_items.map(c => {
+          const cp = bySlug[String((c && c.slug) || '')]; if (!cp) return null;
+          return { slug: cp.slug, name: cp.name, qty: Math.max(1, parseInt(c && c.qty, 10) || 1) };
+        }).filter(Boolean);
+        if (items.length >= 2) {
+          const oldKey = JSON.stringify((Array.isArray(md.combo_items) ? md.combo_items : []).map(x => x.slug + ':' + x.qty).sort());
+          const newKey = JSON.stringify(items.map(x => x.slug + ':' + x.qty).sort());
+          md.combo = true; md.combo_items = items; if (!md.cat_global) md.cat_global = 'combos'; mdChanged = true;
+          const ds = Math.min(...items.map(it => Math.floor((bySlug[it.slug].qty_available || 0) / it.qty)));
+          upd.qty_available = (isFinite(ds) && ds >= 0) ? ds : 0;
+          // regenera a imagem só se a composição mudou E o lojista não definiu foto manual
+          if (oldKey !== newKey && !body.photo_base64 && imageUrl === undefined) {
+            try {
+              const urls = items.map(it => (bySlug[it.slug] || {}).image_url).filter(Boolean);
+              const url = await comboArtGenerate(urls, `combo-${filial.id}-${Date.now().toString(36).slice(-4)}`, 0);
+              if (url) { upd.image_url = url; upd.image_status = 'ok'; }
+            } catch (e) { console.error('[combo-edit-art]', e.message); }
+          }
+        }
+      }
       if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
       return res.status(200).json({ ok: true, id });
