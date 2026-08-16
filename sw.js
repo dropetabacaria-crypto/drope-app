@@ -4,7 +4,7 @@
 //     Resolve o problema histórico de "versão velha no cache do Chrome do Xiaomi".
 //   - Assets estáticos (.js .css imagens): cache-first com revalidação em background.
 //   - /api/*: NUNCA cachear (são dados ao vivo).
-const CACHE = 'drope-v9';
+const CACHE = 'drope-v10';
 // Páginas que NUNCA são cacheadas — sempre busca da rede.
 // Inclui receber.html porque o fluxo de scanner muda muito; cache antigo causou travamento.
 const NEVER_CACHE = ['/receber.html', '/receber', '/index.html', '/'];
@@ -25,6 +25,30 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('message', (e) => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+// ===== Push (notificação no celular, app fechado) =====
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (_) { data = { title: 'DROPE', body: e.data ? e.data.text() : '' }; }
+  const title = data.title || 'DROPE ✦ novo pedido';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    vibrate: [200, 100, 200],
+    tag: 'drope-order',
+    renotify: true,
+    data: { url: data.url || '/filial' },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/filial';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cls) => {
+    for (const c of cls) { if (c.url.includes('/filial') && 'focus' in c) return c.focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  }));
 });
 
 self.addEventListener('activate', (e) => {

@@ -336,7 +336,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <div style="min-width:0">
       <div class="hello" id="hello">Oi, ...</div>
       <div class="subtitle" id="subtitle">filial ...</div>
-      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span><span class="hd-sep">·</span><button class="hd-ver" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>Ver loja</button><span class="hd-sep">·</span><button class="hd-ver" id="hd-som" onclick="_toggleSomPedido()" aria-label="Som de novo pedido"></button></div>
+      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span><span class="hd-sep">·</span><button class="hd-ver" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>Ver loja</button><span class="hd-sep">·</span><button class="hd-ver" id="hd-som" onclick="_toggleSomPedido()" aria-label="Som de novo pedido"></button><span class="hd-sep">·</span><button class="hd-ver" id="hd-push" onclick="ativarPush()" aria-label="Notificações no celular"></button></div>
     </div>
     <div class="hd-actions">
       <button class="hd-icon-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações">
@@ -1270,6 +1270,7 @@ function render(d) {
     _prevPendIds = _ids;
   } catch (e) {}
   try { _renderSomBtn(); } catch (e) {}
+  try { _renderPushBtn(); } catch (e) {}
   _renderPendentes();
 
   const historico = d.historico || [];
@@ -3861,6 +3862,52 @@ function _toggleSomPedido() {
   try { localStorage.setItem('drope_som_pedido', _somOn() ? 'off' : 'on'); } catch (e) {}
   _renderSomBtn();
   if (_somOn()) { _unlockAudio(); _playPedidoSound(); } // toca uma prévia ao ligar
+}
+// ===== Push (notificação no celular, app fechado) =====
+const _VAPID_PUBLIC = 'BOGQ9Mdw6kX7kgDs_ujWfFO5pTICNJKRwpN4_hs-k3td3d2cXNSTM1xTvmu1ZBjE6U2bL7c7cA3NHfMWHCG5tCo';
+function _urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64), arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+function _pushOn() { try { return localStorage.getItem('drope_push_on') === '1'; } catch (e) { return false; } }
+function _renderPushBtn() {
+  const b = document.getElementById('hd-push'); if (!b) return;
+  const on = _pushOn();
+  const ic = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>';
+  b.title = on ? 'Notificações no celular: ativas' : 'Ativar notificações no celular';
+  b.innerHTML = ic + (on ? 'Notif. on' : 'Ativar no cel');
+}
+async function ativarPush() {
+  if (_pushOn()) { _toast('Notificações já estão ativas neste aparelho ✦ mandando um teste…', 'ok'); _pushTest(); return; }
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      _toast('No iPhone: adicione o app à Tela de Início (Compartilhar → Adicionar) e abra por lá pra ativar.', 'err'); return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { _toast('Permissão de notificação negada', 'err'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _urlB64ToUint8(_VAPID_PUBLIC) });
+    const r = await fetch('/api/webhook?action=filial_push_subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, subscription: sub.toJSON() }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!(r.ok && d.ok)) throw new Error(d.error || 'falha ao registrar');
+    try { localStorage.setItem('drope_push_on', '1'); } catch (e) {}
+    _renderPushBtn();
+    _toast('Notificações ativadas ✦ mandando um teste…', 'ok');
+    _pushTest();
+  } catch (e) { _toast(e.message || 'não deu pra ativar as notificações', 'err'); }
+}
+function _pushTest() {
+  fetch('/api/webhook?action=filial_push_subscribe', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, action_type: 'test' }),
+  }).catch(() => {});
 }
 function _refreshPedidoSurfaces() {
   try { const ov = document.getElementById('pedidos-ov'); if (ov && ov.classList.contains('open')) _renderAllPedidos(); } catch (e) {}

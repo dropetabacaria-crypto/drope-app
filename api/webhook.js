@@ -14991,6 +14991,41 @@ async function handleMyStore(req, res) {
 // ===== NOTIFICAÇÕES IN-APP (central de avisos) =====
 // recipient_type 'filial' (recipient_key = filial.id) ou 'customer' (recipient_key = telefone).
 function _phoneKey(phone) { return String(phone || '').replace(/\D/g, '').slice(-11); }
+// ===== Web Push (notificação no celular, app fechado) =====
+let _webpush = null, _webpushReady = false;
+function _webpushInit() {
+  if (_webpushReady) return _webpush;
+  _webpushReady = true;
+  try {
+    const wp = require('web-push');
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      wp.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:contato@drope.app', process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+      _webpush = wp;
+    }
+  } catch (e) { console.warn('[webpush init]', e.message); }
+  return _webpush;
+}
+// Envia push pra TODOS os aparelhos inscritos da loja (e limpa assinaturas mortas).
+async function _sendStorePush(filialId, title, body, url) {
+  const wp = _webpushInit();
+  if (!wp || !filialId) return;
+  try {
+    const rows = await sbGet('drope_filiais', `id=eq.${encodeURIComponent(filialId)}&select=metadata&limit=1`);
+    const md = (rows && rows[0] && rows[0].metadata) || {};
+    const subs = Array.isArray(md.push_subs) ? md.push_subs : [];
+    if (!subs.length) return;
+    const payload = JSON.stringify({ title: String(title || 'DROPE'), body: String(body || ''), url: url || '/filial' });
+    const dead = [];
+    await Promise.all(subs.map(async (s) => {
+      try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); }
+      catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+    }));
+    if (dead.length) {
+      md.push_subs = subs.filter(s => !dead.includes(s.endpoint));
+      await sbUpdate('drope_filiais', `id=eq.${encodeURIComponent(filialId)}`, { metadata: md });
+    }
+  } catch (e) { console.error('[sendStorePush]', e.message); }
+}
 async function _notify(recipientType, recipientKey, type, title, body, link) {
   const key = recipientType === 'customer' ? _phoneKey(recipientKey) : String(recipientKey || '').trim();
   if (!key || !SUPABASE_URL || !SUPABASE_KEY) return;
@@ -15001,6 +15036,30 @@ async function _notify(recipientType, recipientKey, type, title, body, link) {
       body: JSON.stringify({ recipient_type: recipientType, recipient_key: key, type, title: String(title).slice(0, 120), body: body ? String(body).slice(0, 240) : null, link: link || null }),
     });
   } catch (e) { console.error('[_notify]', e.message); }
+  // Loja → também dispara push pro celular (app fechado)
+  if (recipientType === 'filial') { _sendStorePush(key, title, body, link || '/filial').catch(() => {}); }
+}
+// POST action=filial_push_subscribe — guarda a assinatura push do aparelho da loja.
+async function handleFilialPushSubscribe(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    if (body.action_type === 'test') { // teste: dispara um push pro próprio aparelho
+      await _sendStorePush(filial.id, 'Notificações ativas ✦', 'Vou te avisar aqui quando entrar um pedido 🔔', '/filial');
+      return res.status(200).json({ ok: true, tested: true });
+    }
+    const sub = body.subscription;
+    if (!sub || !sub.endpoint) return res.status(400).json({ ok: false, error: 'subscription inválida' });
+    const md = filial.metadata || {};
+    const subs = Array.isArray(md.push_subs) ? md.push_subs : [];
+    md.push_subs = subs.filter(s => s.endpoint !== sub.endpoint).concat([{ endpoint: sub.endpoint, keys: sub.keys }]).slice(-10);
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[filial_push_subscribe]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 async function _notifResolveRecipient(url, body) {
   const role = (url ? url.searchParams.get('role') : body.role) || 'customer';
@@ -21354,6 +21413,10 @@ async function generateAll(){
     return await handleDashboardData(req, res);
   }
 
+  // action=filial_push_subscribe — POST: guarda assinatura push do aparelho da loja (ou testa)
+  if (req.url && req.url.indexOf('action=filial_push_subscribe') >= 0) {
+    return await handleFilialPushSubscribe(req, res);
+  }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
