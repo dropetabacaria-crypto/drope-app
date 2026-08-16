@@ -1471,9 +1471,14 @@ async function setFeaturedMode(m) {
     await fetch('/api/webhook?action=filial_profile_save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, featured_mode: m }) });
   } catch (e) {}
 }
-async function toggleFeatured(id) {
+function toggleFeatured(id) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
-  await _saveProduct({ id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden, featured: !p.featured });
+  p.featured = !p.featured;                 // OTIMISTA: reflete na hora
+  try { renderProdutos(); } catch (e) {}
+  fetch('/api/webhook?action=filial_product_save', {  // salva por trás (sem loadData bloqueante)
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, featured: !!p.featured, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden }),
+  }).catch(() => {});
 }
 // Edição de produto: categoria SEMPRE obrigatória (sem opção "sem categoria").
 // Se o produto ainda não tem categoria, mostra um placeholder desabilitado.
@@ -3375,14 +3380,20 @@ function addFiltroSugestao(nome) {
   const msg = document.getElementById('filtro-msg');
   if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'nome preenchido ✦ agora gere a arte (ou envie sua imagem) e confirme'; }
 }
-async function moveFiltro(id, dir) {
+function moveFiltro(id, dir) {
   const arr = (_filtros || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
   const idx = arr.findIndex(f => f.id === id); if (idx < 0) return;
   const ni = idx + dir; if (ni < 0 || ni >= arr.length) return;
   const t = arr[idx]; arr[idx] = arr[ni]; arr[ni] = t;
-  await _saveFiltro({ op: 'reorder', order: arr.map(f => f.id) }, true);
+  arr.forEach((f, i) => { f.ordem = i; });   // OTIMISTA: reordena e re-renderiza na hora
+  _filtros = arr; renderFiltros(_filtros);
+  _saveFiltro({ op: 'reorder', order: arr.map(f => f.id) }, true).catch(() => {}); // salva por trás
 }
-async function toggleFiltroHidden(id) { await _saveFiltro({ op: 'toggle_hidden', id }, true); }
+function toggleFiltroHidden(id) {
+  const f = (_filtros || []).find(x => x.id === id);
+  if (f) { f.hidden = !f.hidden; renderFiltros(_filtros); }   // OTIMISTA
+  _saveFiltro({ op: 'toggle_hidden', id }, true).catch(() => {}); // salva por trás
+}
 
 // ===== QR da loja (deep link) =====
 const APP_BASE = location.origin;
