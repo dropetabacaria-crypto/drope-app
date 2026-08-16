@@ -10170,22 +10170,13 @@
   // Tudo lowercase (voz da marca).
   function productLabels(p) {
     if (!p) return { hero: '', muted: '' };
-    const flavor = String(p.sabor || p.flavor || p.flavor_pt || p.flavor_en || '').trim();
-    const brand = String(p.marca || p.brand || '').trim();
-    const model = String(p.modelo || p.model || '').trim();
-    const muted = [brand, model].filter(Boolean).join(' ').toLowerCase();
-    if (flavor) {
-      return { hero: flavor.toLowerCase(), muted };
-    }
-    // Fallback: tira brand+model do começo do name pra não duplicar
+    // VITRINE = o mais importante: mostra o NOME COMPLETO do produto EXATAMENTE como
+    // cadastrado (ex.: "Tabaco Amsterdam Orgânico 25g"), sem minusculizar nem fatiar.
     const name = String(p.name || '').trim();
-    if (!name) return { hero: '', muted };
-    let hero = name;
-    if (muted) {
-      const re = new RegExp('^\\s*' + muted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i');
-      hero = name.replace(re, '').trim() || name;
-    }
-    return { hero: hero.toLowerCase(), muted };
+    // Subtítulo opcional = sabor/variação, só quando NÃO já está no nome (evita redundância).
+    const flavor = String(p.sabor || p.flavor_pt || p.flavor || '').trim();
+    const muted = (flavor && !name.toLowerCase().includes(flavor.toLowerCase())) ? flavor : '';
+    return { hero: name, muted };
   }
 
   // ===== Render grid =====
