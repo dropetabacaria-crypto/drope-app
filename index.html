@@ -10173,10 +10173,10 @@
     // VITRINE = o mais importante: mostra o NOME COMPLETO do produto EXATAMENTE como
     // cadastrado (ex.: "Tabaco Amsterdam Orgânico 25g"), sem minusculizar nem fatiar.
     const name = String(p.name || '').trim();
-    // Subtítulo opcional = sabor/variação, só quando NÃO já está no nome (evita redundância).
-    const flavor = String(p.sabor || p.flavor_pt || p.flavor || '').trim();
-    const muted = (flavor && !name.toLowerCase().includes(flavor.toLowerCase())) ? flavor : '';
-    return { hero: name, muted };
+    // SEM subtítulo: o nome completo já diz tudo. O campo "sabor" tem dado legado/incons-
+    // istente em vários produtos (ex.: "brown king size" num produto "Black") — mostrar isso
+    // gerava subtítulo errado/contraditório na vitrine. Nome correto > subtítulo duvidoso.
+    return { hero: name, muted: '' };
   }
 
   // ===== Render grid =====
