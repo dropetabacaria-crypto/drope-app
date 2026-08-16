@@ -1271,6 +1271,7 @@ function render(d) {
   } catch (e) {}
   try { _renderSomBtn(); } catch (e) {}
   try { _renderPushBtn(); } catch (e) {}
+  try { _startPedidoNag(); } catch (e) {}
   _renderPendentes();
 
   const historico = d.historico || [];
@@ -2506,16 +2507,47 @@ async function loadNotifs() {
   try {
     const r = await fetch(`/api/webhook?action=notifications&role=filial&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
     const d = await r.json().catch(() => ({}));
-    if (d && d.ok) { _notifs = d.notifications || []; _renderNotifBadge(d.unread || 0); }
+    if (d && d.ok) { _notifs = d.notifications || []; _renderNotifBadge(_bellUnread()); }
   } catch (e) {}
 }
 function _renderNotifBadge(n) { const b = document.getElementById('notif-badge'); if (!b) return; if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'inline'; } else b.style.display = 'none'; }
+// O sininho reflete os PEDIDOS EM ABERTO do painel (sempre atuais — não dependem de
+// registro no servidor) somados aos avisos do servidor que NÃO são de pedido
+// (plano, parceria, etc.). Assim todo pedido que entra aparece na hora no sininho.
+function _bellSynthFromPedidos() {
+  return (_pendentesAll || []).map(p => {
+    const stage = _orderStage(p.status);
+    const st = ({ new: 'Novo pedido', preparing: 'Em separação', ready: 'Pronto', dispatched: 'A caminho' })[stage] || 'Pedido';
+    const first = (p.customer && p.customer.name) ? String(p.customer.name).split(' ')[0] : 'Cliente';
+    const nItems = (p.items || []).reduce((s, it) => s + (parseInt(it.qty || it.quantity || 1, 10) || 1), 0);
+    const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
+    return { synth: true, id: p.id, stage, read: stage !== 'new',
+      title: st + ' ✦ ' + first,
+      body: fmtBRL(p.total_cents) + ' · ' + nItems + ' ' + (nItems === 1 ? 'item' : 'itens') + ' · ' + (isDelivery ? 'Entrega' : 'Retirada'),
+      created_at: p.created_at };
+  });
+}
+function _bellItems() {
+  const synth = _bellSynthFromPedidos();
+  const server = (_notifs || []).filter(n => n.type !== 'order_new');
+  return synth.concat(server).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+}
+function _bellUnread() {
+  const abertos = (_pendentesAll || []).filter(p => _orderStage(p.status) === 'new').length;
+  const serverUnread = (_notifs || []).filter(n => n.type !== 'order_new' && !n.read).length;
+  return abertos + serverUnread;
+}
 function _notifTime(iso) { try { const d = new Date(iso); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
 function openNotifs() {
-  const list = document.getElementById('notif-list'); const ns = _notifs || [];
-  list.innerHTML = ns.length ? ns.map(n => `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;${n.read ? 'opacity:.65' : ''}"><div style="font-weight:800;font-size:14px">${esc(n.title)}</div>${n.body ? `<div style="font-size:12.5px;color:var(--fg-dim);margin-top:2px">${esc(n.body)}</div>` : ''}<div style="font-size:10.5px;color:var(--fg-dim);margin-top:4px">${_notifTime(n.created_at)}</div></div>`).join('') : '<div class="empty">Nenhum aviso ainda.</div>';
+  const list = document.getElementById('notif-list'); const ns = _bellItems();
+  list.innerHTML = ns.length ? ns.map(n => {
+    const click = n.synth ? ` onclick="closeNotifs();openPedidoDetail(${n.id})" style="cursor:pointer;` : ' style="';
+    return `<div${click}background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;${n.read ? 'opacity:.65' : ''}"><div style="font-weight:800;font-size:14px">${esc(n.title)}</div>${n.body ? `<div style="font-size:12.5px;color:var(--fg-dim);margin-top:2px">${esc(n.body)}</div>` : ''}<div style="font-size:10.5px;color:var(--fg-dim);margin-top:4px">${_waitLabel(n.created_at)}${n.synth ? ' · toque pra ver' : ''}</div></div>`;
+  }).join('') : '<div class="empty">Nenhum aviso ainda.</div>';
   document.getElementById('notif-ov').classList.add('open');
-  fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'filial', filial: FILIAL_SLUG, token: ACCESS_CODE }) }).then(() => _renderNotifBadge(0)).catch(() => {});
+  // Marca os avisos do servidor como lidos; pedidos em aberto continuam contando no badge.
+  fetch('/api/webhook?action=notifications_read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'filial', filial: FILIAL_SLUG, token: ACCESS_CODE }) })
+    .then(() => { try { (_notifs || []).forEach(n => { n.read = true; }); } catch (e) {} _renderNotifBadge(_bellUnread()); }).catch(() => {});
 }
 function closeNotifs() { document.getElementById('notif-ov').classList.remove('open'); }
 setInterval(() => { try { const p = document.getElementById('painel'); if (p && p.style.display !== 'none') loadNotifs(); } catch (e) {} }, 45000);
@@ -2896,7 +2928,7 @@ async function pdvFinalize() {
 // ===================== Balanço — contagem de estoque =====================
 function openBalanco() { renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
 function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
-function openProdutos() { try { renderProdutos(); } catch (e) {} try { renderFiltros(); } catch (e) {} try { switchProdTab('produtos'); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); }
+function openProdutos() { try { renderProdutos(); } catch (e) {} try { renderFiltros(); } catch (e) {} try { switchProdTab('produtos'); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); try { localStorage.setItem('drope_panel_view', 'produtos'); } catch (e) {} }
 // Abas de Meus produtos: Produtos | Categorias
 function switchProdTab(tab) {
   const isP = tab !== 'categorias';
@@ -2911,7 +2943,7 @@ function switchProdTab(tab) {
   if (bc) bc.style.cssText = base + (isP ? off : on);
   if (!isP) { try { renderFiltros(); } catch (e) {} }
 }
-function closeProdutos() { document.getElementById('produtos-ov').classList.remove('open'); }
+function closeProdutos() { document.getElementById('produtos-ov').classList.remove('open'); try { if (localStorage.getItem('drope_panel_view') === 'produtos') localStorage.removeItem('drope_panel_view'); } catch (e) {} }
 function renderBalanco() {
   const list = document.getElementById('bal-list');
   const prods = _lastProdutos || [];
@@ -3232,6 +3264,7 @@ function openConfigOverlay() {
   if (c) c.textContent = 'Fechar ▴';
   closeCfg();          // sempre abre no menu
   w.scrollTop = 0;
+  try { localStorage.setItem('drope_panel_view', 'config'); } catch (e) {}
 }
 function closeConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
@@ -3240,6 +3273,7 @@ function closeConfigOverlay() {
   const bd = document.getElementById('cfg-backdrop'); if (bd) bd.style.display = 'none';
   document.body.style.overflow = '';
   if (c) c.textContent = 'Abrir ▾';
+  try { if (localStorage.getItem('drope_panel_view') === 'config') localStorage.removeItem('drope_panel_view'); } catch (e) {}
 }
 function toggleConfig() {
   const w = document.getElementById('config-wrap');
@@ -3817,6 +3851,7 @@ function _renderPendentes() {
   if (pendCount) { pendCount.style.display = pendentes.length ? 'inline' : 'none'; pendCount.textContent = pendentes.length; }
   const tabBadge = document.getElementById('ptab-inicio-badge');
   if (tabBadge) { tabBadge.textContent = pendentes.length; tabBadge.style.display = pendentes.length ? 'inline-flex' : 'none'; }
+  try { _renderNotifBadge(_bellUnread()); } catch (e) {}
   _refreshPedidoSurfaces();
 }
 // Toast leve, não-bloqueante (substitui alert() nas ações do dia a dia).
@@ -3836,13 +3871,20 @@ let _prevPendIds = null;   // ids dos pendentes no refresh anterior (null = 1ª 
 let _audioCtx = null;
 function _unlockAudio() { try { if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (_audioCtx.state === 'suspended') _audioCtx.resume(); } catch (e) {} }
 try { document.addEventListener('click', _unlockAudio); document.addEventListener('touchstart', _unlockAudio, { passive: true }); } catch (e) {}
-function _somOn() { try { return localStorage.getItem('drope_som_pedido') !== 'off'; } catch (e) { return true; } }
-function _playPedidoSound() {
-  if (!_somOn()) return;
+// Modo do som: 'ding' | 'voz' | 'off' (migra do antigo drope_som_pedido)
+function _somModo() {
+  try {
+    let m = localStorage.getItem('drope_som_modo');
+    if (!m) { m = (localStorage.getItem('drope_som_pedido') === 'off') ? 'off' : 'ding'; localStorage.setItem('drope_som_modo', m); }
+    return m;
+  } catch (e) { return 'ding'; }
+}
+function _somOn() { return _somModo() !== 'off'; }
+function _playChime() {
   try {
     _unlockAudio(); if (!_audioCtx) return;
     const ctx = _audioCtx, now = ctx.currentTime;
-    [880, 1174.66].forEach((f, i) => { // dois toques (ding-dong)
+    [880, 1174.66].forEach((f, i) => {
       const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
       const t = now + i * 0.18;
       g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
@@ -3850,18 +3892,46 @@ function _playPedidoSound() {
     });
   } catch (e) {}
 }
+function _speakVenda() {
+  try {
+    if (!('speechSynthesis' in window)) { _playChime(); return; }
+    const u = new SpeechSynthesisUtterance('Venda no Drope');
+    u.lang = 'pt-BR'; u.rate = 1; u.pitch = 1; u.volume = 1;
+    try { const vs = speechSynthesis.getVoices(); const pt = vs.find(v => /pt[-_]br/i.test(v.lang)) || vs.find(v => /pt/i.test(v.lang)); if (pt) u.voice = pt; } catch (e) {}
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) { _playChime(); }
+}
+function _playPedidoSound() {
+  const m = _somModo();
+  if (m === 'off') return;
+  if (m === 'voz') _speakVenda(); else _playChime();
+}
 function _renderSomBtn() {
   const b = document.getElementById('hd-som'); if (!b) return;
-  const on = _somOn();
-  b.title = on ? 'Som de novo pedido: ligado (toque pra desligar)' : 'Som de novo pedido: desligado (toque pra ligar)';
-  b.innerHTML = on
-    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>Som'
-    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5.2A6 6 0 0 1 18 9c0 3 .8 4.6 1.5 5.5M6.2 8A6 6 0 0 0 6 9c0 5-2 6-2 6h13"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/><path d="M3 3l18 18"/></svg>Mudo';
+  const m = _somModo();
+  const bell = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>';
+  const voz = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg>';
+  const mute = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5.2A6 6 0 0 1 18 9c0 3 .8 4.6 1.5 5.5M6.2 8A6 6 0 0 0 6 9c0 5-2 6-2 6h13"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/><path d="M3 3l18 18"/></svg>';
+  b.title = 'Aviso de pedido: ' + (m === 'voz' ? 'Voz ("Venda no Drope")' : m === 'off' ? 'Mudo' : 'Ding') + ' — toque pra trocar';
+  b.innerHTML = m === 'voz' ? (voz + 'Voz') : m === 'off' ? (mute + 'Mudo') : (bell + 'Ding');
 }
 function _toggleSomPedido() {
-  try { localStorage.setItem('drope_som_pedido', _somOn() ? 'off' : 'on'); } catch (e) {}
+  const next = { ding: 'voz', voz: 'off', off: 'ding' }[_somModo()] || 'ding';
+  try { localStorage.setItem('drope_som_modo', next); } catch (e) {}
   _renderSomBtn();
-  if (_somOn()) { _unlockAudio(); _playPedidoSound(); } // toca uma prévia ao ligar
+  if (next !== 'off') { _unlockAudio(); _playPedidoSound(); } // prévia do modo escolhido
+}
+// Repete o aviso a cada 15s enquanto houver pedido NOVO (não atendido) — estilo Mercado Livre.
+let _nagStarted = false;
+function _startPedidoNag() {
+  if (_nagStarted) return; _nagStarted = true;
+  setInterval(() => {
+    try {
+      if (_somModo() === 'off') return;
+      const novos = (_pendentesAll || []).filter(p => _orderStage(p.status) === 'new').length;
+      if (novos > 0) _playPedidoSound();
+    } catch (e) {}
+  }, 15000);
 }
 // ===== Push (notificação no celular, app fechado) =====
 const _VAPID_PUBLIC = 'BOGQ9Mdw6kX7kgDs_ujWfFO5pTICNJKRwpN4_hs-k3td3d2cXNSTM1xTvmu1ZBjE6U2bL7c7cA3NHfMWHCG5tCo';
@@ -4093,6 +4163,29 @@ function switchPanelTab(tab){
 }
 (function(){ function r(){ try{ switchPanelTab(localStorage.getItem('drope_panel_tab')||'inicio'); }catch(e){} }
   if(document.readyState!=='loading') r(); else document.addEventListener('DOMContentLoaded', r); })();
+// Persistência de tela no refresh (web ou pull-to-refresh no cel): mantém a sheet
+// aberta (Meus produtos / Configurações) e a posição de rolagem, em vez de voltar
+// pro topo da tela inicial. PDV/Balanço ficam de fora (têm estado transitório).
+(function(){
+  var SCROLL_KEY = 'drope_panel_scroll', VIEW_KEY = 'drope_panel_view', _st;
+  window.addEventListener('scroll', function(){
+    if (_st) return;
+    _st = setTimeout(function(){ _st = null; try { localStorage.setItem(SCROLL_KEY, String(window.scrollY||0)); } catch(e){} }, 200);
+  }, { passive: true });
+  function restore(){
+    try {
+      var view = localStorage.getItem(VIEW_KEY);
+      if (view === 'produtos') { try { openProdutos(); } catch(e){} }
+      else if (view === 'config') { try { openConfigOverlay(); } catch(e){} }
+      var y = parseInt(localStorage.getItem(SCROLL_KEY)||'0', 10);
+      if (y > 0 && !view) { window.scrollTo(0, y); setTimeout(function(){ window.scrollTo(0, y); }, 350); }
+    } catch(e){}
+  }
+  if (ACCESS_CODE && FILIAL_SLUG) {
+    if (document.readyState !== 'loading') setTimeout(restore, 250);
+    else document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 250); });
+  }
+})();
 // Auto-refresh: é o _startPainelPoll (10s, com guarda), ligado dentro do loadData.
 </script>
 

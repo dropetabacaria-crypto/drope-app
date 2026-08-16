@@ -44,5 +44,30 @@ Futuro (jeito iFood, pra NÃO obrigar a loja a ter PSP): o DROPE **recebe todo o
 - [ ] Resolver o lado regulatório/contábil (arranjo de pagamento, BACEN, impostos, antifraude, chargeback) — é o que pesa.
 - Obs: iFood usa Adyen + "iFood Pago" (instituição de pagamento própria) por trás. É referência de **modelo**, não de fornecedor.
 
+## 7. 🔴 URGENTE — Cartão de crédito BLOQUEADO + CNPJ do DROPE (Rafael, 18/08)
+**Rafael pediu pra deixar anotado: falar com o Andrade sobre a URGÊNCIA do cartão e de ter um CNPJ pro DROPE.**
+
+**O problema (comprovado com dados reais + suporte do MP):**
+- No modelo atual (split por loja; cada lojista conecta a conta MP dele e é o COLETOR do cartão), **100% dos pagamentos no cartão de crédito são recusados** com `cc_rejected_high_risk` — cartões diferentes. **Pix funciona normal.**
+- Investigado a fundo: a conta NÃO tem pendência de KYC. 3DS configurado certo (`optional` — `mandatory` não existe no Checkout API). Enviamos additional_info + CPF + Device ID + idempotency única.
+- Na transação real: `three_ds_info: null` → **o antifraude do MP recusa ANTES de oferecer o 3DS.** Suporte do MP confirmou: decisão automática de risco, **sem ação pra sobrescrever** e **sem requisito publicado** de tempo/histórico que libere.
+- Ou seja: **do lado do código, esgotado.** Bloqueio = avaliação de risco do MP pra conta de vendedor NOVA.
+
+**Solução = modelo iFood (seção 6) + CNPJ:**
+- A conta da PLATAFORMA (CNPJ DROPE, estabelecida) vira COLETORA do cartão → antifraude olha o CNPJ com histórico → aprova. Configura 3DS/Apple Pay/Google Pay UMA vez → todo lojista herda (não configura nada).
+- Insight do Rafael: obrigar cada lojista a ativar Apple/Google Pay/3DS na conta dele NÃO escala → mais um motivo pro modelo coletor.
+- [ ] **Abrir o CNPJ do DROPE** (também destrava o WhatsApp oficial — seção 2).
+- [ ] Falar com o **comercial do MP** sobre operar como coletor + repasse.
+- [ ] Com o CNPJ: eu inverto o coletor no código + configuro 3DS/carteiras 1x + monto o payout (casa com seções 1 e 6).
+- Paliativo já no ar: cartão recusado → botão "Pagar no Pix" na hora (não perde venda).
+
+**MP confirmou por chamado (2 vezes): NÃO há solução verificável no modelo atual** — sem critério público, sem revisão manual, CNPJ/troca de conta NÃO são correção comprovada, split não é a causa. `high_risk` é decisão automática opaca. **Do lado do código/MP, esgotado.**
+
+**➡️ CAMINHO DEFINITIVO DO CARTÃO = GATEWAY PRÓPRIO (Pagar.me) com DROPE como MERCHANT + split pras lojas (recebedores).** Insight validado com o Rafael (18/08):
+- No MP a LOJA é a coletora (conta nova → high_risk). Num gateway tipo **Pagar.me**, o **DROPE é o merchant que processa o cartão** e as lojas são só **recebedoras do split** → o antifraude avalia o DROPE (estabelecido), NÃO cada loja nova → resolve o high_risk na raiz. É o modelo iFood com split embutido. Loja não configura NADA (só conta/Pix pra receber) — resolve também Apple/Google Pay/3DS por loja.
+- **Híbrido:** Pix continua no MP (funciona); cartão vai pro Pagar.me. Convivem, não quebra o que já existe. O fluxo de pedido (confirma na autorização → avisa vendedor → recebe depois D+X) já está pronto, só plugar o webhook do gateway.
+- **Exige CNPJ** (gateway pede CNPJ pra abrir merchant). Casa com seções 1, 2 e 6.
+- [ ] Avaliar **Pagar.me** (split/recebedores + antifraude) como processador de cartão. Confirmar taxas e prazo de recebimento.
+
 ---
 _Atualizar esta lista conforme as coisas forem resolvidas._

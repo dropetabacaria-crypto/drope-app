@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+:root{
+  --bg:#0a0713; --bg2:#0f0a1c; --card:#15101f; --card2:#1b1530;
+  --purple:#8C50FF; --pink:#FF2D6F; --lime:#C6FF3A;
+  --text:#F4EFFF; --dim:#9a8fb8; --bd:rgba(255,255,255,.09);
+}
+@page { size:A4; margin:0; }
+html,body{ background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+
+.page{
+  position:relative; width:210mm; min-height:297mm; padding:20mm 18mm;
+  background:url('bg.png') top center/cover no-repeat, var(--bg);
+  page-break-after:always; overflow:hidden;
+}
+.page:last-child{ page-break-after:auto; }
+
+h1,h2,h3,.mono{ font-family:'Space Grotesk',sans-serif; }
+.brand{ font-family:'Space Grotesk',sans-serif; font-weight:700; letter-spacing:.02em; }
+.spark{ color:var(--lime); }
+
+/* ---- capa ---- */
+.cover{ display:flex; flex-direction:column; justify-content:center; min-height:257mm; }
+.cover .logo{ font-family:'Space Grotesk'; font-weight:700; font-size:64px; letter-spacing:.04em; color:#fff; }
+.cover .logo .spark{ color:var(--lime); }
+.cover .kicker{ display:inline-block; margin-top:26px; font-family:'Space Grotesk'; font-weight:600; font-size:12px;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--lime);
+  border:1px solid rgba(198,255,58,.35); border-radius:999px; padding:7px 15px; width:max-content; }
+.cover h1{ font-size:46px; font-weight:700; line-height:1.08; margin-top:22px; max-width:15ch; }
+.cover .sub{ margin-top:18px; font-size:16px; color:var(--dim); max-width:46ch; line-height:1.5; }
+.cover .meta{ margin-top:54px; display:flex; gap:40px; }
+.cover .meta div small{ display:block; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); margin-bottom:5px; }
+.cover .meta div b{ font-family:'Space Grotesk'; font-weight:600; font-size:16px; }
+.rule{ height:3px; width:120px; border-radius:3px;
+  background:linear-gradient(90deg,var(--lime),var(--purple),var(--pink)); }
+.cover .rule{ margin-top:40px; }
+
+/* ---- header nas paginas internas ---- */
+.phead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:26px;
+  padding-bottom:14px; border-bottom:1px solid var(--bd); }
+.phead .b{ font-family:'Space Grotesk'; font-weight:700; font-size:18px; }
+.phead .n{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+
+.sec-label{ font-family:'Space Grotesk'; font-weight:600; font-size:12px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--lime); margin-bottom:14px; }
+h2.title{ font-size:28px; font-weight:700; line-height:1.15; margin-bottom:8px; }
+.lead{ font-size:14px; color:var(--dim); line-height:1.6; margin-bottom:22px; max-width:62ch; }
+
+/* ---- cards ---- */
+.grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.card{ background:linear-gradient(158deg,rgba(255,255,255,.06),rgba(255,255,255,.012)),var(--card);
+  border:1px solid var(--bd); border-radius:16px; padding:16px 17px; }
+.card h3{ font-size:15px; font-weight:600; margin-bottom:9px; display:flex; align-items:center; gap:7px; }
+.card h3 .dot{ width:8px; height:8px; border-radius:50%; background:var(--purple); flex:none; }
+.card.pink h3 .dot{ background:var(--pink); }
+.card.lime h3 .dot{ background:var(--lime); }
+.card ul{ list-style:none; }
+.card li{ font-size:12.5px; color:#d7cfe8; line-height:1.5; padding-left:15px; position:relative; margin-bottom:5px; }
+.card li::before{ content:'›'; position:absolute; left:0; color:var(--lime); font-weight:700; }
+
+/* ---- stats ---- */
+.stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
+.stat{ background:var(--card); border:1px solid var(--bd); border-radius:16px; padding:16px; }
+.stat .num{ font-family:'Space Grotesk'; font-weight:700; font-size:30px; line-height:1; color:var(--lime); }
+.stat .num.p{ color:var(--purple); }
+.stat .num.k{ color:var(--pink); }
+.stat .lbl{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin-top:8px; }
+
+/* ---- checklist ---- */
+.check{ list-style:none; }
+.check li{ background:var(--card); border:1px solid var(--bd); border-radius:13px; padding:13px 15px;
+  margin-bottom:10px; display:flex; gap:12px; align-items:flex-start; }
+.check li .tag{ font-family:'Space Grotesk'; font-weight:700; font-size:10px; letter-spacing:.05em; text-transform:uppercase;
+  padding:4px 8px; border-radius:7px; flex:none; margin-top:1px; }
+.tag.dev{ color:var(--lime); border:1px solid rgba(198,255,58,.4); }
+.tag.ext{ color:var(--pink); border:1px solid rgba(255,45,111,.4); }
+.check li .ct b{ font-family:'Space Grotesk'; font-weight:600; font-size:14px; display:block; margin-bottom:3px; }
+.check li .ct span{ font-size:12.5px; color:var(--dim); line-height:1.5; }
+
+.note{ margin-top:20px; font-size:12px; color:var(--dim); line-height:1.6;
+  border-left:2px solid var(--purple); padding-left:14px; }
+
+.foot{ position:absolute; bottom:12mm; left:18mm; right:18mm; display:flex; justify-content:space-between;
+  font-size:10px; color:var(--dim); letter-spacing:.04em; border-top:1px solid var(--bd); padding-top:8px; }
+
+.big-quote{ font-family:'Space Grotesk'; font-weight:600; font-size:22px; line-height:1.4; max-width:24ch; }
+.closing{ display:flex; flex-direction:column; justify-content:center; min-height:257mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ CAPA ============ -->
+<section class="page cover">
+  <div class="logo">DROPE <span class="spark">✦</span></div>
+  <span class="kicker">Relatório de status do projeto</span>
+  <h1>O que construímos desde a virada de chave.</h1>
+  <p class="sub">Panorama do produto, das decisões e do que falta para o lançamento — escrito para dividir com o Lucas o estado real do DROPE.</p>
+  <div class="rule"></div>
+  <div class="meta">
+    <div><small>Período</small><b>Julho — Agosto 2026</b></div>
+    <div><small>Produto no ar</small><b>drope-app.vercel.app</b></div>
+    <div><small>Infra</small><b>Vercel + Supabase</b></div>
+  </div>
+</section>
+
+<!-- ============ ONDE ESTAMOS ============ -->
+<section class="page">
+  <div class="phead"><span class="b brand">DROPE <span class="spark">✦</span></span><span class="n">01 · Onde estamos</span></div>
+  <div class="sec-label">Panorama</div>
+  <h2 class="title">Um marketplace de delivery multi-loja, no ar e funcionando.</h2>
+  <p class="lead">O DROPE é um app de delivery para tabacarias e adegas no modelo iFood/Zé — o cliente descobre lojas e produtos, pede e paga pelo app; a loja gerencia catálogo, pedidos e vende também no balcão. Quatro frentes já estão publicadas e integradas.</p>
+
+  <div class="stats">
+    <div><div class="stat"><div class="num p">4</div><div class="lbl">Aplicações no ar</div></div></div>
+    <div><div class="stat"><div class="num">3</div><div class="lbl">Lojas cadastradas</div></div></div>
+    <div><div class="stat"><div class="num k">R$1</div><div class="lbl">Split real testado (Pix)</div></div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h3><span class="dot"></span>App do cliente</h3><ul>
+      <li>Home estilo iFood: categorias, flyers e vitrines cruzando lojas</li>
+      <li>Busca, favoritos, endereços e pedidos que ficam salvos na conta</li>
+      <li>Login por senha, com recuperação por e-mail</li>
+    </ul></div>
+    <div class="card pink"><h3><span class="dot"></span>Painel do lojista</h3><ul>
+      <li>Catálogo, pedidos, dashboard e venda no balcão (PDV)</li>
+      <li>Configuração da loja em tela cheia, organizada</li>
+      <li>Assinatura de plano dentro do painel</li>
+    </ul></div>
+    <div class="card lime"><h3><span class="dot"></span>App do entregador</h3><ul>
+      <li>Base publicada para receber e acompanhar entregas</li>
+      <li>Preparado para o modelo de logística do DROPE</li>
+    </ul></div>
+    <div class="card"><h3><span class="dot"></span>Site institucional</h3><ul>
+      <li>Landing com vitrine real do app e foco em baixar</li>
+      <li>Páginas de lojista, entregador e indicação</li>
+      <li>Planos e comissões apresentados</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ============ O QUE FOI FEITO ============ -->
+<section class="page">
+  <div class="phead"><span class="b brand">DROPE <span class="spark">✦</span></span><span class="n">02 · O que foi feito</span></div>
+  <div class="sec-label">Entregas do período</div>
+  <h2 class="title">Do esqueleto a um produto com cara de gente grande.</h2>
+  <p class="lead">Resumo das frentes trabalhadas desde julho. Cada item já está publicado e em uso.</p>
+
+  <div class="grid">
+    <div class="card"><h3><span class="dot"></span>Experiência do cliente</h3><ul>
+      <li>Home iFood com feed que cruza produtos de todas as lojas</li>
+      <li>Categorias e flyers com arte gerada por IA no padrão DROPE</li>
+      <li>Capa da loja de ponta a ponta + efeito "camaleão" no scroll</li>
+      <li>Carrinho e notificações centralizados na home</li>
+    </ul></div>
+    <div class="card pink"><h3><span class="dot"></span>Conta e durabilidade</h3><ul>
+      <li>Perfil, pedidos, favoritos e endereços firmes no servidor</li>
+      <li>Sincroniza entre aparelhos — nada se perde ao trocar de celular</li>
+      <li>Cadastro por senha; cartão nunca é salvo (fica no Mercado Pago)</li>
+    </ul></div>
+    <div class="card lime"><h3><span class="dot"></span>Pagamentos</h3><ul>
+      <li>Split via Mercado Pago: a venda cai na loja, a comissão no DROPE</li>
+      <li>Loja sem pagamento conectado não vende (dinheiro nunca cai errado)</li>
+      <li>Assinatura do plano: cartão automático ou Pix mensal (qualquer banco)</li>
+      <li>Painel de faturamento do DROPE (só a conta oficial acessa)</li>
+    </ul></div>
+    <div class="card"><h3><span class="dot"></span>Identidade "Ai OS"</h3><ul>
+      <li>Camada visual futurista aplicada em todos os apps</li>
+      <li>Cards em vidro, gradientes roxo/pink, tipografia Space Grotesk</li>
+      <li>Marca padronizada e capitalização revisada em todas as telas</li>
+    </ul></div>
+    <div class="card pink"><h3><span class="dot"></span>Painel do lojista</h3><ul>
+      <li>Configuração vira overlay de tela cheia (sem bagunça no dashboard)</li>
+      <li>Tela de login refeita, sem vazar o painel atrás</li>
+      <li>Fluxo de assinatura de plano simplificado</li>
+    </ul></div>
+    <div class="card lime"><h3><span class="dot"></span>Bastidores</h3><ul>
+      <li>Geração de arte por IA (OpenAI) integrada ao fluxo</li>
+      <li>WhatsApp em base "plugável", pronto para o canal oficial da Meta</li>
+      <li>Base de dados de teste higienizada para números reais</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ============ COMISSOES / MODELO ============ -->
+<section class="page">
+  <div class="phead"><span class="b brand">DROPE <span class="spark">✦</span></span><span class="n">03 · Modelo de receita</span></div>
+  <div class="sec-label">Como o DROPE ganha</div>
+  <h2 class="title">Duas fontes: comissão das vendas e assinatura dos planos.</h2>
+  <p class="lead">A comissão incide só sobre vendas feitas pelo app com pagamento confirmado — venda de balcão fica 100% com a loja. Os planos são a receita recorrente (MRR).</p>
+
+  <div class="stats">
+    <div><div class="stat"><div class="num">10%</div><div class="lbl">Plano Start · comissão</div></div></div>
+    <div><div class="stat"><div class="num p">8%</div><div class="lbl">Plano Pro · comissão</div></div></div>
+    <div><div class="stat"><div class="num k">6%</div><div class="lbl">Plano Max · comissão</div></div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card lime"><h3><span class="dot"></span>Comissão das vendas</h3><ul>
+      <li>Calculada pela % do plano de cada loja, travada no split</li>
+      <li>Cai na conta do DROPE na hora do pagamento (Pix aprova em segundos)</li>
+      <li>Painel mostra cada venda: loja, valor, % e comissão</li>
+    </ul></div>
+    <div class="card"><h3><span class="dot"></span>Planos (recorrente)</h3><ul>
+      <li>Pro e Max com mensalidade + comissão menor</li>
+      <li>Pagamento por cartão automático ou Pix mensal</li>
+      <li>Painel mostra assinantes, valor e validade</li>
+    </ul></div>
+  </div>
+
+  <div class="note">
+    Observação: os valores de mensalidade estão em <b>R$1 (modo teste)</b> para validar o fluxo de cobrança de ponta a ponta. Voltam aos preços cheios no lançamento.
+  </div>
+</section>
+
+<!-- ============ O QUE FALTA ============ -->
+<section class="page">
+  <div class="phead"><span class="b brand">DROPE <span class="spark">✦</span></span><span class="n">04 · O que falta pro lançamento</span></div>
+  <div class="sec-label">Reta final</div>
+  <h2 class="title">O que precisa acontecer antes de abrir pro público.</h2>
+  <p class="lead"><span style="color:var(--lime)">DEV</span> = já é comigo, é código. <span style="color:var(--pink)">EXTERNO</span> = depende de conta, CNPJ, contrato ou decisão de negócio.</p>
+
+  <ul class="check">
+    <li><span class="tag dev">Dev</span><div class="ct"><b>Travar recursos por plano</b><span>Hoje todas as funções estão liberadas (fase de teste). Ativar o "gating" por plano no lançamento.</span></div></li>
+    <li><span class="tag dev">Dev</span><div class="ct"><b>Voltar os preços dos planos</b><span>Reverter o modo teste (R$1) para os valores cheios de Pro e Max.</span></div></li>
+    <li><span class="tag dev">Dev</span><div class="ct"><b>Rotacionar as chaves de acesso</b><span>Trocar a senha do painel administrativo e o token de acesso antes de divulgar.</span></div></li>
+    <li><span class="tag ext">Externo</span><div class="ct"><b>Teste real do split (2ª conta)</b><span>Precisa da conta Mercado Pago real da loja Santos (Lucas) para validar o split com dinheiro de verdade entre contas diferentes.</span></div></li>
+    <li><span class="tag ext">Externo</span><div class="ct"><b>WhatsApp oficial (Meta)</b><span>Ligar avisos e OTP no canal oficial. Depende de conta Meta Business, CNPJ do DROPE, número dedicado e cartão. A base no código já está pronta.</span></div></li>
+    <li><span class="tag ext">Externo</span><div class="ct"><b>Provedor de repasse (Pix-out)</b><span>Para pagar indicadores/entregadores e evoluir pro modelo "iFood" (DROPE recebe e repassa). Escolher Transfeera ou Celcoin + KYC.</span></div></li>
+    <li><span class="tag dev">Dev</span><div class="ct"><b>Remover amarras de loja única</b><span>Tirar as gambiarras single-tenant e endurecer segurança (acesso/RLS) junto com o Andrade.</span></div></li>
+  </ul>
+</section>
+
+<!-- ============ FECHO ============ -->
+<section class="page closing">
+  <div class="sec-label">Resumo</div>
+  <p class="big-quote">O produto já está de pé e vendendo. A reta final é comercial e de configuração — não de construção.</p>
+  <div class="rule" style="margin-top:34px"></div>
+  <div style="margin-top:34px; font-size:14px; color:var(--dim); line-height:1.7; max-width:56ch">
+    As quatro aplicações estão publicadas, o pagamento com split já rodou com dinheiro real e o painel de faturamento mostra os números reais do DROPE. O que resta para o lançamento é decisão de negócio (contas, CNPJ, provedores) e alguns ajustes de configuração que já estão mapeados.
+  </div>
+  <div style="margin-top:40px" class="brand"><span style="font-size:26px">DROPE <span class="spark">✦</span></span></div>
+  <div style="margin-top:6px; font-size:12px; color:var(--dim)">drope-app.vercel.app</div>
+</section>
+
+</body>
+</html>
