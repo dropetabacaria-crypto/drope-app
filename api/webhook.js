@@ -7164,39 +7164,102 @@ async function generateVibeScene(vibe) {
 // drope_filiais.metadata.filtros = [{ id, nome, image_url, ordem }].
 
 // Mapa de temas pt -> descrição em inglês pro prompt de imagem.
-const _FILTRO_SUBJECTS = {
-  cerveja: 'cold craft beer bottles and cans with frost and condensation droplets',
-  vinho: 'elegant wine bottles and a glass of red wine',
-  espumante: 'a champagne bottle and glasses with rising bubbles',
-  drink: 'colorful ready-to-drink canned cocktails with citrus and ice',
-  coquetel: 'colorful ready-to-drink canned cocktails with citrus and ice',
-  garrafa: 'premium liquor bottles lined up',
-  whisky: 'a whisky bottle and a glass with large ice cubes',
-  vodka: 'a frosted vodka bottle with ice',
-  gin: 'a gin bottle with botanicals, citrus and ice',
-  energetico: 'energy drink cans, cold with condensation',
-  refrigerante: 'cold soda cans and bottles with condensation',
-  gelo: 'crystal-clear ice cubes and frozen shards with cold mist',
-  narguile: 'a hookah with fruit and glowing coals, atmospheric smoke',
-  essencia: 'colorful hookah flavor tins with fresh fruit',
-  carvao: 'natural hookah charcoal cubes glowing subtly',
-  cigarro: 'cigarette packs arranged neatly',
-  seda: 'packs of rolling papers (cigarette rolling paper booklets)',
-  piteira: 'packs of cigarette rolling filter tips — small cardboard roach tips for hand-rolling, shown as retail tip booklets',
-  filtro: 'cigarette filter tips and rolling filters in retail packs',
-  tabaco: 'pouches of loose rolling tobacco (shag tobacco) for hand-rolling',
-  fumo: 'pouches of loose rolling tobacco (shag tobacco) for hand-rolling',
-  dichavador: 'a metal herb grinder, close-up',
-  triturador: 'a metal herb grinder, close-up',
-  isqueiro: 'colorful lighters arranged in a row',
-  pod: 'sleek disposable vape devices in vivid neon colors',
+// MAPA COMPLETO tabacaria + adega. Cada categoria tem: en (assunto p/ gerar por texto,
+// fallback) e q (query PT p/ BUSCAR foto de referência real na web via Google Images).
+// Ordem importa: chaves mais específicas antes das genéricas (match por "includes").
+const _CAT_REF = {
+  // ===== TABACARIA =====
+  piteira: { en: 'packs of cigarette rolling filter tips (small cardboard roach tips) for hand-rolling', q: 'piteira tips para cigarro pacote' },
+  seda: { en: 'packs of cigarette rolling papers (rolling paper booklets)', q: 'seda para cigarro pacote' },
+  filtro: { en: 'cigarette filter tips and rolling filters in retail packs', q: 'filtro para cigarro pacote' },
+  tabaco: { en: 'pouches of loose rolling tobacco (shag) for hand-rolling', q: 'tabaco para enrolar fumo pacote' },
+  fumo: { en: 'pouches of loose rolling tobacco (shag) for hand-rolling', q: 'fumo para enrolar tabaco pacote' },
+  narguile: { en: 'a hookah with fruit and glowing coals, atmospheric smoke', q: 'narguile completo produto' },
+  essencia: { en: 'colorful hookah flavor tins with fresh fruit', q: 'essencia para narguile lata' },
+  carvao: { en: 'natural hookah charcoal cubes glowing subtly', q: 'carvao para narguile caixa' },
+  rosh: { en: 'a clay hookah bowl (rosh)', q: 'rosh queimador narguile' },
+  mangueira: { en: 'a premium hookah hose', q: 'mangueira para narguile' },
+  dichavador: { en: 'a metal herb grinder, close-up', q: 'dichavador triturador metal' },
+  triturador: { en: 'a metal herb grinder, close-up', q: 'dichavador triturador metal' },
+  boquilha: { en: 'glass and silicone smoking mouthpieces', q: 'boquilha para cigarro' },
+  cinzeiro: { en: 'a stylish ashtray', q: 'cinzeiro produto' },
+  incenso: { en: 'incense sticks with thin smoke', q: 'incenso vareta' },
+  isqueiro: { en: 'colorful lighters arranged in a row', q: 'isqueiro colorido' },
+  cigarro: { en: 'cigarette packs arranged neatly', q: 'maco de cigarro' },
+  descartavel: { en: 'sleek disposable vape devices in vivid neon colors', q: 'pod descartavel vape' },
+  puff: { en: 'sleek disposable vape devices in vivid neon colors', q: 'pod descartavel puff vape' },
+  vape: { en: 'sleek disposable vape devices in vivid neon colors', q: 'vape descartavel pod' },
+  pod: { en: 'sleek disposable vape devices in vivid neon colors', q: 'pod descartavel vape' },
+  // ===== ADEGA / BEBIDAS =====
+  cerveja: { en: 'cold beer bottles and cans with frost and condensation', q: 'cerveja garrafa gelada' },
+  espumante: { en: 'a sparkling wine bottle and glasses with rising bubbles', q: 'espumante garrafa' },
+  prosecco: { en: 'a prosecco bottle and glasses with bubbles', q: 'prosecco garrafa' },
+  vinho: { en: 'elegant wine bottles and a glass of red wine', q: 'garrafa vinho tinto' },
+  whisky: { en: 'a whisky bottle and a glass with large ice cubes', q: 'whisky garrafa' },
+  vodka: { en: 'a frosted vodka bottle with ice', q: 'vodka garrafa' },
+  cachaca: { en: 'artisanal cachaça bottles', q: 'cachaca garrafa' },
+  tequila: { en: 'a tequila bottle with lime and salt', q: 'tequila garrafa' },
+  conhaque: { en: 'a cognac bottle and a snifter glass', q: 'conhaque garrafa' },
+  aperitivo: { en: 'aperitif bottles (Campari, Aperol) with orange', q: 'aperitivo campari aperol garrafa' },
+  licor: { en: 'premium liqueur bottles', q: 'licor garrafa' },
+  gin: { en: 'a gin bottle with botanicals, citrus and ice', q: 'gin garrafa' },
+  rum: { en: 'a rum bottle with dark tones', q: 'rum garrafa' },
+  destilado: { en: 'premium liquor bottles lined up', q: 'destilados garrafas bebida' },
+  energetico: { en: 'energy drink cans, cold with condensation', q: 'energetico lata' },
+  refrigerante: { en: 'cold soda cans and bottles with condensation', q: 'refrigerante lata garrafa' },
+  isotonico: { en: 'sports isotonic drink bottles', q: 'isotonico gatorade garrafa' },
+  suco: { en: 'juice bottles with fresh fruit', q: 'suco garrafa fruta' },
+  agua: { en: 'water bottles with condensation', q: 'agua garrafa' },
+  gelo: { en: 'crystal-clear ice cubes and frozen shards with cold mist', q: 'gelo cubos' },
+  drink: { en: 'colorful ready-to-drink canned cocktails with citrus and ice', q: 'drink pronto lata coquetel' },
+  coquetel: { en: 'colorful ready-to-drink canned cocktails with citrus and ice', q: 'coquetel pronto lata' },
+  garrafa: { en: 'premium liquor bottles lined up', q: 'bebida garrafa' },
+  // ===== SNACKS / DOCES =====
+  chocolate: { en: 'assorted chocolate bars and candies', q: 'chocolate barra' },
+  salgadinho: { en: 'chips and snack bags', q: 'salgadinho pacote' },
+  amendoim: { en: 'roasted peanuts in packs', q: 'amendoim pacote' },
+  snack: { en: 'assorted snack bags and chips', q: 'snacks salgadinhos' },
+  bala: { en: 'colorful candies and gum', q: 'balas gomas coloridas' },
+  doce: { en: 'assorted candies and sweets', q: 'doces balas variados' },
+  // ===== ACESSÓRIOS =====
+  acessorio: { en: 'smoking accessories arranged neatly (grinders, cases, lighters)', q: 'acessorios para fumar tabacaria' },
 };
-function _filtroSubject(nome) {
+function _catRef(nome) {
   const k = String(nome || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-  for (const key in _FILTRO_SUBJECTS) { if (k.includes(key)) return _FILTRO_SUBJECTS[key]; }
-  // Categoria desconhecida (ex.: "Combo"): NÃO deixa a IA buscar algo aleatório (relógio, perfume…).
-  // Sempre ancora no universo tabacaria/adega.
+  for (const key in _CAT_REF) { if (k.includes(key)) return _CAT_REF[key]; }
+  return null;
+}
+function _filtroSubject(nome) {
+  const r = _catRef(nome);
+  if (r) return r.en;
+  // Desconhecida (ex.: "Combo"): NÃO deixa a IA buscar algo aleatório — ancora em tabacaria/adega.
   return `an assortment of Brazilian tobacconist & convenience products (rolling papers, tobacco pouches, cigarette packs, hookah accessories, lighters, and cold canned/bottled drinks) arranged as a still-life, representing a "${nome}" section of a tobacco & drinks shop`;
+}
+function _filtroSearchQuery(nome) {
+  const r = _catRef(nome);
+  return (r && r.q) || (String(nome || '').trim() + ' produto tabacaria adega');
+}
+// Busca uma foto de REFERÊNCIA real na web (Google Images via Serper) e baixa a 1ª válida.
+async function _fetchWebRefImageBuf(query) {
+  if (!SERPER_API_KEY || !query) return null;
+  try {
+    const r = await fetch('https://google.serper.dev/images', {
+      method: 'POST', headers: { 'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, num: 10, gl: 'br', hl: 'pt-br' }), signal: AbortSignal.timeout(8000),
+    });
+    const data = await r.json();
+    const imgs = (data.images || []).slice(0, 8);
+    for (const img of imgs) {
+      try {
+        const ir = await fetch(img.imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'image/*' }, signal: AbortSignal.timeout(7000) });
+        if (!ir.ok) continue;
+        const buf = Buffer.from(await ir.arrayBuffer());
+        if (buf.length < 5000) continue;
+        return buf;
+      } catch (_) { continue; }
+    }
+  } catch (e) { console.warn('[filtro-webref]', e.message); }
+  return null;
 }
 
 // Cena estilo DROPE (dark neon still-life) pra imagem de um filtro.
@@ -7789,17 +7852,20 @@ async function handleFilialFiltroArt(req, res) {
     const nome = String(body.nome || '').trim();
     if (!nome) return res.status(400).json({ ok: false, error: 'nome do filtro vazio' });
     // Consistente com o produto: se o lojista ENVIOU uma foto de referência → img2img fiel.
-    // Sem referência → text2img do assunto CURADO da categoria (evita ambiguidade de busca,
-    // ex.: "Seda" na web = tecido, não papel de cigarro).
-    let tempUrl = null;
+    // PIPELINE da arte de categoria (prioridade):
+    //   1) referência do lojista (upload) → img2img fiel
+    //   2) BUSCA na web uma foto real da categoria (Serper Images, query PT curada) → img2img fiel
+    //   3) fallback: text2img do assunto CURADO (evita ambiguidade, ex.: "Seda" na web = tecido)
+    const editPrompt = `Restyle this real reference photo into a cinematic dark premium category icon for a storefront shelf (category: ${nome}). Keep the SAME type of product shown in the reference — do not invent a different product. Single clean hero composition on a matte black reflective surface. Deep dark background gradient (#0A0C1B to #12091F), atmospheric vapor/smoke, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E), faint ultraviolet fill. Glossy premium, high detail. Remove clutter, hands, backgrounds and any text. Square 1024x1024.`;
+    let refBuf = null;
     if (body.ref_base64) {
-      let refBuf = null;
       try { const m = String(body.ref_base64).match(/base64,(.+)$/); refBuf = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
-      if (refBuf) {
-        const editPrompt = `Restyle this into a cinematic dark premium category icon for a storefront shelf (category: ${nome}). Single clean hero composition on a matte black reflective surface. Deep dark background gradient (#0A0C1B to #12091F), atmospheric vapor/smoke, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E), faint ultraviolet fill. Glossy premium, high detail. Remove clutter, hands, and any text. Square 1024x1024.`;
-        tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' });
-      }
     }
+    if (!refBuf) { // sem upload do lojista → procura referência real na internet
+      try { refBuf = await _fetchWebRefImageBuf(_filtroSearchQuery(nome)); } catch (e) { console.warn('[filtro-art] webref falhou:', e.message); }
+    }
+    let tempUrl = null;
+    if (refBuf) { try { tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' }); } catch (e) { console.warn('[filtro-art] edit falhou:', e.message); } }
     if (!tempUrl) tempUrl = await generateFilterScene(_filtroSubject(nome));
     if (!tempUrl) return res.status(502).json({ ok: false, error: 'IA não gerou a imagem' });
     const imgResp = await fetch(tempUrl);
