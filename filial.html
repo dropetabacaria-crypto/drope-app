@@ -2950,7 +2950,7 @@ function renderFiltros(list) {
   el.innerHTML = _filtros.map((f, i) => {
     const hidden = !!f.hidden;
     const thumb = f.image_url
-      ? `<img src="${esc(f.image_url)}" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto${hidden ? ';opacity:.4' : ''}">`
+      ? `<img src="${esc(f.image_url)}" onclick="_openFiltroImg('${f.id}')" title="Ver imagem" style="width:42px;height:42px;border-radius:9px;object-fit:cover;flex:0 0 auto;cursor:pointer${hidden ? ';opacity:.4' : ''}">`
       : '<div style="width:42px;height:42px;border-radius:9px;background:var(--bg3);flex:0 0 auto"></div>';
     const up = i > 0 ? `onclick="moveFiltro('${f.id}',-1)"` : `disabled style="${miniBtn};opacity:.3"`;
     const dn = i < _filtros.length - 1 ? `onclick="moveFiltro('${f.id}',1)"` : `disabled style="${miniBtn};opacity:.3"`;
@@ -2978,7 +2978,7 @@ function renderFiltros(list) {
         <div style="display:flex;gap:8px">${shBtn('circle', 'Redondo')}${shBtn('square', 'Quadrado')}${shBtn('rect', 'Retângulo')}</div>
         <label class="pf-lbl" style="margin-top:10px">Imagem</label>
         <div style="display:flex;gap:10px;align-items:center">
-          <div id="fe-thumb-${f.id}" style="width:52px;height:52px;border-radius:10px;background:var(--bg3);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden">${bigThumbInner}</div>
+          <div id="fe-thumb-${f.id}" onclick="_openFiltroImg('${f.id}')" title="Ver imagem" style="width:52px;height:52px;border-radius:10px;background:var(--bg3);flex:0 0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer">${bigThumbInner}</div>
           <div style="flex:1;display:flex;gap:8px">
             <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('fe-file-${f.id}').click()">Enviar foto</button>
             <button class="pf-btn" style="flex:1" onclick="gerarFiltroIAEdit('${f.id}')">Gerar com IA</button>
@@ -3030,6 +3030,7 @@ async function onFiltroFileEdit(id, input) {
   const b64 = await _fileToDataUrl(input.files[0], 800); input.value = ''; if (!b64) return;
   await _saveFiltro({ id, nome: _feNome(id).trim(), shape: _feShape(id), photo_base64: b64 }, true);
 }
+function _openFiltroImg(id) { const f = (_filtros || []).find(x => x.id === id); if (f && f.image_url) showPhoto(f.image_url, f.nome || 'Categoria'); }
 let _feRef = {}; // referência (dataURL) por filtro, pra IA usar como base (img2img)
 async function onFiltroRef(id, input) {
   const f = input && input.files && input.files[0]; if (!f) return;
@@ -3046,8 +3047,8 @@ async function gerarFiltroIAEdit(id) {
   const img = document.getElementById('fe-prev-img-' + id), st = document.getElementById('fe-prev-status-' + id);
   const again = document.getElementById('fe-prev-again-' + id);
   if (!nome) { if (st && box) { box.style.display = 'block'; st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria primeiro'; } return; }
-  // salva shape/nome antes (silencioso) e gera a arte pra ESTE filtro
-  await _saveFiltro({ id, nome, shape: _feShape(id) }, true);
+  // NÃO chama _saveFiltro aqui (ele re-renderiza a lista e fecharia o painel + a prévia).
+  // O backend usa o `nome` que envio pra gerar; nome/formato o lojista salva no "Salvar".
   if (box) box.style.display = 'block';
   if (load) load.style.display = 'flex';
   if (img) { img.style.display = 'none'; img.style.opacity = '0'; }
