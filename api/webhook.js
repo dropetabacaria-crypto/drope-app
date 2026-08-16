@@ -5195,7 +5195,9 @@ async function handleFilialOrderCancel(req, res) {
     const now = new Date().toISOString();
     const hist = Array.isArray(o.status_history) ? o.status_history : [];
     hist.push({ status: 'cancelled', at: now });
-    await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, { status: 'cancelled', cancelled_at: now, status_history: hist });
+    // NÃO grava cancelled_at (a coluna não existe na tabela — quebrava o update inteiro).
+    // A hora do cancelamento fica no status_history.
+    await sbUpdate('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, { status: 'cancelled', status_history: hist });
     // Devolve o estoque — só se ele já tinha sido baixado (pago ou reserva de retirada).
     const STOCK_CONSUMED = ['paid', 'preparing', 'prepared', 'ready', 'dispatched', 'pending_pickup', 'confirmed', 'accepted'];
     if (STOCK_CONSUMED.includes(o.status)) {
@@ -5211,9 +5213,10 @@ async function handleFilialOrderCancel(req, res) {
         }
       }
     }
-    // Estorno no Mercado Pago — só se foi pago online (tem transaction_id).
+    // Estorno no Mercado Pago — SEMPRE que houver pagamento online (transaction_id).
+    // (o cliente pagou → o cancelamento devolve o dinheiro dele.)
     let refunded = false;
-    const paidOnline = o.transaction_id && /mercadopago/i.test(o.payment_method || '');
+    const paidOnline = !!o.transaction_id;
     if (paidOnline) {
       try {
         const sellerToken = await _mpTokenForFilial(filial);

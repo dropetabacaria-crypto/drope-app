@@ -3884,7 +3884,7 @@ async function cancelOrder(id) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { alert(d.refunded ? ' Pedido cancelado ✦ estorno solicitado ao cliente' : ' Pedido cancelado ✦'); loadData(true); }
+    if (r.ok && d.ok) { try { closePedidoDetail(); } catch (e) {} alert(d.refunded ? 'Pedido cancelado ✦ estorno solicitado ao cliente' : 'Pedido cancelado ✦'); loadData(true); }
     else alert(' ' + ((d && d.error) || 'não deu pra cancelar'));
   } catch (e) { alert(' Erro de rede'); }
 }
