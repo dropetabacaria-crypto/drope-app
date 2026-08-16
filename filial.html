@@ -2985,6 +2985,11 @@ function renderFiltros(list) {
           </div>
         </div>
         <input type="file" id="fe-file-${f.id}" accept="image/*" style="display:none" onchange="onFiltroFileEdit('${f.id}',this)">
+        <button class="pf-btn full" style="margin-top:8px" onclick="abrirFiltroProdPick('${f.id}')">Usar foto de um produto da categoria ✦</button>
+        <div id="fe-prodpick-${f.id}" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px">
+          <div style="font-size:11px;color:var(--fg-dim);margin-bottom:8px">Toque num produto pra usar a foto dele como imagem da categoria (fiel, na hora):</div>
+          <div id="fe-prodpick-grid-${f.id}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
           <button class="pf-btn sec" style="flex:0 0 auto;font-size:12px;padding:8px 12px" onclick="document.getElementById('fe-ref-${f.id}').click()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Foto de referência p/ IA</button>
           <span id="fe-ref-lbl-${f.id}" style="font-size:11px;color:var(--fg-dim)"></span>
@@ -3031,6 +3036,37 @@ async function onFiltroFileEdit(id, input) {
   await _saveFiltro({ id, nome: _feNome(id).trim(), shape: _feShape(id), photo_base64: b64 }, true);
 }
 function _openFiltroImg(id) { const f = (_filtros || []).find(x => x.id === id); if (f && f.image_url) showPhoto(f.image_url, f.nome || 'Categoria'); }
+// Mostra os produtos da categoria pra o lojista escolher a foto que vira a imagem da categoria
+function abrirFiltroProdPick(id) {
+  const box = document.getElementById('fe-prodpick-' + id), grid = document.getElementById('fe-prodpick-grid-' + id);
+  if (!box || !grid) return;
+  const prods = (_lastProdutos || []).filter(p => p.filtro_id === id && p.image_url && !p.combo);
+  grid.innerHTML = prods.length
+    ? prods.map(p => `<img src="${esc(p.image_url)}" onclick="usarFotoProduto('${id}','${esc(String(p.image_url).replace(/'/g, ''))}')" title="${esc(p.name)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:pointer;border:1px solid var(--border)">`).join('')
+    : '<div style="grid-column:1/-1;font-size:12px;color:var(--fg-dim)">Nenhum produto com foto nessa categoria ainda. Cadastre produtos aqui primeiro.</div>';
+  box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+}
+async function usarFotoProduto(id, imageUrl) {
+  const box = document.getElementById('fe-preview-' + id), img = document.getElementById('fe-prev-img-' + id);
+  const load = document.getElementById('fe-prev-load-' + id), st = document.getElementById('fe-prev-status-' + id);
+  if (box) box.style.display = 'block'; if (load) load.style.display = 'none';
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'aplicando…'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_filtro_set_img', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, image_url: imageUrl }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.image_url) {
+      try { const fx = (_filtros || []).find(x => x.id === id); if (fx) fx.image_url = d.image_url; } catch (e) {}
+      const thumb = document.getElementById('fe-thumb-' + id);
+      if (thumb) thumb.innerHTML = `<img src="${d.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px">`;
+      if (img) { img.onload = () => { img.style.display = 'block'; img.style.opacity = '1'; }; img.style.display = 'block'; img.src = d.image_url; }
+      if (st) { st.style.color = 'var(--green)'; st.textContent = 'imagem da categoria atualizada ✦'; }
+      const pick = document.getElementById('fe-prodpick-' + id); if (pick) pick.style.display = 'none';
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'não deu pra aplicar'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+}
 let _feRef = {}; // referência (dataURL) por filtro, pra IA usar como base (img2img)
 let _feVariant = {}; // incrementa a cada "Gerar outra" → backend rotaciona a referência
 async function onFiltroRef(id, input) {

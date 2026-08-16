@@ -7900,6 +7900,36 @@ async function handleFilialFiltroArt(req, res) {
   } catch (e) { console.error('[filial_filtro_art] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// POST action=filial_filtro_set_img — usa a foto de um PRODUTO da loja como imagem da categoria.
+// Body: { filial, token, id, image_url }. A image_url tem que ser de um produto DESTA loja.
+async function handleFilialFiltroSetImg(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const id = String(body.id || '');
+    const imageUrl = String(body.image_url || '').trim();
+    if (!id || !imageUrl) return res.status(400).json({ ok: false, error: 'faltou id/image_url' });
+    // segurança: a imagem TEM que ser de um produto desta loja (compara ignorando ?v=)
+    const base = imageUrl.split('?')[0];
+    const prods = await sbGet('drope_products', `filial_id=eq.${filial.id}&select=image_url&limit=500`);
+    const ok = (Array.isArray(prods) ? prods : []).some(p => p.image_url && p.image_url.split('?')[0] === base);
+    if (!ok) return res.status(403).json({ ok: false, error: 'essa imagem não é de um produto seu' });
+    const md = filial.metadata || {};
+    const filtros = Array.isArray(md.filtros) ? md.filtros : [];
+    const f = filtros.find(x => x.id === id);
+    if (!f) return res.status(404).json({ ok: false, error: 'categoria não encontrada' });
+    f.image_url = imageUrl; md.filtros = filtros;
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, image_url: imageUrl });
+  } catch (e) { console.error('[filial_filtro_set_img] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
 // Composite: cola o pod recortado (com alpha) no cenário gerado.
 // Pod fica centralizado, ocupando ~45% da altura do frame.
 async function compositeProductArt(backgroundBuffer, deviceCutoutBuffer) {
@@ -21413,6 +21443,10 @@ async function generateAll(){
   // action=filial_filtro_art — POST: lojista gera a imagem do filtro por IA
   if (req.url && req.url.indexOf('action=filial_filtro_art') >= 0) {
     return await handleFilialFiltroArt(req, res);
+  }
+  // action=filial_filtro_set_img — POST: usa a foto de um produto como imagem da categoria
+  if (req.url && req.url.indexOf('action=filial_filtro_set_img') >= 0) {
+    return await handleFilialFiltroSetImg(req, res);
   }
   // action=admin_token — POST: devolve o ADMIN_TOKEN mediante a senha do painel
   if (req.url && req.url.indexOf('action=admin_token') >= 0) {
