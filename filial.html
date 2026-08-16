@@ -336,7 +336,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <div style="min-width:0">
       <div class="hello" id="hello">Oi, ...</div>
       <div class="subtitle" id="subtitle">filial ...</div>
-      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span><span class="hd-sep">·</span><button class="hd-ver" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>Ver loja</button></div>
+      <div class="hd-live"><span class="dot"></span><span id="last-update">Atualizando...</span><span class="hd-sep">·</span><button class="hd-ver" onclick="verLojaCliente()" title="Ver a loja como o cliente vê" aria-label="Ver como cliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>Ver loja</button><span class="hd-sep">·</span><button class="hd-ver" id="hd-som" onclick="_toggleSomPedido()" aria-label="Som de novo pedido"></button></div>
     </div>
     <div class="hd-actions">
       <button class="hd-icon-btn" onclick="openConfigOverlay()" title="Configurações da loja" aria-label="Configurações">
@@ -1263,6 +1263,13 @@ function render(d) {
 
   _buildProdImgIndex(d.produtos || []);  // pra mostrar a foto ao tocar no item do pedido
   _pendentesAll = d.pedidos_pendentes || [];
+  // SOM de novo pedido: compara com o refresh anterior (não toca na 1ª carga)
+  try {
+    const _ids = _pendentesAll.map(p => String(p.id));
+    if (_prevPendIds !== null && _ids.some(x => !_prevPendIds.includes(x))) _playPedidoSound();
+    _prevPendIds = _ids;
+  } catch (e) {}
+  try { _renderSomBtn(); } catch (e) {}
   _renderPendentes();
 
   const historico = d.historico || [];
@@ -3811,6 +3818,38 @@ function _toast(msg, kind) {
   t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)';
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(8px)'; }, 2400);
+}
+// ===== Som de novo pedido =====
+let _prevPendIds = null;   // ids dos pendentes no refresh anterior (null = 1ª carga)
+let _audioCtx = null;
+function _unlockAudio() { try { if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (_audioCtx.state === 'suspended') _audioCtx.resume(); } catch (e) {} }
+try { document.addEventListener('click', _unlockAudio); document.addEventListener('touchstart', _unlockAudio, { passive: true }); } catch (e) {}
+function _somOn() { try { return localStorage.getItem('drope_som_pedido') !== 'off'; } catch (e) { return true; } }
+function _playPedidoSound() {
+  if (!_somOn()) return;
+  try {
+    _unlockAudio(); if (!_audioCtx) return;
+    const ctx = _audioCtx, now = ctx.currentTime;
+    [880, 1174.66].forEach((f, i) => { // dois toques (ding-dong)
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
+      const t = now + i * 0.18;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.36);
+    });
+  } catch (e) {}
+}
+function _renderSomBtn() {
+  const b = document.getElementById('hd-som'); if (!b) return;
+  const on = _somOn();
+  b.title = on ? 'Som de novo pedido: ligado (toque pra desligar)' : 'Som de novo pedido: desligado (toque pra ligar)';
+  b.innerHTML = on
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg>Som'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5.2A6 6 0 0 1 18 9c0 3 .8 4.6 1.5 5.5M6.2 8A6 6 0 0 0 6 9c0 5-2 6-2 6h13"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/><path d="M3 3l18 18"/></svg>Mudo';
+}
+function _toggleSomPedido() {
+  try { localStorage.setItem('drope_som_pedido', _somOn() ? 'off' : 'on'); } catch (e) {}
+  _renderSomBtn();
+  if (_somOn()) { _unlockAudio(); _playPedidoSound(); } // toca uma prévia ao ligar
 }
 function _refreshPedidoSurfaces() {
   try { const ov = document.getElementById('pedidos-ov'); if (ov && ov.classList.contains('open')) _renderAllPedidos(); } catch (e) {}
