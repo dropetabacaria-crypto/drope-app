@@ -1262,26 +1262,8 @@ function render(d) {
   try { renderDash(d); } catch (e) {}
 
   _buildProdImgIndex(d.produtos || []);  // pra mostrar a foto ao tocar no item do pedido
-  const pendentes = d.pedidos_pendentes || [];
-  _pendentesAll = pendentes;
-  const pendList = document.getElementById('pendentes-list');
-  const pendCount = document.getElementById('pendentes-count');
-  if (pendentes.length > 0) {
-    pendCount.style.display = 'inline';
-    pendCount.textContent = pendentes.length;
-    const tiles = pendentes.slice(0, 6).map(renderPedidoTile).join('');
-    const verTodos = pendentes.length > 6
-      ? `<button class="ver-todos" onclick="openAllPedidos()">Ver todos os <b>${pendentes.length} pedidos</b> ›</button>`
-      : '';
-    pendList.innerHTML = `<div class="ped-grid">${tiles}</div>${verTodos}`;
-  } else {
-    pendCount.style.display = 'none';
-    pendList.innerHTML = '<div class="empty">Sem pedidos pendentes</div>';
-  }
-  _refreshPedidoSurfaces();  // mantém a tela "todos" e o modal de detalhe em dia
-  // espelha os pendentes no badge da aba Início (avisa mesmo quando está no Resumo)
-  const tabBadge = document.getElementById('ptab-inicio-badge');
-  if (tabBadge) { tabBadge.textContent = pendentes.length; tabBadge.style.display = pendentes.length ? 'inline-flex' : 'none'; }
+  _pendentesAll = d.pedidos_pendentes || [];
+  _renderPendentes();
 
   const historico = d.historico || [];
   const histList = document.getElementById('historico-list');
@@ -3800,6 +3782,36 @@ function openAllPedidos() { _renderAllPedidos(); document.getElementById('pedido
 function closeAllPedidos() { document.getElementById('pedidos-ov').classList.remove('open'); }
 
 // Mantém a tela "todos" e o modal de detalhe sincronizados quando os dados atualizam.
+// Renderiza os pendentes (tiles da home + contador + badge da aba) a partir de _pendentesAll.
+// Usado tanto pelo loadData quanto pelas ações OTIMISTAS (UI reage na hora).
+function _renderPendentes() {
+  const pendentes = _pendentesAll || [];
+  const pendList = document.getElementById('pendentes-list');
+  if (pendList) {
+    if (pendentes.length > 0) {
+      const tiles = pendentes.slice(0, 6).map(renderPedidoTile).join('');
+      const verTodos = pendentes.length > 6 ? `<button class="ver-todos" onclick="openAllPedidos()">Ver todos os <b>${pendentes.length} pedidos</b> ›</button>` : '';
+      pendList.innerHTML = `<div class="ped-grid">${tiles}</div>${verTodos}`;
+    } else { pendList.innerHTML = '<div class="empty">Sem pedidos pendentes</div>'; }
+  }
+  const pendCount = document.getElementById('pendentes-count');
+  if (pendCount) { pendCount.style.display = pendentes.length ? 'inline' : 'none'; pendCount.textContent = pendentes.length; }
+  const tabBadge = document.getElementById('ptab-inicio-badge');
+  if (tabBadge) { tabBadge.textContent = pendentes.length; tabBadge.style.display = pendentes.length ? 'inline-flex' : 'none'; }
+  _refreshPedidoSurfaces();
+}
+// Toast leve, não-bloqueante (substitui alert() nas ações do dia a dia).
+let _toastTimer = null;
+function _toast(msg, kind) {
+  let t = document.getElementById('fil-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'fil-toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:400;max-width:88%;padding:12px 18px;border-radius:13px;font-size:14px;font-weight:700;font-family:inherit;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .2s,transform .2s;' +
+    (kind === 'err' ? 'background:#3a1020;color:#ff9bb5;border:1px solid rgba(255,77,143,.5);' : 'background:#12261a;color:#8ff0b6;border:1px solid rgba(74,222,128,.45);');
+  t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(8px)'; }, 2400);
+}
 function _refreshPedidoSurfaces() {
   try { const ov = document.getElementById('pedidos-ov'); if (ov && ov.classList.contains('open')) _renderAllPedidos(); } catch (e) {}
   try {
@@ -3878,25 +3890,53 @@ function renderPedidoCard(p, isEntregue) {
 }
 async function cancelOrder(id) {
   if (!confirm('Cancelar este pedido?\n\nSe já foi pago online, o valor é estornado ao cliente e o estoque volta pro catálogo.')) return;
+  // OTIMISTA: tira o pedido da lista e fecha o modal NA HORA; a rede roda por trás.
+  const idx = (_pendentesAll || []).findIndex(x => String(x.id) === String(id));
+  const removed = idx >= 0 ? _pendentesAll.splice(idx, 1)[0] : null;
+  try { closePedidoDetail(); } catch (e) {}
+  _renderPendentes();
   try {
     const r = await fetch('/api/webhook?action=filial_order_cancel', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { try { closePedidoDetail(); } catch (e) {} alert(d.refunded ? 'Pedido cancelado ✦ estorno solicitado ao cliente' : 'Pedido cancelado ✦'); loadData(true); }
-    else alert(' ' + ((d && d.error) || 'não deu pra cancelar'));
-  } catch (e) { alert(' Erro de rede'); }
+    if (!(r.ok && d.ok)) throw new Error((d && d.error) || 'não deu pra cancelar');
+    _toast(d.refunded ? 'Pedido cancelado ✦ estorno solicitado ao cliente' : 'Pedido cancelado ✦', 'ok');
+    loadData(false); // reconcilia em segundo plano (sem "carregando")
+  } catch (e) {
+    if (removed) { _pendentesAll.splice(Math.min(idx, _pendentesAll.length), 0, removed); _renderPendentes(); } // desfaz
+    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    loadData(false);
+  }
 }
 async function advanceOrder(id, status) {
+  // OTIMISTA: atualiza a etapa NA HORA (tile + modal). Se virar entregue/retirado, sai da lista.
+  const p = (_pendentesAll || []).find(x => String(x.id) === String(id));
+  const prev = p ? p.status : null;
+  const terminal = (status === 'delivered' || status === 'picked_up');
+  let removedIdx = -1, removedObj = null;
+  if (p) {
+    if (terminal) { removedIdx = _pendentesAll.indexOf(p); removedObj = _pendentesAll.splice(removedIdx, 1)[0]; try { closePedidoDetail(); } catch (e) {} }
+    else { p.status = status; }
+    _renderPendentes();
+  }
   try {
     const r = await fetch('/api/webhook?action=filial_order_status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, status }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) loadData(true); else alert(' ' + ((d && d.error) || 'não deu pra atualizar o status'));
-  } catch (e) { alert(' Erro de rede'); }
+    if (!(r.ok && d.ok)) throw new Error((d && d.error) || 'não deu pra atualizar o status');
+    loadData(false); // reconcilia em segundo plano
+  } catch (e) {
+    // desfaz o otimismo
+    if (terminal && removedObj) { _pendentesAll.splice(Math.min(removedIdx, _pendentesAll.length), 0, removedObj); }
+    else if (p && prev != null) { p.status = prev; }
+    _renderPendentes();
+    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    loadData(false);
+  }
 }
 // Rótulo legível do estado da corrida (entrega)
 function _corridaLabel(c) {
