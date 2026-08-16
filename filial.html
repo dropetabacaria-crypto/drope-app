@@ -1660,7 +1660,9 @@ function renderProdutos(list) {
         <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">Preço & mais</span>
       </div>
       <div class="prod-edit" id="edit-${p.id}">
-        <label class="pf-lbl" style="margin-top:12px">Preço (R$)</label>
+        <label class="pf-lbl" style="margin-top:12px">Nome do produto</label>
+        <input class="pf-input" id="ep-name-${p.id}" value="${esc(p.name || '')}" maxlength="70" style="margin-bottom:0" placeholder="ex: Piteira Sadhu Black King Size">
+        <label class="pf-lbl" style="margin-top:10px">Preço (R$)</label>
         <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço" oninput="epRecebe(${p.id})">
         <label class="pf-lbl" style="margin-top:10px">Preço de custo (R$) <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
         <input class="pf-input" id="ep-custo-${p.id}" inputmode="decimal" value="${p.cost_cents ? ((p.cost_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 70,00" style="margin-bottom:0" oninput="epRecebe(${p.id})">
@@ -2729,6 +2731,8 @@ async function saveEditProduct(id) {
   const payEl = document.getElementById('ep-payment-' + id);
   const custoEl = document.getElementById('ep-custo-' + id);
   const payload = { id, price, stock: (p.stock || 0), hidden, offer_price }; // estoque vem do +/− inline
+  const nameEl = document.getElementById('ep-name-' + id);
+  if (nameEl) { const nv = (nameEl.value || '').trim(); if (nv.length >= 2) payload.name = nv; } // corrigir nome do produto
   const bcEl = document.getElementById('ep-barcode-' + id);
   if (bcEl) payload.barcode = (bcEl.value || '').replace(/\D/g, ''); // código de barras (vazio limpa)
   if (fEl) {

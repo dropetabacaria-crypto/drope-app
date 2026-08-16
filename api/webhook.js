@@ -4941,6 +4941,8 @@ async function handleFilialProductSave(req, res) {
       const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,metadata&limit=1`);
       if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'produto não é da sua loja' });
       const upd = { hidden };
+      // corrigir o NOME do produto (slug fica estável pra não quebrar pedidos/combos)
+      if (typeof body.name === 'string' && body.name.trim().length >= 2) upd.name = body.name.trim().slice(0, 80);
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
       if (Number.isInteger(stock) && stock >= 0) upd.qty_available = stock;
       if (imageUrl !== undefined) { upd.image_url = imageUrl || null; if (imageUrl) upd.image_status = 'ok'; } // arte/foto/link → publica

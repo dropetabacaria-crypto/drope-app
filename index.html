@@ -10173,10 +10173,14 @@
     // VITRINE = o mais importante: mostra o NOME COMPLETO do produto EXATAMENTE como
     // cadastrado (ex.: "Tabaco Amsterdam Orgânico 25g"), sem minusculizar nem fatiar.
     const name = String(p.name || '').trim();
-    // SEM subtítulo: o nome completo já diz tudo. O campo "sabor" tem dado legado/incons-
-    // istente em vários produtos (ex.: "brown king size" num produto "Black") — mostrar isso
-    // gerava subtítulo errado/contraditório na vitrine. Nome correto > subtítulo duvidoso.
-    return { hero: name, muted: '' };
+    // Subtítulo = MARCA (faz sentido e é confiável), só quando NÃO já está no nome
+    // (comparação sem espaços evita "Elfbar" duplicado sob "Elf Bar ..."). Não usa mais
+    // o campo "sabor" (tinha dado legado errado, ex.: "brown" num produto "Black").
+    const brand = String(p.marca || p.brand || '').trim();
+    const nn = name.toLowerCase().replace(/\s+/g, '');
+    const bn = brand.toLowerCase().replace(/\s+/g, '');
+    const muted = (brand && bn && !nn.includes(bn)) ? brand.replace(/\b\w/g, c => c.toUpperCase()) : '';
+    return { hero: name, muted };
   }
 
   // ===== Render grid =====
