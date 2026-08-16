@@ -201,6 +201,11 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .sheet-x { background: var(--bg3); border: 0; color: var(--fg); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
 .sheet-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
 .sheet-foot { padding: 14px 16px; border-top: 0.5px solid var(--border); background: var(--bg2); }
+/* Cadastro de produto vira TELA CHEIA (separado da lista) */
+#add-product-form.apf-open { position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 16px 40px; margin: 0; border-radius: 0; border: 0; }
+.apf-hd { display: none; }
+#add-product-form.apf-open .apf-hd { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg); padding: 8px 0 12px; margin-bottom: 8px; border-bottom: 0.5px solid var(--border); z-index: 3; }
+#add-product-form.apf-open .apf-hd b { font-size: 17px; }
 /* Pedidos: grade de tiles compactos (3 por fileira) */
 .ped-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .otile { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--card-shadow); display: flex; flex-direction: column; gap: 5px; cursor: pointer; text-align: left; font-family: inherit; color: var(--fg); transition: border-color .15s, transform .1s; }
@@ -870,6 +875,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
+      <div class="apf-hd"><b>Novo produto</b><button class="sheet-x" onclick="toggleAddProduct()" aria-label="Fechar">✕</button></div>
       <!-- progresso do wizard -->
       <div id="wiz-steps" style="display:flex;gap:6px;margin-bottom:14px">
         <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Produto</div>
@@ -1876,6 +1882,9 @@ function toggleAddProduct() {
   const f = document.getElementById('add-product-form');
   const opening = f.style.display === 'none';
   f.style.display = opening ? 'block' : 'none';
+  f.classList.toggle('apf-open', opening); // tela cheia separada da lista
+  try { document.body.style.overflow = opening ? 'hidden' : ''; } catch (e) {}
+  if (opening) { try { f.scrollTop = 0; } catch (e) {} }
   if (opening) {
     const sel = document.getElementById('ap-filtro');
     if (sel) sel.innerHTML = _apFiltroOptions();
@@ -2029,7 +2038,7 @@ async function onScanFile(input) {
     if (r.ok && d.ok && d.data) {
       const v = d.data; _scanMeta = v;
       // A foto do scan é INPUT pra IA gerar a arte DROPE (não vira a imagem crua).
-      document.getElementById('add-product-form').style.display = 'block';
+      { const _f = document.getElementById('add-product-form'); _f.style.display = 'block'; _f.classList.add('apf-open'); try { document.body.style.overflow = 'hidden'; _f.scrollTop = 0; } catch (e) {} }
       // Popula o seletor de categoria (o scan abre o form sem passar por toggleAddProduct).
       try { const _sf = document.getElementById('ap-filtro'); if (_sf) _sf.innerHTML = _apFiltroOptions(); _apFiltroChange(); } catch (e) {}
       try { const _scg = document.getElementById('ap-catglobal'); if (_scg && !_scg.innerHTML) _scg.innerHTML = _catGlobalOptions(''); } catch (e) {}
@@ -2689,6 +2698,11 @@ async function saveNewProduct() {
     const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
     const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); // categorias atualizadas
     const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions(''); // volta pro Automático
+    // Limpa TODO o estado de combo (senão a seleção fica pré-marcada no próximo cadastro)
+    _apComboSel = {}; _apComboVariant = 0;
+    const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = '';
+    const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none';
+    try { apSetMode('normal'); } catch (e) {}
     // CADASTRO EM SÉRIE: mantém o form aberto na etapa 1 pra cadastrar o próximo.
     try { _wizStep = 1; wizRender(); } catch (e) {}
     const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
