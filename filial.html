@@ -3032,6 +3032,7 @@ async function onFiltroFileEdit(id, input) {
 }
 function _openFiltroImg(id) { const f = (_filtros || []).find(x => x.id === id); if (f && f.image_url) showPhoto(f.image_url, f.nome || 'Categoria'); }
 let _feRef = {}; // referência (dataURL) por filtro, pra IA usar como base (img2img)
+let _feVariant = {}; // incrementa a cada "Gerar outra" → backend rotaciona a referência
 async function onFiltroRef(id, input) {
   const f = input && input.files && input.files[0]; if (!f) return;
   try {
@@ -3055,7 +3056,8 @@ async function gerarFiltroIAEdit(id) {
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = _feRef[id] ? 'gerando com sua referência ✦ (até 1 min)' : 'a IA leva até 1 minuto ✦'; }
   if (again) { again.disabled = true; again.style.opacity = '.6'; }
   try {
-    const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, id, nome };
+    _feVariant[id] = (_feVariant[id] || 0) + 1;
+    const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, id, nome, variant: _feVariant[id] };
     if (_feRef[id]) body.ref_base64 = _feRef[id]; // referência → img2img fiel
     const r = await fetch('/api/webhook?action=filial_filtro_art', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

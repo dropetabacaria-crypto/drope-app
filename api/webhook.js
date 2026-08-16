@@ -7239,8 +7239,9 @@ function _filtroSearchQuery(nome) {
   const r = _catRef(nome);
   return (r && r.q) || (String(nome || '').trim() + ' produto tabacaria adega');
 }
-// Busca uma foto de REFERÊNCIA real na web (Google Images via Serper) e baixa a 1ª válida.
-async function _fetchWebRefImageBuf(query) {
+// Busca uma foto de REFERÊNCIA real na web (Google Images via Serper) e baixa uma válida.
+// variant rotaciona qual candidata é usada (pro "Gerar outra" trazer imagem diferente).
+async function _fetchWebRefImageBuf(query, variant) {
   if (!SERPER_API_KEY || !query) return null;
   try {
     const r = await fetch('https://google.serper.dev/images', {
@@ -7248,7 +7249,8 @@ async function _fetchWebRefImageBuf(query) {
       body: JSON.stringify({ q: query, num: 10, gl: 'br', hl: 'pt-br' }), signal: AbortSignal.timeout(8000),
     });
     const data = await r.json();
-    const imgs = (data.images || []).slice(0, 8);
+    let imgs = (data.images || []).slice(0, 10);
+    if (imgs.length > 1) { const off = ((parseInt(variant, 10) || 0) % imgs.length + imgs.length) % imgs.length; imgs = imgs.slice(off).concat(imgs.slice(0, off)); }
     for (const img of imgs) {
       try {
         const ir = await fetch(img.imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Accept: 'image/*' }, signal: AbortSignal.timeout(7000) });
@@ -7856,13 +7858,27 @@ async function handleFilialFiltroArt(req, res) {
     //   1) referência do lojista (upload) → img2img fiel
     //   2) BUSCA na web uma foto real da categoria (Serper Images, query PT curada) → img2img fiel
     //   3) fallback: text2img do assunto CURADO (evita ambiguidade, ex.: "Seda" na web = tecido)
+    const variant = parseInt(body.variant, 10) || 0;
     const editPrompt = `Restyle this real reference photo into a cinematic dark premium category icon for a storefront shelf (category: ${nome}). Keep the SAME type of product shown in the reference — do not invent a different product. Single clean hero composition on a matte black reflective surface. Deep dark background gradient (#0A0C1B to #12091F), atmospheric vapor/smoke, neon rim lights pink (#FF2D6F) and acid green (#D4FF2E), faint ultraviolet fill. Glossy premium, high detail. Remove clutter, hands, backgrounds and any text. Square 1024x1024.`;
     let refBuf = null;
+    // 1) upload do lojista tem prioridade
     if (body.ref_base64) {
       try { const m = String(body.ref_base64).match(/base64,(.+)$/); refBuf = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
     }
-    if (!refBuf) { // sem upload do lojista → procura referência real na internet
-      try { refBuf = await _fetchWebRefImageBuf(_filtroSearchQuery(nome)); } catch (e) { console.warn('[filtro-art] webref falhou:', e.message); }
+    // 2) foto de um PRODUTO REAL dessa categoria na loja (o mais preciso — é o que a loja vende)
+    if (!refBuf && body.id) {
+      try {
+        const prods = await sbGet('drope_products', `filial_id=eq.${filial.id}&metadata->>filtro_id=eq.${encodeURIComponent(body.id)}&hidden=eq.false&image_status=eq.ok&select=image_url&order=total_sold.desc.nullslast&limit=8`);
+        const urls = (Array.isArray(prods) ? prods : []).map(p => p.image_url).filter(Boolean);
+        if (urls.length) {
+          const u = urls[((variant % urls.length) + urls.length) % urls.length];
+          try { const ir = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (ir.ok) { const b = Buffer.from(await ir.arrayBuffer()); if (b.length > 2000) refBuf = b; } } catch (e) {}
+        }
+      } catch (e) { console.warn('[filtro-art] produto-ref falhou:', e.message); }
+    }
+    // 3) sem produto na categoria → busca referência real na internet
+    if (!refBuf) {
+      try { refBuf = await _fetchWebRefImageBuf(_filtroSearchQuery(nome), variant); } catch (e) { console.warn('[filtro-art] webref falhou:', e.message); }
     }
     let tempUrl = null;
     if (refBuf) { try { tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'low' }); } catch (e) { console.warn('[filtro-art] edit falhou:', e.message); } }
