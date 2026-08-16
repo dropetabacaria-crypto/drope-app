@@ -1657,7 +1657,7 @@ function renderProdutos(list) {
       <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:10px">
         ${_featuredMode === 'manual' ? `<span class="mini-link" onclick="toggleFeatured(${p.id})" style="margin-right:auto;color:${p.featured ? 'var(--yellow)' : 'var(--fg-dim)'}">${p.featured ? '★ Destaque' : '☆ Destacar'}</span>` : ''}
         ${artBtn}
-        <span class="mini-link" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')">Preço & mais</span>
+        <button class="icon-btn2" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')" title="Editar produto" aria-label="Editar" style="background:var(--bg3);color:var(--fg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 20h16"/><path d="M14.5 5.5l4 4-9 9H5.5v-4l9-9Z"/></svg></button>
       </div>
       <div class="prod-edit" id="edit-${p.id}">
         <label class="pf-lbl" style="margin-top:12px">Nome do produto</label>
