@@ -23,7 +23,7 @@
     radial-gradient(50% 40% at 15% 0%, rgba(140,80,255,0.20), transparent 60%),
     radial-gradient(45% 35% at 100% 12%, rgba(255,45,111,0.16), transparent 60%),
     radial-gradient(50% 40% at 60% 100%, rgba(212,255,46,0.06), transparent 60%); pointer-events:none; }
-  .app { position:relative; z-index:1; width:100%; max-width:480px; min-height:100vh; padding:0 16px 40px; }
+  .app { position:relative; z-index:1; width:100%; max-width:480px; min-height:100vh; padding:calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px); }
   .top { display:flex; align-items:center; gap:11px; padding:18px 4px 12px; }
   .logo { width:38px; height:38px; border-radius:11px; object-fit:cover; box-shadow:0 4px 14px rgba(255,45,111,0.3); }
   .brand { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:19px; }
@@ -488,6 +488,16 @@ async function act(corridaId, action, btn){
   loadCorridas();
 }
 
+// Pull-to-refresh (app instalado): puxa no topo pra atualizar as corridas, sem reload.
+(function(){
+  var standalone=false; try{ standalone=window.navigator.standalone===true || (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches); }catch(e){}
+  if(!standalone) return;
+  var startY=0,dist=0,pulling=false,TH=72,ind=null;
+  function mk(){ if(ind)return; ind=document.createElement('div'); ind.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;z-index:9998;color:var(--lime);font:700 13px/1 Inter,sans-serif;pointer-events:none'; document.body.appendChild(ind); }
+  document.addEventListener('touchstart',function(e){ if((window.scrollY||0)<=0){ startY=e.touches[0].clientY; pulling=true; dist=0; } else pulling=false; },{passive:true});
+  document.addEventListener('touchmove',function(e){ if(!pulling)return; dist=e.touches[0].clientY-startY; if(dist>0&&(window.scrollY||0)<=0){ mk(); ind.style.transition='none'; ind.style.height=Math.min(dist*0.5,80)+'px'; ind.textContent=dist>TH?'Solte pra atualizar ✦':'Puxe pra atualizar'; } },{passive:true});
+  document.addEventListener('touchend',function(){ if(!pulling)return; pulling=false; if(dist>TH){ if(ind){ ind.style.transition='height .2s'; ind.style.height='34px'; ind.textContent='Atualizando ✦'; } try{ if(_activePinCorrida==null) loadCorridas(); }catch(e){} setTimeout(function(){ if(ind) ind.style.height='0px'; },800);} else if(ind){ ind.style.transition='height .2s'; ind.style.height='0px'; } dist=0; },{passive:true});
+})();
 if(SESS && SESS.token) showCorridas();
 </script>
 </body>
