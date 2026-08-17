@@ -7596,7 +7596,7 @@ async function handleEntregadorCorridas(req, res) {
     if (!ent) return res.status(401).json({ ok: false, error: 'unauthorized' });
     const me = ent.id;
     const online = ent.online === true;
-    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,distancia_km,declined,created_at&limit=80`);
+    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,distancia_km,declined,posted_at&limit=80`);
     const list = (rows || []).filter(c => {
       const dec = Array.isArray(c.declined) ? c.declined : [];
       if (dec.includes(me)) return false;                       // recusei essa corrida
@@ -7614,7 +7614,7 @@ async function handleEntregadorCorridas(req, res) {
       return {
         id: c.id, status: c.status, mine: c.entregador_id === me, avulso: !c.assigned_to,
         loja: fmap[c.filial_id] || 'Loja', order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
-        distancia_km: c.distancia_km || null, created_at: c.created_at || null,
+        distancia_km: c.distancia_km || null, created_at: c.posted_at || null,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
