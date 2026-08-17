@@ -4610,8 +4610,7 @@ async function handleFilialPainel(req, res) {
     // Auth: aceita (a) token de sessão do login por email+senha (hash guardado no
     // metadata.login.session_hash) OU (b) o código legado = 4 últimos dígitos do
     // whats da fundadora (retrocompat).
-    const sessionHash = (((filial.metadata || {}).login) || {}).session_hash || '';
-    const bySession = !!sessionHash && _sha256hex(token) === sessionHash;
+    const bySession = _filialSessionOk(((filial.metadata || {}).login) || null, token);
     const expectedCode = (filial.founder_phone || '').slice(-4);
     const byLegacy = !!expectedCode && token === expectedCode;
     if (!token || (!bySession && !byLegacy)) {
@@ -4811,13 +4810,23 @@ async function handleFilialPainel(req, res) {
 // Auth compartilhada dos endpoints do lojista: aceita o token de SESSÃO (login
 // por email+senha, hash em metadata.login.session_hash) OU o código legado (4
 // últimos dígitos do whats da fundadora). Retorna a filial ou null.
+// Confere se o token bate com ALGUMA sessão ativa da loja. Multi-sessão: a loja
+// pode ficar logada em vários aparelhos ao mesmo tempo (até ~6: 2 PCs + 2 celulares
+// + folga). Guarda uma LISTA de hashes em metadata.login.sessions; mantém o
+// session_hash antigo (mais recente) só por retrocompatibilidade.
+function _filialSessionOk(login, token) {
+  if (!login || !token) return false;
+  const th = _sha256hex(token);
+  if (login.session_hash && th === login.session_hash) return true;
+  const arr = Array.isArray(login.sessions) ? login.sessions : [];
+  return arr.some(s => s && s.h === th);
+}
 async function _filialAuthBySlug(filialSlug, token) {
   if (!filialSlug || !token) return null;
   const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(filialSlug)}&status=eq.active&select=id,slug,name,founder_phone,markup_cents,founder_share_cents,metadata&limit=1`);
   const filial = Array.isArray(fr) && fr[0];
   if (!filial) return null;
-  const sessionHash = (((filial.metadata || {}).login) || {}).session_hash || '';
-  const bySession = !!sessionHash && _sha256hex(token) === sessionHash;
+  const bySession = _filialSessionOk(((filial.metadata || {}).login) || null, token);
   const last4 = (filial.founder_phone || '').slice(-4);
   const byLegacy = !!last4 && token === last4;
   return (bySession || byLegacy) ? filial : null;
@@ -14673,7 +14682,7 @@ async function handleFilialRegister(req, res) {
       metadata: {
         self_registered: true, created_via: 'app_lojista', onboarding: 'pending_payment',
         payment: { provider: null, account_id: null, status: 'not_connected' },
-        login: { email, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _sha256hex(sessionToken), session_at: new Date().toISOString() },
+        login: { email, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _sha256hex(sessionToken), sessions: [{ h: _sha256hex(sessionToken), at: new Date().toISOString() }], session_at: new Date().toISOString() },
         fiscal: { doc, doc_type: docType },
         segmentos: _normSegmentos(body.segmentos),
         endereco: { cep, address, city, state },
@@ -14715,10 +14724,18 @@ async function handleFilialLogin(req, res) {
       await new Promise(r => setTimeout(r, 800)); // atrasa brute-force
       return res.status(401).json({ ok: false, error: 'email ou senha incorretos' });
     }
-    // gera token de sessão (guarda só o hash)
+    // gera token de sessão (guarda só o hash). MULTI-SESSÃO: acrescenta na lista
+    // (até ~6 aparelhos), não derruba os outros — dá pra ficar logado no PC e no
+    // celular ao mesmo tempo.
     const token = crypto.randomBytes(24).toString('hex');
+    const th = _sha256hex(token);
     const md = filial.metadata || {};
-    md.login = { ...login, session_hash: _sha256hex(token), session_at: new Date().toISOString() };
+    const nowIso = new Date().toISOString();
+    const sessions = (Array.isArray(login.sessions) ? login.sessions : [])
+      .filter(s => s && s.h && s.h !== th)
+      .concat([{ h: th, at: nowIso }])
+      .slice(-6);
+    md.login = { ...login, sessions, session_hash: th, session_at: nowIso };
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, slug: filial.slug, name: filial.name, token });
   } catch (e) {
@@ -14803,7 +14820,8 @@ async function handleFilialResetConfirm(req, res) {
       return res.status(401).json({ ok: false, error: 'código incorreto' });
     }
     const pass = _ljHashPassword(password);
-    md.login = { ...(md.login || {}), pass_salt: pass.salt, pass_hash: pass.hash, session_hash: null, reset: null };
+    // Trocar a senha desconecta TODOS os aparelhos (segurança): zera a lista de sessões.
+    md.login = { ...(md.login || {}), pass_salt: pass.salt, pass_hash: pass.hash, session_hash: null, sessions: [], reset: null };
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true });
   } catch (e) { console.error('[filial_reset_confirm] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }

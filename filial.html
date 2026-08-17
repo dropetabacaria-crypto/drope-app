@@ -3892,7 +3892,11 @@ function _playChime() {
     });
   } catch (e) {}
 }
-function _speakVenda() {
+// Voz personalizada: se existir um arquivo de áudio (gerado por IA) em
+// _VENDA_AUDIO_URL, toca ele; senão cai pra voz do próprio celular (TTS).
+const _VENDA_AUDIO_URL = '/sounds/venda-drope.mp3';
+let _vendaAudioEl = null, _vendaAudioOk = null; // null=?, true=toca, false=indisponível→TTS
+function _ttsVenda() {
   try {
     if (!('speechSynthesis' in window)) { _playChime(); return; }
     const u = new SpeechSynthesisUtterance('Venda no Drope');
@@ -3900,6 +3904,15 @@ function _speakVenda() {
     try { const vs = speechSynthesis.getVoices(); const pt = vs.find(v => /pt[-_]br/i.test(v.lang)) || vs.find(v => /pt/i.test(v.lang)); if (pt) u.voice = pt; } catch (e) {}
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   } catch (e) { _playChime(); }
+}
+function _speakVenda() {
+  if (_vendaAudioOk === false) { _ttsVenda(); return; } // já sabemos que não há arquivo → voz do celular
+  try {
+    if (!_vendaAudioEl) { _vendaAudioEl = new Audio(_VENDA_AUDIO_URL); _vendaAudioEl.preload = 'auto'; }
+    _vendaAudioEl.currentTime = 0;
+    const p = _vendaAudioEl.play();
+    if (p && p.then) p.then(() => { _vendaAudioOk = true; }).catch(() => { _vendaAudioOk = false; _ttsVenda(); });
+  } catch (e) { _vendaAudioOk = false; _ttsVenda(); }
 }
 function _playPedidoSound() {
   const m = _somModo();
