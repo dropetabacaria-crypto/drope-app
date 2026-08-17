@@ -7647,6 +7647,18 @@ async function handleEntregadorCorridas(req, res) {
     return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, online }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
+// Código de entrega do cliente = MÊS/ANO de nascimento (ex: '06/1998'). Serve de código
+// E confere 18+. Null se o cliente não tem data de nascimento cadastrada.
+async function _deliveryCodeFromBirth(phone) {
+  try {
+    const p = _normPhone(phone); if (!p) return null;
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=birthdate&limit=1`);
+    const bd = rows && rows[0] && rows[0].birthdate;
+    if (!bd || !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return null;
+    return bd.slice(5, 7) + '/' + bd.slice(0, 4);
+  } catch (e) { return null; }
+}
+const _codeDigits = (s) => String(s || '').replace(/\D/g, '');
 // POST action=entregador_corrida_action { entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
 async function handleEntregadorCorridaAction(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
@@ -7716,12 +7728,16 @@ async function handleEntregadorCorridaAction(req, res) {
       if (!corrida) return res.status(409).json({ ok: false, error: 'A corrida precisa estar em rota' });
       try { await sbUpdate('drope_corridas', `id=eq.${corrida.id}`, { updated_at: nowIso }); } catch (e) {}
       try {
-        const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot&limit=1`);
+        const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot,metadata&limit=1`);
         const o = Array.isArray(ords) && ords[0];
         const phone = o && o.customer_snapshot && o.customer_snapshot.phone;
         if (phone) {
           if (action === 'chegando') _notify('customer', phone, 'motoca_chegando', 'O motoca tá chegando 🛵', `${me.nome} tá quase aí com seu pedido ✦`).catch(() => {});
-          else _notify('customer', phone, 'motoca_chegou', 'O motoca chegou! 🛵', `${me.nome} chegou com seu pedido ✦ corre lá!`).catch(() => {});
+          else {
+            const code = (o.metadata || {}).delivery_pin;
+            const codeTxt = code ? ` ✦ seu código de entrega: ${code}` : '';
+            _notify('customer', phone, 'motoca_chegou', 'O motoca chegou! 🛵', `${me.nome} chegou com seu pedido${codeTxt} — mostre o código pra ele`).catch(() => {});
+          }
         }
       } catch (e) { console.warn('[entregador chegando/chegou]', e.message); }
       return res.status(200).json({ ok: true, notified: action });
@@ -7745,7 +7761,7 @@ async function handleEntregadorCorridaAction(req, res) {
       if (cc) {
         const ords0 = await sbGet('drope_orders', `id=eq.${cc.order_id}&select=metadata&limit=1`);
         const pin = ords0 && ords0[0] && (ords0[0].metadata || {}).delivery_pin;
-        if (pin && String(body.pin || '').trim() !== String(pin)) {
+        if (pin && _codeDigits(body.pin) !== _codeDigits(pin)) {
           return res.status(409).json({ ok: false, error: 'Código de entrega incorreto ✦' });
         }
       }
@@ -7770,10 +7786,15 @@ async function handleEntregadorCorridaAction(req, res) {
           const oPatch = { status: oStatus, updated_at: nowIso };
           if (action === 'sai') {
             oPatch.dispatched_at = nowIso;
-            // gera o CÓDIGO DE ENTREGA (delivery) se ainda não existir — o cliente vê no acompanhamento.
+            // CÓDIGO DE ENTREGA = mês/ano de nascimento do cliente (ou aleatório se não tiver).
             if ((o.delivery_mode || 'delivery') !== 'pickup') {
               const md = o.metadata || {};
-              if (!md.delivery_pin) { md.delivery_pin = String(Math.floor(1000 + Math.random() * 9000)); oPatch.metadata = md; }
+              if (!md.delivery_pin) {
+                const phoneC = o.customer_snapshot && o.customer_snapshot.phone;
+                const dobCode = phoneC ? await _deliveryCodeFromBirth(phoneC) : null;
+                md.delivery_pin = dobCode || String(Math.floor(1000 + Math.random() * 9000));
+                oPatch.metadata = md;
+              }
             }
           } else { oPatch.delivered_at = nowIso; }
           await sbUpdate('drope_orders', `id=eq.${corrida.order_id}`, oPatch);
@@ -7824,7 +7845,15 @@ async function handleFilialConfirmarRetirada(req, res) {
     const ords = await sbGet('drope_orders', `id=eq.${corr.order_id}&select=order_nsu,customer_snapshot,delivery_mode,metadata&limit=1`);
     const o = (Array.isArray(ords) && ords[0]) || {};
     const oPatch = { status: 'dispatched', dispatched_at: nowIso, updated_at: nowIso };
-    if ((o.delivery_mode || 'delivery') !== 'pickup') { const md = o.metadata || {}; if (!md.delivery_pin) { md.delivery_pin = String(Math.floor(1000 + Math.random() * 9000)); oPatch.metadata = md; } }
+    if ((o.delivery_mode || 'delivery') !== 'pickup') {
+      const md = o.metadata || {};
+      if (!md.delivery_pin) {
+        const phoneC = o.customer_snapshot && o.customer_snapshot.phone;
+        const dobCode = phoneC ? await _deliveryCodeFromBirth(phoneC) : null;
+        md.delivery_pin = dobCode || String(Math.floor(1000 + Math.random() * 9000));
+        oPatch.metadata = md;
+      }
+    }
     await sbUpdate('drope_orders', `id=eq.${corr.order_id}`, oPatch);
     const phone = o.customer_snapshot && o.customer_snapshot.phone;
     if (phone) { const nsu = o.order_nsu ? ('#' + o.order_nsu) : 'Seu pedido'; _notify('customer', phone, 'order_status', 'Saiu pra entrega 🛵', `${nsu} saiu pra entrega com ${corr.motoboy_nome || 'o entregador'} ✦`).catch(() => {}); }
@@ -15143,6 +15172,15 @@ async function handleCustomerSetProfile(req, res) {
       const email = String(body.email).trim().toLowerCase();
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
       patch.email = email || null;
+    }
+    if (body.birthdate != null) {
+      const bd = String(body.birthdate).trim(); // 'YYYY-MM-DD'
+      if (bd) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) return res.status(400).json({ ok: false, error: 'data de nascimento inválida' });
+        const y = parseInt(bd.slice(0, 4), 10);
+        if (y < 1900 || y > new Date().getFullYear()) return res.status(400).json({ ok: false, error: 'ano de nascimento inválido' });
+        patch.birthdate = bd;
+      } else patch.birthdate = null;
     }
     if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: 'nada pra salvar' });
     await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
