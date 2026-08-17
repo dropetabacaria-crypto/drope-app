@@ -3892,10 +3892,24 @@ function _playChime() {
     });
   } catch (e) {}
 }
-// Voz personalizada: se existir um arquivo de áudio (gerado por IA) em
-// _VENDA_AUDIO_URL, toca ele; senão cai pra voz do próprio celular (TTS).
-const _VENDA_AUDIO_URL = '/sounds/venda-drope.mp3';
-let _vendaAudioEl = null, _vendaAudioOk = null; // null=?, true=toca, false=indisponível→TTS
+// Pacote de sons (voz do camaleão 🦎): /sounds/manifest.json mapeia cada evento
+// pra 1+ arquivos MP3; quando há mais de um, sorteia. Se o pacote não existir/não
+// carregar, cai pra voz do celular (TTS).
+let _soundManifest = null, _soundManifestLoaded = false;
+function _loadSoundManifest() {
+  if (_soundManifestLoaded) return; _soundManifestLoaded = true;
+  fetch('/sounds/manifest.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+    .then(j => { _soundManifest = j || {}; }).catch(() => { _soundManifest = {}; });
+}
+function _playPack(key) { // toca (sorteando) um arquivo do pacote; true se conseguiu
+  try {
+    const list = _soundManifest && _soundManifest[key];
+    if (!list || !list.length) return false;
+    const url = list[Math.floor(Math.random() * list.length)];
+    const a = new Audio(url); a.play().catch(() => {});
+    return true;
+  } catch (e) { return false; }
+}
 function _ttsVenda() {
   try {
     if (!('speechSynthesis' in window)) { _playChime(); return; }
@@ -3906,13 +3920,8 @@ function _ttsVenda() {
   } catch (e) { _playChime(); }
 }
 function _speakVenda() {
-  if (_vendaAudioOk === false) { _ttsVenda(); return; } // já sabemos que não há arquivo → voz do celular
-  try {
-    if (!_vendaAudioEl) { _vendaAudioEl = new Audio(_VENDA_AUDIO_URL); _vendaAudioEl.preload = 'auto'; }
-    _vendaAudioEl.currentTime = 0;
-    const p = _vendaAudioEl.play();
-    if (p && p.then) p.then(() => { _vendaAudioOk = true; }).catch(() => { _vendaAudioOk = false; _ttsVenda(); });
-  } catch (e) { _vendaAudioOk = false; _ttsVenda(); }
+  if (_playPack('venda-drope')) return; // voz do camaleão (sorteia variação)
+  _ttsVenda();                          // fallback: voz do celular
 }
 function _playPedidoSound() {
   const m = _somModo();
@@ -3938,6 +3947,7 @@ function _toggleSomPedido() {
 let _nagStarted = false;
 function _startPedidoNag() {
   if (_nagStarted) return; _nagStarted = true;
+  try { _loadSoundManifest(); } catch (e) {}
   setInterval(() => {
     try {
       if (_somModo() === 'off') return;

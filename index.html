@@ -12520,6 +12520,34 @@
 
   // Busca os pedidos do cliente no backend (fonte de verdade do status) e re-renderiza.
   let _loadingMyOrders = false;
+  // ===== Sons de notificação (voz do camaleão 🦎) =====
+  // /sounds/manifest.json mapeia cada evento -> 1+ MP3; quando há mais de um, sorteia.
+  let _soundManifest = null, _soundManifestLoaded = false;
+  function _loadSoundManifest() {
+    if (_soundManifestLoaded) return; _soundManifestLoaded = true;
+    fetch('/sounds/manifest.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+      .then(j => { _soundManifest = j || {}; }).catch(() => { _soundManifest = {}; });
+  }
+  function _playPack(key) {
+    try {
+      if (document.hidden) return false;                 // só toca com o app à frente
+      const list = _soundManifest && _soundManifest[key];
+      if (!list || !list.length) return false;
+      const url = list[Math.floor(Math.random() * list.length)];
+      const a = new Audio(url); a.play().catch(() => {});
+      return true;
+    } catch (e) { return false; }
+  }
+  try { _loadSoundManifest(); } catch (e) {}
+  // Status normalizado do backend -> evento de som. (preparing usa a fala de "aceito";
+  // se depois entrar áudio em cli-preparo, é só trocar aqui.)
+  const _ORDER_SOUND = {
+    paid: 'cli-pago', preparing: 'cli-aceito',
+    ready: 'cli-retirada', ready_for_pickup: 'cli-retirada',
+    out_for_delivery: 'cli-saiu', delivered: 'cli-entregue', picked_up: 'cli-entregue',
+  };
+  function _playOrderSound(st) { const k = _ORDER_SOUND[st]; if (k) _playPack(k); }
+
   async function loadMyOrders() {
     if (!profile || !profile.phone || _loadingMyOrders) return;
     _loadingMyOrders = true;
@@ -12528,6 +12556,9 @@
       if (r.ok) {
         const d = await r.json();
         if (d && Array.isArray(d.orders)) {
+          // Snapshot dos status ANTES do merge, pra detectar mudança e tocar o som.
+          const _prevSt = new Map();
+          (orders || []).forEach(o => { if (o && o.num != null) _prevSt.set(String(o.num), o.backendStatus); });
           // MERGE — nunca apaga pedido do device. União por `num`; o backend é a
           // fonte de verdade do status (sobrescreve), mas pedidos que só existem
           // localmente (backend não retornou) são preservados.
@@ -12535,6 +12566,15 @@
           (orders || []).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
           d.orders.map(_mapBackendOrder).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
           orders = Array.from(byNum.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          // Toca o som SÓ quando um pedido JÁ conhecido mudou de status (evita barulho
+          // em massa ao abrir o app). Um evento por atualização.
+          try {
+            for (const o of orders) {
+              if (!o || o.num == null) continue;
+              const key = String(o.num);
+              if (_prevSt.has(key) && _prevSt.get(key) !== o.backendStatus) _playOrderSound(o.backendStatus);
+            }
+          } catch (e) {}
           try { saveOrders(); } catch (e) {}
           const active = document.querySelector('.screen.active')?.id;
           if (active === 'orders') renderOrders();
