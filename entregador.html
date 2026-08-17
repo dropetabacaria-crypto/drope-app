@@ -95,6 +95,9 @@
   .cfg-row.first { border-top:0; }
   .veic-opt { padding:9px 14px; border-radius:999px; border:1px solid var(--border); background:var(--bg3); color:var(--fg); font-size:13px; font-weight:700; cursor:pointer; }
   .veic-opt.active { border-color:var(--lime); color:var(--lime); background:rgba(212,255,46,0.08); }
+  .cfg-mrow { display:flex; align-items:center; gap:12px; padding:15px 16px; cursor:pointer; border-top:1px solid var(--border); font-weight:700; font-size:15px; color:var(--fg); }
+  .cfg-mrow:first-child { border-top:0; }
+  .cfg-mrow:active { background:var(--bg3); }
   .maps { color:var(--purple); font-weight:700; text-decoration:none; }
   .zap { color:var(--green); font-weight:700; text-decoration:none; }
   .empty { text-align:center; color:var(--fg-dim); font-size:14px; padding:44px 12px; line-height:1.6; }
@@ -205,44 +208,65 @@
 <!-- Configurações do entregador -->
 <div id="ent-config-ov" style="position:fixed;inset:0;z-index:300;background:var(--bg);display:none;flex-direction:column;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 40px)">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;max-width:480px;width:100%;margin-left:auto;margin-right:auto">
-    <button onclick="closeEntConfig()" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--fg);cursor:pointer;flex:0 0 auto"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
-    <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:20px">Configurações</div>
+    <button onclick="cfgBack()" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--fg);cursor:pointer;flex:0 0 auto"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+    <div id="cfg-title-h" style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:20px">Configurações</div>
   </div>
   <div style="max-width:480px;width:100%;margin:0 auto">
-    <div style="text-align:center;margin-bottom:18px">
-      <div id="cfg-foto-prev" style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0 auto;background:var(--bg3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--fg-dim)"></div>
-      <div onclick="document.getElementById('cfg-foto-input').click()" style="margin-top:10px;color:var(--lime);font-weight:700;font-size:13px;cursor:pointer">Trocar foto ✦</div>
-      <input type="file" id="cfg-foto-input" accept="image/*" style="display:none" onchange="onEntPhotoPicked(event)">
-    </div>
-    <div class="cfg-card">
-      <div class="cfg-title">Meus dados</div>
-      <label class="cfg-lbl first">Nome</label>
-      <input class="cfg-in" id="cfg-nome" maxlength="60" placeholder="seu nome">
-      <label class="cfg-lbl">Telefone</label>
-      <input class="cfg-in" id="cfg-phone" disabled style="opacity:.6">
-      <label class="cfg-lbl">Email</label>
-      <input class="cfg-in" id="cfg-email" maxlength="80" inputmode="email" placeholder="seu@email.com">
-      <label class="cfg-lbl">Chave Pix (onde você recebe)</label>
-      <input class="cfg-in" id="cfg-pix" maxlength="140" placeholder="CPF, telefone, email ou aleatória">
-    </div>
-    <div class="cfg-card">
-      <div class="cfg-title">Veículo e documentos</div>
-      <label class="cfg-lbl first">Veículo</label>
-      <div id="cfg-veic" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-      <label class="cfg-lbl">Documento (CNH / RG)</label>
-      <input class="cfg-in" id="cfg-doc" maxlength="60" placeholder="número do documento">
-    </div>
-    <button class="btn pink" onclick="salvarEntDados(this)" style="margin:0 0 16px">Salvar dados</button>
-    <div class="cfg-card">
-      <div class="cfg-title">Som de nova corrida</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div style="font-size:13px;color:var(--fg-dim)">Aviso sonoro quando entra corrida</div>
-        <button class="btn sec" id="cfg-som-btn" onclick="_toggleEntSom()" style="flex:0 0 auto;width:auto;margin:0;padding:10px 14px;font-size:14px"></button>
+
+    <!-- MENU -->
+    <div id="cfg-menu">
+      <div class="cfg-card" style="padding:0;overflow:hidden;margin-bottom:12px">
+        <div class="cfg-mrow" onclick="openCfgSec('dados')">
+          <div id="cfg-menu-foto" style="width:46px;height:46px;border-radius:50%;overflow:hidden;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--fg-dim);flex:0 0 auto"></div>
+          <div style="flex:1;min-width:0"><div id="cfg-menu-nome" style="font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div><div style="font-size:12px;color:var(--fg-dim)">Meus dados ✦ foto, Pix, veículo</div></div>
+          <span style="color:var(--fg-dim);font-size:20px">›</span>
+        </div>
+      </div>
+      <div class="cfg-card" style="padding:0;overflow:hidden">
+        <div class="cfg-mrow" onclick="openCfgSec('som')"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.7 1.7 0 0 0 3 0"/></svg><div style="flex:1">Som de nova corrida</div><span style="color:var(--fg-dim);font-size:20px">›</span></div>
+        <a class="cfg-mrow" href="https://wa.me/5511924810126?text=Oi%2C%20sou%20entregador%20do%20DROPE%20e%20preciso%20de%20ajuda%20%E2%9C%A6" target="_blank" style="text-decoration:none;color:var(--fg)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20.5l1.6-5.4A8.5 8.5 0 1 1 21 11.5Z"/></svg><div style="flex:1">Ajuda / falar no WhatsApp</div><span style="color:var(--fg-dim);font-size:20px">›</span></a>
+        <div class="cfg-mrow" onclick="sair()" style="color:var(--pink)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><div style="flex:1">Sair da conta</div></div>
       </div>
     </div>
-    <div class="cfg-card">
-      <a class="cfg-row first" href="https://wa.me/5511924810126?text=Oi%2C%20sou%20entregador%20do%20DROPE%20e%20preciso%20de%20ajuda%20%E2%9C%A6" target="_blank">Ajuda / falar no WhatsApp</a>
-      <div class="cfg-row" onclick="sair()" style="color:var(--pink)">Sair da conta</div>
+
+    <!-- SEÇÃO: MEUS DADOS -->
+    <div id="cfg-sec-dados" style="display:none">
+      <div style="text-align:center;margin-bottom:18px">
+        <div id="cfg-foto-prev" style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0 auto;background:var(--bg3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--fg-dim)"></div>
+        <div onclick="document.getElementById('cfg-foto-input').click()" style="margin-top:10px;color:var(--lime);font-weight:700;font-size:13px;cursor:pointer">Trocar foto ✦</div>
+        <input type="file" id="cfg-foto-input" accept="image/*" style="display:none" onchange="onEntPhotoPicked(event)">
+      </div>
+      <div class="cfg-card">
+        <div class="cfg-title">Dados pessoais</div>
+        <label class="cfg-lbl first">Nome</label>
+        <input class="cfg-in" id="cfg-nome" maxlength="60" placeholder="seu nome">
+        <label class="cfg-lbl">Telefone</label>
+        <input class="cfg-in" id="cfg-phone" disabled style="opacity:.6">
+        <label class="cfg-lbl">Email</label>
+        <input class="cfg-in" id="cfg-email" maxlength="80" inputmode="email" placeholder="seu@email.com">
+        <label class="cfg-lbl">Chave Pix (onde você recebe)</label>
+        <input class="cfg-in" id="cfg-pix" maxlength="140" placeholder="CPF, telefone, email ou aleatória">
+      </div>
+      <div class="cfg-card">
+        <div class="cfg-title">Veículo e documentos</div>
+        <label class="cfg-lbl first">Veículo</label>
+        <div id="cfg-veic" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <label class="cfg-lbl">Documento (CNH / RG)</label>
+        <input class="cfg-in" id="cfg-doc" maxlength="60" placeholder="número do documento">
+      </div>
+      <button class="btn pink" onclick="salvarEntDados(this)" style="margin:0">Salvar dados</button>
+    </div>
+
+    <!-- SEÇÃO: SOM -->
+    <div id="cfg-sec-som" style="display:none">
+      <div class="cfg-card">
+        <div class="cfg-title">Som de nova corrida</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13px;color:var(--fg-dim)">Aviso sonoro quando entra corrida</div>
+          <button class="btn sec" id="cfg-som-btn" onclick="_toggleEntSom()" style="flex:0 0 auto;width:auto;margin:0;padding:10px 14px;font-size:14px"></button>
+        </div>
+        <div style="font-size:12px;color:var(--fg-dim);margin-top:10px">Ding (toque) · Voz ("Corrida no Drope") · Mudo</div>
+      </div>
     </div>
   </div>
 </div>
@@ -540,6 +564,7 @@ function _updateGpsUI(){
 
 // ===== Configurações =====
 const VEICULOS=[['moto','Moto'],['bike','Bike'],['carro','Carro'],['pe','A pé']];
+let _cfgView='menu';
 function openEntConfig(){
   const e=ENT||{};
   _q('cfg-nome').value=e.nome||SESS&&SESS.nome||'';
@@ -549,15 +574,24 @@ function openEntConfig(){
   _q('cfg-doc').value=e.doc||'';
   _entVeic=e.veiculo||'';
   _entFoto=e.foto||'';
+  const mn=_q('cfg-menu-nome'); if(mn) mn.textContent=e.nome||(SESS&&SESS.nome)||'Meus dados';
   renderEntFoto();
   renderVeic();
   _renderEntSomBtn();
+  cfgShowMenu();
   _q('ent-config-ov').style.display='flex';
 }
+function cfgShowMenu(){ _cfgView='menu'; _q('cfg-menu').style.display='block'; _q('cfg-sec-dados').style.display='none'; _q('cfg-sec-som').style.display='none'; _q('cfg-title-h').textContent='Configurações'; try{ _q('ent-config-ov').scrollTop=0; }catch(e){} }
+function openCfgSec(name){ _cfgView=name; _q('cfg-menu').style.display='none'; _q('cfg-sec-dados').style.display=(name==='dados')?'block':'none'; _q('cfg-sec-som').style.display=(name==='som')?'block':'none'; _q('cfg-title-h').textContent=(name==='dados')?'Meus dados':'Som de nova corrida'; try{ _q('ent-config-ov').scrollTop=0; }catch(e){} }
+function cfgBack(){ if(_cfgView!=='menu') cfgShowMenu(); else closeEntConfig(); }
 function renderEntFoto(){
-  const el=_q('cfg-foto-prev'); if(!el) return;
-  if(_entFoto) el.innerHTML='<img src="'+_entFoto+'" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">';
-  else el.innerHTML='<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg>';
+  const svg='<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg>';
+  const svgSm='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg>';
+  const big=_q('cfg-foto-prev'), mini=_q('cfg-menu-foto');
+  const imgBig=_entFoto?('<img src="'+_entFoto+'" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">'):svg;
+  const imgMini=_entFoto?('<img src="'+_entFoto+'" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">'):svgSm;
+  if(big) big.innerHTML=imgBig;
+  if(mini) mini.innerHTML=imgMini;
 }
 function closeEntConfig(){ _q('ent-config-ov').style.display='none'; }
 function renderVeic(){
