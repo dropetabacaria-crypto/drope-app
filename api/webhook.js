@@ -7539,7 +7539,7 @@ async function handleFilialCorridaCreate(req, res) {
 const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
 async function _entregadorAuth(entregadorId, token) {
   if (!entregadorId || !token) return null;
-  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,ativo,online,session_hash&limit=1`);
+  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,doc,veiculo,ativo,online,session_hash&limit=1`);
   const ent = Array.isArray(rows) && rows[0];
   if (!ent || ent.ativo === false || !ent.session_hash) return null;
   if (_sha256hex(token) !== ent.session_hash) return null;
@@ -7644,7 +7644,7 @@ async function handleEntregadorCorridas(req, res) {
     (done || []).forEach(c => { const v = c.valor_motoboy_cents || 0; const at = c.delivered_at || ''; if (at >= startToday) { hoje += v; nHoje++; } if (at >= startWeek) { semana += v; nSemana++; } });
     const historico = (done || []).slice(0, 15).map(c => ({ loja: dfmap[c.filial_id] || 'Loja', valor_cents: c.valor_motoboy_cents, delivered_at: c.delivered_at }));
     const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, a_receber_cents: aReceber, historico };
-    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, online }, ganhos });
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, phone: ent.phone || '', pix_key: ent.pix_key || '', doc: ent.doc || '', veiculo: ent.veiculo || '', online }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // Código de entrega do cliente = MÊS/ANO de nascimento (ex: '06/1998'). Serve de código
@@ -7824,6 +7824,25 @@ async function handleEntregadorOnline(req, res) {
     await sbUpdate('drope_entregadores', `id=eq.${me.id}`, { online, online_at: new Date().toISOString() });
     return res.status(200).json({ ok: true, online });
   } catch (e) { console.error('[entregador_online] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=entregador_update { entregador, token, nome, phone, pix_key, doc, veiculo } → edita o cadastro.
+async function handleEntregadorUpdate(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const me = await _entregadorAuth(body.entregador, body.token);
+    if (!me) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const patch = {};
+    if (body.nome != null) { const n = String(body.nome).trim().slice(0, 60); if (n.length < 2) return res.status(400).json({ ok: false, error: 'nome muito curto' }); patch.nome = n; }
+    if (body.pix_key != null) patch.pix_key = String(body.pix_key).trim().slice(0, 140) || null;
+    if (body.doc != null) patch.doc = String(body.doc).trim().slice(0, 60) || null;
+    if (body.veiculo != null) patch.veiculo = String(body.veiculo).trim().slice(0, 30) || null;
+    if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: 'nada pra salvar' });
+    await sbUpdate('drope_entregadores', `id=eq.${me.id}`, patch);
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[entregador_update] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // POST action=filial_confirmar_retirada { filial, token, order_id | corrida_id }
 // A LOJA confirma a retirada do entregador → libera a ida ao cliente (em_rota + saiu pra entrega).
@@ -21821,6 +21840,9 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=entregador_online') >= 0) {
     return await handleEntregadorOnline(req, res);
+  }
+  if (req.url && req.url.indexOf('action=entregador_update') >= 0) {
+    return await handleEntregadorUpdate(req, res);
   }
   if (req.url && req.url.indexOf('action=filial_confirmar_retirada') >= 0) {
     return await handleFilialConfirmarRetirada(req, res);
