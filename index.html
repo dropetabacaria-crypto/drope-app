@@ -5387,6 +5387,8 @@
         <input id="creg-name" class="card-input" placeholder="Seu nome" maxlength="60" style="width:100%;font-size:16px;padding:15px">
         <input id="creg-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px;margin-top:10px">
         <input id="creg-email" class="card-input" type="email" inputmode="email" placeholder="E-mail" style="width:100%;font-size:16px;padding:15px;margin-top:10px">
+        <input id="creg-birth" class="card-input" type="text" inputmode="numeric" placeholder="Data de nascimento (dd/mm/aaaa)" maxlength="10" oninput="maskBirth(this)" style="width:100%;font-size:16px;padding:15px;margin-top:10px">
+        <div style="color:var(--text-dim);font-size:11px;margin-top:5px;padding:0 2px">Vira o código que você passa pro entregador na hora da entrega ✦</div>
         <div style="position:relative;margin-top:10px">
           <input id="creg-pass" class="card-input" type="password" placeholder="Crie uma senha (mín. 6)" style="width:100%;font-size:16px;padding:15px;padding-right:74px" onkeydown="if(event.key==='Enter')registerAccount()">
           <span onclick="togglePw('creg-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:600;user-select:none">mostrar</span>
@@ -9434,24 +9436,29 @@
   function showCreateAccount() {
     _cloginShow('clogin-step-create');
     const n = document.getElementById('creg-name'), p = document.getElementById('creg-phone'), e = document.getElementById('creg-email');
+    const b = document.getElementById('creg-birth');
     if (n && !n.value && profile.name) n.value = profile.name;
     if (e && !e.value && profile.email) e.value = profile.email;
+    if (b && !b.value && profile.birthdate) b.value = _fmtBirthBR(profile.birthdate);
     if (p && !p.value) { const src = ((document.getElementById('clogin-pw-phone') || {}).value) || ((document.getElementById('clogin-phone') || {}).value) || (profile.phone || ''); if (src) p.value = src; }
   }
   async function registerAccount() {
     const name = (document.getElementById('creg-name').value || '').trim();
     const phone = (document.getElementById('creg-phone').value || '').replace(/\D/g, '');
     const email = (document.getElementById('creg-email').value || '').trim();
+    const birthRaw = (document.getElementById('creg-birth').value || '').trim();
     const pass = document.getElementById('creg-pass').value || '';
     const msg = document.getElementById('clogin-msg-create');
     if (name.length < 2) { msg.textContent = 'Põe seu nome'; return; }
     if (phone.replace(/^55/, '').length < 10) { msg.textContent = 'Põe um número válido com DDD'; return; }
+    const pb = _parseBirthBR(birthRaw);
+    if (pb.err) { msg.textContent = pb.err.replace(' ✦', ''); return; }
     if (pass.length < 6) { msg.textContent = 'Crie uma senha de pelo menos 6 caracteres'; return; }
     const btn = document.getElementById('creg-btn'); btn.textContent = 'Criando...'; btn.disabled = true;
     try {
-      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, password: pass }) });
+      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass }) });
       const d = await r.json().catch(() => ({}));
-      if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; _applyCustomerLogin(d.token, phone, name); }
+      if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
       else { msg.textContent = d.error || 'Não deu pra criar a conta'; }
     } catch (e) { msg.textContent = 'Erro de rede'; }
@@ -9585,6 +9592,15 @@
     el.value = out;
   }
   function _fmtBirthBR(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (m[3] + '/' + m[2] + '/' + m[1]) : ''; }
+  // dd/mm/aaaa digitado → { iso:'YYYY-MM-DD' } ou { err:'motivo ✦' }. Exige 18+.
+  function _parseBirthBR(bRaw) {
+    const m = String(bRaw || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return { err: 'data de nascimento: use dd/mm/aaaa ✦' };
+    const dd = +m[1], mm = +m[2], yy = +m[3];
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > new Date().getFullYear()) return { err: 'data de nascimento inválida ✦' };
+    if (new Date().getFullYear() - yy < 18) return { err: 'só maiores de 18 ✦' };
+    return { iso: `${m[3]}-${m[2]}-${m[1]}` };
+  }
   function saveProfile() {
     const n = document.getElementById('pe-name').value.trim();
     const p = document.getElementById('pe-phone').value.trim();
@@ -9598,13 +9614,9 @@
     // Data de nascimento digitada (dd/mm/aaaa) → guarda como YYYY-MM-DD.
     let b = '';
     if (bRaw) {
-      const m = bRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (!m) { toast('data de nascimento: use dd/mm/aaaa ✦'); return; }
-      const dd = +m[1], mm = +m[2], yy = +m[3];
-      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > new Date().getFullYear()) { toast('data de nascimento inválida ✦'); return; }
-      const age = new Date().getFullYear() - yy;
-      if (age < 18) { toast('só maiores de 18 ✦'); return; }
-      b = `${m[3]}-${m[2]}-${m[1]}`;
+      const pb = _parseBirthBR(bRaw);
+      if (pb.err) { toast(pb.err); return; }
+      b = pb.iso;
     }
     profile = { ...profile, name: n, phone: p, email: e, birthdate: b, avatar: pickedAvatar };
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}

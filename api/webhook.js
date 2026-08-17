@@ -15179,9 +15179,11 @@ async function handleCustomerRegister(req, res) {
     const password = String(body.password || '');
     const name = String(body.name || '').trim().slice(0, 60);
     const email = String(body.email || '').trim().toLowerCase();
+    const birthdate = String(body.birthdate || '').trim();
     if (phone.length < 10 || phone.length > 11) return res.status(400).json({ ok: false, error: 'telefone inválido' });
     if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+    if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) return res.status(400).json({ ok: false, error: 'data de nascimento inválida' });
     const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id,pass_hash&limit=1`);
     const existing = rows && rows[0];
     if (existing && existing.pass_hash) return res.status(409).json({ ok: false, error: 'já existe uma conta com esse telefone — entre com sua senha' });
@@ -15192,6 +15194,7 @@ async function handleCustomerRegister(req, res) {
     const patch = { pass_salt: p.salt, pass_hash: p.hash, session_hash: th, sessions, session_exp: new Date(Date.now() + 60 * 86400000).toISOString(), last_seen_at: new Date().toISOString() };
     if (name) patch.name = name;
     if (email) patch.email = email;
+    if (birthdate) patch.birthdate = birthdate;
     if (existing) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
     else await sbInsert('drope_customers', { phone, source: 'app', created_at: new Date().toISOString(), ...patch });
     return res.status(200).json({ ok: true, token, customer: { name: name || '', phone } });
