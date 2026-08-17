@@ -293,7 +293,7 @@ function renderCorridas(list){
     let acts='';
     if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
     else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg></button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
-    else if(c.status==='em_rota') acts=`<button class="btn pink" onclick="act(${c.id},'entregue',this)">Entreguei <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></button>`;
+    else if(c.status==='em_rota') acts=`<button class="btn sec" style="flex:1 1 auto" onclick="act(${c.id},'chegando',this)">Tô chegando</button><button class="btn sec" style="flex:1 1 auto" onclick="act(${c.id},'chegou',this)">Cheguei</button><button class="btn pink" style="flex:1 1 100%" onclick="act(${c.id},'entregue',this)">Entreguei <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></button>`;
     return `<div class="card ${c.mine?'mine':''}">
       <div class="c-top"><span class="c-loja">${esc(c.loja)}</span><span class="c-valor">${fmtBRL(c.valor_cents)}</span></div>
       <div class="c-badges">${tipo}${st}</div>
@@ -318,13 +318,20 @@ function renderGanhos(){
 
 async function act(corridaId, action, btn){
   if(action==='cancelar' && !confirm('Devolver essa corrida?')) return;
-  if(btn){ btn.disabled=true; btn._old=btn.textContent; btn.textContent='...'; }
+  if(btn){ btn.disabled=true; btn._old=btn.innerHTML; btn.textContent='...'; }
+  let ok=false;
   try{
     const r=await fetch(API+'?action=entregador_corrida_action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,corrida_id:corridaId,action})});
     const d=await r.json().catch(()=>({}));
-    if(!(r.ok&&d.ok)) alert(d.error||'Não deu pra atualizar');
+    ok = r.ok && d.ok;
+    if(!ok) alert(d.error||'Não deu pra atualizar');
   }catch(e){ alert('Erro de rede'); }
-  if(btn){ btn.disabled=false; btn.textContent=btn._old||'ok'; }
+  // Avisos (chegando/chegou) não mudam a corrida: confirma no botão e não recarrega.
+  if(ok && (action==='chegando'||action==='chegou')){
+    if(btn){ btn.textContent='Cliente avisado ✓'; setTimeout(()=>{ btn.disabled=false; btn.innerHTML=btn._old||'ok'; }, 1800); }
+    return;
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML=btn._old||'ok'; }
   loadCorridas();
 }
 

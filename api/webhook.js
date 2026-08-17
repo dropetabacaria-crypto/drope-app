@@ -7656,6 +7656,24 @@ async function handleEntregadorCorridaAction(req, res) {
       if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Essa corrida já foi pega por outro entregador ✦' });
       return res.status(200).json({ ok: true, status: 'aceita' });
     }
+    // Rastreio do motoca (por botão): avisa o cliente sem mexer no status da corrida
+    // (continua 'em_rota', pra não quebrar as buscas por corrida ativa).
+    if (['chegando', 'chegou'].includes(action)) {
+      const rows = await sbGet('drope_corridas', `id=eq.${corridaId}&entregador_id=eq.${encodeURIComponent(me.id)}&status=eq.em_rota&select=id,order_id&limit=1`);
+      const corrida = Array.isArray(rows) && rows[0];
+      if (!corrida) return res.status(409).json({ ok: false, error: 'A corrida precisa estar em rota' });
+      try { await sbUpdate('drope_corridas', `id=eq.${corrida.id}`, { updated_at: nowIso }); } catch (e) {}
+      try {
+        const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot&limit=1`);
+        const o = Array.isArray(ords) && ords[0];
+        const phone = o && o.customer_snapshot && o.customer_snapshot.phone;
+        if (phone) {
+          if (action === 'chegando') _notify('customer', phone, 'motoca_chegando', 'O motoca tá chegando 🛵', `${me.nome} tá quase aí com seu pedido ✦`).catch(() => {});
+          else _notify('customer', phone, 'motoca_chegou', 'O motoca chegou! 🛵', `${me.nome} chegou com seu pedido ✦ corre lá!`).catch(() => {});
+        }
+      } catch (e) { console.warn('[entregador chegando/chegou]', e.message); }
+      return res.status(200).json({ ok: true, notified: action });
+    }
     if (['sai', 'entregue', 'cancelar'].includes(action)) {
       const fromStatuses = action === 'sai' ? 'aceita' : 'aceita,em_rota';
       const newStatus = action === 'sai' ? 'em_rota' : (action === 'entregue' ? 'entregue' : 'aberta');

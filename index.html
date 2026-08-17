@@ -9256,13 +9256,29 @@
 
   // ===== Avisos in-app do cliente =====
   let _appNotifs = [];
+  let _appNotifPrevIds = null; // null = 1ª carga (não toca som pros já existentes)
+  // Avisos que têm som próprio (voz do camaleão) e NÃO são status de pedido —
+  // o motoca chegando/chegou. (Os de status tocam via loadMyOrders.)
+  const _APPNOTIF_SOUND = { motoca_chegando: 'cli-motoca-chegando', motoca_chegou: 'cli-motoca-chegou' };
   async function loadAppNotifs() {
     try {
       if (typeof isGuest === 'function' && isGuest()) { _renderAppNotifBadge(0); return; }
       if (!profile.phone || !_custToken()) return;
       const r = await fetch(`/api/webhook?action=notifications&role=customer&phone=${encodeURIComponent(profile.phone)}&token=${encodeURIComponent(_custToken())}`, { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
-      if (d && d.ok) { _appNotifs = d.notifications || []; _renderAppNotifBadge(d.unread || 0); }
+      if (d && d.ok) {
+        _appNotifs = d.notifications || [];
+        // Toca o som do camaleão quando chega um aviso NOVO do motoca (app aberto).
+        try {
+          const ids = _appNotifs.map(n => String(n.id));
+          if (_appNotifPrevIds !== null) {
+            _appNotifs.filter(n => !_appNotifPrevIds.includes(String(n.id)))
+              .forEach(n => { const k = _APPNOTIF_SOUND[n.type]; if (k) _playPack(k); });
+          }
+          _appNotifPrevIds = ids;
+        } catch (e) {}
+        _renderAppNotifBadge(d.unread || 0);
+      }
     } catch (e) {}
   }
   function _renderAppNotifBadge(n) { const b = document.getElementById('app-notif-badge'); if (b) { if (n > 0) { b.textContent = n > 9 ? '9+' : n; b.style.display = 'flex'; } else b.style.display = 'none'; } _setAppBadge(n); }
