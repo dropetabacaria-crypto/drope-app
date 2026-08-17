@@ -173,7 +173,10 @@
   <!-- CORRIDAS -->
   <div id="corridas-screen" class="hidden">
     <div class="hdr-row">
-      <div class="hdr-name" id="ent-nome">—</div>
+      <div style="display:flex;align-items:center;gap:11px;min-width:0">
+        <div id="ent-header-foto" onclick="openEntConfig()" style="width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--fg-dim);flex:0 0 auto;cursor:pointer"></div>
+        <div class="hdr-name" id="ent-nome" style="min-width:0;overflow:hidden;text-overflow:ellipsis">—</div>
+      </div>
       <button onclick="openEntConfig()" title="Configurações" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--fg);cursor:pointer;flex:0 0 auto"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
     </div>
 
@@ -292,6 +295,7 @@ const API = '/api/webhook';
 const SK = 'drope_ent_session_v1';
 let SESS = null; let _ganhos = null; let ENT = null; let _prevAbertas = null; let _entVeic = ''; let _entFoto = '';
 try { SESS = JSON.parse(localStorage.getItem(SK) || 'null'); } catch(e) {}
+try { ENT = JSON.parse(localStorage.getItem('drope_ent_data') || 'null'); } catch(e) {}
 
 function _q(id){ return document.getElementById(id); }
 function _togglePw(id, btn){ const i=document.getElementById(id); if(!i) return; const show=i.type==='password'; i.type=show?'text':'password'; if(btn) btn.innerHTML=show?'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M10 5.7A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15 15 0 0 1-2.4 3.1M6.4 6.4A14.5 14.5 0 0 0 2.5 12S6 18.5 12 18.5a9.6 9.6 0 0 0 4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>':'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>'; }
@@ -350,10 +354,15 @@ async function doLogin(){
 }
 function sair(){ localStorage.removeItem(SK); SESS=null; location.reload(); }
 
+function renderEntHeader(){
+  const nm=(ENT&&ENT.nome)||(SESS&&SESS.nome)||'Entregador';
+  const el=_q('ent-nome'); if(el) el.textContent='Oi, '+String(nm).split(' ')[0]+' ✦';
+  const f=_q('ent-header-foto'); if(f){ const foto=ENT&&ENT.foto; f.innerHTML=foto?('<img src="'+foto+'" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">'):'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg>'; }
+}
 function showCorridas(){
   _q('auth-screen').classList.add('hidden');
   _q('corridas-screen').classList.remove('hidden');
-  _q('ent-nome').textContent='Oi, '+(SESS.nome||'Entregador')+' ✦';
+  renderEntHeader();
   loadCorridas();
 }
 
@@ -386,7 +395,7 @@ async function loadCorridas(){
     const d=await r.json().catch(()=>({}));
     _ganhos=d.ganhos||null;
     _lastCorridas=d.corridas||[];
-    if(d.entregador){ ENT=d.entregador; if(typeof d.entregador.online==='boolean'){ ONLINE=d.entregador.online; renderOnline(); } }
+    if(d.entregador){ ENT=d.entregador; try{ localStorage.setItem('drope_ent_data',JSON.stringify(ENT)); }catch(e){} try{ renderEntHeader(); }catch(e){} if(typeof d.entregador.online==='boolean'){ ONLINE=d.entregador.online; renderOnline(); } }
     // Som de corrida NOVA (aberta que não existia antes).
     try{
       const abertas=(_lastCorridas||[]).filter(c=>c.status==='aberta').map(c=>String(c.id));
@@ -609,7 +618,7 @@ async function salvarEntDados(btn){
   try{
     const r=await fetch(API+'?action=entregador_update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,nome,email,pix_key:pix,doc,veiculo:_entVeic,foto:_entFoto})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.ok){ if(ENT){ ENT.nome=nome; ENT.email=email; ENT.pix_key=pix; ENT.doc=doc; ENT.veiculo=_entVeic; ENT.foto=_entFoto; } _q('ent-nome').textContent='Oi, '+nome.split(' ')[0]+' ✦'; alert('Dados salvos ✦'); closeEntConfig(); }
+    if(r.ok&&d.ok){ if(ENT){ ENT.nome=nome; ENT.email=email; ENT.pix_key=pix; ENT.doc=doc; ENT.veiculo=_entVeic; ENT.foto=_entFoto; } else { ENT={nome,email,pix_key:pix,doc,veiculo:_entVeic,foto:_entFoto}; } try{ localStorage.setItem('drope_ent_data',JSON.stringify(ENT)); }catch(e){} renderEntHeader(); alert('Dados salvos ✦'); closeEntConfig(); }
     else alert(d.error||'Não deu pra salvar');
   }catch(e){ alert('Erro de rede'); }
   if(btn){ btn.disabled=false; btn.textContent='Salvar dados'; }
