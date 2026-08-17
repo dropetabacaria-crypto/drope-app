@@ -7608,13 +7608,14 @@ async function handleEntregadorCorridas(req, res) {
     const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
     const fmap = {}, omap = {};
     if (fids.length) { const fr = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name&limit=100`); (fr || []).forEach(f => { fmap[f.id] = f.name; }); }
-    if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
+    if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot,address&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
     const corridas = list.map(c => {
       const o = omap[c.order_id] || {};
       return {
         id: c.id, status: c.status, mine: c.entregador_id === me, avulso: !c.assigned_to,
         loja: fmap[c.filial_id] || 'Loja', order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
         distancia_km: c.distancia_km || null, created_at: c.posted_at || null,
+        cep: (o.address || {}).cep || null,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
