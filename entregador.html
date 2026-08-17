@@ -370,6 +370,9 @@ function renderCorridas(list){
 }
 
 // ===== Fluxo em etapas + rastreio por GPS (no app do entregador) =====
+// MODO TESTE: abra /entregador?test=1 uma vez pra liberar "Tô chegando"/"Cheguei" sem GPS.
+// (pra desligar: /entregador?test=0)
+const _TEST=(function(){ try{ if(/[?&]test=1/.test(location.search)) localStorage.setItem('drope_ent_test','1'); if(/[?&]test=0/.test(location.search)) localStorage.removeItem('drope_ent_test'); return localStorage.getItem('drope_ent_test')==='1'; }catch(e){ return false; } })();
 let _lastCorridas=[], _activePinCorrida=null, _gpsWatchId=null, _gpsPos=null, _gpsTick=null;
 const _cheguei={}, _chegandoDone={}, _destCache={}, _destFetching={}, _nearSince={}, _emRotaSince={};
 function _haversineKm(a,b){ const R=6371,toR=d=>d*Math.PI/180; const dLat=toR(b.lat-a.lat),dLng=toR(b.lng-a.lng); const s=Math.sin(dLat/2)**2+Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(s)); }
@@ -449,10 +452,10 @@ function _updateGpsUI(){
     const dest=_destCache[c.id];
     let dist=null; if(_gpsPos && dest) dist=_haversineKm(_gpsPos,dest);
     if(dist!=null && dist<0.5 && !_nearSince[c.id]) _nearSince[c.id]=Date.now();
-    if(line){ const sp=line.querySelector('span:last-child'); if(sp) sp.textContent = dist!=null ? ('Você está a ~'+_fmtDist(dist)+' do cliente (em linha reta)') : (_gpsPos?'Calculando distância…':'Ative a localização pra liberar as etapas'); }
-    if(bChe && !_chegandoDone[c.id]){ const en=(dist!=null && dist<1); bChe.disabled=!en; bChe.style.opacity=en?'1':'.45'; }
+    if(line){ const sp=line.querySelector('span:last-child'); if(sp) sp.textContent = _TEST ? 'Modo teste — etapas liberadas ✦' : (dist!=null ? ('Você está a ~'+_fmtDist(dist)+' do cliente (em linha reta)') : (_gpsPos?'Calculando distância…':'Ative a localização pra liberar as etapas')); }
+    if(bChe && !_chegandoDone[c.id]){ const en=_TEST || (dist!=null && dist<1); bChe.disabled=!en; bChe.style.opacity=en?'1':'.45'; }
     if(bChe && _chegandoDone[c.id]){ bChe.disabled=true; bChe.style.opacity='1'; bChe.textContent='Cliente avisado ✓'; }
-    if(bCheg){ const en=(dist!=null && dist<0.15); bCheg.disabled=!en; bCheg.style.opacity=en?'1':'.45'; }
+    if(bCheg){ const en=_TEST || (dist!=null && dist<0.15); bCheg.disabled=!en; bCheg.style.opacity=en?'1':'.45'; }
     const nearOk=_nearSince[c.id] && (Date.now()-_nearSince[c.id]>120000);
     const noGpsOk=!_gpsPos && _emRotaSince[c.id] && (Date.now()-_emRotaSince[c.id]>120000);
     if(bForce) bForce.style.display=((nearOk||noGpsOk) && bCheg && bCheg.disabled)?'block':'none';
