@@ -380,11 +380,13 @@ async function _postAction(corridaId, action, extra){
 // entrega" por trás e recarregamos (vira em_rota → começa o GPS). Guarda pra não repetir.
 let _saindo={};
 async function marcarSaiuPraEntrega(id){
+  const pin=(prompt('Código de RETIRADA — peça à loja os 4 dígitos pra confirmar que pegou o pedido:')||'').trim();
+  if(!pin) return;
   if(_saindo[id]) return; _saindo[id]=true;
-  const {ok,d}=await _postAction(id,'sai');
+  const {ok,d}=await _postAction(id,'sai',{pin_retirada:pin});
   _saindo[id]=false;
   if(ok){ loadCorridas(); }
-  else if(d && d.error && !/status mudou/i.test(d.error)){ /* se já saiu, ignora */ }
+  else { alert(d.error||'Não deu pra confirmar a retirada'); }
 }
 async function acChegando(id, btn){
   if(btn){ btn.disabled=true; btn.textContent='...'; }
@@ -420,6 +422,8 @@ function _startGps(){
 function _stopGps(){ if(_gpsWatchId!=null && navigator.geolocation) navigator.geolocation.clearWatch(_gpsWatchId); _gpsWatchId=null; if(_gpsTick){ clearInterval(_gpsTick); _gpsTick=null; } }
 async function _ensureDest(c){
   if(_destCache[c.id] || _destFetching[c.id]) return;
+  // Melhor fonte: coordenadas REAIS do cliente (GPS capturado no checkout). Sem geocode.
+  if(c.delivery_geo && c.delivery_geo.lat && c.delivery_geo.lng){ _destCache[c.id]={lat:c.delivery_geo.lat,lng:c.delivery_geo.lng}; _updateGpsUI(); return; }
   const q=(c.endereco||'').trim(); const cep=String(c.cep||'').replace(/\D/g,'');
   if(!q && cep.length!==8) return;
   _destFetching[c.id]=true;

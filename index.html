@@ -6651,7 +6651,7 @@
           subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
           delivery_mode: deliveryMode,
-          address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+          address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
           customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
           scheduled: _scheduledInfo(),
           ambassador_ref: getAmbassadorRef() || undefined,
@@ -6744,7 +6744,7 @@
             total: total + deliveryFeeReais,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
             scheduled: _scheduledInfo(),
           }),
@@ -6825,7 +6825,7 @@
             subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
             scheduled: _scheduledInfo(),
             ambassador_ref: getAmbassadorRef() || undefined,
@@ -6936,7 +6936,7 @@
         subtotal, total,
         delivery_fee_cents: Math.round(deliveryFeeReais * 100),
         items: cart.map(i => ({ ...i })),
-        address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+        address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
         mode: deliveryMode,
         payWhen: 'now',
         payMethod: payMethod,
@@ -11491,6 +11491,7 @@
   // estiver longe (>500m), pergunta se é pra entregar ali mesmo — evita o motoboy
   // ir pro lugar errado. Qualquer erro/negação de GPS NÃO bloqueia a compra.
   const _addrLocOk = new Set();
+  let _lastCheckoutGeo = null; // GPS real do cliente no checkout → vai no pedido pro entregador
   function _haversineKm(a, b) {
     const R = 6371, toR = d => d * Math.PI / 180;
     const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
@@ -11510,12 +11511,14 @@
   async function _confirmDeliveryLocation(addr) {
     try {
       if (!addr) return true;
-      const cep = String(addr.cep || '').replace(/\D/g, '');
-      if (cep.length !== 8) return true;                 // sem CEP não dá pra geocodificar
-      if (_addrLocOk.has(addr.id)) return true;          // já confirmado nesta sessão
       const gps = await _getGeoOnce();
+      if (gps) _lastCheckoutGeo = { lat: gps.lat, lng: gps.lng }; // coords reais → vão no pedido (entregador usa direto)
       if (!gps) return true;                             // sem permissão/GPS → não bloqueia
-      const r = await fetch('/api/webhook?action=cep_geo&cep=' + cep, { cache: 'no-store' });
+      if (_addrLocOk.has(addr.id)) return true;          // já confirmado nesta sessão
+      const cep = String(addr.cep || '').replace(/\D/g, '');
+      const q = `${addr.street || ''}${addr.num ? (', ' + addr.num) : ''}${addr.neigh ? (' - ' + addr.neigh) : ''}${addr.city ? (', ' + addr.city) : ''}`.trim();
+      if (cep.length !== 8 && !q) return true;
+      const r = await fetch('/api/webhook?action=cep_geo&q=' + encodeURIComponent(q) + '&cep=' + cep, { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
       if (!(d && d.ok && d.lat && d.lng)) return true;   // não geocodificou → não bloqueia
       const km = _haversineKm(gps, { lat: d.lat, lng: d.lng });
@@ -13877,7 +13880,7 @@
             total: Math.max(0, subtotal - discount) + deliveryFeeReais,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr } : null,
+            address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
             customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
             scheduled: _scheduledInfo(),
           }),

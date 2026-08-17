@@ -4672,6 +4672,8 @@ async function handleFilialPainel(req, res) {
         delivered_at: o.delivered_at || o.picked_up_at,
         scheduled: !!(o.metadata && o.metadata.scheduled),
         scheduled_opens_text: (o.metadata && o.metadata.scheduled_opens_text) || null,
+        pickup_pin: (o.metadata && o.metadata.pickup_pin) || null,
+        delivery_pin: (o.metadata && o.metadata.delivery_pin) || null,
       };
     });
 
@@ -7608,7 +7610,7 @@ async function handleEntregadorCorridas(req, res) {
     const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
     const fmap = {}, omap = {};
     if (fids.length) { const fr = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name,metadata&limit=100`); (fr || []).forEach(f => { const e = (f.metadata || {}).endereco || {}; const g = (f.metadata || {}).geo || {}; fmap[f.id] = { name: f.name, endereco: [e.address, e.city, e.cep].filter(Boolean).join(', ') || null, lat: g.lat || null, lng: g.lng || null }; }); }
-    if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot,address&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
+    if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot,address,metadata&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
     const corridas = list.map(c => {
       const o = omap[c.order_id] || {};
       const lj = fmap[c.filial_id] || {};
@@ -7618,6 +7620,7 @@ async function handleEntregadorCorridas(req, res) {
         order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
         distancia_km: c.distancia_km || null, created_at: c.posted_at || null,
         cep: (o.address || {}).cep || null,
+        delivery_geo: (o.metadata || {}).delivery_geo || (o.address || {}).geo || null,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
@@ -7664,6 +7667,17 @@ async function handleEntregadorCorridaAction(req, res) {
       });
       const upd = await r.json();
       if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Essa corrida já foi pega por outro entregador ✦' });
+      const corrida = upd[0];
+      // Avisa a LOJA que o entregador vai retirar + garante o código de retirada.
+      try {
+        if (corrida.filial_id && corrida.order_id) {
+          const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,metadata&limit=1`);
+          const o = (Array.isArray(ords) && ords[0]) || {};
+          const md = o.metadata || {};
+          if (!md.pickup_pin) { md.pickup_pin = String(Math.floor(1000 + Math.random() * 9000)); await sbUpdate('drope_orders', `id=eq.${corrida.order_id}`, { metadata: md }); }
+          _notify('filial', corrida.filial_id, 'entregador_coleta', 'Entregador a caminho 🛵', `${me.nome} vai retirar o pedido ${o.order_nsu ? ('#' + o.order_nsu) : ''} ✦ código de retirada: ${md.pickup_pin}`).catch(() => {});
+        }
+      } catch (e) { console.warn('[accept notify]', e.message); }
       return res.status(200).json({ ok: true, status: 'aceita' });
     }
     // Recusar: some com a corrida SÓ pra esse entregador (guarda o id em declined).
@@ -7693,6 +7707,18 @@ async function handleEntregadorCorridaAction(req, res) {
         }
       } catch (e) { console.warn('[entregador chegando/chegou]', e.message); }
       return res.status(200).json({ ok: true, notified: action });
+    }
+    // Retirada na loja por CÓDIGO: valida ANTES de marcar "saí pra entrega".
+    if (action === 'sai') {
+      const crows = await sbGet('drope_corridas', `id=eq.${corridaId}&entregador_id=eq.${encodeURIComponent(me.id)}&status=eq.aceita&select=order_id&limit=1`);
+      const cc = Array.isArray(crows) && crows[0];
+      if (cc) {
+        const o0 = await sbGet('drope_orders', `id=eq.${cc.order_id}&select=metadata&limit=1`);
+        const ppin = o0 && o0[0] && (o0[0].metadata || {}).pickup_pin;
+        if (ppin && String(body.pin_retirada || '').trim() !== String(ppin)) {
+          return res.status(409).json({ ok: false, error: 'Código de retirada incorreto ✦' });
+        }
+      }
     }
     // Confirmação de entrega por CÓDIGO (PIN): valida ANTES de marcar entregue.
     if (action === 'entregue') {
