@@ -557,7 +557,15 @@ function _unlockEntAudio(){ try{ if(!_entActx){ const AC=window.AudioContext||wi
 document.addEventListener('touchend',_unlockEntAudio,{passive:true});
 document.addEventListener('click',_unlockEntAudio,{passive:true});
 function _playEntChime(){ try{ _unlockEntAudio(); if(!_entActx) return; const ctx=_entActx, now=ctx.currentTime; [880,1318.5].forEach((f,i)=>{ const o=ctx.createOscillator(),g=ctx.createGain(); o.type='sine'; o.frequency.value=f; const t=now+i*0.16; g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.3,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.42); }); }catch(e){} }
-function _speakCorrida(){ try{ if(!('speechSynthesis' in window)){ _playEntChime(); return; } const u=new SpeechSynthesisUtterance('Corrida no Drope'); u.lang='pt-BR'; u.rate=1; try{ const vs=speechSynthesis.getVoices(); const pt=vs.find(v=>/pt[-_]br/i.test(v.lang))||vs.find(v=>/pt/i.test(v.lang)); if(pt) u.voice=pt; }catch(e){} speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){ _playEntChime(); } }
+// Voz custom do entregador: /sounds/corrida-drope/*.mp3 (sorteia). Fallback: TTS.
+let _entManifest=null, _entManifestLoaded=false;
+function _loadEntManifest(){ if(_entManifestLoaded) return; _entManifestLoaded=true; fetch('/sounds/manifest.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{ _entManifest=j||{}; }).catch(()=>{ _entManifest={}; }); }
+_loadEntManifest();
+function _playPackEnt(key){ try{ const list=_entManifest&&_entManifest[key]; if(!list||!list.length) return false; const url=list[Math.floor(Math.random()*list.length)]; if(_entActx&&_entAudioReady){ fetch(url).then(r=>r.arrayBuffer()).then(a=>new Promise((res,rej)=>_entActx.decodeAudioData(a,res,rej))).then(buf=>{ const s=_entActx.createBufferSource(); s.buffer=buf; s.connect(_entActx.destination); s.start(0); }).catch(()=>{ try{ new Audio(url).play().catch(()=>{}); }catch(e){} }); } else { try{ new Audio(url).play().catch(()=>{}); }catch(e){} } return true; }catch(e){ return false; } }
+function _speakCorrida(){
+  if(_playPackEnt('corrida-drope')) return; // voz gravada (sorteia variação)
+  try{ if(!('speechSynthesis' in window)){ _playEntChime(); return; } const u=new SpeechSynthesisUtterance('Corrida no Drope'); u.lang='pt-BR'; u.rate=1; try{ const vs=speechSynthesis.getVoices(); const pt=vs.find(v=>/pt[-_]br/i.test(v.lang))||vs.find(v=>/pt/i.test(v.lang)); if(pt) u.voice=pt; }catch(e){} speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){ _playEntChime(); }
+}
 function _playCorridaSound(){ const m=_entSomModo(); if(m==='off') return; if(m==='voz') _speakCorrida(); else _playEntChime(); }
 
 function renderGanhos(){
