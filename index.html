@@ -6945,8 +6945,10 @@
       const deliveryFeeReais = deliveryFee();
       const total = Math.max(0, subtotal - discount) + deliveryFeeReais;
       const addr = getSelectedAddress();
-      const maxOrder = orders.reduce((m, o) => Math.max(m, o.num || 0), orderCounter || 0);
-      orderNum = maxOrder + 1; orderCounter = orderNum;
+      // Número = baseado no nsu (mesmo do backend) → o pedido local FUNDE com o do
+      // servidor (nada de duplicado). Sem nsu, cai num contador numérico seguro.
+      if (nsu) { orderNum = String(nsu).replace(/^dr-/, ''); }
+      else { const maxOrder = orders.reduce((m, o) => { const n = Number(o.num); return Math.max(m, isFinite(n) ? n : 0); }, orderCounter || 0); orderNum = maxOrder + 1; orderCounter = orderNum; }
       orders.unshift({
         num: orderNum,
         nsu: nsu || null,
@@ -12892,7 +12894,8 @@
           const byNum = new Map();
           (orders || []).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
           d.orders.map(_mapBackendOrder).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
-          orders = Array.from(byNum.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          // Remove pedidos-fantasma com número NaN (bug antigo de contador local).
+          orders = Array.from(byNum.values()).filter(o => !(typeof o.num === 'number' && Number.isNaN(o.num))).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           // Toca o som SÓ quando um pedido JÁ conhecido mudou de status (evita barulho
           // em massa ao abrir o app). Um evento por atualização.
           try {
