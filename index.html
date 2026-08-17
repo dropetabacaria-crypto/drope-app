@@ -12623,13 +12623,31 @@
     fetch('/sounds/manifest.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
       .then(j => { _soundManifest = j || {}; }).catch(() => { _soundManifest = {}; });
   }
+  // iOS bloqueia áudio automático sem um toque do usuário. Truque: no 1º gesto,
+  // "abençoa" um <audio> reutilizável (toca mudo e pausa) — depois dá pra tocar
+  // os sons via timer sem gesto, reusando ESSE elemento.
+  let _voiceEl = null, _audioUnlocked = false;
+  function _unlockClientAudio() {
+    if (_audioUnlocked) return;
+    try {
+      if (!_voiceEl) _voiceEl = new Audio();
+      const any = _soundManifest && Object.values(_soundManifest)[0] && Object.values(_soundManifest)[0][0];
+      if (!any) return; // manifest ainda não carregou — tenta no próximo gesto
+      _voiceEl.src = any; _voiceEl.muted = true;
+      const p = _voiceEl.play();
+      if (p && p.then) p.then(() => { try { _voiceEl.pause(); _voiceEl.currentTime = 0; } catch (e) {} _voiceEl.muted = false; _audioUnlocked = true; }).catch(() => {});
+    } catch (e) {}
+  }
+  document.addEventListener('touchend', _unlockClientAudio, { passive: true });
+  document.addEventListener('click', _unlockClientAudio, { passive: true });
   function _playPack(key) {
     try {
       if (document.hidden) return false;                 // só toca com o app à frente
       const list = _soundManifest && _soundManifest[key];
       if (!list || !list.length) return false;
       const url = list[Math.floor(Math.random() * list.length)];
-      const a = new Audio(url); a.play().catch(() => {});
+      if (_voiceEl && _audioUnlocked) { _voiceEl.muted = false; _voiceEl.src = url; _voiceEl.currentTime = 0; _voiceEl.play().catch(() => {}); }
+      else { const a = new Audio(url); a.play().catch(() => {}); } // fallback (Android/desktop)
       return true;
     } catch (e) { return false; }
   }
