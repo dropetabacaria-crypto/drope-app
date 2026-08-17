@@ -12663,6 +12663,16 @@
   // atualizar" nativo quando o app está na Tela de Início. Recria o gesto — puxa
   // pra baixo no topo da página e solta pra recarregar (o app volta na mesma tela
   // via LAST_SCREEN_KEY). Só liga no modo standalone (no navegador o nativo já faz).
+  // Refresh SUAVE: re-roda os dados da tela atual, sem recarregar a página (sem
+  // splash/tela de carregamento). renderInicio/loadMyOrders etc. buscam fresh.
+  function _softRefresh(){
+    try {
+      var cur = (document.querySelector('.screen.active') || {}).id || 'inicio';
+      try { go(cur); } catch (e) {}
+      try { loadAppNotifs(); } catch (e) {}
+      try { loadMyOrders(); } catch (e) {}
+    } catch (e) {}
+  }
   (function(){
     var standalone = false;
     try { standalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
@@ -12676,8 +12686,12 @@
       if (dist > 0 && (window.scrollY||0) <= 0){ ensureInd(); ind.style.transition = 'none'; ind.style.height = Math.min(dist * 0.5, 80) + 'px'; ind.textContent = dist > TH ? 'Solte pra atualizar ✦' : 'Puxe pra atualizar'; }
     }, { passive: true });
     document.addEventListener('touchend', function(){ if (!pulling) return; pulling = false;
-      if (ind){ ind.style.transition = 'height .2s'; ind.style.height = '0px'; }
-      if (dist > TH){ try { location.reload(); } catch (e) {} } dist = 0;
+      if (dist > TH){
+        if (ind){ ind.style.transition = 'height .2s'; ind.style.height = '34px'; ind.textContent = 'Atualizando ✦'; }
+        _softRefresh();
+        setTimeout(function(){ if (ind) ind.style.height = '0px'; }, 800);
+      } else if (ind){ ind.style.transition = 'height .2s'; ind.style.height = '0px'; }
+      dist = 0;
     }, { passive: true });
   })();
   // Status normalizado do backend -> evento de som. (preparing usa a fala de "aceito";
