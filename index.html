@@ -5412,7 +5412,7 @@
         <input class="card-input" type="email" id="pe-email" placeholder="seu@email.com" maxlength="80" inputmode="email">
 
         <label class="card-lbl">data de nascimento</label>
-        <input class="card-input" type="date" id="pe-birth" max="2007-12-31">
+        <input class="card-input" type="text" id="pe-birth" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskBirth(this)">
         <div style="font-size:11.5px;color:var(--text-dim);margin-top:5px">O mês e o ano são o seu <b>código de entrega</b> — o entregador confere na hora ✦ (só 18+)</div>
       </div>
 
@@ -9559,17 +9559,36 @@
     if (PREVIEW_MODE) return; // preview não grava a conta pessoal no aparelho
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}
   }
+  // Máscara de digitação da data (dd/mm/aaaa) + formatação YYYY-MM-DD → dd/mm/aaaa.
+  function maskBirth(el) {
+    const d = el.value.replace(/\D/g, '').slice(0, 8);
+    let out = d.slice(0, 2);
+    if (d.length >= 3) out += '/' + d.slice(2, 4);
+    if (d.length >= 5) out += '/' + d.slice(4, 8);
+    el.value = out;
+  }
+  function _fmtBirthBR(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (m[3] + '/' + m[2] + '/' + m[1]) : ''; }
   function saveProfile() {
     const n = document.getElementById('pe-name').value.trim();
     const p = document.getElementById('pe-phone').value.trim();
     const eEl = document.getElementById('pe-email');
     const e = eEl ? eEl.value.trim() : (profile.email || '');
     const bEl = document.getElementById('pe-birth');
-    const b = bEl ? bEl.value.trim() : (profile.birthdate || '');
+    const bRaw = bEl ? bEl.value.trim() : '';
     if (!n) { toast('põe seu nome ✦'); return; }
     if (!p) { toast('põe seu whats ✦'); return; }
     if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { toast('email inválido ✦'); return; }
-    if (b) { const y = parseInt(b.slice(0, 4), 10); const age = new Date().getFullYear() - y; if (age < 18) { toast('só maiores de 18 ✦'); return; } }
+    // Data de nascimento digitada (dd/mm/aaaa) → guarda como YYYY-MM-DD.
+    let b = '';
+    if (bRaw) {
+      const m = bRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) { toast('data de nascimento: use dd/mm/aaaa ✦'); return; }
+      const dd = +m[1], mm = +m[2], yy = +m[3];
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > new Date().getFullYear()) { toast('data de nascimento inválida ✦'); return; }
+      const age = new Date().getFullYear() - yy;
+      if (age < 18) { toast('só maiores de 18 ✦'); return; }
+      b = `${m[3]}-${m[2]}-${m[1]}`;
+    }
     profile = { ...profile, name: n, phone: p, email: e, birthdate: b, avatar: pickedAvatar };
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e) {}
     document.getElementById('prof-name').textContent = profile.name;
@@ -9646,7 +9665,7 @@
     if (ni) ni.value = profile.name || '';
     if (pi) pi.value = profile.phone || '';
     if (ei) ei.value = profile.email || '';
-    const bi = document.getElementById('pe-birth'); if (bi) bi.value = profile.birthdate || '';
+    const bi = document.getElementById('pe-birth'); if (bi) bi.value = _fmtBirthBR(profile.birthdate);
     pickedAvatar = profile.avatar || BRAND_AVATAR;
     renderProfileAvatarPicker();
   }
