@@ -7537,12 +7537,21 @@ async function handleFilialCorridaCreate(req, res) {
 
 // ===== Entregadores (cadastro GLOBAL no app — modelo iFood) =====
 const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
+// Multi-sessão: aceita o token se bater com o session_hash OU com qualquer hash
+// da lista sessions (até ~6 aparelhos). Logar num aparelho não derruba os outros.
+function _entSessionOk(ent, token) {
+  if (!ent || !token) return false;
+  const th = _sha256hex(token);
+  if (ent.session_hash && th === ent.session_hash) return true;
+  const arr = Array.isArray(ent.sessions) ? ent.sessions : [];
+  return arr.some(s => s && s.h === th);
+}
 async function _entregadorAuth(entregadorId, token) {
   if (!entregadorId || !token) return null;
-  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,doc,veiculo,foto,email,ativo,online,session_hash&limit=1`);
+  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,doc,veiculo,foto,email,ativo,online,session_hash,sessions&limit=1`);
   const ent = Array.isArray(rows) && rows[0];
-  if (!ent || ent.ativo === false || !ent.session_hash) return null;
-  if (_sha256hex(token) !== ent.session_hash) return null;
+  if (!ent || ent.ativo === false) return null;
+  if (!_entSessionOk(ent, token)) return null;
   return ent;
 }
 // POST action=entregador_signup { nome, phone, password, pix_key, doc } → cria conta global
@@ -7565,7 +7574,8 @@ async function handleEntregadorSignup(req, res) {
     const pass = _ljHashPassword(password);
     const token = crypto.randomBytes(24).toString('hex');
     const id = 'ent-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000);
-    const ins = await sbInsert('drope_entregadores', { id, nome, phone, pix_key: pix_key || null, doc: doc || null, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _sha256hex(token), session_at: new Date().toISOString(), ativo: true });
+    const _th = _sha256hex(token), _now = new Date().toISOString();
+    const ins = await sbInsert('drope_entregadores', { id, nome, phone, pix_key: pix_key || null, doc: doc || null, pass_salt: pass.salt, pass_hash: pass.hash, session_hash: _th, sessions: [{ h: _th, at: _now }], session_at: _now, ativo: true });
     if (!ins) return res.status(502).json({ ok: false, error: 'falha ao cadastrar' });
     return res.status(200).json({ ok: true, token, entregador: { id, nome } });
   } catch (e) { console.error('[entregador_signup] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
@@ -7580,13 +7590,15 @@ async function handleEntregadorLogin(req, res) {
     const phone = _entNormPhone(body.phone);
     const password = String(body.password || '');
     if (phone.length < 10 || !password) return res.status(400).json({ ok: false, error: 'informe telefone e senha' });
-    const rows = await sbGet('drope_entregadores', `phone=eq.${encodeURIComponent(phone)}&select=id,nome,ativo,pass_salt,pass_hash&limit=1`);
+    const rows = await sbGet('drope_entregadores', `phone=eq.${encodeURIComponent(phone)}&select=id,nome,ativo,pass_salt,pass_hash,sessions&limit=1`);
     const ent = Array.isArray(rows) && rows[0];
     if (!ent || ent.ativo === false || !_ljVerifyPassword(password, ent.pass_salt, ent.pass_hash)) {
       await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'telefone ou senha incorretos' });
     }
-    const token = crypto.randomBytes(24).toString('hex');
-    await sbUpdate('drope_entregadores', `id=eq.${ent.id}`, { session_hash: _sha256hex(token), session_at: new Date().toISOString() });
+    // MULTI-SESSÃO: acrescenta na lista (até ~6 aparelhos), não derruba os outros.
+    const token = crypto.randomBytes(24).toString('hex'), th = _sha256hex(token), nowIso = new Date().toISOString();
+    const sessions = (Array.isArray(ent.sessions) ? ent.sessions : []).filter(s => s && s.h && s.h !== th).concat([{ h: th, at: nowIso }]).slice(-6);
+    await sbUpdate('drope_entregadores', `id=eq.${ent.id}`, { session_hash: th, sessions, session_at: nowIso });
     return res.status(200).json({ ok: true, token, entregador: { id: ent.id, nome: ent.nome } });
   } catch (e) { console.error('[entregador_login] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
