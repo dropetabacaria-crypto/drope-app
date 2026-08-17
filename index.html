@@ -12623,35 +12623,63 @@
     fetch('/sounds/manifest.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
       .then(j => { _soundManifest = j || {}; }).catch(() => { _soundManifest = {}; });
   }
-  // iOS bloqueia áudio automático sem um toque do usuário. Truque: no 1º gesto,
-  // "abençoa" um <audio> reutilizável (toca mudo e pausa) — depois dá pra tocar
-  // os sons via timer sem gesto, reusando ESSE elemento.
-  let _voiceEl = null, _audioUnlocked = false;
+  // iOS só toca áudio depois de um toque do usuário. A forma que REALMENTE funciona
+  // no iPhone é a Web Audio API: destrava o AudioContext num gesto (toca um buffer
+  // mudo) e depois dá pra disparar sons por timer, sem gesto. Decodifica os MP3 em
+  // buffer (cache) e toca via BufferSource.
+  let _actx = null, _audioReady = false; const _bufCache = {};
   function _unlockClientAudio() {
-    if (_audioUnlocked) return;
     try {
-      if (!_voiceEl) _voiceEl = new Audio();
-      const any = _soundManifest && Object.values(_soundManifest)[0] && Object.values(_soundManifest)[0][0];
-      if (!any) return; // manifest ainda não carregou — tenta no próximo gesto
-      _voiceEl.src = any; _voiceEl.muted = true;
-      const p = _voiceEl.play();
-      if (p && p.then) p.then(() => { try { _voiceEl.pause(); _voiceEl.currentTime = 0; } catch (e) {} _voiceEl.muted = false; _audioUnlocked = true; }).catch(() => {});
+      if (!_actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; _actx = new AC(); }
+      if (_actx.state === 'suspended') _actx.resume();
+      const b = _actx.createBuffer(1, 1, 22050), s = _actx.createBufferSource(); s.buffer = b; s.connect(_actx.destination); s.start(0);
+      _audioReady = true;
     } catch (e) {}
   }
   document.addEventListener('touchend', _unlockClientAudio, { passive: true });
   document.addEventListener('click', _unlockClientAudio, { passive: true });
+  function _decodeAudio(url) {
+    if (_bufCache[url]) return Promise.resolve(_bufCache[url]);
+    return fetch(url).then(r => r.arrayBuffer()).then(arr => new Promise((res, rej) => {
+      _actx.decodeAudioData(arr, (buf) => { _bufCache[url] = buf; res(buf); }, rej);
+    }));
+  }
   function _playPack(key) {
     try {
       if (document.hidden) return false;                 // só toca com o app à frente
       const list = _soundManifest && _soundManifest[key];
       if (!list || !list.length) return false;
       const url = list[Math.floor(Math.random() * list.length)];
-      if (_voiceEl && _audioUnlocked) { _voiceEl.muted = false; _voiceEl.src = url; _voiceEl.currentTime = 0; _voiceEl.play().catch(() => {}); }
-      else { const a = new Audio(url); a.play().catch(() => {}); } // fallback (Android/desktop)
+      if (_actx && _audioReady) {
+        if (_actx.state === 'suspended') _actx.resume();
+        _decodeAudio(url).then(buf => { const s = _actx.createBufferSource(); s.buffer = buf; s.connect(_actx.destination); s.start(0); })
+          .catch(() => { try { new Audio(url).play().catch(() => {}); } catch (e) {} });
+      } else { try { new Audio(url).play().catch(() => {}); } catch (e) {} } // fallback (Android/desktop)
       return true;
     } catch (e) { return false; }
   }
   try { _loadSoundManifest(); } catch (e) {}
+  // Pull-to-refresh no app instalado (standalone): o Safari não tem o "puxar pra
+  // atualizar" nativo quando o app está na Tela de Início. Recria o gesto — puxa
+  // pra baixo no topo da página e solta pra recarregar (o app volta na mesma tela
+  // via LAST_SCREEN_KEY). Só liga no modo standalone (no navegador o nativo já faz).
+  (function(){
+    var standalone = false;
+    try { standalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
+    if (!standalone) return;
+    var startY = 0, dist = 0, pulling = false, TH = 72, ind = null;
+    function ensureInd(){ if (ind) return; ind = document.createElement('div'); ind.id = 'ptr-ind';
+      ind.style.cssText = 'position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;z-index:9998;color:var(--lime,#C6FF00);font:700 13px/1 "Space Grotesk",sans-serif;pointer-events:none';
+      document.body.appendChild(ind); }
+    document.addEventListener('touchstart', function(e){ if ((window.scrollY||0) <= 0){ startY = e.touches[0].clientY; pulling = true; dist = 0; } else pulling = false; }, { passive: true });
+    document.addEventListener('touchmove', function(e){ if (!pulling) return; dist = e.touches[0].clientY - startY;
+      if (dist > 0 && (window.scrollY||0) <= 0){ ensureInd(); ind.style.transition = 'none'; ind.style.height = Math.min(dist * 0.5, 80) + 'px'; ind.textContent = dist > TH ? 'Solte pra atualizar ✦' : 'Puxe pra atualizar'; }
+    }, { passive: true });
+    document.addEventListener('touchend', function(){ if (!pulling) return; pulling = false;
+      if (ind){ ind.style.transition = 'height .2s'; ind.style.height = '0px'; }
+      if (dist > TH){ try { location.reload(); } catch (e) {} } dist = 0;
+    }, { passive: true });
+  })();
   // Status normalizado do backend -> evento de som. (preparing usa a fala de "aceito";
   // se depois entrar áudio em cli-preparo, é só trocar aqui.)
   const _ORDER_SOUND = {
