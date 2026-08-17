@@ -331,7 +331,11 @@ function renderCorridas(list){
       ${c.status==='aberta'&&(c.distancia_km||c.created_at)?`<div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg></span><span>${c.distancia_km?('~'+c.distancia_km+' km'):''}${c.distancia_km&&c.created_at?' · ':''}${c.created_at?('aberta '+fmtAgo(c.created_at)):''}</span></div>`:''}
       ${c.itens?`<div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span>${esc(c.itens)}</span></div>`:''}
       <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg></span><span><b>${esc(c.endereco||'Sem endereço')}</b></span></div>
-      <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg></span><span>${esc(c.cliente_nome||'Cliente')} ${maps}${zap}</span></div>
+      <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg></span><span>${esc(c.cliente_nome||'Cliente')} ${zap}</span></div>
+      ${(c.status==='aceita'||c.status==='em_rota')&&c.endereco?`<div class="c-acts" style="margin-bottom:8px">
+        <a class="btn sec" style="flex:1 1 auto;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.endereco)}" target="_blank"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Google Maps</a>
+        <a class="btn sec" style="flex:1 1 auto;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://waze.com/ul?q=${encodeURIComponent(c.endereco)}&navigate=yes" target="_blank"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze</a>
+      </div>`:''}
       <div class="c-acts">${acts}</div>
     </div>`;
   }).join('');
@@ -349,10 +353,15 @@ function renderGanhos(){
 
 async function act(corridaId, action, btn){
   if(action==='cancelar' && !confirm('Devolver essa corrida?')) return;
+  let pin='';
+  if(action==='entregue'){
+    pin=(prompt('Código de entrega — peça os 4 dígitos ao cliente:')||'').trim();
+    if(!pin) return; // cancelou
+  }
   if(btn){ btn.disabled=true; btn._old=btn.innerHTML; btn.textContent='...'; }
   let ok=false;
   try{
-    const r=await fetch(API+'?action=entregador_corrida_action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,corrida_id:corridaId,action})});
+    const r=await fetch(API+'?action=entregador_corrida_action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,corrida_id:corridaId,action,pin})});
     const d=await r.json().catch(()=>({}));
     ok = r.ok && d.ok;
     if(!ok) alert(d.error||'Não deu pra atualizar');

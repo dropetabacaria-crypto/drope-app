@@ -7691,6 +7691,18 @@ async function handleEntregadorCorridaAction(req, res) {
       } catch (e) { console.warn('[entregador chegando/chegou]', e.message); }
       return res.status(200).json({ ok: true, notified: action });
     }
+    // Confirmação de entrega por CÓDIGO (PIN): valida ANTES de marcar entregue.
+    if (action === 'entregue') {
+      const crows = await sbGet('drope_corridas', `id=eq.${corridaId}&entregador_id=eq.${encodeURIComponent(me.id)}&status=in.(aceita,em_rota)&select=order_id&limit=1`);
+      const cc = Array.isArray(crows) && crows[0];
+      if (cc) {
+        const ords0 = await sbGet('drope_orders', `id=eq.${cc.order_id}&select=metadata&limit=1`);
+        const pin = ords0 && ords0[0] && (ords0[0].metadata || {}).delivery_pin;
+        if (pin && String(body.pin || '').trim() !== String(pin)) {
+          return res.status(409).json({ ok: false, error: 'Código de entrega incorreto ✦' });
+        }
+      }
+    }
     if (['sai', 'entregue', 'cancelar'].includes(action)) {
       const fromStatuses = action === 'sai' ? 'aceita' : 'aceita,em_rota';
       const newStatus = action === 'sai' ? 'em_rota' : (action === 'entregue' ? 'entregue' : 'aberta');
@@ -7705,13 +7717,20 @@ async function handleEntregadorCorridaAction(req, res) {
       const corrida = upd[0];
       try {
         if (action === 'sai' || action === 'entregue') {
+          const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot,delivery_mode,metadata&limit=1`);
+          const o = (Array.isArray(ords) && ords[0]) || {};
           const oStatus = action === 'sai' ? 'dispatched' : 'delivered';
           const oPatch = { status: oStatus, updated_at: nowIso };
-          if (action === 'sai') oPatch.dispatched_at = nowIso; else oPatch.delivered_at = nowIso;
+          if (action === 'sai') {
+            oPatch.dispatched_at = nowIso;
+            // gera o CÓDIGO DE ENTREGA (delivery) se ainda não existir — o cliente vê no acompanhamento.
+            if ((o.delivery_mode || 'delivery') !== 'pickup') {
+              const md = o.metadata || {};
+              if (!md.delivery_pin) { md.delivery_pin = String(Math.floor(1000 + Math.random() * 9000)); oPatch.metadata = md; }
+            }
+          } else { oPatch.delivered_at = nowIso; }
           await sbUpdate('drope_orders', `id=eq.${corrida.order_id}`, oPatch);
-          const ords = await sbGet('drope_orders', `id=eq.${corrida.order_id}&select=order_nsu,customer_snapshot&limit=1`);
-          const o = Array.isArray(ords) && ords[0];
-          const phone = o && o.customer_snapshot && o.customer_snapshot.phone;
+          const phone = o.customer_snapshot && o.customer_snapshot.phone;
           if (phone) {
             const nsu = o.order_nsu ? ('#' + o.order_nsu) : 'Seu pedido';
             if (action === 'sai') _notify('customer', phone, 'order_status', 'Saiu pra entrega 🛵', `${nsu} saiu pra entrega com ${me.nome} ✦`).catch(() => {});
@@ -15249,7 +15268,7 @@ async function handleCustomerOrders(req, res) {
 
   try {
     const rows = await sbGet('drope_orders',
-      'select=order_nsu,status,total_cents,items,delivery_mode,address,customer_snapshot,created_at,filial_id' +
+      'select=order_nsu,status,total_cents,items,delivery_mode,address,customer_snapshot,created_at,filial_id,metadata' +
       '&status=not.eq.expired&order=created_at.desc&limit=300');
     const mine = (Array.isArray(rows) ? rows : [])
       .filter(o => norm(o.customer_snapshot && o.customer_snapshot.phone) === wanted)
@@ -15274,6 +15293,7 @@ async function handleCustomerOrders(req, res) {
         store_name: st.name || null,
         store_slug: st.slug || null,
         store_whats: st.whats || null,
+        delivery_pin: (o.metadata || {}).delivery_pin || null,
       };
     });
     return res.status(200).json({ ok: true, orders: list });

@@ -12601,6 +12601,7 @@
       store_name: o.store_name || null,
       store_whats: o.store_whats || null,
       store_slug: o.store_slug || null,
+      delivery_pin: o.delivery_pin || null,
       _backend: true,
     };
   }
@@ -13475,6 +13476,11 @@
           }).join('<div class="ot-line"></div>')}
         </div>
       </div>
+      ${(!isPickup && !isDone && o.delivery_pin && o.statusCls === 'way') ? `<div class="ot-sec" style="text-align:center;border:1px solid var(--store-accent,var(--lime))">
+        <div class="ot-sec-t">código de entrega</div>
+        <div style="font-size:34px;font-weight:800;letter-spacing:6px;font-family:'Space Grotesk',sans-serif;color:var(--store-accent,var(--lime))">${escapeHtml(String(o.delivery_pin))}</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Mostre esse código ao entregador pra confirmar a entrega ✦</div>
+      </div>` : ''}
       <div class="ot-sec">
         <div class="ot-sec-t">itens</div>
         ${(o.items || []).map(i => `<div class="ot-row"><span>${i.qty}× ${i.name}</span><span>${money(i.price * i.qty)}</span></div>`).join('')}
