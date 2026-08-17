@@ -15023,8 +15023,16 @@ function _webpushInit() {
   } catch (e) { console.warn('[webpush init]', e.message); }
   return _webpush;
 }
+// Conta pedidos EM ABERTO da loja (pra bolinha no ícone do app).
+async function _countPedidosAbertos(filialId) {
+  try {
+    const rows = await sbGet('drope_orders', `filial_id=eq.${encodeURIComponent(filialId)}&status=in.(paid,confirmed,accepted,preparing,ready,dispatched,pending_pickup,reserved)&select=id`);
+    return Array.isArray(rows) ? rows.length : null;
+  } catch (e) { return null; }
+}
 // Envia push pra TODOS os aparelhos inscritos da loja (e limpa assinaturas mortas).
-async function _sendStorePush(filialId, title, body, url) {
+// badge: número (bolinha no ícone) OU 'auto' (conta os pedidos em aberto na hora).
+async function _sendStorePush(filialId, title, body, url, badge) {
   const wp = _webpushInit();
   if (!wp || !filialId) return;
   try {
@@ -15032,7 +15040,11 @@ async function _sendStorePush(filialId, title, body, url) {
     const md = (rows && rows[0] && rows[0].metadata) || {};
     const subs = Array.isArray(md.push_subs) ? md.push_subs : [];
     if (!subs.length) return;
-    const payload = JSON.stringify({ title: String(title || 'DROPE'), body: String(body || ''), url: url || '/filial' });
+    let badgeCount = (typeof badge === 'number') ? badge : null;
+    if (badge === 'auto') badgeCount = await _countPedidosAbertos(filialId);
+    const payloadObj = { title: String(title || 'DROPE'), body: String(body || ''), url: url || '/filial' };
+    if (badgeCount != null) payloadObj.badge = badgeCount;
+    const payload = JSON.stringify(payloadObj);
     const dead = [];
     await Promise.all(subs.map(async (s) => {
       try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); }
@@ -15044,7 +15056,7 @@ async function _sendStorePush(filialId, title, body, url) {
     }
   } catch (e) { console.error('[sendStorePush]', e.message); }
 }
-async function _notify(recipientType, recipientKey, type, title, body, link) {
+async function _notify(recipientType, recipientKey, type, title, body, link, opts) {
   const key = recipientType === 'customer' ? _phoneKey(recipientKey) : String(recipientKey || '').trim();
   if (!key || !SUPABASE_URL || !SUPABASE_KEY) return;
   try {
@@ -15054,8 +15066,9 @@ async function _notify(recipientType, recipientKey, type, title, body, link) {
       body: JSON.stringify({ recipient_type: recipientType, recipient_key: key, type, title: String(title).slice(0, 120), body: body ? String(body).slice(0, 240) : null, link: link || null }),
     });
   } catch (e) { console.error('[_notify]', e.message); }
-  // Loja → também dispara push pro celular (app fechado)
-  if (recipientType === 'filial') { _sendStorePush(key, title, body, link || '/filial').catch(() => {}); }
+  // Loja → também dispara push pro celular (app fechado). badge='auto' põe a
+  // contagem de pedidos em aberto na bolinha do ícone.
+  if (recipientType === 'filial') { _sendStorePush(key, title, body, link || '/filial', opts && opts.badge).catch(() => {}); }
 }
 // POST action=filial_push_subscribe — guarda a assinatura push do aparelho da loja.
 async function handleFilialPushSubscribe(req, res) {
@@ -17561,7 +17574,7 @@ async function handleInfinitePayWebhook(req, res) {
           updatedAmbassadorRef = updated[0].ambassador_ref || '';
           if (updated[0].filial_id) {
             const _cn2 = String((updated[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
-            _notify('filial', updated[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2} · toque pra ver`, null).catch(() => {});
+            _notify('filial', updated[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2} · toque pra ver`, null, { badge: 'auto' }).catch(() => {});
           }
           const _cph2 = (updated[0].customer_snapshot || {}).phone;
           if (_cph2) _notify('customer', _cph2, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
@@ -18349,7 +18362,7 @@ async function handleMPWebhook(req, res) {
           console.log('[MP Webhook] order paid:', orderNsu);
           if (upd[0].filial_id) {
             const _cn = String((upd[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
-            _notify('filial', upd[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn} · toque pra ver`, null).catch(() => {});
+            _notify('filial', upd[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn} · toque pra ver`, null, { badge: 'auto' }).catch(() => {});
           }
           const _cph = (upd[0].customer_snapshot || {}).phone;
           if (_cph) _notify('customer', _cph, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});

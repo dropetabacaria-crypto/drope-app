@@ -3852,7 +3852,16 @@ function _renderPendentes() {
   const tabBadge = document.getElementById('ptab-inicio-badge');
   if (tabBadge) { tabBadge.textContent = pendentes.length; tabBadge.style.display = pendentes.length ? 'inline-flex' : 'none'; }
   try { _renderNotifBadge(_bellUnread()); } catch (e) {}
+  try { _setAppBadge(pendentes.length); } catch (e) {}
   _refreshPedidoSurfaces();
+}
+// Bolinha de notificação no ÍCONE do app (Badging API). No iPhone funciona com o
+// app adicionado à Tela de Início; mostra quantos pedidos em aberto a loja tem.
+function _setAppBadge(n) {
+  try {
+    if (!('setAppBadge' in navigator)) return;
+    if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+  } catch (e) {}
 }
 // Toast leve, não-bloqueante (substitui alert() nas ações do dia a dia).
 let _toastTimer = null;

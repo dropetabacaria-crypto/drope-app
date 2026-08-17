@@ -4,7 +4,7 @@
 //     Resolve o problema histórico de "versão velha no cache do Chrome do Xiaomi".
 //   - Assets estáticos (.js .css imagens): cache-first com revalidação em background.
 //   - /api/*: NUNCA cachear (são dados ao vivo).
-const CACHE = 'drope-v10';
+const CACHE = 'drope-v11';
 // Páginas que NUNCA são cacheadas — sempre busca da rede.
 // Inclui receber.html porque o fluxo de scanner muda muito; cache antigo causou travamento.
 const NEVER_CACHE = ['/receber.html', '/receber', '/index.html', '/'];
@@ -32,7 +32,7 @@ self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch (_) { data = { title: 'DROPE', body: e.data ? e.data.text() : '' }; }
   const title = data.title || 'DROPE ✦ novo pedido';
-  e.waitUntil(self.registration.showNotification(title, {
+  const jobs = [self.registration.showNotification(title, {
     body: data.body || '',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
@@ -40,7 +40,12 @@ self.addEventListener('push', (e) => {
     tag: 'drope-order',
     renotify: true,
     data: { url: data.url || '/filial' },
-  }));
+  })];
+  // Bolinha no ícone do app (app fechado): usa a contagem que veio no push.
+  if (typeof data.badge === 'number' && self.navigator && 'setAppBadge' in self.navigator) {
+    jobs.push(data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge());
+  }
+  e.waitUntil(Promise.all(jobs.map((p) => Promise.resolve(p).catch(() => {}))));
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
