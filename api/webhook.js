@@ -7535,7 +7535,7 @@ async function handleFilialCorridaCreate(req, res) {
 const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
 async function _entregadorAuth(entregadorId, token) {
   if (!entregadorId || !token) return null;
-  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,ativo,session_hash&limit=1`);
+  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,ativo,online,session_hash&limit=1`);
   const ent = Array.isArray(rows) && rows[0];
   if (!ent || ent.ativo === false || !ent.session_hash) return null;
   if (_sha256hex(token) !== ent.session_hash) return null;
@@ -7595,10 +7595,15 @@ async function handleEntregadorCorridas(req, res) {
     const ent = await _entregadorAuth(u.searchParams.get('entregador'), u.searchParams.get('token'));
     if (!ent) return res.status(401).json({ ok: false, error: 'unauthorized' });
     const me = ent.id;
-    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone&limit=80`);
-    const list = (rows || []).filter(c =>
-      (c.status === 'aberta' && (!c.assigned_to || c.assigned_to === me)) ||
-      ((c.status === 'aceita' || c.status === 'em_rota') && c.entregador_id === me));
+    const online = ent.online === true;
+    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,distancia_km,declined,created_at&limit=80`);
+    const list = (rows || []).filter(c => {
+      const dec = Array.isArray(c.declined) ? c.declined : [];
+      if (dec.includes(me)) return false;                       // recusei essa corrida
+      // corridas EM ANDAMENTO minhas sempre aparecem; ABERTAS só quando estou ONLINE
+      if (c.status === 'aceita' || c.status === 'em_rota') return c.entregador_id === me;
+      return online && (!c.assigned_to || c.assigned_to === me);
+    });
     const fids = [...new Set(list.map(c => c.filial_id).filter(Boolean))];
     const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
     const fmap = {}, omap = {};
@@ -7609,6 +7614,7 @@ async function handleEntregadorCorridas(req, res) {
       return {
         id: c.id, status: c.status, mine: c.entregador_id === me, avulso: !c.assigned_to,
         loja: fmap[c.filial_id] || 'Loja', order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
+        distancia_km: c.distancia_km || null, created_at: c.created_at || null,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
@@ -7629,7 +7635,7 @@ async function handleEntregadorCorridas(req, res) {
     (done || []).forEach(c => { const v = c.valor_motoboy_cents || 0; const at = c.delivered_at || ''; if (at >= startToday) { hoje += v; nHoje++; } if (at >= startWeek) { semana += v; nSemana++; } });
     const historico = (done || []).slice(0, 15).map(c => ({ loja: dfmap[c.filial_id] || 'Loja', valor_cents: c.valor_motoboy_cents, delivered_at: c.delivered_at }));
     const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, a_receber_cents: aReceber, historico };
-    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome }, ganhos });
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, online }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // POST action=entregador_corrida_action { entregador, token, corrida_id, action } (accept|sai|entregue|cancelar)
@@ -7647,6 +7653,7 @@ async function handleEntregadorCorridaAction(req, res) {
     const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
     const nowIso = new Date().toISOString();
     if (action === 'accept') {
+      if (me.online !== true) return res.status(409).json({ ok: false, error: 'Fique online pra aceitar corridas ✦' });
       // TRAVA ATÔMICA global: só pega se ainda 'aberta' e (sem dono OU atribuída a mim). 1 vencedor.
       const r = await fetch(`${SUPABASE_URL}/rest/v1/drope_corridas?id=eq.${corridaId}&status=eq.aberta&or=(assigned_to.is.null,assigned_to.eq.${encodeURIComponent(me.id)})`, {
         method: 'PATCH', headers: H,
@@ -7655,6 +7662,16 @@ async function handleEntregadorCorridaAction(req, res) {
       const upd = await r.json();
       if (!Array.isArray(upd) || !upd.length) return res.status(409).json({ ok: false, error: 'Essa corrida já foi pega por outro entregador ✦' });
       return res.status(200).json({ ok: true, status: 'aceita' });
+    }
+    // Recusar: some com a corrida SÓ pra esse entregador (guarda o id em declined).
+    if (action === 'recusar') {
+      const rows = await sbGet('drope_corridas', `id=eq.${corridaId}&status=eq.aberta&select=id,declined&limit=1`);
+      const c = Array.isArray(rows) && rows[0];
+      if (!c) return res.status(409).json({ ok: false, error: 'corrida indisponível' });
+      const dec = Array.isArray(c.declined) ? c.declined : [];
+      if (!dec.includes(me.id)) dec.push(me.id);
+      await sbUpdate('drope_corridas', `id=eq.${c.id}`, { declined: dec });
+      return res.status(200).json({ ok: true, declined: true });
     }
     // Rastreio do motoca (por botão): avisa o cliente sem mexer no status da corrida
     // (continua 'em_rota', pra não quebrar as buscas por corrida ativa).
@@ -7706,6 +7723,20 @@ async function handleEntregadorCorridaAction(req, res) {
     }
     return res.status(400).json({ ok: false, error: 'ação inválida' });
   } catch (e) { console.error('[entregador_corrida_action] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=entregador_online { entregador, token, online } → fica disponível/indisponível.
+async function handleEntregadorOnline(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const me = await _entregadorAuth(body.entregador, body.token);
+    if (!me) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    const online = body.online === true || body.online === 'true';
+    await sbUpdate('drope_entregadores', `id=eq.${me.id}`, { online, online_at: new Date().toISOString() });
+    return res.status(200).json({ ok: true, online });
+  } catch (e) { console.error('[entregador_online] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // ── MOTOR ÚNICO DE PIX-OUT (pagamento de saída) ───────────────────────────────
@@ -21627,6 +21658,9 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=entregador_corrida_action') >= 0) {
     return await handleEntregadorCorridaAction(req, res);
+  }
+  if (req.url && req.url.indexOf('action=entregador_online') >= 0) {
+    return await handleEntregadorOnline(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {

@@ -165,6 +165,14 @@
       <span class="sair" onclick="sair()">Sair</span>
     </div>
 
+    <div id="online-bar" onclick="toggleOnline()" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px;padding:14px 16px;border-radius:16px;cursor:pointer;border:1px solid var(--border);background:var(--bg2)">
+      <div style="display:flex;align-items:center;gap:11px">
+        <span id="online-dot" style="width:12px;height:12px;border-radius:50%;background:#6b6b7a;flex:0 0 auto"></span>
+        <div><div id="online-label" style="font-weight:800;font-size:15px">Offline</div><div id="online-sub" style="font-size:12px;color:var(--fg-dim)">Toque pra ficar disponível</div></div>
+      </div>
+      <span id="online-switch" style="width:46px;height:28px;border-radius:14px;background:#33333f;position:relative;flex:0 0 auto;transition:background .2s"><span id="online-knob" style="position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .2s"></span></span>
+    </div>
+
     <div class="earn">
       <div class="earn-lbl">Você ganhou esta semana</div>
       <div class="earn-big" id="earn-week">R$ 0,00</div>
@@ -255,6 +263,25 @@ function showCorridas(){
   loadCorridas();
 }
 
+// ===== Online / Offline (ficar disponível) =====
+let ONLINE=false;
+function renderOnline(){
+  const dot=_q('online-dot'), lbl=_q('online-label'), sub=_q('online-sub'), sw=_q('online-switch'), knob=_q('online-knob'), bar=_q('online-bar');
+  if(!dot) return;
+  if(ONLINE){ dot.style.background='#4ADE80'; dot.style.boxShadow='0 0 8px #4ADE80'; lbl.textContent='Online'; sub.textContent='Recebendo corridas ✦'; sw.style.background='#1f7a44'; knob.style.left='21px'; if(bar) bar.style.borderColor='rgba(74,222,128,.5)'; }
+  else { dot.style.background='#6b6b7a'; dot.style.boxShadow='none'; lbl.textContent='Offline'; sub.textContent='Toque pra ficar disponível'; sw.style.background='#33333f'; knob.style.left='3px'; if(bar) bar.style.borderColor='var(--border)'; }
+}
+async function toggleOnline(){
+  const prev=ONLINE; ONLINE=!ONLINE; renderOnline(); // otimista
+  try{
+    const r=await fetch(API+'?action=entregador_online',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,online:ONLINE})});
+    const d=await r.json().catch(()=>({}));
+    if(!(r.ok&&d.ok)){ ONLINE=prev; renderOnline(); alert(d.error||'Não deu pra atualizar'); return; }
+  }catch(e){ ONLINE=prev; renderOnline(); alert('Erro de rede'); return; }
+  loadCorridas();
+}
+function fmtAgo(iso){ try{ const min=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/60000)); if(min<1)return'agora'; if(min<60)return'há '+min+' min'; const h=Math.floor(min/60); return 'há '+h+'h'; }catch(e){ return ''; } }
+
 let _polling=null;
 async function loadCorridas(){
   if(!SESS) return;
@@ -264,6 +291,7 @@ async function loadCorridas(){
     if(r.status===401){ sair(); return; }
     const d=await r.json().catch(()=>({}));
     _ganhos=d.ganhos||null;
+    if(d.entregador && typeof d.entregador.online==='boolean'){ ONLINE=d.entregador.online; renderOnline(); }
     renderGanhosSummary();
     renderCorridas(d.corridas||[]);
     if(!_q('view-ganhos').classList.contains('hidden')) renderGanhos();
@@ -281,7 +309,9 @@ function renderGanhosSummary(){
 
 function renderCorridas(list){
   const el=_q('corridas-list');
-  if(!list.length){ el.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Nenhuma corrida agora.<br>Assim que rolar uma entrega, aparece aqui ✦</div>'; return; }
+  if(!list.length){ el.innerHTML = ONLINE
+    ? '<div class="empty"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Nenhuma corrida agora.<br>Assim que rolar uma entrega, aparece aqui ✦</div>'
+    : '<div class="empty">Você está <b>offline</b>.<br>Toque em <b>Ficar disponível</b> lá em cima pra receber corridas ✦</div>'; return; }
   list.sort((a,b)=>(b.mine?1:0)-(a.mine?1:0));
   el.innerHTML=list.map(c=>{
     const st = c.status==='aberta' ? '<span class="c-badge b-aberta">Disponível</span>'
@@ -291,13 +321,14 @@ function renderCorridas(list){
     const maps=c.endereco?`<a class="maps" href="https://www.google.com/maps/search/${encodeURIComponent(c.endereco)}" target="_blank"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="m9 4-6 2.5v14L9 18l6 2.5L21 18V4l-6 2.5L9 4Z"/><path d="M9 4v14M15 6.5v14"/></svg> Mapa</a>`:'';
     const zap=c.cliente_phone?` · <a class="zap" href="https://wa.me/55${String(c.cliente_phone).replace(/\D/g,'').replace(/^55/,'')}" target="_blank">WhatsApp</a>`:'';
     let acts='';
-    if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button>`;
+    if(c.status==='aberta') acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'recusar',this)">Recusar</button>`;
     else if(c.status==='aceita') acts=`<button class="btn" onclick="act(${c.id},'sai',this)">Saí pra entrega <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg></button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
     else if(c.status==='em_rota') acts=`<button class="btn sec" style="flex:1 1 auto" onclick="act(${c.id},'chegando',this)">Tô chegando</button><button class="btn sec" style="flex:1 1 auto" onclick="act(${c.id},'chegou',this)">Cheguei</button><button class="btn pink" style="flex:1 1 100%" onclick="act(${c.id},'entregue',this)">Entreguei <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></button>`;
     return `<div class="card ${c.mine?'mine':''}">
       <div class="c-top"><span class="c-loja">${esc(c.loja)}</span><span class="c-valor">${fmtBRL(c.valor_cents)}</span></div>
       <div class="c-badges">${tipo}${st}</div>
       <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span><span>Pedido #${esc(c.order_nsu)}</span></div>
+      ${c.status==='aberta'&&(c.distancia_km||c.created_at)?`<div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg></span><span>${c.distancia_km?('~'+c.distancia_km+' km'):''}${c.distancia_km&&c.created_at?' · ':''}${c.created_at?('aberta '+fmtAgo(c.created_at)):''}</span></div>`:''}
       ${c.itens?`<div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span>${esc(c.itens)}</span></div>`:''}
       <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg></span><span><b>${esc(c.endereco||'Sem endereço')}</b></span></div>
       <div class="c-line"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg></span><span>${esc(c.cliente_nome||'Cliente')} ${maps}${zap}</span></div>
