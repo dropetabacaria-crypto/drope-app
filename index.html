@@ -12627,7 +12627,7 @@
   // no iPhone é a Web Audio API: destrava o AudioContext num gesto (toca um buffer
   // mudo) e depois dá pra disparar sons por timer, sem gesto. Decodifica os MP3 em
   // buffer (cache) e toca via BufferSource.
-  let _actx = null, _audioReady = false; const _bufCache = {};
+  let _actx = null, _audioReady = false, _curSource = null; const _bufCache = {};
   function _unlockClientAudio() {
     try {
       if (!_actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; _actx = new AC(); }
@@ -12652,8 +12652,10 @@
       const url = list[Math.floor(Math.random() * list.length)];
       if (_actx && _audioReady) {
         if (_actx.state === 'suspended') _actx.resume();
-        _decodeAudio(url).then(buf => { const s = _actx.createBufferSource(); s.buffer = buf; s.connect(_actx.destination); s.start(0); })
-          .catch(() => { try { new Audio(url).play().catch(() => {}); } catch (e) {} });
+        _decodeAudio(url).then(buf => {
+          try { if (_curSource) _curSource.stop(); } catch (e) {} // corta o som anterior (sem sobreposição)
+          const s = _actx.createBufferSource(); s.buffer = buf; s.connect(_actx.destination); s.start(0); _curSource = s;
+        }).catch(() => { try { new Audio(url).play().catch(() => {}); } catch (e) {} });
       } else { try { new Audio(url).play().catch(() => {}); } catch (e) {} } // fallback (Android/desktop)
       return true;
     } catch (e) { return false; }
