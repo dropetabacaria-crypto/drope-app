@@ -5149,8 +5149,7 @@
       <div class="success-order" id="success-order">#dr-4291</div>
 
       <div class="success-btns">
-        <button class="btn-primary" id="success-whats-btn" onclick="shareOnWhats()">abrir whats da loja</button>
-        <button class="btn-secondary" onclick="go('order-tracking')">acompanhar pedido →</button>
+        <button class="btn-primary" onclick="_trackedOrderNum=null; go('order-tracking')">Acompanhar pedido →</button>
       </div>
     </div>
   </div>
@@ -13177,13 +13176,13 @@
             return `<div class="tl-step ${cls}"><div class="tl-dot">${check}</div><div class="tl-lbl">${s.lbl}</div></div>`;
           }).join('')}
         </div>`;
-      const repeatBtn = o.items ? `<div class="order-repeat" onclick="repeatOrder(${idx})">dropar de novo ✦</div>` : '';
+      const repeatBtn = o.items ? `<div class="order-repeat" onclick="event.stopPropagation(); repeatOrder(${idx})">dropar de novo ✦</div>` : '';
       const modeTag = o.mode === 'pickup' ? 'retirar na loja' : 'entrega';
       const codeCard = (o.mode !== 'pickup' && !doneAll && o.delivery_pin && o.statusCls === 'way')
         ? `<div style="margin-top:10px;text-align:center;background:rgba(198,255,0,.08);border:1px solid var(--store-accent,var(--lime));border-radius:12px;padding:10px"><div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">código de entrega</div><div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--store-accent,var(--lime));font-family:'Space Grotesk',sans-serif">${escapeHtml(String(o.delivery_pin))}</div><div style="font-size:11.5px;color:var(--text-dim)">mostre ao entregador ✦</div></div>`
         : '';
       return `
-        <div class="order-card">
+        <div class="order-card" onclick="openOrderTracking('${o.num}')" style="cursor:pointer">
           <div class="order-head">
             <div class="order-num">#dr-${o.num}</div>
             <div class="order-status ${o.statusCls}">${o.status}</div>
@@ -13193,6 +13192,7 @@
           <div class="order-total">${money(o.total)}</div>
           ${timeline}
           ${codeCard}
+          <div style="text-align:center;margin-top:8px;font-size:12px;color:var(--store-accent,var(--lime));font-weight:700">Acompanhar pedido ›</div>
           ${repeatBtn}
         </div>
       `;
@@ -13220,6 +13220,14 @@
     mine.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return mine[0] || null;
   }
+  // Pedido que o Acompanhar pedido mostra: o selecionado (via Meus pedidos) ou o último.
+  let _trackedOrderNum = null;
+  function getTrackedOrder() {
+    if (_trackedOrderNum != null) { const o = (orders || []).find(x => String(x.num) === String(_trackedOrderNum)); if (o) return o; }
+    return getMyLastOrder();
+  }
+  // Abre o acompanhamento de um pedido específico (a partir de Meus pedidos).
+  function openOrderTracking(num) { _trackedOrderNum = num; go('order-tracking'); }
 
   // ============ OSSO 21 — IA-FIRST CLIENTE (home personalizada) ============
   // - Cliente NOVO: chips de vibe (frutado/doce/gelado/mentolado) + popular
@@ -13623,7 +13631,7 @@
   function renderOrderTracking() {
     const body = document.getElementById('order-tracking-body');
     if (!body) return;
-    const o = getMyLastOrder();
+    const o = getTrackedOrder();
     if (!o) {
       body.innerHTML = `<div class="empty" style="padding:60px 0"><div class="t">nenhum pedido aberto</div><div class="s">bora dropar?</div><button class="btn-primary" onclick="go('home')" style="max-width:220px;margin:0 auto">ver catálogo</button></div>`;
       return;
