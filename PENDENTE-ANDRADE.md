@@ -71,3 +71,8 @@ Futuro (jeito iFood, pra NÃO obrigar a loja a ter PSP): o DROPE **recebe todo o
 
 ---
 _Atualizar esta lista conforme as coisas forem resolvidas._
+
+## Backup do banco (Supabase) — PENDENTE
+- Código já é seguro (PC + GitHub + Vercel). Segredos no .env.local (guardar cópia em gerenciador de senhas).
+- FALTA: backup automático dos DADOS (Supabase projeto udsjnhbkapjwpdolvtri) — pedidos/clientes/lojas/produtos/corridas/imagens NÃO têm cópia no PC.
+- A fazer: garantir/ativar backup automático do Supabase (diário nos planos pagos) OU cron de export (pg_dump/API → storage externo). Conferir o plano atual.
