@@ -5331,6 +5331,22 @@
     <div id="app-notif-list" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
   </div>
 
+  <!-- Recortador de foto de perfil (zoom + posição no gabarito circular) -->
+  <div id="crop-ov" style="position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.88);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+    <div style="color:var(--text);font-weight:800;font-size:16px;margin-bottom:4px">Ajuste sua foto</div>
+    <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:16px">arraste pra posicionar ✦ use a barra pra dar zoom</div>
+    <div id="crop-view" style="position:relative;width:300px;height:300px;max-width:80vw;max-height:80vw;overflow:hidden;border-radius:18px;background:#000;touch-action:none">
+      <img id="crop-img" alt="" draggable="false" style="position:absolute;left:0;top:0;user-select:none;-webkit-user-drag:none;will-change:left,top,width,height">
+      <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 2000px rgba(0,0,0,.55)"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;border:2px solid rgba(255,255,255,.9)"></div>
+    </div>
+    <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" oninput="_cropZoom(this.value)" style="width:80vw;max-width:300px;margin-top:18px;accent-color:var(--lime,#C6FF00)">
+    <div style="display:flex;gap:10px;margin-top:18px;width:80vw;max-width:300px">
+      <button class="btn-secondary" style="flex:1" onclick="closeCropper()">Cancelar</button>
+      <button class="btn-primary" style="flex:1" onclick="applyCrop()">Usar foto ✦</button>
+    </div>
+  </div>
+
   <div id="clogin-ov" style="position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column">
     <div class="top-bar">
       <div class="icon-btn" onclick="closeCustomerLogin()"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
@@ -9688,24 +9704,75 @@
     const f = ev.target.files && ev.target.files[0];
     if (!f) return;
     const rd = new FileReader();
-    rd.onload = function () {
-      const img = new Image();
-      img.onload = function () {
-        try {
-          const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
-          const ctx = cv.getContext('2d');
-          const scale = Math.max(S / img.width, S / img.height);
-          const w = img.width * scale, h = img.height * scale;
-          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
-          pickedAvatar = cv.toDataURL('image/jpeg', 0.82);
-          renderProfileAvatarPicker();
-        } catch (e) { toast('não deu pra usar essa foto ✦'); }
-      };
-      img.onerror = function () { toast('imagem inválida ✦'); };
-      img.src = rd.result;
-    };
+    rd.onload = function () { openCropper(rd.result); };
+    rd.onerror = function () { toast('não deu pra ler a foto ✦'); };
     rd.readAsDataURL(f);
     try { ev.target.value = ''; } catch (e) {}
+  }
+  // ===== Recortador de foto (zoom + posição no gabarito circular) =====
+  let _crop = null, _cropBound = false;
+  function openCropper(dataUrl) {
+    const img = new Image();
+    img.onload = function () {
+      const view = document.getElementById('crop-view');
+      const V = (view && view.clientWidth) || 300;
+      _crop = { img, dataUrl, V, iw: img.naturalWidth, ih: img.naturalHeight, zoom: 1, px: 0, py: 0, dw: 0, dh: 0 };
+      _crop.cover = Math.max(V / _crop.iw, V / _crop.ih);
+      const zEl = document.getElementById('crop-zoom'); if (zEl) zEl.value = 1;
+      const ce = document.getElementById('crop-img'); if (ce) ce.src = dataUrl;
+      _bindCrop();
+      _cropRender();
+      document.getElementById('crop-ov').style.display = 'flex';
+    };
+    img.onerror = function () { toast('imagem inválida ✦'); };
+    img.src = dataUrl;
+  }
+  function closeCropper() { const ov = document.getElementById('crop-ov'); if (ov) ov.style.display = 'none'; _crop = null; }
+  function _cropZoom(v) { if (!_crop) return; _crop.zoom = parseFloat(v) || 1; _cropRender(); }
+  function _cropRender() {
+    if (!_crop) return;
+    const V = _crop.V, s = _crop.cover * _crop.zoom;
+    const dw = _crop.iw * s, dh = _crop.ih * s;
+    _crop.dw = dw; _crop.dh = dh;
+    const maxPx = Math.max(0, dw / 2 - V / 2), maxPy = Math.max(0, dh / 2 - V / 2);
+    _crop.px = Math.max(-maxPx, Math.min(maxPx, _crop.px));
+    _crop.py = Math.max(-maxPy, Math.min(maxPy, _crop.py));
+    const ce = document.getElementById('crop-img'); if (!ce) return;
+    ce.style.width = dw + 'px'; ce.style.height = dh + 'px';
+    ce.style.left = (V / 2 + _crop.px - dw / 2) + 'px';
+    ce.style.top = (V / 2 + _crop.py - dh / 2) + 'px';
+  }
+  function _bindCrop() {
+    if (_cropBound) return; _cropBound = true;
+    const v = document.getElementById('crop-view'); if (!v) return;
+    let dragging = false, lx = 0, ly = 0, pinchD = 0, pinchZ = 1;
+    function down(e) { if (!_crop) return; if (e.touches && e.touches.length === 2) { pinchD = _dist(e.touches); pinchZ = _crop.zoom; dragging = false; return; } dragging = true; const t = e.touches ? e.touches[0] : e; lx = t.clientX; ly = t.clientY; }
+    function move(e) {
+      if (!_crop) return;
+      if (e.touches && e.touches.length === 2) { const d = _dist(e.touches); if (pinchD > 0) { _crop.zoom = Math.max(1, Math.min(3, pinchZ * (d / pinchD))); const zEl = document.getElementById('crop-zoom'); if (zEl) zEl.value = _crop.zoom; _cropRender(); } if (e.cancelable) e.preventDefault(); return; }
+      if (!dragging) return; const t = e.touches ? e.touches[0] : e;
+      _crop.px += (t.clientX - lx); _crop.py += (t.clientY - ly); lx = t.clientX; ly = t.clientY; _cropRender();
+      if (e.cancelable) e.preventDefault();
+    }
+    function up() { dragging = false; pinchD = 0; }
+    function _dist(t) { const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.hypot(dx, dy); }
+    v.addEventListener('touchstart', down, { passive: true });
+    v.addEventListener('touchmove', move, { passive: false });
+    v.addEventListener('touchend', up); v.addEventListener('touchcancel', up);
+    v.addEventListener('mousedown', down); window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  }
+  function applyCrop() {
+    if (!_crop) { closeCropper(); return; }
+    try {
+      const V = _crop.V, k = 256 / V, cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#0A0A14'; ctx.fillRect(0, 0, 256, 256);
+      const dx = (V / 2 + _crop.px - _crop.dw / 2) * k, dy = (V / 2 + _crop.py - _crop.dh / 2) * k;
+      ctx.drawImage(_crop.img, 0, 0, _crop.iw, _crop.ih, dx, dy, _crop.dw * k, _crop.dh * k);
+      pickedAvatar = cv.toDataURL('image/jpeg', 0.85);
+      renderProfileAvatarPicker();
+      closeCropper();
+    } catch (e) { toast('não deu pra recortar a foto ✦'); }
   }
   function phoneDigits(p) { return (p || '').replace(/\D/g, ''); }
 
