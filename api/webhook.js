@@ -7539,7 +7539,7 @@ async function handleFilialCorridaCreate(req, res) {
 const _entNormPhone = p => String(p || '').replace(/\D/g, '').replace(/^55/, '');
 async function _entregadorAuth(entregadorId, token) {
   if (!entregadorId || !token) return null;
-  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,doc,veiculo,ativo,online,session_hash&limit=1`);
+  const rows = await sbGet('drope_entregadores', `id=eq.${encodeURIComponent(entregadorId)}&select=id,nome,phone,pix_key,doc,veiculo,foto,email,ativo,online,session_hash&limit=1`);
   const ent = Array.isArray(rows) && rows[0];
   if (!ent || ent.ativo === false || !ent.session_hash) return null;
   if (_sha256hex(token) !== ent.session_hash) return null;
@@ -7644,7 +7644,7 @@ async function handleEntregadorCorridas(req, res) {
     (done || []).forEach(c => { const v = c.valor_motoboy_cents || 0; const at = c.delivered_at || ''; if (at >= startToday) { hoje += v; nHoje++; } if (at >= startWeek) { semana += v; nSemana++; } });
     const historico = (done || []).slice(0, 15).map(c => ({ loja: dfmap[c.filial_id] || 'Loja', valor_cents: c.valor_motoboy_cents, delivered_at: c.delivered_at }));
     const ganhos = { hoje_cents: hoje, semana_cents: semana, entregas_hoje: nHoje, entregas_semana: nSemana, a_receber_cents: aReceber, historico };
-    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, phone: ent.phone || '', pix_key: ent.pix_key || '', doc: ent.doc || '', veiculo: ent.veiculo || '', online }, ganhos });
+    return res.status(200).json({ ok: true, corridas, entregador: { nome: ent.nome, phone: ent.phone || '', pix_key: ent.pix_key || '', doc: ent.doc || '', veiculo: ent.veiculo || '', foto: ent.foto || '', email: ent.email || '', online }, ganhos });
   } catch (e) { console.error('[entregador_corridas] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 // Código de entrega do cliente = MÊS/ANO de nascimento (ex: '06/1998'). Serve de código
@@ -7839,6 +7839,8 @@ async function handleEntregadorUpdate(req, res) {
     if (body.pix_key != null) patch.pix_key = String(body.pix_key).trim().slice(0, 140) || null;
     if (body.doc != null) patch.doc = String(body.doc).trim().slice(0, 60) || null;
     if (body.veiculo != null) patch.veiculo = String(body.veiculo).trim().slice(0, 30) || null;
+    if (body.email != null) { const em = String(body.email).trim().toLowerCase(); if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return res.status(400).json({ ok: false, error: 'email inválido' }); patch.email = em || null; }
+    if (body.foto != null) { const ft = String(body.foto); patch.foto = (ft.indexOf('data:image') === 0 || ft.indexOf('http') === 0) ? ft.slice(0, 300000) : null; }
     if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: 'nada pra salvar' });
     await sbUpdate('drope_entregadores', `id=eq.${me.id}`, patch);
     return res.status(200).json({ ok: true });

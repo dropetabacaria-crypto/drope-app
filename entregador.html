@@ -209,12 +209,19 @@
     <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:20px">Configurações</div>
   </div>
   <div style="max-width:480px;width:100%;margin:0 auto">
+    <div style="text-align:center;margin-bottom:18px">
+      <div id="cfg-foto-prev" style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0 auto;background:var(--bg3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--fg-dim)"></div>
+      <div onclick="document.getElementById('cfg-foto-input').click()" style="margin-top:10px;color:var(--lime);font-weight:700;font-size:13px;cursor:pointer">Trocar foto ✦</div>
+      <input type="file" id="cfg-foto-input" accept="image/*" style="display:none" onchange="onEntPhotoPicked(event)">
+    </div>
     <div class="cfg-card">
       <div class="cfg-title">Meus dados</div>
       <label class="cfg-lbl first">Nome</label>
       <input class="cfg-in" id="cfg-nome" maxlength="60" placeholder="seu nome">
       <label class="cfg-lbl">Telefone</label>
       <input class="cfg-in" id="cfg-phone" disabled style="opacity:.6">
+      <label class="cfg-lbl">Email</label>
+      <input class="cfg-in" id="cfg-email" maxlength="80" inputmode="email" placeholder="seu@email.com">
       <label class="cfg-lbl">Chave Pix (onde você recebe)</label>
       <input class="cfg-in" id="cfg-pix" maxlength="140" placeholder="CPF, telefone, email ou aleatória">
     </div>
@@ -240,10 +247,26 @@
   </div>
 </div>
 
+<!-- Recortador da foto do entregador -->
+<div id="ent-crop-ov" style="position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.9);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+  <div style="color:var(--fg);font-weight:800;font-size:16px;margin-bottom:4px">Ajuste sua foto</div>
+  <div style="color:var(--fg-dim);font-size:12.5px;margin-bottom:16px">arraste pra posicionar ✦ use a barra pra dar zoom</div>
+  <div id="ent-crop-view" style="position:relative;width:300px;height:300px;max-width:80vw;max-height:80vw;overflow:hidden;border-radius:18px;background:#000;touch-action:none">
+    <img id="ent-crop-img" alt="" draggable="false" style="position:absolute;left:0;top:0;user-select:none;-webkit-user-drag:none;will-change:left,top,width,height">
+    <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 2000px rgba(0,0,0,.55)"></div>
+    <div style="position:absolute;inset:0;pointer-events:none;border-radius:50%;border:2px solid rgba(255,255,255,.9)"></div>
+  </div>
+  <input type="range" id="ent-crop-zoom" min="1" max="3" step="0.01" value="1" oninput="_ecropZoom(this.value)" style="width:80vw;max-width:300px;margin-top:18px;accent-color:var(--lime)">
+  <div style="display:flex;gap:10px;margin-top:18px;width:80vw;max-width:300px">
+    <button class="btn sec" style="margin:0" onclick="closeEntCropper()">Cancelar</button>
+    <button class="btn pink" style="margin:0" onclick="applyEntCrop()">Usar foto ✦</button>
+  </div>
+</div>
+
 <script>
 const API = '/api/webhook';
 const SK = 'drope_ent_session_v1';
-let SESS = null; let _ganhos = null; let ENT = null; let _prevAbertas = null; let _entVeic = '';
+let SESS = null; let _ganhos = null; let ENT = null; let _prevAbertas = null; let _entVeic = ''; let _entFoto = '';
 try { SESS = JSON.parse(localStorage.getItem(SK) || 'null'); } catch(e) {}
 
 function _q(id){ return document.getElementById(id); }
@@ -521,12 +544,20 @@ function openEntConfig(){
   const e=ENT||{};
   _q('cfg-nome').value=e.nome||SESS&&SESS.nome||'';
   _q('cfg-phone').value=e.phone?fmtPhoneStr(e.phone):'';
+  _q('cfg-email') && (_q('cfg-email').value=e.email||'');
   _q('cfg-pix').value=e.pix_key||'';
   _q('cfg-doc').value=e.doc||'';
   _entVeic=e.veiculo||'';
+  _entFoto=e.foto||'';
+  renderEntFoto();
   renderVeic();
   _renderEntSomBtn();
   _q('ent-config-ov').style.display='flex';
+}
+function renderEntFoto(){
+  const el=_q('cfg-foto-prev'); if(!el) return;
+  if(_entFoto) el.innerHTML='<img src="'+_entFoto+'" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">';
+  else el.innerHTML='<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.2-6.2 7.5-6.2s7.5 2.4 7.5 6.2"/></svg>';
 }
 function closeEntConfig(){ _q('ent-config-ov').style.display='none'; }
 function renderVeic(){
@@ -537,17 +568,27 @@ function _pickVeic(v){ _entVeic=v; renderVeic(); }
 async function salvarEntDados(btn){
   const nome=(_q('cfg-nome').value||'').trim();
   if(nome.length<2){ alert('Coloque seu nome'); return; }
+  const email=(_q('cfg-email')&&_q('cfg-email').value||'').trim();
   const pix=(_q('cfg-pix').value||'').trim();
   const doc=(_q('cfg-doc').value||'').trim();
   if(btn){ btn.disabled=true; btn.textContent='Salvando...'; }
   try{
-    const r=await fetch(API+'?action=entregador_update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,nome,pix_key:pix,doc,veiculo:_entVeic})});
+    const r=await fetch(API+'?action=entregador_update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entregador:SESS.entregador_id,token:SESS.token,nome,email,pix_key:pix,doc,veiculo:_entVeic,foto:_entFoto})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.ok){ if(ENT){ ENT.nome=nome; ENT.pix_key=pix; ENT.doc=doc; ENT.veiculo=_entVeic; } _q('ent-nome').textContent='Oi, '+nome.split(' ')[0]+' ✦'; alert('Dados salvos ✦'); closeEntConfig(); }
+    if(r.ok&&d.ok){ if(ENT){ ENT.nome=nome; ENT.email=email; ENT.pix_key=pix; ENT.doc=doc; ENT.veiculo=_entVeic; ENT.foto=_entFoto; } _q('ent-nome').textContent='Oi, '+nome.split(' ')[0]+' ✦'; alert('Dados salvos ✦'); closeEntConfig(); }
     else alert(d.error||'Não deu pra salvar');
   }catch(e){ alert('Erro de rede'); }
   if(btn){ btn.disabled=false; btn.textContent='Salvar dados'; }
 }
+// ===== Foto do entregador (recortador: zoom + posição no gabarito) =====
+function onEntPhotoPicked(ev){ const f=ev.target.files&&ev.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=function(){ openEntCropper(rd.result); }; rd.onerror=function(){ alert('não deu pra ler a foto'); }; rd.readAsDataURL(f); try{ ev.target.value=''; }catch(e){} }
+let _ecrop=null, _ecropBound=false;
+function openEntCropper(dataUrl){ const img=new Image(); img.onload=function(){ const view=_q('ent-crop-view'); const V=(view&&view.clientWidth)||300; _ecrop={img,V,iw:img.naturalWidth,ih:img.naturalHeight,zoom:1,px:0,py:0,dw:0,dh:0}; _ecrop.cover=Math.max(V/_ecrop.iw,V/_ecrop.ih); const z=_q('ent-crop-zoom'); if(z) z.value=1; const ce=_q('ent-crop-img'); if(ce) ce.src=dataUrl; _bindEcrop(); _ecropRender(); _q('ent-crop-ov').style.display='flex'; }; img.onerror=function(){ alert('imagem inválida'); }; img.src=dataUrl; }
+function closeEntCropper(){ const ov=_q('ent-crop-ov'); if(ov) ov.style.display='none'; _ecrop=null; }
+function _ecropZoom(v){ if(!_ecrop) return; _ecrop.zoom=parseFloat(v)||1; _ecropRender(); }
+function _ecropRender(){ if(!_ecrop) return; const V=_ecrop.V, s=_ecrop.cover*_ecrop.zoom; const dw=_ecrop.iw*s, dh=_ecrop.ih*s; _ecrop.dw=dw; _ecrop.dh=dh; const mx=Math.max(0,dw/2-V/2), my=Math.max(0,dh/2-V/2); _ecrop.px=Math.max(-mx,Math.min(mx,_ecrop.px)); _ecrop.py=Math.max(-my,Math.min(my,_ecrop.py)); const ce=_q('ent-crop-img'); if(!ce) return; ce.style.width=dw+'px'; ce.style.height=dh+'px'; ce.style.left=(V/2+_ecrop.px-dw/2)+'px'; ce.style.top=(V/2+_ecrop.py-dh/2)+'px'; }
+function _bindEcrop(){ if(_ecropBound) return; _ecropBound=true; const v=_q('ent-crop-view'); if(!v) return; let dr=false,lx=0,ly=0,pd=0,pz=1; function dist(t){ return Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY); } function down(e){ if(!_ecrop) return; if(e.touches&&e.touches.length===2){ pd=dist(e.touches); pz=_ecrop.zoom; dr=false; return; } dr=true; const t=e.touches?e.touches[0]:e; lx=t.clientX; ly=t.clientY; } function move(e){ if(!_ecrop) return; if(e.touches&&e.touches.length===2){ const d=dist(e.touches); if(pd>0){ _ecrop.zoom=Math.max(1,Math.min(3,pz*(d/pd))); const z=_q('ent-crop-zoom'); if(z) z.value=_ecrop.zoom; _ecropRender(); } if(e.cancelable) e.preventDefault(); return; } if(!dr) return; const t=e.touches?e.touches[0]:e; _ecrop.px+=(t.clientX-lx); _ecrop.py+=(t.clientY-ly); lx=t.clientX; ly=t.clientY; _ecropRender(); if(e.cancelable) e.preventDefault(); } function up(){ dr=false; pd=0; } v.addEventListener('touchstart',down,{passive:true}); v.addEventListener('touchmove',move,{passive:false}); v.addEventListener('touchend',up); v.addEventListener('touchcancel',up); v.addEventListener('mousedown',down); window.addEventListener('mousemove',move); window.addEventListener('mouseup',up); }
+function applyEntCrop(){ if(!_ecrop){ closeEntCropper(); return; } try{ const V=_ecrop.V, k=256/V, cv=document.createElement('canvas'); cv.width=256; cv.height=256; const ctx=cv.getContext('2d'); ctx.fillStyle='#12121f'; ctx.fillRect(0,0,256,256); const dx=(V/2+_ecrop.px-_ecrop.dw/2)*k, dy=(V/2+_ecrop.py-_ecrop.dh/2)*k; ctx.drawImage(_ecrop.img,0,0,_ecrop.iw,_ecrop.ih,dx,dy,_ecrop.dw*k,_ecrop.dh*k); _entFoto=cv.toDataURL('image/jpeg',0.82); renderEntFoto(); closeEntCropper(); }catch(e){ alert('não deu pra recortar'); } }
 // ===== Som de nova corrida =====
 function _entSomModo(){ try{ return localStorage.getItem('drope_ent_som_modo')||'ding'; }catch(e){ return 'ding'; } }
 function _renderEntSomBtn(){ const b=_q('cfg-som-btn'); if(!b) return; const m=_entSomModo(); b.textContent = m==='voz'?'Voz':m==='off'?'Mudo':'Ding'; }
