@@ -328,9 +328,9 @@ function renderCorridas(list){
       acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'recusar',this)">Recusar</button>`;
     } else if(c.status==='aceita'){
       navRow=`<div class="c-line" style="color:var(--fg-dim);font-size:13px;margin-top:2px">Escolha a navegação pra sair pra entrega:</div><div class="c-acts" style="margin-bottom:8px">
-        <button class="btn" style="flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px" onclick="iniciarEntrega(${c.id},'maps',this)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Google Maps</button>
-        <button class="btn" style="flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px" onclick="iniciarEntrega(${c.id},'waze',this)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze</button></div>`;
-      acts=`<button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
+        <a class="btn" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.endereco)}" target="_blank" rel="noopener" onclick="marcarSaiuPraEntrega(${c.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Google Maps</a>
+        <a class="btn" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://waze.com/ul?q=${encodeURIComponent(c.endereco)}&navigate=yes" target="_blank" rel="noopener" onclick="marcarSaiuPraEntrega(${c.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze</a></div>`;
+      acts=`<button class="btn sec" style="flex:1 1 auto" onclick="marcarSaiuPraEntrega(${c.id})">Já saí (sem abrir mapa)</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
     } else if(c.status==='em_rota'){
       navRow=`<div class="c-acts" style="margin-bottom:8px">${navBtns}</div>`;
       if(_cheguei[c.id]){
@@ -372,14 +372,15 @@ async function _postAction(corridaId, action, extra){
     return {ok:r.ok&&d.ok,d};
   }catch(e){ return {ok:false,d:{error:'Erro de rede'}}; }
 }
-function _openNav(app,endereco){ const url=app==='waze'?('https://waze.com/ul?q='+encodeURIComponent(endereco)+'&navigate=yes'):('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(endereco)); try{ window.open(url,'_blank'); }catch(e){} }
-async function iniciarEntrega(id, app, btn){
-  const c=(_lastCorridas||[]).find(x=>x.id===id)||{};
-  _openNav(app, c.endereco||'');
-  if(btn) btn.disabled=true;
+// O link <a> já abre o mapa (nativo, confiável no iOS). Aqui só marcamos "saí pra
+// entrega" por trás e recarregamos (vira em_rota → começa o GPS). Guarda pra não repetir.
+let _saindo={};
+async function marcarSaiuPraEntrega(id){
+  if(_saindo[id]) return; _saindo[id]=true;
   const {ok,d}=await _postAction(id,'sai');
-  if(!ok){ if(btn) btn.disabled=false; alert(d.error||'Não deu pra iniciar a entrega'); return; }
-  loadCorridas(); // vira em_rota → começa o GPS
+  _saindo[id]=false;
+  if(ok){ loadCorridas(); }
+  else if(d && d.error && !/status mudou/i.test(d.error)){ /* se já saiu, ignora */ }
 }
 async function acChegando(id, btn){
   if(btn){ btn.disabled=true; btn.textContent='...'; }
