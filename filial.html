@@ -4085,6 +4085,7 @@ function renderPedidoCard(p, isEntregue) {
       <div class="items">${items}</div>
       ${addrBlock}
       ${pickupBlock}
+      ${p.retirada_pendente ? `<button class="pf-btn" style="margin-top:8px;width:100%;background:var(--lime);color:#0A0A14;font-weight:800" onclick="confirmarRetiradaLoja(${p.id})">Confirmar retirada do entregador ✓</button>` : ''}
       <div class="total">
         <span>Total: ${fmtBRL(p.total_cents)}</span>
         <span class="ganho">${fmtBRL(p.ganho_cents)} ✦ líquido pra você</span>
@@ -4093,6 +4094,18 @@ function renderPedidoCard(p, isEntregue) {
       ${cancelBtn}
     </div>
   `;
+}
+// A loja confirma a retirada do entregador → libera a ida ao cliente.
+async function confirmarRetiradaLoja(orderId) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_confirmar_retirada', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, order_id: orderId }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _toast('Retirada confirmada ✦ entregador a caminho do cliente', 'ok'); loadData(true); }
+    else _toast(d.error || 'Não deu pra confirmar a retirada', 'err');
+  } catch (e) { _toast('Erro de rede', 'err'); }
 }
 async function cancelOrder(id) {
   if (!confirm('Cancelar este pedido?\n\nSe já foi pago online, o valor é estornado ao cliente e o estoque volta pro catálogo.')) return;

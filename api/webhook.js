@@ -4648,7 +4648,7 @@ async function handleFilialPainel(req, res) {
     const corridaByOrder = {};
     if (_orderIds.length) {
       const corridas = await sbGet('drope_corridas',
-        `filial_id=eq.${filial.id}&order_id=in.(${_orderIds.join(',')})&status=neq.cancelada&order=id.desc&select=id,order_id,status,motoboy_nome,entregador_id,assigned_to,valor_motoboy_cents,accepted_at,delivered_at&limit=200`);
+        `filial_id=eq.${filial.id}&order_id=in.(${_orderIds.join(',')})&status=neq.cancelada&order=id.desc&select=id,order_id,status,motoboy_nome,entregador_id,assigned_to,valor_motoboy_cents,accepted_at,delivered_at,metadata&limit=200`);
       (corridas || []).forEach(c => { if (!corridaByOrder[c.order_id]) corridaByOrder[c.order_id] = c; });
     }
 
@@ -4674,6 +4674,8 @@ async function handleFilialPainel(req, res) {
         scheduled_opens_text: (o.metadata && o.metadata.scheduled_opens_text) || null,
         pickup_pin: (o.metadata && o.metadata.pickup_pin) || null,
         delivery_pin: (o.metadata && o.metadata.delivery_pin) || null,
+        retirada_pendente: !!(corridaByOrder[o.id] && corridaByOrder[o.id].status === 'aceita' && (corridaByOrder[o.id].metadata || {}).pickup_req),
+        corrida_id: (corridaByOrder[o.id] && corridaByOrder[o.id].id) || null,
       };
     });
 
@@ -7598,7 +7600,7 @@ async function handleEntregadorCorridas(req, res) {
     if (!ent) return res.status(401).json({ ok: false, error: 'unauthorized' });
     const me = ent.id;
     const online = ent.online === true;
-    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,distancia_km,declined,posted_at&limit=80`);
+    const rows = await sbGet('drope_corridas', `status=in.(aberta,aceita,em_rota)&order=id.desc&select=id,order_id,filial_id,status,assigned_to,entregador_id,valor_motoboy_cents,endereco_destino,cliente_phone,distancia_km,declined,posted_at,metadata&limit=80`);
     const list = (rows || []).filter(c => {
       const dec = Array.isArray(c.declined) ? c.declined : [];
       if (dec.includes(me)) return false;                       // recusei essa corrida
@@ -7621,6 +7623,7 @@ async function handleEntregadorCorridas(req, res) {
         distancia_km: c.distancia_km || null, created_at: c.posted_at || null,
         cep: (o.address || {}).cep || null,
         delivery_geo: (o.metadata || {}).delivery_geo || (o.address || {}).geo || null,
+        retirada_solicitada: !!(c.metadata || {}).pickup_req,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
@@ -7689,6 +7692,21 @@ async function handleEntregadorCorridaAction(req, res) {
       if (!dec.includes(me.id)) dec.push(me.id);
       await sbUpdate('drope_corridas', `id=eq.${c.id}`, { declined: dec });
       return res.status(200).json({ ok: true, declined: true });
+    }
+    // Retirada na loja (handshake): o entregador coloca o código; a corrida fica
+    // "aguardando" a LOJA confirmar a retirada. Só depois libera a ida ao cliente.
+    if (action === 'solicitar_retirada') {
+      const crows = await sbGet('drope_corridas', `id=eq.${corridaId}&entregador_id=eq.${encodeURIComponent(me.id)}&status=eq.aceita&select=id,order_id,filial_id,metadata&limit=1`);
+      const c = Array.isArray(crows) && crows[0];
+      if (!c) return res.status(409).json({ ok: false, error: 'corrida não está pra retirada' });
+      const o0 = await sbGet('drope_orders', `id=eq.${c.order_id}&select=order_nsu,metadata&limit=1`);
+      const o = (Array.isArray(o0) && o0[0]) || {};
+      const ppin = (o.metadata || {}).pickup_pin;
+      if (ppin && String(body.pin_retirada || '').trim() !== String(ppin)) return res.status(409).json({ ok: false, error: 'Código de retirada incorreto ✦' });
+      const md = c.metadata || {}; md.pickup_req = { at: nowIso };
+      await sbUpdate('drope_corridas', `id=eq.${c.id}`, { metadata: md });
+      if (c.filial_id) _notify('filial', c.filial_id, 'retirada', 'Confirmar retirada 🛵', `${me.nome} está retirando o pedido ${o.order_nsu ? ('#' + o.order_nsu) : ''} ✦ confirme a retirada no pedido`).catch(() => {});
+      return res.status(200).json({ ok: true, aguardando: true });
     }
     // Rastreio do motoca (por botão): avisa o cliente sem mexer no status da corrida
     // (continua 'em_rota', pra não quebrar as buscas por corrida ativa).
@@ -7785,6 +7803,33 @@ async function handleEntregadorOnline(req, res) {
     await sbUpdate('drope_entregadores', `id=eq.${me.id}`, { online, online_at: new Date().toISOString() });
     return res.status(200).json({ ok: true, online });
   } catch (e) { console.error('[entregador_online] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=filial_confirmar_retirada { filial, token, order_id | corrida_id }
+// A LOJA confirma a retirada do entregador → libera a ida ao cliente (em_rota + saiu pra entrega).
+async function handleFilialConfirmarRetirada(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 400)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const corridaId = parseInt(body.corrida_id) || null; const orderId = parseInt(body.order_id) || null;
+    const filt = corridaId ? `id=eq.${corridaId}` : `order_id=eq.${orderId}`;
+    const crows = await sbGet('drope_corridas', `${filt}&filial_id=eq.${filial.id}&status=eq.aceita&select=id,order_id,motoboy_nome&limit=1`);
+    const corr = Array.isArray(crows) && crows[0];
+    if (!corr) return res.status(409).json({ ok: false, error: 'sem corrida pra confirmar' });
+    const nowIso = new Date().toISOString();
+    await sbUpdate('drope_corridas', `id=eq.${corr.id}`, { status: 'em_rota', updated_at: nowIso });
+    const ords = await sbGet('drope_orders', `id=eq.${corr.order_id}&select=order_nsu,customer_snapshot,delivery_mode,metadata&limit=1`);
+    const o = (Array.isArray(ords) && ords[0]) || {};
+    const oPatch = { status: 'dispatched', dispatched_at: nowIso, updated_at: nowIso };
+    if ((o.delivery_mode || 'delivery') !== 'pickup') { const md = o.metadata || {}; if (!md.delivery_pin) { md.delivery_pin = String(Math.floor(1000 + Math.random() * 9000)); oPatch.metadata = md; } }
+    await sbUpdate('drope_orders', `id=eq.${corr.order_id}`, oPatch);
+    const phone = o.customer_snapshot && o.customer_snapshot.phone;
+    if (phone) { const nsu = o.order_nsu ? ('#' + o.order_nsu) : 'Seu pedido'; _notify('customer', phone, 'order_status', 'Saiu pra entrega 🛵', `${nsu} saiu pra entrega com ${corr.motoboy_nome || 'o entregador'} ✦`).catch(() => {}); }
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[filial_confirmar_retirada] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // ── MOTOR ÚNICO DE PIX-OUT (pagamento de saída) ───────────────────────────────
@@ -21733,6 +21778,9 @@ async function generateAll(){
   }
   if (req.url && req.url.indexOf('action=entregador_online') >= 0) {
     return await handleEntregadorOnline(req, res);
+  }
+  if (req.url && req.url.indexOf('action=filial_confirmar_retirada') >= 0) {
+    return await handleFilialConfirmarRetirada(req, res);
   }
   // action=notifications — GET: lista avisos (cliente ou lojista) | notifications_read — POST: marca lidas
   if (req.url && req.url.indexOf('action=notifications_read') >= 0) {

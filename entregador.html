@@ -334,7 +334,12 @@ function renderCorridas(list){
         <div class="c-acts" style="margin-bottom:8px">
         <a class="btn sec" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lojaAddr)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Maps até a loja</a>
         <a class="btn sec" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://waze.com/ul?q=${encodeURIComponent(lojaAddr)}&navigate=yes" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze até a loja</a></div>`;
-      acts=`<button class="btn pink" style="flex:1 1 100%" onclick="marcarSaiuPraEntrega(${c.id})">Retirei o pedido <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></button><button class="btn sec" style="flex:1 1 100%;margin-top:6px" onclick="act(${c.id},'cancelar',this)">Devolver corrida</button>`;
+      if(c.retirada_solicitada){
+        gpsBlock += `<div class="c-line" style="color:var(--lime);font-weight:700"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg></span><span>Aguardando a loja confirmar a retirada…</span></div>`;
+        acts=`<button class="btn sec" style="flex:1 1 100%" onclick="act(${c.id},'cancelar',this)">Devolver corrida</button>`;
+      } else {
+        acts=`<button class="btn pink" style="flex:1 1 100%" onclick="solicitarRetirada(${c.id})">Retirar pedido <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M17 6l2 2M15 8l1.5 1.5"/></svg></button><button class="btn sec" style="flex:1 1 100%;margin-top:6px" onclick="act(${c.id},'cancelar',this)">Devolver corrida</button>`;
+      }
     } else if(c.status==='em_rota'){
       navRow=`<div class="c-acts" style="margin-bottom:8px">${navBtns}</div>`;
       if(_cheguei[c.id]){
@@ -379,14 +384,14 @@ async function _postAction(corridaId, action, extra){
 // O link <a> já abre o mapa (nativo, confiável no iOS). Aqui só marcamos "saí pra
 // entrega" por trás e recarregamos (vira em_rota → começa o GPS). Guarda pra não repetir.
 let _saindo={};
-async function marcarSaiuPraEntrega(id){
+async function solicitarRetirada(id){
   const pin=(prompt('Código de RETIRADA — peça à loja os 4 dígitos pra confirmar que pegou o pedido:')||'').trim();
   if(!pin) return;
   if(_saindo[id]) return; _saindo[id]=true;
-  const {ok,d}=await _postAction(id,'sai',{pin_retirada:pin});
+  const {ok,d}=await _postAction(id,'solicitar_retirada',{pin_retirada:pin});
   _saindo[id]=false;
-  if(ok){ loadCorridas(); }
-  else { alert(d.error||'Não deu pra confirmar a retirada'); }
+  if(ok){ loadCorridas(); } // agora mostra "aguardando a loja confirmar"
+  else { alert(d.error||'Não deu pra solicitar a retirada'); }
 }
 async function acChegando(id, btn){
   if(btn){ btn.disabled=true; btn.textContent='...'; }
