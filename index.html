@@ -11486,11 +11486,54 @@
     if (l1) l1.className = 'step-line' + (checkoutStep === 2 ? ' done' : '');
     if (s2) s2.className = 'step' + (checkoutStep === 2 ? ' active' : '');
   }
-  function checkoutGoPay() {
+  // ===== Confirmação de endereço por localização (estilo iFood/Zé) =====
+  // No checkout, compara o GPS do cliente com o endereço de entrega (via CEP). Se
+  // estiver longe (>500m), pergunta se é pra entregar ali mesmo — evita o motoboy
+  // ir pro lugar errado. Qualquer erro/negação de GPS NÃO bloqueia a compra.
+  const _addrLocOk = new Set();
+  function _haversineKm(a, b) {
+    const R = 6371, toR = d => d * Math.PI / 180;
+    const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+  function _getGeoOnce() {
+    return new Promise(res => {
+      if (!navigator.geolocation) return res(null);
+      navigator.geolocation.getCurrentPosition(
+        p => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => res(null),
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
+      );
+    });
+  }
+  async function _confirmDeliveryLocation(addr) {
+    try {
+      if (!addr) return true;
+      const cep = String(addr.cep || '').replace(/\D/g, '');
+      if (cep.length !== 8) return true;                 // sem CEP não dá pra geocodificar
+      if (_addrLocOk.has(addr.id)) return true;          // já confirmado nesta sessão
+      const gps = await _getGeoOnce();
+      if (!gps) return true;                             // sem permissão/GPS → não bloqueia
+      const r = await fetch('/api/webhook?action=cep_geo&cep=' + cep, { cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      if (!(d && d.ok && d.lat && d.lng)) return true;   // não geocodificou → não bloqueia
+      const km = _haversineKm(gps, { lat: d.lat, lng: d.lng });
+      if (km <= 0.5) { _addrLocOk.add(addr.id); return true; }
+      const label = `${addr.street || ''}${addr.num ? (', ' + addr.num) : ''}${addr.neigh ? (' - ' + addr.neigh) : ''}`;
+      const ok = confirm(`Seu endereço de entrega:\n${label}\n\nparece a ~${km.toFixed(1)} km de onde você está agora. É pra entregar nesse endereço mesmo?`);
+      if (ok) { _addrLocOk.add(addr.id); return true; }
+      try { go('addresses'); } catch (e) {}              // foi trocar o endereço
+      return false;
+    } catch (e) { return true; }
+  }
+  async function checkoutGoPay() {
     // Sem login não avança pro pagamento (regra: só compra logado).
     if (!_requireLoginToBuy()) return;
     // Só avança pro pagamento com a entrega resolvida.
     if (deliveryMode === 'delivery' && !getSelectedAddress()) { toast('cadastra o endereço de entrega ✦'); return; }
+    // Confirma que o endereço bate com a localização (só delivery).
+    if (deliveryMode === 'delivery') { const proceed = await _confirmDeliveryLocation(getSelectedAddress()); if (!proceed) return; }
     checkoutStep = 2;
     renderCheckoutStep();
     renderCheckout();

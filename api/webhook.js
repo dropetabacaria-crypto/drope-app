@@ -14345,6 +14345,19 @@ function _isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').
 
 // CEP → { lat, lng, city, neigh, street } (cache → AwesomeAPI → BrasilAPI/Nominatim).
 // Mesma pipeline do delivery_quote, extraída pra reuso (cadastro da loja).
+// GET action=cep_geo&cep=XXXXXXXX → { ok, lat, lng } (usado pra confirmar entrega por localização)
+async function handleCepGeo(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const url = new URL(req.url, 'http://x');
+    const cep = String(url.searchParams.get('cep') || '').replace(/\D/g, '');
+    if (cep.length !== 8) return res.status(400).json({ ok: false, error: 'cep inválido' });
+    const g = await _cepToGeo(cep);
+    if (g && g.lat && g.lng) return res.status(200).json({ ok: true, lat: g.lat, lng: g.lng, neigh: g.neigh || null });
+    return res.status(200).json({ ok: false });
+  } catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
+}
 async function _cepToGeo(cepRaw) {
   const cep = String(cepRaw || '').replace(/\D/g, '');
   if (cep.length !== 8) return null;
@@ -18810,6 +18823,10 @@ module.exports = async function handler(req, res) {
   // Pedidos do cliente (por telefone) com status real, pro acompanhamento no app.
   if (req.url && req.url.indexOf('action=customer_orders') >= 0) {
     return await handleCustomerOrders(req, res);
+  }
+  // GET /api/webhook?action=cep_geo&cep=<cep> — coordenadas do CEP (confirmação de entrega)
+  if (req.url && req.url.indexOf('action=cep_geo') >= 0) {
+    return await handleCepGeo(req, res);
   }
 
   // GET/POST /api/webhook?action=customer_favorites — favoritos salvos na conta
