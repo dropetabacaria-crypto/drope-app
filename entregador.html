@@ -327,10 +327,14 @@ function renderCorridas(list){
     if(c.status==='aberta'){
       acts=`<button class="btn" onclick="act(${c.id},'accept',this)">Aceitar corrida ✦</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'recusar',this)">Recusar</button>`;
     } else if(c.status==='aceita'){
-      navRow=`<div class="c-line" style="color:var(--fg-dim);font-size:13px;margin-top:2px">Escolha a navegação pra sair pra entrega:</div><div class="c-acts" style="margin-bottom:8px">
-        <a class="btn" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.endereco)}" target="_blank" rel="noopener" onclick="marcarSaiuPraEntrega(${c.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Google Maps</a>
-        <a class="btn" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://waze.com/ul?q=${encodeURIComponent(c.endereco)}&navigate=yes" target="_blank" rel="noopener" onclick="marcarSaiuPraEntrega(${c.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze</a></div>`;
-      acts=`<button class="btn sec" style="flex:1 1 auto" onclick="marcarSaiuPraEntrega(${c.id})">Já saí (sem abrir mapa)</button><button class="btn sec" style="flex:0 0 auto;width:auto" onclick="act(${c.id},'cancelar',this)">Devolver</button>`;
+      // Etapa 1: ir até a LOJA e RETIRAR o pedido (só depois vai pro cliente).
+      const lojaAddr=c.loja_endereco||c.loja||'';
+      navRow=`<div class="c-line" style="margin-top:2px;color:var(--lime)"><span><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/></svg></span><span><b>Retirar na loja:</b> ${esc(lojaAddr||'endereço da loja')}</span></div>
+        <div class="c-line" style="color:var(--fg-dim);font-size:13px">Vá até a loja e retire o pedido. Depois toque em "Retirei o pedido".</div>
+        <div class="c-acts" style="margin-bottom:8px">
+        <a class="btn sec" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lojaAddr)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg>Maps até a loja</a>
+        <a class="btn sec" style="flex:1 1 auto;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px" href="https://waze.com/ul?q=${encodeURIComponent(lojaAddr)}&navigate=yes" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.5 3.5 1.5 3.5-1.5 3.5-1.5"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>Waze até a loja</a></div>`;
+      acts=`<button class="btn pink" style="flex:1 1 100%" onclick="marcarSaiuPraEntrega(${c.id})">Retirei o pedido <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.6 2.6L16 9.4"/></svg></button><button class="btn sec" style="flex:1 1 100%;margin-top:6px" onclick="act(${c.id},'cancelar',this)">Devolver corrida</button>`;
     } else if(c.status==='em_rota'){
       navRow=`<div class="c-acts" style="margin-bottom:8px">${navBtns}</div>`;
       if(_cheguei[c.id]){
@@ -416,9 +420,10 @@ function _startGps(){
 function _stopGps(){ if(_gpsWatchId!=null && navigator.geolocation) navigator.geolocation.clearWatch(_gpsWatchId); _gpsWatchId=null; if(_gpsTick){ clearInterval(_gpsTick); _gpsTick=null; } }
 async function _ensureDest(c){
   if(_destCache[c.id] || _destFetching[c.id]) return;
-  const cep=String(c.cep||'').replace(/\D/g,''); if(cep.length!==8) return;
+  const q=(c.endereco||'').trim(); const cep=String(c.cep||'').replace(/\D/g,'');
+  if(!q && cep.length!==8) return;
   _destFetching[c.id]=true;
-  try{ const r=await fetch(API+'?action=cep_geo&cep='+cep,{cache:'no-store'}); const d=await r.json().catch(()=>({})); if(d&&d.ok&&d.lat&&d.lng){ _destCache[c.id]={lat:d.lat,lng:d.lng}; _updateGpsUI(); } }catch(e){}
+  try{ const r=await fetch(API+'?action=cep_geo&q='+encodeURIComponent(q)+'&cep='+cep,{cache:'no-store'}); const d=await r.json().catch(()=>({})); if(d&&d.ok&&d.lat&&d.lng){ _destCache[c.id]={lat:d.lat,lng:d.lng}; _updateGpsUI(); } else { _destFetching[c.id]=false; } }catch(e){ _destFetching[c.id]=false; }
 }
 function _afterRenderCorridas(list){
   const ativos=(list||[]).filter(c=>c.status==='em_rota' && !_cheguei[c.id]);
@@ -435,7 +440,7 @@ function _updateGpsUI(){
     const dest=_destCache[c.id];
     let dist=null; if(_gpsPos && dest) dist=_haversineKm(_gpsPos,dest);
     if(dist!=null && dist<0.5 && !_nearSince[c.id]) _nearSince[c.id]=Date.now();
-    if(line){ const sp=line.querySelector('span:last-child'); if(sp) sp.textContent = dist!=null ? ('Você está a ~'+_fmtDist(dist)+' do cliente') : (_gpsPos?'Calculando distância…':'Ative a localização pra liberar as etapas'); }
+    if(line){ const sp=line.querySelector('span:last-child'); if(sp) sp.textContent = dist!=null ? ('Você está a ~'+_fmtDist(dist)+' do cliente (em linha reta)') : (_gpsPos?'Calculando distância…':'Ative a localização pra liberar as etapas'); }
     if(bChe && !_chegandoDone[c.id]){ const en=(dist!=null && dist<1); bChe.disabled=!en; bChe.style.opacity=en?'1':'.45'; }
     if(bChe && _chegandoDone[c.id]){ bChe.disabled=true; bChe.style.opacity='1'; bChe.textContent='Cliente avisado ✓'; }
     if(bCheg){ const en=(dist!=null && dist<0.15); bCheg.disabled=!en; bCheg.style.opacity=en?'1':'.45'; }

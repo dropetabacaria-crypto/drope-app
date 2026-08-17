@@ -7607,13 +7607,15 @@ async function handleEntregadorCorridas(req, res) {
     const fids = [...new Set(list.map(c => c.filial_id).filter(Boolean))];
     const oids = [...new Set(list.map(c => c.order_id).filter(Boolean))];
     const fmap = {}, omap = {};
-    if (fids.length) { const fr = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name&limit=100`); (fr || []).forEach(f => { fmap[f.id] = f.name; }); }
+    if (fids.length) { const fr = await sbGet('drope_filiais', `id=in.(${fids.join(',')})&select=id,name,metadata&limit=100`); (fr || []).forEach(f => { const e = (f.metadata || {}).endereco || {}; const g = (f.metadata || {}).geo || {}; fmap[f.id] = { name: f.name, endereco: [e.address, e.city, e.cep].filter(Boolean).join(', ') || null, lat: g.lat || null, lng: g.lng || null }; }); }
     if (oids.length) { const ors = await sbGet('drope_orders', `id=in.(${oids.join(',')})&select=id,order_nsu,items,customer_snapshot,address&limit=100`); (ors || []).forEach(o => { omap[o.id] = o; }); }
     const corridas = list.map(c => {
       const o = omap[c.order_id] || {};
+      const lj = fmap[c.filial_id] || {};
       return {
         id: c.id, status: c.status, mine: c.entregador_id === me, avulso: !c.assigned_to,
-        loja: fmap[c.filial_id] || 'Loja', order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
+        loja: lj.name || 'Loja', loja_endereco: lj.endereco || c.endereco_origem || null,
+        order_nsu: o.order_nsu || c.order_id, valor_cents: c.valor_motoboy_cents,
         distancia_km: c.distancia_km || null, created_at: c.posted_at || null,
         cep: (o.address || {}).cep || null,
         endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
@@ -14346,16 +14348,22 @@ function _isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').
 
 // CEP → { lat, lng, city, neigh, street } (cache → AwesomeAPI → BrasilAPI/Nominatim).
 // Mesma pipeline do delivery_quote, extraída pra reuso (cadastro da loja).
-// GET action=cep_geo&cep=XXXXXXXX → { ok, lat, lng } (usado pra confirmar entrega por localização)
+// GET action=cep_geo&q=<endereço completo>&cep=XXXXXXXX → { ok, lat, lng }
+// Prioriza geocodar o ENDEREÇO COMPLETO (mais preciso); cai pro CEP se não achar.
 async function handleCepGeo(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'public, max-age=86400');
   if (req.method === 'OPTIONS') return res.status(200).end();
   try {
     const url = new URL(req.url, 'http://x');
+    const q = String(url.searchParams.get('q') || '').trim();
     const cep = String(url.searchParams.get('cep') || '').replace(/\D/g, '');
-    if (cep.length !== 8) return res.status(400).json({ ok: false, error: 'cep inválido' });
-    const g = await _cepToGeo(cep);
-    if (g && g.lat && g.lng) return res.status(200).json({ ok: true, lat: g.lat, lng: g.lng, neigh: g.neigh || null });
+    if (q) {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Brasil')}&format=json&limit=1`, { headers: { 'User-Agent': 'drope-app/1.0 (contato@drope.app)' }, signal: AbortSignal.timeout(4500) });
+        if (r.ok) { const arr = await r.json(); if (arr && arr[0] && arr[0].lat) return res.status(200).json({ ok: true, lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon), source: 'addr' }); }
+      } catch (e) {}
+    }
+    if (cep.length === 8) { const g = await _cepToGeo(cep); if (g && g.lat && g.lng) return res.status(200).json({ ok: true, lat: g.lat, lng: g.lng, neigh: g.neigh || null, source: 'cep' }); }
     return res.status(200).json({ ok: false });
   } catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
 }
