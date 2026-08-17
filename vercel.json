@@ -15,6 +15,8 @@
     { "src": "sw.js", "use": "@vercel/static" },
     { "src": "manifest.json", "use": "@vercel/static" },
     { "src": "manifest-receber.json", "use": "@vercel/static" },
+    { "src": "manifest-lojista.json", "use": "@vercel/static" },
+    { "src": "manifest-entregador.json", "use": "@vercel/static" },
     { "src": "icons/**", "use": "@vercel/static" },
     { "src": "vendor/**", "use": "@vercel/static" },
     { "src": "og/**", "use": "@vercel/static" },
@@ -50,6 +52,8 @@
     { "src": "/feedback-bubble.js", "dest": "/feedback-bubble.js" },
     { "src": "/sw.js", "dest": "/sw.js" },
     { "src": "/manifest-receber.json", "dest": "/manifest-receber.json" },
+    { "src": "/manifest-lojista.json", "dest": "/manifest-lojista.json" },
+    { "src": "/manifest-entregador.json", "dest": "/manifest-entregador.json" },
     { "src": "/.+\\..+", "dest": "/$0" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],

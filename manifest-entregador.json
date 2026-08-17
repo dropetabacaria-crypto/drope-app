@@ -1,0 +1,19 @@
+{
+  "name": "DROPE Entregador",
+  "short_name": "DROPE Moto",
+  "description": "App do entregador DROPE — corridas, rotas e ganhos.",
+  "start_url": "/entregador",
+  "scope": "/entregador",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A14",
+  "theme_color": "#0A0A14",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "navigation"],
+  "icons": [
+    { "src": "icons/app-entregador-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-entregador-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-entregador-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "DROPE Lojista",
+  "short_name": "DROPE Loja",
+  "description": "Painel da sua loja no DROPE — pedidos, produtos e vendas em tempo real.",
+  "start_url": "/filial",
+  "scope": "/filial",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A14",
+  "theme_color": "#0A0A14",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icons/app-lojista-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-lojista-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-lojista-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
