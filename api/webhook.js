@@ -17560,8 +17560,8 @@ async function handleInfinitePayWebhook(req, res) {
           updatedAmbassadorId = updated[0].ambassador_id || null;
           updatedAmbassadorRef = updated[0].ambassador_ref || '';
           if (updated[0].filial_id) {
-            const _cn2 = (updated[0].customer_snapshot || {}).name || 'cliente';
-            _notify('filial', updated[0].filial_id, 'order_new', 'Novo pedido pago ✦', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2}`, null).catch(() => {});
+            const _cn2 = String((updated[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
+            _notify('filial', updated[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2} · toque pra ver`, null).catch(() => {});
           }
           const _cph2 = (updated[0].customer_snapshot || {}).phone;
           if (_cph2) _notify('customer', _cph2, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
@@ -18348,8 +18348,8 @@ async function handleMPWebhook(req, res) {
           mpAmbassadorRef = upd[0].ambassador_ref || '';
           console.log('[MP Webhook] order paid:', orderNsu);
           if (upd[0].filial_id) {
-            const _cn = (upd[0].customer_snapshot || {}).name || 'cliente';
-            _notify('filial', upd[0].filial_id, 'order_new', 'Novo pedido pago ✦', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn}`, null).catch(() => {});
+            const _cn = String((upd[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
+            _notify('filial', upd[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn} · toque pra ver`, null).catch(() => {});
           }
           const _cph = (upd[0].customer_snapshot || {}).phone;
           if (_cph) _notify('customer', _cph, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
