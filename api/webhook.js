@@ -15056,6 +15056,29 @@ async function _sendStorePush(filialId, title, body, url, badge) {
     }
   } catch (e) { console.error('[sendStorePush]', e.message); }
 }
+// Envia push pra TODOS os aparelhos inscritos do CLIENTE (e limpa assinaturas mortas).
+async function _sendCustomerPush(phone, title, body, url, badge) {
+  const wp = _webpushInit();
+  const p = _normPhone(phone);
+  if (!wp || !p) return;
+  try {
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=push_subs&limit=1`);
+    const subs = Array.isArray(rows && rows[0] && rows[0].push_subs) ? rows[0].push_subs : [];
+    if (!subs.length) return;
+    const payloadObj = { title: String(title || 'DROPE'), body: String(body || ''), url: url || '/' };
+    if (typeof badge === 'number') payloadObj.badge = badge;
+    const payload = JSON.stringify(payloadObj);
+    const dead = [];
+    await Promise.all(subs.map(async (s) => {
+      try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); }
+      catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+    }));
+    if (dead.length) {
+      const kept = subs.filter(s => !dead.includes(s.endpoint));
+      await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(p)}`, { push_subs: kept });
+    }
+  } catch (e) { console.error('[sendCustomerPush]', e.message); }
+}
 async function _notify(recipientType, recipientKey, type, title, body, link, opts) {
   const key = recipientType === 'customer' ? _phoneKey(recipientKey) : String(recipientKey || '').trim();
   if (!key || !SUPABASE_URL || !SUPABASE_KEY) return;
@@ -15069,6 +15092,8 @@ async function _notify(recipientType, recipientKey, type, title, body, link, opt
   // Loja → também dispara push pro celular (app fechado). badge='auto' põe a
   // contagem de pedidos em aberto na bolinha do ícone.
   if (recipientType === 'filial') { _sendStorePush(key, title, body, link || '/filial', opts && opts.badge).catch(() => {}); }
+  // Cliente → push no celular dele (pagamento aprovado, saiu pra entrega, entregue…).
+  else if (recipientType === 'customer') { _sendCustomerPush(recipientKey, title, body, link || '/', opts && opts.badge).catch(() => {}); }
 }
 // POST action=filial_push_subscribe — guarda a assinatura push do aparelho da loja.
 async function handleFilialPushSubscribe(req, res) {
@@ -15091,6 +15116,29 @@ async function handleFilialPushSubscribe(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true });
   } catch (e) { console.error('[filial_push_subscribe]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+// POST action=customer_push_subscribe — guarda a assinatura push do aparelho do cliente.
+async function handleCustomerPushSubscribe(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const phone = String(body.phone || '');
+    if (!(await _customerSessionOk(phone, String(body.token || '')))) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const p = _normPhone(phone);
+    if (body.action_type === 'test') { // teste: dispara um push pro próprio aparelho
+      await _sendCustomerPush(phone, 'Notificações ativas ✦', 'Vou te avisar por aqui sobre seus pedidos 🦎', '/');
+      return res.status(200).json({ ok: true, tested: true });
+    }
+    const sub = body.subscription;
+    if (!sub || !sub.endpoint) return res.status(400).json({ ok: false, error: 'subscription inválida' });
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=push_subs&limit=1`);
+    const subs = Array.isArray(rows && rows[0] && rows[0].push_subs) ? rows[0].push_subs : [];
+    const next = subs.filter(s => s.endpoint !== sub.endpoint).concat([{ endpoint: sub.endpoint, keys: sub.keys }]).slice(-10);
+    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(p)}`, { push_subs: next });
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[customer_push_subscribe]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 async function _notifResolveRecipient(url, body) {
   const role = (url ? url.searchParams.get('role') : body.role) || 'customer';
@@ -21447,6 +21495,10 @@ async function generateAll(){
   // action=filial_push_subscribe — POST: guarda assinatura push do aparelho da loja (ou testa)
   if (req.url && req.url.indexOf('action=filial_push_subscribe') >= 0) {
     return await handleFilialPushSubscribe(req, res);
+  }
+  // action=customer_push_subscribe — POST: guarda assinatura push do aparelho do cliente (ou testa)
+  if (req.url && req.url.indexOf('action=customer_push_subscribe') >= 0) {
+    return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {

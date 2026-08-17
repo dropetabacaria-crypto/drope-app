@@ -4,7 +4,7 @@
 //     Resolve o problema histórico de "versão velha no cache do Chrome do Xiaomi".
 //   - Assets estáticos (.js .css imagens): cache-first com revalidação em background.
 //   - /api/*: NUNCA cachear (são dados ao vivo).
-const CACHE = 'drope-v11';
+const CACHE = 'drope-v12';
 // Páginas que NUNCA são cacheadas — sempre busca da rede.
 // Inclui receber.html porque o fluxo de scanner muda muito; cache antigo causou travamento.
 const NEVER_CACHE = ['/receber.html', '/receber', '/index.html', '/'];
@@ -49,9 +49,14 @@ self.addEventListener('push', (e) => {
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || '/filial';
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  const wantFilial = url.indexOf('/filial') > -1; // push da loja → painel; do cliente → app
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cls) => {
-    for (const c of cls) { if (c.url.includes('/filial') && 'focus' in c) return c.focus(); }
+    for (const c of cls) {
+      let path = '/'; try { path = new URL(c.url).pathname; } catch (_) {}
+      const isFilial = path.indexOf('/filial') > -1;
+      if (wantFilial === isFilial && 'focus' in c) return c.focus();
+    }
     if (self.clients.openWindow) return self.clients.openWindow(url);
   }));
 });
