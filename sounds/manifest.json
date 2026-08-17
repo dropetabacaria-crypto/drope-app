@@ -1,17 +1,12 @@
 {
- "venda-drope": [
-  "/sounds/venda-drope/venda%20no%20drope.mp3",
-  "/sounds/venda-drope/venda%20no%20dropee.mp3",
-  "/sounds/venda-drope/venda%20no%20dropeee.mp3"
- ],
- "cli-pago": [
-  "/sounds/cli-pago/pagamento%20confirmado.mp3"
- ],
  "cli-aceito": [
   "/sounds/cli-aceito/oba%2C%20a%20loja%20aceitou%20seu%20pedido.mp3"
  ],
- "cli-saiu": [
-  "/sounds/cli-saiu/seu%20pedido%20saiu%20pra%20entrega%2C%20fica%20ligeiro%20no%20app.mp3"
+ "cli-entregue": [
+  "/sounds/cli-entregue/pedido%20entregue%2C%20bom%20proveito.mp3",
+  "/sounds/cli-entregue/pedido%20entregue%2C%20bom%20role.mp3",
+  "/sounds/cli-entregue/pedido%20entregue%2C%20obrigado%20pela%20preferencia%20mano%20drope.mp3",
+  "/sounds/cli-entregue/pedido%20entregue%2C%20obrigado%20pela%20preferencia%20papai.mp3"
  ],
  "cli-motoca-chegando": [
   "/sounds/cli-motoca-chegando/o%20motoca%20ta%20chegando.mp3"
@@ -19,13 +14,29 @@
  "cli-motoca-chegou": [
   "/sounds/cli-motoca-chegou/o%20motoca%20chegou%2C%20corre%20la.mp3"
  ],
+ "cli-pago": [
+  "/sounds/cli-pago/pagamento%20confirmado.mp3"
+ ],
  "cli-retirada": [
   "/sounds/cli-retirada/seu%20pedido%20ta%20pronto%20pra%20retirada.mp3"
  ],
- "cli-entregue": [
-  "/sounds/cli-entregue/pedido%20entregue%2C%20bom%20proveito.mp3",
-  "/sounds/cli-entregue/pedido%20entregue%2C%20bom%20role.mp3",
-  "/sounds/cli-entregue/pedido%20entregue%2C%20obrigado%20pela%20preferencia%20mano%20drope.mp3",
-  "/sounds/cli-entregue/pedido%20entregue%2C%20obrigado%20pela%20preferencia%20papai.mp3"
+ "cli-saiu": [
+  "/sounds/cli-saiu/seu%20pedido%20saiu%20pra%20entrega%2C%20fica%20ligeiro%20no%20app.mp3"
+ ],
+ "corrida-drope": [
+  "/sounds/corrida-drope/aceita%20corrida%20no%20drope.mp3",
+  "/sounds/corrida-drope/aceita%20corrida%20no%20drope2.mp3",
+  "/sounds/corrida-drope/bora%20motoca.mp3",
+  "/sounds/corrida-drope/bora%20motocaa.mp3",
+  "/sounds/corrida-drope/bora%20motocaaaa.mp3",
+  "/sounds/corrida-drope/corrida%20no%20drope.mp3",
+  "/sounds/corrida-drope/corrida%20no%20dropeee.mp3",
+  "/sounds/corrida-drope/corrida%20no%20dropi.mp3",
+  "/sounds/corrida-drope/corrida%20noi%20drope.mp3"
+ ],
+ "venda-drope": [
+  "/sounds/venda-drope/venda%20no%20drope.mp3",
+  "/sounds/venda-drope/venda%20no%20dropee.mp3",
+  "/sounds/venda-drope/venda%20no%20dropeee.mp3"
  ]
 }
