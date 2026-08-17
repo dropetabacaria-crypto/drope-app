@@ -5397,8 +5397,9 @@
     </div>
     <div class="pe-wrap">
       <div class="pe-avatar-preview" id="pe-avatar-preview"><img src="icons/drope-avatar.png" alt="drope" class="avatar-img" draggable="false"></div>
-      <div class="pe-avatar-hint">escolhe sua vibe ✦</div>
+      <div class="pe-avatar-hint">Foto de perfil ✦ escolha uma ou envie a sua</div>
       <div class="pe-avatar-picker" id="pe-avatar-wrap"></div>
+      <input type="file" id="pe-photo-input" accept="image/*" style="display:none" onchange="onPhotoPicked(event)">
 
       <div class="pe-card">
         <label class="card-lbl">nome</label>
@@ -9246,7 +9247,7 @@
   // ===== Profile (nome + whats) =====
   const PROFILE_KEY = 'drope_profile_v1';
   // 'cham' = avatar oficial da marca (camaleão Drope); demais são emojis genéricos
-  const AVATAR_OPTIONS = ['cham', '', '', '', '', ''];
+  const AVATAR_OPTIONS = ['cham', 'av-pink', 'av-blue', 'av-purple', 'av-gold', 'av-teal'];
   const BRAND_AVATAR = 'cham';
   // Usa o camaleão embutido no splash (base64) — nunca dá 404 como o arquivo em icons/
   const BRAND_AVATAR_SRC = (document.getElementById('splash-logo-img') || {}).src || 'icons/drope-avatar.png';
@@ -9539,14 +9540,20 @@
     } catch (e) { toast('erro de rede'); }
   }
   // Renderiza avatar (string emoji ou 'cham' = imagem do camaleão da marca)
+  // Resolve o avatar pra uma URL de imagem: 'cham' (marca), 'av-*' (pré-criados),
+  // data:/http (foto enviada pelo cliente). Emoji legado → null (renderiza como texto).
+  function _avatarSrc(v) {
+    v = v || BRAND_AVATAR;
+    if (v === BRAND_AVATAR) return BRAND_AVATAR_SRC;
+    if (v.indexOf('av-') === 0) return 'icons/avatars/' + v + '.png';
+    if (v.indexOf('data:') === 0 || v.indexOf('http') === 0) return v;
+    return null;
+  }
   function renderAvatarInto(el, val) {
     if (!el) return;
-    const v = val || BRAND_AVATAR;
-    if (v === BRAND_AVATAR) {
-      el.innerHTML = `<img src="${BRAND_AVATAR_SRC}" alt="drope" class="avatar-img" draggable="false">`;
-    } else {
-      el.textContent = v;
-    }
+    const src = _avatarSrc(val || BRAND_AVATAR);
+    if (src) el.innerHTML = `<img src="${src}" alt="perfil" class="avatar-img" draggable="false">`;
+    else el.textContent = val;
   }
   function persistProfile() {
     if (PREVIEW_MODE) return; // preview não grava a conta pessoal no aparelho
@@ -9601,13 +9608,7 @@
     const pp = document.getElementById('prof-phone');
     if (pp) pp.textContent = guest ? 'Crie sua conta pra pedir ✦' : (profile.phone || '');
   }
-  function pickAvatar(em) {
-    pickedAvatar = em;
-    document.querySelectorAll('.av-opt').forEach(o => {
-      o.classList.toggle('active', o.dataset.em === em);
-    });
-    renderAvatarInto(document.getElementById('pe-avatar-preview'), em);
-  }
+  function pickAvatar(em) { pickedAvatar = em; renderProfileAvatarPicker(); }
   function loadProfile() {
     try {
       const s = localStorage.getItem(PROFILE_KEY);
@@ -9647,16 +9648,45 @@
     if (ei) ei.value = profile.email || '';
     const bi = document.getElementById('pe-birth'); if (bi) bi.value = profile.birthdate || '';
     pickedAvatar = profile.avatar || BRAND_AVATAR;
+    renderProfileAvatarPicker();
+  }
+  // Monta a grade de avatares (pré-criados) + tile de "enviar foto".
+  function renderProfileAvatarPicker() {
     const wrap = document.getElementById('pe-avatar-wrap');
     if (wrap) {
-      wrap.innerHTML = AVATAR_OPTIONS.map(em => {
-        const inner = (em === BRAND_AVATAR)
-          ? `<img src="${BRAND_AVATAR_SRC}" alt="drope" class="avatar-img" draggable="false">`
-          : em;
-        return `<div class="av-opt ${em === pickedAvatar ? 'active' : ''}" data-em="${em}" onclick="pickAvatar('${em}')">${inner}</div>`;
+      const isPhoto = _avatarSrc(pickedAvatar) && AVATAR_OPTIONS.indexOf(pickedAvatar) < 0;
+      const opts = AVATAR_OPTIONS.map(em => {
+        const src = _avatarSrc(em);
+        return `<div class="av-opt ${em === pickedAvatar ? 'active' : ''}" data-em="${em}" onclick="pickAvatar('${em}')">${src ? `<img src="${src}" alt="" class="avatar-img" draggable="false">` : em}</div>`;
       }).join('');
+      const uploadTile = `<div class="av-opt av-upload ${isPhoto ? 'active' : ''}" onclick="document.getElementById('pe-photo-input').click()" title="Enviar foto" style="display:flex;align-items:center;justify-content:center;color:var(--text-dim)">${isPhoto ? `<img src="${_avatarSrc(pickedAvatar)}" alt="" class="avatar-img" draggable="false">` : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg>'}</div>`;
+      wrap.innerHTML = opts + uploadTile;
     }
     renderAvatarInto(document.getElementById('pe-avatar-preview'), pickedAvatar);
+  }
+  // Cliente envia uma foto → recorta e reduz (256px) → vira o avatar.
+  function onPhotoPicked(ev) {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = function () {
+      const img = new Image();
+      img.onload = function () {
+        try {
+          const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+          const ctx = cv.getContext('2d');
+          const scale = Math.max(S / img.width, S / img.height);
+          const w = img.width * scale, h = img.height * scale;
+          ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+          pickedAvatar = cv.toDataURL('image/jpeg', 0.82);
+          renderProfileAvatarPicker();
+        } catch (e) { toast('não deu pra usar essa foto ✦'); }
+      };
+      img.onerror = function () { toast('imagem inválida ✦'); };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+    try { ev.target.value = ''; } catch (e) {}
   }
   function phoneDigits(p) { return (p || '').replace(/\D/g, ''); }
 

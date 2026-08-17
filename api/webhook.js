@@ -15171,6 +15171,11 @@ async function handleCustomerSetProfile(req, res) {
     if (body.email != null) {
       const email = String(body.email).trim().toLowerCase();
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
+      // Email só pode estar em UMA conta (checa se outro cliente já usa).
+      if (email) {
+        const dup = await sbGet('drope_customers', `email=eq.${encodeURIComponent(email)}&phone=neq.${encodeURIComponent(phone)}&select=phone&limit=1`);
+        if (Array.isArray(dup) && dup[0]) return res.status(409).json({ ok: false, error: 'esse email já está em outra conta ✦' });
+      }
       patch.email = email || null;
     }
     if (body.birthdate != null) {
