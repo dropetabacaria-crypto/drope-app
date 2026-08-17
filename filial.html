@@ -4056,15 +4056,22 @@ function renderPedidoCard(p, isEntregue) {
     actions = b('preparing', 'Aceitar · começar separação');
   } else if (stage === 'preparing') {
     if (isDelivery) {
-      const chamar = p.corrida ? corr : `<button class="pf-btn sec" style="margin-top:8px;width:100%" onclick="openChamarEntregador(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Chamar entregador do app</button>`;
-      actions = chamar + b('dispatched', 'Saiu pra entrega (motoboy da loja)');
+      if (p.corrida) {
+        // Corrida do app em andamento — a loja só confirma a retirada (botão acima).
+        // Nada de "saiu pra entrega (motoboy da loja)": o entregador do app já veio retirar.
+        actions = corr;
+      } else {
+        const chamar = `<button class="pf-btn sec" style="margin-top:8px;width:100%" onclick="openChamarEntregador(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Chamar entregador do app</button>`;
+        actions = chamar + b('dispatched', 'Saiu pra entrega (motoboy da loja)');
+      }
     } else {
       actions = b('ready', 'Pronto pra retirada ✦');
     }
   } else if (stage === 'ready') {
     actions = b('picked_up', 'Cliente retirou ✓');
   } else if (stage === 'dispatched') {
-    actions = corr + b('delivered', 'Entregue ✓');
+    // Com corrida do app, quem finaliza é o entregador (com o código do cliente).
+    actions = p.corrida ? corr : b('delivered', 'Entregue ✓');
   }
   // Cancelar pedido — some quando já foi entregue/retirado.
   const cancelBtn = (stage !== 'done')
