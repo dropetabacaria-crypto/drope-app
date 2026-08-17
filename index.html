@@ -12888,12 +12888,21 @@
           // Snapshot dos status ANTES do merge, pra detectar mudança e tocar o som.
           const _prevSt = new Map();
           (orders || []).forEach(o => { if (o && o.num != null) _prevSt.set(String(o.num), o.backendStatus); });
-          // MERGE — nunca apaga pedido do device. União por `num`; o backend é a
-          // fonte de verdade do status (sobrescreve), mas pedidos que só existem
-          // localmente (backend não retornou) são preservados.
+          // O BACKEND É A FONTE DE VERDADE (mesma conta = mesmo app no cel e no PC).
+          // Começa da lista do servidor; só preserva pedido LOCAL muito recente
+          // (últimos 15 min) que o backend ainda não devolveu — o pedido que acabou
+          // de sair, antes de propagar. Assim exclusões feitas em 1 aparelho somem
+          // no outro (não ficam presas no cache do localStorage).
           const byNum = new Map();
-          (orders || []).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
           d.orders.map(_mapBackendOrder).forEach(o => { if (o && o.num != null) byNum.set(String(o.num), o); });
+          const _now = Date.now();
+          (orders || []).forEach(o => {
+            if (!o || o.num == null) return;
+            const k = String(o.num);
+            if (byNum.has(k)) return; // backend manda
+            const age = _now - (o.createdAt || 0);
+            if (age >= 0 && age < 15 * 60000) byNum.set(k, o); // recém-feito, ainda não propagou
+          });
           // Remove pedidos-fantasma com número NaN (bug antigo de contador local).
           orders = Array.from(byNum.values()).filter(o => !(typeof o.num === 'number' && Number.isNaN(o.num))).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           // Toca o som SÓ quando um pedido JÁ conhecido mudou de status (evita barulho

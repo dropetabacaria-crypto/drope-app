@@ -15064,11 +15064,24 @@ async function handleFilialResetConfirm(req, res) {
 async function _customerSessionOk(phone, token) {
   const p = _normPhone(phone);
   if (!p || !token) return false;
-  const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=session_hash,session_exp&limit=1`);
+  const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=session_hash,session_exp,sessions&limit=1`);
   const c = rows && rows[0];
-  if (!c || !c.session_hash) return false;
+  if (!c) return false;
   if (c.session_exp && new Date(c.session_exp).getTime() < Date.now()) return false;
-  return _sha256hex(token) === c.session_hash;
+  const th = _sha256hex(token);
+  // Multi-sessão: aceita o hash principal OU qualquer um da lista (cel + PC juntos).
+  if (c.session_hash && th === c.session_hash) return true;
+  const arr = Array.isArray(c.sessions) ? c.sessions : [];
+  return arr.some(s => s && s.h === th);
+}
+// Acrescenta um hash de sessão do cliente (multi-aparelho, até ~6), sem derrubar os outros.
+async function _custPushSession(phone, th) {
+  try {
+    const p = _normPhone(phone); if (!p) return [];
+    const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=sessions&limit=1`);
+    const arr = Array.isArray(rows && rows[0] && rows[0].sessions) ? rows[0].sessions : [];
+    return arr.filter(s => s && s.h && s.h !== th).concat([{ h: th, at: new Date().toISOString() }]).slice(-6);
+  } catch (e) { return [{ h: th, at: new Date().toISOString() }]; }
 }
 
 // POST action=otp_request { phone } → gera código de 6 dígitos, guarda o HASH e envia no WhatsApp.
@@ -15121,8 +15134,8 @@ async function handleOtpVerify(req, res) {
     const sessionHash = _sha256hex(token);
     const sessionExp = new Date(Date.now() + 60 * 86400000).toISOString(); // 60 dias
     const cust = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id&limit=1`);
-    if (cust && cust[0]) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: sessionHash, session_exp: sessionExp, last_seen_at: new Date().toISOString() });
-    else await sbInsert('drope_customers', { phone, session_hash: sessionHash, session_exp: sessionExp, source: 'app', created_at: new Date().toISOString() });
+    if (cust && cust[0]) { const sessions = await _custPushSession(phone, sessionHash); await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: sessionHash, sessions, session_exp: sessionExp, last_seen_at: new Date().toISOString() }); }
+    else await sbInsert('drope_customers', { phone, session_hash: sessionHash, sessions: [{ h: sessionHash, at: new Date().toISOString() }], session_exp: sessionExp, source: 'app', created_at: new Date().toISOString() });
     const c2 = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=name,phone&limit=1`);
     return res.status(200).json({ ok: true, token, customer: (c2 && c2[0]) || { phone } });
   } catch (e) { console.error('[otp_verify] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
@@ -15144,8 +15157,10 @@ async function handleCustomerLoginPassword(req, res) {
     const ok = c && c.pass_hash && c.pass_salt && _ljVerifyPassword(password, c.pass_salt, c.pass_hash);
     if (!ok) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'telefone ou senha incorretos' }); }
     const token = crypto.randomBytes(24).toString('hex');
+    const th = _sha256hex(token);
     const sessionExp = new Date(Date.now() + 60 * 86400000).toISOString();
-    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: _sha256hex(token), session_exp: sessionExp, last_seen_at: new Date().toISOString() });
+    const sessions = await _custPushSession(phone, th);
+    await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, { session_hash: th, sessions, session_exp: sessionExp, last_seen_at: new Date().toISOString() });
     return res.status(200).json({ ok: true, token, customer: { name: c.name || '', phone: c.phone } });
   } catch (e) { console.error('[customer_login_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
@@ -15172,7 +15187,9 @@ async function handleCustomerRegister(req, res) {
     if (existing && existing.pass_hash) return res.status(409).json({ ok: false, error: 'já existe uma conta com esse telefone — entre com sua senha' });
     const p = _ljHashPassword(password);
     const token = crypto.randomBytes(24).toString('hex');
-    const patch = { pass_salt: p.salt, pass_hash: p.hash, session_hash: _sha256hex(token), session_exp: new Date(Date.now() + 60 * 86400000).toISOString(), last_seen_at: new Date().toISOString() };
+    const th = _sha256hex(token);
+    const sessions = existing ? await _custPushSession(phone, th) : [{ h: th, at: new Date().toISOString() }];
+    const patch = { pass_salt: p.salt, pass_hash: p.hash, session_hash: th, sessions, session_exp: new Date(Date.now() + 60 * 86400000).toISOString(), last_seen_at: new Date().toISOString() };
     if (name) patch.name = name;
     if (email) patch.email = email;
     if (existing) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
