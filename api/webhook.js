@@ -2623,10 +2623,18 @@ async function _flcEnrichProduct(productId, brand, model, flavor) {
 
 // Calcula valor justo da corrida proporcional à distância.
 // Base: R$ 5 + R$ 1.50/km, mínimo R$ 7. Sem dist informada, default 4km (média Vila Prudente).
+// Frete do motoboy — alinhado ao iFood (reajuste out/2025): base R$6 + R$1,50/km,
+// mínimo R$7,50 (moto). Cálculo automático; a loja NÃO escolhe o valor.
 function _motoboyCalcValorCents(distKm) {
   const km = (typeof distKm === 'number' && distKm > 0) ? distKm : 4;
-  const valor = Math.max(7, Math.round((5 + 1.5 * km) * 100) / 100);
+  const valor = Math.max(7.5, Math.round((6 + 1.5 * km) * 100) / 100);
   return Math.round(valor * 100); // cents
+}
+function _haversineKmSrv(a, b) {
+  const R = 6371, toR = d => d * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
 }
 
 // Detecta intenção de aceitar corrida (flex — não exige palavra exata)
@@ -7497,7 +7505,7 @@ async function handleFilialCorridaCreate(req, res) {
     const orderId = parseInt(body.order_id);
     if (!orderId) return res.status(400).json({ ok: false, error: 'order_id obrigatório' });
     // pedido pertence a esta loja?
-    const ords = await sbGet('drope_orders', `id=eq.${orderId}&filial_id=eq.${filial.id}&select=id,order_nsu,address,customer_snapshot,delivery_mode&limit=1`);
+    const ords = await sbGet('drope_orders', `id=eq.${orderId}&filial_id=eq.${filial.id}&select=id,order_nsu,address,customer_snapshot,delivery_mode,metadata&limit=1`);
     const order = Array.isArray(ords) && ords[0];
     if (!order) return res.status(404).json({ ok: false, error: 'pedido não encontrado' });
     // já existe corrida ativa pra esse pedido?
@@ -7510,16 +7518,18 @@ async function handleFilialCorridaCreate(req, res) {
     const addr = order.address || {};
     const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento].filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço)';
     const clientePhone = (order.customer_snapshot || {}).phone || addr.phone || null;
-    let valorCents = Math.round(Number(body.valor) * 100);
-    if (!isFinite(valorCents) || valorCents <= 0) {
-      // default pela tabela de frete da loja: base + km*distância (distância se conhecida)
-      const tab = (filial.metadata || {}).entrega || { base: 6, km: 1.5 };
-      const km = Number(body.distancia_km) || 0;
-      valorCents = Math.round(((Number(tab.base) || 0) + (Number(tab.km) || 0) * km) * 100) || _motoboyCalcValorCents(null);
+    // FRETE AUTOMÁTICO: distância loja→cliente (GPS real do cliente ou geo da loja) →
+    // base R$6 + R$1,50/km. A loja NÃO escolhe o valor.
+    const storeGeo = (filial.metadata || {}).geo || {};
+    const custGeo = (order.address || {}).geo || (order.metadata || {}).delivery_geo || {};
+    let distKm = null;
+    if (storeGeo.lat && storeGeo.lng && custGeo.lat && custGeo.lng) {
+      distKm = Math.round(_haversineKmSrv(storeGeo, custGeo) * 1.35 * 10) / 10; // ×1.35 = fator de rua
     }
+    const valorCents = _motoboyCalcValorCents(distKm);
     const inserted = await sbInsert('drope_corridas', {
       order_id: order.id, filial_id: filial.id, status: 'aberta',
-      assigned_to: assignedTo, valor_motoboy_cents: valorCents,
+      assigned_to: assignedTo, valor_motoboy_cents: valorCents, distancia_km: distKm,
       // Quem paga: atribuiu a um fixo → a loja paga; abriu pra todos (avulso) → o DROPE paga.
       payer: assignedTo ? 'loja' : 'drope',
       endereco_destino: enderecoDest, cliente_phone: clientePhone,

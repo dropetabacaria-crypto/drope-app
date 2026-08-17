@@ -822,9 +822,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <h3 id="chamar-title" style="margin:0 0 12px;font-size:18px;color:var(--fg)">Chamar entregador</h3>
     <label class="pf-lbl">Pra quem?</label>
     <select class="pf-input" id="chamar-ent"></select>
-    <label class="pf-lbl" style="margin-top:8px">Valor da entrega (R$)</label>
-    <input class="pf-input" id="chamar-valor" inputmode="decimal" placeholder="8,00">
-    <div class="pf-hint" style="margin-top:4px">"Abrir pra todos" = o primeiro entregador que aceitar leva.</div>
+    <div style="margin-top:12px;background:rgba(212,255,46,.08);border:1px solid rgba(212,255,46,.35);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--lime);font-weight:600">O frete é calculado automático pela distância (base + km) — você não precisa definir o valor.</div>
+    <div class="pf-hint" style="margin-top:8px">"Abrir pra todos" = o primeiro entregador que aceitar leva.</div>
     <button class="pf-btn full" onclick="confirmChamar()" style="margin-top:14px">Criar corrida ✦</button>
     <button class="pf-btn full" onclick="closeChamar()" style="margin-top:8px;background:var(--bg3);color:var(--fg-dim)">Cancelar</button>
     <div id="chamar-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
@@ -4180,7 +4179,6 @@ function openChamarEntregador(orderId) {
   const fixos = _entregadoresFixos || [];
   const sel = document.getElementById('chamar-ent');
   sel.innerHTML = '<option value="">Abrir pra todos os entregadores</option>' + fixos.map(e => `<option value="${e.id}">Fixo: ${esc(e.nome)}</option>`).join('');
-  document.getElementById('chamar-valor').value = String((_entrega && _entrega.base != null ? _entrega.base : 6)).replace('.', ',');
   document.getElementById('chamar-msg').textContent = '';
   document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido #' + orderId;
   document.getElementById('chamar-ov').classList.add('open');
@@ -4188,17 +4186,19 @@ function openChamarEntregador(orderId) {
 function closeChamar() { document.getElementById('chamar-ov').classList.remove('open'); }
 async function confirmChamar() {
   const assigned_to = (document.getElementById('chamar-ent') || {}).value || null;
-  const valor = _num((document.getElementById('chamar-valor') || {}).value);
   const msg = document.getElementById('chamar-msg');
   msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando corrida...';
   try {
     const r = await fetch('/api/webhook?action=filial_corrida_create', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, order_id: _chamarOrderId, assigned_to, valor: (isFinite(valor) && valor > 0) ? valor : undefined }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, order_id: _chamarOrderId, assigned_to }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { closeChamar(); loadData(true); }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
+    if (r.ok && d.ok) {
+      const v = d.corrida && d.corrida.valor_motoboy_cents;
+      _toast('Corrida criada ✦' + (v ? (' frete R$ ' + (v / 100).toFixed(2).replace('.', ',')) : ''), 'ok');
+      closeChamar(); loadData(true);
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
 }
 
