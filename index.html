@@ -7123,9 +7123,11 @@
     go('home');
   }
 
+  // Convidado = SEM sessão de verdade (login real). Não depende mais do perfil local
+  // (que podia ficar salvo no aparelho e "vazar" nome/telefone mesmo deslogado).
   function isGuest() {
     if (PREVIEW_MODE) return true;
-    return !profile.onboarded || !profile.name || profile.name === 'visitante';
+    return !_isLoggedIn();
   }
 
   function goCheckout() {
@@ -7154,9 +7156,9 @@
   }
 
   function openGuestGate() {
-    document.getElementById('guest-gate-bd').classList.add('open');
-    document.getElementById('guest-gate').classList.add('open');
-    setTimeout(() => { const n = document.getElementById('gate-name'); if (n) n.focus(); }, 350);
+    // Regra nova: comprar/adicionar exige CONTA de verdade (não mais cadastro local
+    // de convidado). Abre o login real (OTP/senha); o pós-login retoma o fluxo.
+    try { openCustomerLogin(); } catch (e) {}
   }
   function closeGuestGate() {
     document.getElementById('guest-gate-bd').classList.remove('open');
@@ -8861,9 +8863,13 @@
   let _homeFeedCache = null;
   function _updateInicioHeader() {
     try {
-      const g = document.getElementById('inicio-greet'); if (g) g.textContent = (typeof profile !== 'undefined' && profile && profile.name) ? ('Oi, ' + profile.name + ' ✦') : 'Bem-vindo ✦';
+      const logged = _isLoggedIn();
+      const g = document.getElementById('inicio-greet'); if (g) g.textContent = (logged && profile && profile.name) ? ('Oi, ' + profile.name + ' ✦') : 'Bem-vindo ✦';
       const t = document.getElementById('inicio-addr-txt');
-      if (t) { const arr = (typeof addresses !== 'undefined' && addresses) || []; const a = arr.find(x => x.id === selectedAddressId) || arr[0]; t.textContent = (a && a.street) ? (a.street + (a.num ? (', ' + a.num) : '')) : 'Adicionar endereço de entrega'; }
+      if (t) {
+        if (!logged) { t.textContent = 'Adicionar endereço de entrega'; }
+        else { const arr = (typeof addresses !== 'undefined' && addresses) || []; const a = arr.find(x => x.id === selectedAddressId) || arr[0]; t.textContent = (a && a.street) ? (a.street + (a.num ? (', ' + a.num) : '')) : 'Adicionar endereço de entrega'; }
+      }
     } catch (e) {}
   }
   // Skeletons pra reservar o layout desde o 1º frame — a página aparece "completa"
@@ -9343,6 +9349,25 @@
     try { openCustomerLogin(); } catch (e) {}
     return false;
   }
+  // Sem login não dá pra adicionar ao carrinho — só navegar. (Regra: convidado vê, logado compra.)
+  function _requireLoginToAdd() {
+    if (_isLoggedIn()) return true;
+    toast('Entre na sua conta pra adicionar ao carrinho ✦');
+    try { openCustomerLogin(); } catch (e) {}
+    return false;
+  }
+  // Convidado (sem sessão de verdade) não guarda/exibe dados pessoais no aparelho.
+  // Corrige o caso de perfil salvo localmente aparecer mesmo deslogado.
+  function _enforceGuestPrivacy() {
+    if (PREVIEW_MODE || _isLoggedIn()) return;
+    try {
+      if (profile && (profile.name || profile.phone || profile.email || profile.onboarded)) {
+        profile.name = ''; profile.phone = ''; profile.email = ''; profile.onboarded = false;
+        try { persistProfile(); } catch (e) {}
+      }
+    } catch (e) {}
+    try { if (typeof addresses !== 'undefined' && addresses && addresses.length) { addresses = []; localStorage.removeItem('drope_addresses_v1'); localStorage.removeItem('drope_addr_selected_v1'); } } catch (e) {}
+  }
   function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
   let _otpPhone = '';
@@ -9470,6 +9495,7 @@
   }
   // Mostra/esconde itens do perfil conforme login
   function _syncLoginUI() {
+    try { _enforceGuestPrivacy(); } catch (e) {}
     const logged = _isLoggedIn();
     const rLogin = document.getElementById('pr-login'); if (rLogin) rLogin.style.display = logged ? 'none' : 'flex';
     const rLogout = document.getElementById('pr-logout'); if (rLogout) rLogout.style.display = logged ? 'flex' : 'none';
@@ -9539,7 +9565,7 @@
   function updateProfileAvatar() {
     renderAvatarInto(document.getElementById('prof-avatar-big'), profile.avatar);
     renderAvatarInto(document.getElementById('home-avatar'), profile.avatar);
-    const guest = isGuest() && !_isLoggedIn();
+    const guest = !_isLoggedIn();
     // Saudação da home: convidado não tem "nome de conta" — mostra algo neutro.
     const greet = document.getElementById('home-greet');
     if (greet) {
@@ -9586,6 +9612,9 @@
     } catch (e) {}
   }
   setTimeout(updateProfileAvatar, 0);
+  // Boot: se não está logado, garante que nenhum dado pessoal salvo no aparelho
+  // apareça (perfil/endereço) e atualiza o cabeçalho da home.
+  setTimeout(() => { try { _enforceGuestPrivacy(); } catch (e) {} try { updateProfileAvatar(); } catch (e) {} try { _updateInicioHeader(); } catch (e) {} }, 0);
   function fillProfileEdit() {
     const ni = document.getElementById('pe-name');
     const pi = document.getElementById('pe-phone');
@@ -11138,7 +11167,7 @@
     if (screen === 'favorites') { renderFavorites(); loadFavoritesFromAccount(); }
     if (screen === 'addresses') loadAddressesFromAccount();
     if (screen === 'orders') { renderOrders(); loadMyOrders(); }
-    if (screen === 'profile') { try { _syncLoginUI(); } catch (e) {} }
+    if (screen === 'profile') { try { _syncLoginUI(); } catch (e) {} try { updateProfileAvatar(); } catch (e) {} }
     if (screen === 'order-tracking') { renderOrderTracking(); loadMyOrders(); }
     // Acompanhamento ao vivo: enquanto o cliente olha o pedido, atualiza sozinho o
     // status (em separação → pronto/a caminho → entregue) sem precisar recarregar.
@@ -12918,6 +12947,7 @@
   }
 
   function repeatOrder(idx) {
+    if (!_requireLoginToAdd()) return;
     const o = orders[idx];
     if (!o || !o.items) return;
     o.items.forEach(src => {
@@ -13088,6 +13118,7 @@
   // Se o cliente já tem endereço salvo (last_delivery_address), pré-preenche.
   function dropAgainFromHome(ev) {
     if (ev) ev.stopPropagation();
+    if (!_requireLoginToAdd()) return;
     const data = __personalizedHomeCache;
     if (!data || !data.last_order) { toast('último drop não encontrado ✦'); return; }
     const lo = data.last_order;
@@ -13415,6 +13446,7 @@
   }
 
   function addToCart() {
+    if (!_requireLoginToAdd()) return; // sem login, só navega — não adiciona
     // Loja sem Mercado Pago conectado não vende (o dinheiro não teria pra onde ir).
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
       toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
