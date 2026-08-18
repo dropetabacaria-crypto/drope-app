@@ -7551,7 +7551,7 @@ async function handleFilialCorridaCreate(req, res) {
     const orderId = parseInt(body.order_id);
     if (!orderId) return res.status(400).json({ ok: false, error: 'order_id obrigatório' });
     // pedido pertence a esta loja?
-    const ords = await sbGet('drope_orders', `id=eq.${orderId}&filial_id=eq.${filial.id}&select=id,order_nsu,address,customer_snapshot,delivery_mode,metadata&limit=1`);
+    const ords = await sbGet('drope_orders', `id=eq.${orderId}&filial_id=eq.${filial.id}&select=id,order_nsu,address,customer_snapshot,delivery_mode,delivery_fee_cents,metadata&limit=1`);
     const order = Array.isArray(ords) && ords[0];
     if (!order) return res.status(404).json({ ok: false, error: 'pedido não encontrado' });
     // já existe corrida ativa pra esse pedido?
@@ -7572,7 +7572,11 @@ async function handleFilialCorridaCreate(req, res) {
     if (storeGeo.lat && storeGeo.lng && custGeo.lat && custGeo.lng) {
       distKm = Math.round(_haversineKmSrv(storeGeo, custGeo) * 1.35 * 10) / 10; // ×1.35 = fator de rua
     }
-    const valorCents = _motoboyCalcValorCents(distKm);
+    // Repasse ao motoboy = 94% do FRETE que o cliente pagou (DROPE fica com 6%).
+    // Fallback (pedido sem frete registrado): 94% da tabela base+km.
+    const freteCents = Number(order.delivery_fee_cents) || 0;
+    const baseCents = freteCents > 0 ? freteCents : _motoboyCalcValorCents(distKm);
+    const valorCents = Math.round(baseCents * 0.94);
     const inserted = await sbInsert('drope_corridas', {
       order_id: order.id, filial_id: filial.id, status: 'aberta',
       assigned_to: assignedTo, valor_motoboy_cents: valorCents, distancia_km: distKm,
@@ -18183,6 +18187,7 @@ async function handleMPCreatePix(req, res) {
   try {
     const body = req.body || {};
     const { items, total_cents, order_id, customer } = body;
+    const deliveryFeeCents = Math.max(0, Math.min(Number(body.delivery_fee_cents) || 0, Number(total_cents) || 0));
 
     if (!items || !items.length || !total_cents) {
       return res.status(400).json({ error: 'missing items or total_cents' });
@@ -18199,7 +18204,12 @@ async function handleMPCreatePix(req, res) {
           sellerToken = t;
           sellerName = filial.name || slug;
           commissionPct = _planFor(filial).commission_pct || 0;
-          appFeeReais = Math.round(total_cents * commissionPct / 100) / 100; // comissão em reais, 2 casas
+          // Split novo: comissão do DROPE incide SÓ sobre o PRODUTO; o FRETE fica 100% com
+          // o DROPE (application_fee = comissão do produto + frete inteiro). Depois o DROPE
+          // repassa 94% do frete ao motoboy e fica com 6% (repasse = Fase 2).
+          const productCents = Math.max(0, (Number(total_cents) || 0) - deliveryFeeCents);
+          const appFeeCents = Math.round(productCents * commissionPct / 100) + deliveryFeeCents;
+          appFeeReais = Math.round(appFeeCents) / 100; // reais, 2 casas
           split = appFeeReais > 0;
         }
       }

@@ -6867,6 +6867,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filial_slug: slug, order_id: orderNsu, total_cents: chargeCents,
+          delivery_fee_cents: Math.round(deliveryFeeReais * 100), // frete fica 100% com o DROPE (repassa 94% ao motoboy)
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || slug })),
           customer: { name: profile.name, email: profile.email || '', phone: profile.phone },
         }),
@@ -10014,11 +10015,26 @@
   // OTIMIZADO 04/06 (Andrade) v2: 100% frontend.
   // Vercel tava sendo bloqueado pela AwesomeAPI, então passei TODO o cálculo
   // pro navegador do cliente. Velocidade total: 100-300ms na 1ª vez, 0ms depois.
-  const DROPE_STORE_LAT = -23.5838437;
+  const DROPE_STORE_LAT = -23.5838437; // fallback (loja sem geo cadastrada)
   const DROPE_STORE_LNG = -46.5901294;
-  const DROPE_BASE_FEE_CENTS = 500;
-  const DROPE_PER_KM_CENTS = 200;
+  const DROPE_BASE_FEE_CENTS = 600;    // R$6 base — alinhado ao repasse do motoboy
+  const DROPE_PER_KM_CENTS = 150;      // R$1,50/km
+  const DROPE_MIN_FEE_CENTS = 750;     // piso R$7,50
+  const DROPE_ROAD_FACTOR = 1.35;      // aprox de rota (linha reta × 1.35) até plugar Google Directions
   const DROPE_MAX_KM = 35;
+  // Geo da LOJA selecionada (multi-loja). Fallback: loja hardcoded (compat).
+  function _storeGeoForQuote() {
+    try { if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && typeof CLIENT_LOJA.lat === 'number' && typeof CLIENT_LOJA.lng === 'number') return { lat: CLIENT_LOJA.lat, lng: CLIENT_LOJA.lng }; } catch (e) {}
+    return { lat: DROPE_STORE_LAT, lng: DROPE_STORE_LNG };
+  }
+  // Distância dedicada do frete (o nome _haversineKm colide com outra definição no
+  // arquivo — versão (a,b) — que quebrava o cálculo do frete de 4 args).
+  function _freteKmStraight(lat1, lng1, lat2, lng2) {
+    const R = 6371, toR = d => d * Math.PI / 180;
+    const dLat = toR(lat2 - lat1), dLng = toR(lng2 - lng1);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
 
   function _quoteCacheKey(cep) { return 'drope_quote_' + cep; }
   function _loadQuoteCache(cep) {
@@ -10044,21 +10060,24 @@
   }
 
   function _calcQuote(lat, lng, city, neigh) {
-    const km = _haversineKm(DROPE_STORE_LAT, DROPE_STORE_LNG, lat, lng);
-    const kmR = Math.round(km * 10) / 10;
-    if (km > DROPE_MAX_KM) {
+    const sg = _storeGeoForQuote();
+    const straight = _freteKmStraight(sg.lat, sg.lng, lat, lng);   // linha reta loja→cliente
+    const kmRoad = Math.round(straight * DROPE_ROAD_FACTOR * 10) / 10; // aprox de rota
+    if (straight > DROPE_MAX_KM) {
       return {
         ok: true,
         out_of_range: true,
-        km: kmR,
+        km: kmRoad,
         city, neigh,
-        message: `${city || 'esse endereço'} fica longe (~${Math.round(km)}km) ✦ vamos conversar pelo whats antes de fechar`,
+        message: `${city || 'esse endereço'} fica longe (~${Math.round(kmRoad)}km) ✦ vamos conversar pelo whats antes de fechar`,
       };
     }
-    const raw = DROPE_BASE_FEE_CENTS + Math.round(km * DROPE_PER_KM_CENTS);
-    const fee_cents = Math.max(500, Math.ceil(raw / 100) * 100 - 1);
+    // Frete = base R$6 + R$1,50/km (rota aprox), piso R$7,50. É o valor que o cliente paga;
+    // o DROPE fica com 6% e repassa 94% ao motoboy (Fase 2).
+    const raw = DROPE_BASE_FEE_CENTS + Math.round(kmRoad * DROPE_PER_KM_CENTS);
+    const fee_cents = Math.max(DROPE_MIN_FEE_CENTS, raw);
     const fmt = 'R$ ' + (fee_cents / 100).toFixed(2).replace('.', ',');
-    return { ok: true, out_of_range: false, km: kmR, fee_cents, fmt, city, neigh };
+    return { ok: true, out_of_range: false, km: kmRoad, fee_cents, fmt, city, neigh };
   }
 
   async function fetchDeliveryQuote(cep) {
