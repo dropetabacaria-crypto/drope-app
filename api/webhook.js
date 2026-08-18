@@ -4325,32 +4325,36 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
 async function analyzeProductImage(caixaUrl, podUrl = null) {
-  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE (tabacaria + adega). Analise a foto de UM produto — pode ser pod/vape, cigarro, tabaco, seda/filtro, piteira, boquilha, dichavador, narguile, essencia, isqueiro, carvao, cerveja, vinho, destilado ou outro — e extraia em JSON valido (sem markdown). Se nao identificar um campo, deixa null.
-IMPORTANTE: os campos model, puffs, ml, mg_nicotina, device_color, device_visual, device_visual_detailed, flavor_elements, flavor_category SO valem pra POD/VAPE — pra QUALQUER outro produto, deixa esses null e preenche "name".
-ACESSORIOS de tabacaria (piteira, filtro, boquilha, dichavador, isqueiro, seda, carvao): LEIA na embalagem o TIPO do produto e o MATERIAL/TAMANHO visivel (ex "piteira de vidro", "glass tip", "filtro 6mm", "king size", "slim", "aluminio") e monte um "name" COMPLETO com marca + tipo + material/tamanho (ex "Piteira de Vidro Sadhu", "Filtro Sadhu 6mm Slim", "Dichavador de Aluminio"). NUNCA devolva so a marca no "name". Poe a variacao/tamanho/material no "model" tambem (ex "Vidro King Size").
+  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE — uma TABACARIA + ADEGA. Analise a foto de UM produto e devolva JSON valido (sem markdown). O produto pode ser QUALQUER item de tabacaria ou adega: seda, piteira, filtro, boquilha, dichavador, isqueiro, estojo/case/bolsa/necessaire, narguile e pecas (rosh, mangueira, abafador, prato), carvao, essencia de narguile, cigarro, tabaco/fumo, OU bebida (cerveja, vinho, destilado, energetico) — e tambem pode ser vape/pod. VAPE/POD e apenas UMA categoria entre muitas; NAO assuma que o produto e pod.
+
+REGRA DE OURO (nao errar): identifique SO o que esta REALMENTE VISIVEL na foto. A marca vem do TEXTO/LOGO impresso ou gravado na embalagem — se esta escrito/gravado "Sadhu", a marca e SADHU e o produto e um item Sadhu (ex um estojo/case vermelho gravado 'Sadhu' = "Estojo Sadhu"). NUNCA invente marca, tipo ou sabor que nao aparece na foto. NUNCA troque por um produto parecido (ex: nao chame um estojo de "tabaco de narguile"). Se um campo nao da pra ler com certeza, use null — melhor devolver menos e certo do que chutar.
 
 {
-  "barcode": "OCR dos NUMEROS IMPRESSOS embaixo (ou ao lado) do codigo de barras. NAO decodifica as listras pretas/brancas — LE o numero em TEXTO que esta escrito ali, igual OCR comum. Le digito por digito EXATO, da esquerda pra direita. Se 1 unico digito estiver duvidoso/embacado/cortado, retorna null (nunca chuta). Atencao a 2/5/7, 0/8, 3/8, 1/7, 6/9 quando o texto for pequeno. EAN-13=13 digitos, UPC-A=12, EAN-8=8. Se nao ver os numeros claramente impressos, retorna null.",
-  "name": "nome do produto pra vitrine, portugues BR, curto e claro (ex 'Cigarro Marlboro Box', 'Cerveja Heineken Long Neck 330ml', 'Seda Smoking King Size', 'Piteira de Vidro Sadhu', 'Filtro Sadhu 6mm Slim', 'Carvao de Coco 250g', 'Whisky Johnnie Walker Red Label'). SO pra pod deixa null (nesse caso o nome vem de brand+model+flavor).",
-  "type": "categoria do produto: 'pod' | 'cigarro' | 'tabaco' | 'seda' | 'piteira' | 'filtro' | 'dichavador' | 'narguile' | 'essencia' | 'isqueiro' | 'carvao' | 'cerveja' | 'vinho' | 'destilado' | 'bebida' | 'acessorio' | 'outro'. Escolhe a mais especifica.",
-  "brand": "marca do produto em maiusculo. Pods: IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER (LOST MARY=LOSTMARY). Outros: le a marca da embalagem (ex MARLBORO, HEINEKEN, SMOKING, JOHNNIE WALKER, ADALYA).",
-  "model": "linha/modelo. SE NAO LER, USA null. NUNCA escreve 'unknown', 'desconhecido', '?'. Catalogo de modelos por marca:\n  - IGNITE: 'V155', 'V250', 'V300', 'V55', 'Boost'\n  - ELFBAR: 'BC15K', 'BC Pro', 'Trio', 'Iceking', 'TE 30K', 'GH 23K'\n  - BLACKSHEEP: 'Cyber Tank Pro', 'Cybertank', 'Spherex', 'Spherex Plus'\n  - LOSTMARY: 'MO5000', 'MO10000', 'MO20000', 'MT15000', 'OS5000', 'BM6000', 'PSYBER', 'Cosmic Edition', 'Tappo'\n  - DOJO: 'Fresh', 'Frosty', 'Splash'\n  - GEEKBAR: 'Frozen', 'White Peach', 'Stone Freeze', 'Pulse'\n  - ADALYA: 'AD5000', 'AD40K'\n  - VANTHER: '30K', 'Cool Mint Edition'\nSe a foto mostrar marca mas modelo ilegivel/cortado, preenche brand e deixa model=null. Procura na CAIXA texto pequeno tipo 'MO20000', 'V300', 'BC15K' (frequentemente perto do logo ou no canto).",
-  "flavor_en": "sabor em ingles (ex 'Menthol', 'Mango Magic', 'Strawberry Ice')",
-  "flavor_pt": "NOME DE PRATELEIRA em portugues BR — marketing Gen Z, não tradução literal. REGRAS: (1) usa conectivos quando bater bem ('Morango com Banana' não 'Morango Banana', 'Maçã no Gelo'), (2) diminutivos atrativos quando aplicável ('Maçã Verde Azedinha' não 'Maçã Verde Azeda', 'Uvinha Gelada' OK pra Grape Ice), (3) tropicaliza nomes evocativos ('Tropical Rainbow' → 'Arco-íris Tropical', 'Cosmic Edition' → 'Edição Cósmica'), (4) NUNCA literal robótico ('Strawberry Watermelon' → 'Morango com Melancia' não 'Morango Melancia'; 'Sour Apple Ice' → 'Maçã Verde Azedinha Gelada' não 'Maçã Verde Azeda Gelada'), (5) capitaliza palavras principais (não tudo minúsculo, não tudo CAPS), (6) max 4-5 palavras pra não virar nome longo demais. Ex bons: 'Manga Mágica', 'Framboesa Azul Gelada', 'Menta no Gelo', 'Uva Cosmic', 'Cereja com Limão', 'Frutas Vermelhas Gelada'. Ex ruins (evita): 'Maçã Verde Azeda Gelada', 'Frutas Vermelhas Assustadoras', 'Cabeças de Limão Lima'",
-  "puffs": numero inteiro (ex 30000) ou null. INFERE do nome se nao tiver explicito: BC15K=15000, V155=15500, 30K=30000, 40K=40000, 45K=45000, 55K=55000. Se ver 'Ultra Slim' sozinho sem numero, usa null.
-  "ml": float (ex 18, 20, 25). INFERE do contexto: pods 30k+ tipicamente 18-22ml; pods <20k tipicamente 12-15ml. Se incerto, usa null.
-  "mg_nicotina": float. Padrao Brasil = 5 (5%). Se a caixa nao mostrar, usa 5. Se mostrar 50mg ou 5%, usa 5. Se 20mg, usa 2. Se 30mg, usa 3.
-  "device_color": "cor do device em ingles curto (ex 'matte black', 'green and silver', 'pink purple gradient')",
-  "device_visual": "descricao visual COMPLETA do pod em ingles, 30-60 palavras, pra usar como prompt de geracao de arte. Inclui: SHAPE (tall slim rectangular / boxy square / rounded cylinder / curved organic), PROPORCOES (height/width ratio approx, ex '3:1 tall slim'), DISPLAY (has small LED screen at front / no screen), CONTROLS (boost/eco button on side / power button on bottom / no buttons), MOUTHPIECE (tapered black / wide rounded / square flat), LOGO (centered front / on side / on top), TEXTURE (matte / glossy / soft-touch / metallic / translucent), FEATURES ESPECIAIS (light strip on side / transparent tank visible / dual mesh visible). Ex: 'Tall slim rectangular vape pod, 3:1 ratio, small LED screen on lower front showing puff count, side boost/eco toggle button, tapered black mouthpiece, matte orange body with bull-skull logo centered front, white IV BR badge on lower right corner'",
-  "device_visual_detailed": "descricao ULTRA especifica do device em ingles, 60-80 palavras, pra prompt de arte que NAO tem foto de referencia. Cobre OBRIGATORIAMENTE: (1) SHAPE+PROPORTIONS (ex 'tall rectangular box shape with rounded corners, ~3:1 ratio'), (2) BODY COLOR exato (ex 'translucent lime green body' ou 'matte orange-red gradient'), (3) MOUTHPIECE (cor + formato + posicao, ex 'black tapered mouthpiece on top'), (4) LED/DISPLAY (ex 'small white LED indicator strip at bottom front' ou 'no display visible'), (5) CONTROLS (ex 'side boost/eco toggle button on right side' ou 'no buttons'), (6) BRANDING (texto exato + posicao + orientacao, ex 'ELFBAR text printed vertically on front center, GH33000 PRO model name below in smaller font, white text on body'), (7) TEXTURE (ex 'matte finish' / 'glossy with metallic highlights' / 'translucent showing internal tank'), (8) FEATURES especiais visiveis. Diferente do device_visual (mais curto), aqui detalha CADA elemento que distingue ESSE device especifico. Ex: 'A tall rectangular box-shaped vape pod, ~3:1 height-to-width ratio, with rounded corners and a translucent lime green body that reveals an internal liquid tank. A short black tapered mouthpiece sits on top. A thin white LED indicator strip runs along the bottom front edge. A side boost/eco toggle button is on the right edge. The brand ELFBAR is printed in white block letters running vertically on the front center, with GH33000 PRO in smaller white text below. Matte finish on the body, glossy black mouthpiece.'",
-  "cores_predominantes": "cores da caixa em portugues (ex 'verde escuro com prata e detalhes lima', 'preto matte e neon azul')",
-  "flavor_elements": "elementos visuais do sabor pra prompt de arte em ingles (ex 'mint leaves and ice crystals', 'mango slices and frost', 'watermelon dragonfruit')",
-  "descricao_quebrada": "max 80 caracteres, vibe lo-fi authentic Gen Z favela Vila Prudente, minusculas, max 1 emoji, sensacao real do sabor. NUNCA usar 'delicioso, incrivel, experimente, o melhor'. Exemplos certos: 'menta gelada que escorre na garganta 🧊', 'manga doce escorrendo no calor', 'frutas vermelhas com soco de gelo'",
-  "flavor_category": "OBRIGATORIO. Classifique em UMA dessas categorias EXATAS: 'fruity' (sabores de fruta: mango, grape, strawberry, watermelon, peach, apple, berry, etc.), 'sweet' (doces/sobremesa: candy, caramel, vanilla, chocolate, bubblegum), 'icy' (gelado: ice, freeze, cold, frost, cooling — qualquer sabor com 'ice' no nome), 'menthol' (mint, menthol, spearmint, peppermint, eucalyptus), 'tobacco' (tobacco, cigar, classic, wood), 'other' (se nada encaixar). REGRA CRITICA: se o sabor TEM fruta E gelo (ex 'Mango Ice', 'Grape Freeze', 'Strawberry Cool'), classifique como 'icy' — o gelado/cooling e a experiencia dominante. Sour Apple Ice = icy. Aloe Grape Sour Apple (sem ice) = fruity.",
-  "alertas": ["lista de strings com qualquer ambiguidade. ex: 'sabor pode ser Menthol ou Icy Mint', 'nao consegui ler mg de nicotina'"]
+  "barcode": "OCR dos NUMEROS impressos embaixo/ao lado do codigo de barras (le o numero em TEXTO, digito por digito exato, esquerda->direita). Se 1 digito estiver duvidoso/cortado, null (nunca chuta). EAN-13=13, UPC-A=12, EAN-8=8. Se nao ver os numeros, null.",
+  "type": "categoria MAIS ESPECIFICA do que esta na foto: 'seda' | 'piteira' | 'filtro' | 'dichavador' | 'isqueiro' | 'estojo' | 'narguile' | 'essencia' | 'carvao' | 'cigarro' | 'tabaco' | 'cerveja' | 'vinho' | 'destilado' | 'bebida' | 'pod' | 'acessorio' | 'outro'.",
+  "brand": "marca EXATA lida na embalagem, em maiusculo (ex SADHU, ZOMO, OCB, SMOKING, HEINEKEN, MARLBORO). Le o texto/logo da foto. Se nao der pra ler, null. NAO chuta marca.",
+  "name": "nome completo pra vitrine em PT-BR, curto e claro, montado do que ESTA na foto: marca + tipo do produto + material/tamanho/variacao visivel. Ex: 'Estojo Sadhu', 'Piteira de Vidro Sadhu', 'Seda Zomo Natural King Size', 'Filtro Sadhu 6mm Slim', 'Carvao de Coco 250g', 'Cerveja Heineken Long Neck 330ml'. NUNCA devolva so a marca. SO deixa null se for vape/pod (nesse caso o nome vem de brand+model+flavor).",
+  "model": "linha/variacao/material/tamanho VISIVEL (ex 'Vidro King Size', 'Natural', '6mm Slim', 'Long Neck 330ml', 'Coco 250g') ou null. Nunca 'unknown'/'?'.",
+  "specs": "1 linha curta com as ESPECIFICACOES do produto quando NAO for vape — o que ajuda o cliente a entender o item (ex 'estojo rigido com ziper pra guardar acessorios', 'seda 33 folhas king size sem branqueamento', 'lata 350ml', 'carvao de coco 250g ~1kg', 'filtro 6mm com 120 un'). Se nao souber, null.",
+
+  "COMENTARIO_VAPE": "Os campos abaixo (flavor_en ate flavor_category) SO valem pra type='pod'/vape. Pra QUALQUER outro produto, TODOS = null.",
+  "flavor_en": "SO pod: sabor em ingles (ex 'Mango Ice') ou null",
+  "flavor_pt": "SO pod (ou essencia de narguile com sabor): nome de prateleira em PT-BR (ex 'Manga Gelada') ou null",
+  "puffs": "SO pod: numero de puffs (ex 30000) ou null",
+  "ml": "SO pod: float ml ou null",
+  "mg_nicotina": "SO pod: float (padrao BR 5) ou null",
+  "device_color": "SO pod: cor do device em ingles curto ou null",
+  "device_visual": "SO pod: descricao visual do device em ingles pra arte, ou null",
+  "device_visual_detailed": "SO pod: descricao ultra-detalhada do device em ingles, ou null",
+  "flavor_elements": "SO pod: elementos visuais do sabor em ingles, ou null",
+  "flavor_category": "SO pod: 'fruity'|'sweet'|'icy'|'menthol'|'tobacco'|'other'. Senao null.",
+
+  "cores_predominantes": "cores predominantes da embalagem em PT-BR (ex 'vermelho com logo gravado', 'verde escuro e prata')",
+  "descricao_quebrada": "max 80 caracteres, vibe Gen Z, minusculas, max 1 emoji, sensacao real do produto. NUNCA 'delicioso, incrivel, o melhor'.",
+  "alertas": ["strings com qualquer ambiguidade ou o que nao deu pra ler (ex 'nao consegui ler o tamanho')"]
 }
 
-NAO invente dado. Identifique o produto seja ele qual for (pod, cigarro, tabaco, seda, narguile, bebida, etc.) e preenche name+type+brand+barcode. Se a foto nao mostrar um produto identificavel, retorna {"alertas":["nao identifiquei o produto"]} e o resto null.`;
+Identifique o produto EXATAMENTE como esta na foto e preenche name+type+brand (+specs pra nao-vape, +barcode se der). Se a foto NAO mostrar um produto identificavel, retorna {"alertas":["nao identifiquei o produto"]} e o resto null.`;
 
   // Helper pra montar source aceitando HTTP URL ou data: URL (base64 inline)
   const makeSource = (url) => {
@@ -4373,10 +4377,10 @@ NAO invente dado. Identifique o produto seja ele qual for (pod, cigarro, tabaco,
       content.push({ type: "image", source: podSource });
       userText = "2 fotos: a 1ª eh a CAIXA do pod (info textual de marca/modelo/sabor/specs). A 2ª eh o POD ao vivo. Use texto da CAIXA pra brand/model/flavor/puffs/ml/mg. Use o POD ao vivo pra `device_color` (cor real) E `device_visual` (formato/proporcoes/display/botoes/mouthpiece/textura/features especiais — observa TUDO no pod fisico, nao na caixa). Responde SO o JSON.";
     } else {
-      userText = "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois.";
+      userText = "Extrai os dados desse produto (tabacaria/adega). Le a marca do texto/logo visivel. Responde SO o JSON, sem texto antes ou depois.";
     }
   } else {
-    userText = "Extrai os dados desse pod. Responde SO o JSON, sem texto antes ou depois.";
+    userText = "Extrai os dados desse produto de tabacaria/adega. Identifique EXATAMENTE o que esta na foto (le a marca do texto/logo). Responde SO o JSON, sem texto antes ou depois.";
   }
   content.push({ type: "text", text: userText });
 
@@ -4400,6 +4404,7 @@ NAO invente dado. Identifique o produto seja ele qual for (pod, cigarro, tabaco,
 async function _enrichProductFromWeb(v) {
   try {
     if (!v || typeof v !== 'object') return v;
+    if (v.specs && !v.web_spec) v.web_spec = v.specs; // specs da foto viram web_spec (mostradas mesmo sem enrich)
     const brand = String(v.brand || '').trim();
     const isPod = (v.type === 'pod');
     const nameExtra = (v.name && v.name.toLowerCase() !== brand.toLowerCase()) ? v.name : '';
@@ -4434,7 +4439,7 @@ REGRAS: NAO inventa. Se a busca nao casar com a marca/produto da foto, mantem o 
     if (ref.model && !v.model) merged.model = ref.model;
     if (ref.flavor_pt && !v.flavor_pt) merged.flavor_pt = ref.flavor_pt;
     if (ref.type && (!v.type || v.type === 'outro')) merged.type = ref.type;
-    if (ref.spec) merged.web_spec = ref.spec;
+    if (ref.spec) merged.web_spec = ref.spec; else if (v.specs) merged.web_spec = v.specs; // specs da foto quando a web nao acrescenta
     merged.enriched = true;
     return merged;
   } catch (e) { console.warn('[enrichWeb]', e.message); return v; }
