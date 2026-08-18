@@ -1991,7 +1991,26 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
-function _wizReset() { _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; } const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; } const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none'; const _hi = document.getElementById('ap-scan-hint'); if (_hi) _hi.value = ''; _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
+function _wizReset() {
+  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
+  const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
+  const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
+  const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none';
+  const _hi = document.getElementById('ap-scan-hint'); if (_hi) _hi.value = '';
+  // Limpa TODOS os campos do cadastro (senão sobra info do produto anterior no próximo).
+  ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const _ncw = document.getElementById('ap-newcat-wrap'); if (_ncw) _ncw.style.display = 'none';
+  const _calc = document.getElementById('ap-calc'); if (_calc) _calc.innerHTML = '';
+  const _pay = document.getElementById('ap-payment'); if (_pay) _pay.value = 'both';
+  const _lt = document.getElementById('ap-lucro-tipo'); if (_lt) _lt.value = 'pct';
+  const _fsel = document.getElementById('ap-filtro'); if (_fsel) _fsel.selectedIndex = 0;
+  const _csel = document.getElementById('ap-catglobal'); if (_csel) _csel.selectedIndex = 0;
+  _apComboSel = {}; _apComboVariant = 0;
+  const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = '';
+  const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = '';
+  const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none';
+  try { apSetMode('normal'); } catch (e) {} wizRender();
+}
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
@@ -2866,24 +2885,15 @@ async function saveNewProduct() {
   const _hadImg = !!img || !!_apPhotoB64;
   const _bgMeta = { name: name, brand: marca, flavor: sabor, type: (_scanMeta && _scanMeta.type) || '', ref: _scanRefB64 || null };
   const err = await _saveProduct(payload, () => {
-    _apPhotoB64 = null; _scanRefB64 = null; try { _apClearArt(); } catch (e) {}
-    ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-img', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-    const ncw = document.getElementById('ap-newcat-wrap'); if (ncw) ncw.style.display = 'none';
-    const apc = document.getElementById('ap-calc'); if (apc) apc.innerHTML = '';
-    const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); // categorias atualizadas
-    const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions(''); // volta pro Automático
-    // Limpa TODO o estado de combo (senão a seleção fica pré-marcada no próximo cadastro)
-    _apComboSel = {}; _apComboVariant = 0;
-    const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = '';
-    const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none';
-    try { apSetMode('normal'); } catch (e) {}
-    // CADASTRO EM SÉRIE: mantém o form aberto na etapa 1 pra cadastrar o próximo.
-    try { _wizStep = 1; wizRender(); } catch (e) {}
-    const st = document.getElementById('scan-status'); if (st) st.style.display = 'none';
-    _scanMeta = null;
-    try { document.getElementById('ap-name').focus(); } catch (e) {}
+    // Concluiu → limpa TUDO e FECHA o form, voltando pra lista de Meus produtos.
+    _apPhotoB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
+    try { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); } catch (e) {}
+    try { const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions(''); } catch (e) {}
+    try { _wizReset(); } catch (e) {}            // zera campos/selects/scan/combo
+    try { if (document.getElementById('add-product-form').style.display !== 'none') toggleAddProduct(); } catch (e) {} // fecha → lista
     try { const sc = document.querySelector('#produtos-ov .sheet-scroll'); if (sc) sc.scrollTop = 0; } catch (e) {}
-    msg.style.color = 'var(--green)'; msg.textContent = 'produto adicionado ✦ cadastre o próximo (ou toque em cancelar)';
+    try { _toast('Produto adicionado ✦'); } catch (e) {}
+    try { loadData(true); } catch (e) {}          // recarrega a lista já com o novo produto
   });
   if (err !== true) { msg.textContent = err; return; }
   // Produto salvo sem imagem → gera a arte em SEGUNDO PLANO (o lojista já pode cadastrar o próximo).
