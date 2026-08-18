@@ -203,6 +203,18 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .sheet-x { background: var(--bg3); border: 0; color: var(--fg); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; cursor: pointer; }
 .sheet-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
 .sheet-foot { padding: 14px 16px; border-top: 0.5px solid var(--border); background: var(--bg2); }
+/* Acordeão de categorias em "Meus produtos" */
+.prod-cat { margin-bottom: 10px; border: 0.5px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg2); }
+.prod-cat-hd { display: flex; align-items: center; gap: 10px; padding: 14px; cursor: pointer; user-select: none; }
+.prod-cat-hd:active { background: var(--bg3); }
+.prod-cat-name { font-weight: 800; font-size: 15px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-cat-count { font-size: 12px; font-weight: 700; color: var(--fg-dim); background: var(--bg3); padding: 2px 9px; border-radius: 999px; flex: 0 0 auto; }
+.prod-cat-add { background: var(--lime); color: #0a0a0a; border: 0; width: 30px; height: 30px; border-radius: 9px; font-size: 18px; font-weight: 800; line-height: 1; cursor: pointer; flex: 0 0 auto; }
+.cat-caret { width: 16px; height: 16px; flex: 0 0 auto; color: var(--fg-dim); transform: rotate(-90deg); transition: transform .18s ease; }
+.prod-cat.open .cat-caret { transform: rotate(0deg); }
+.prod-cat-body { display: none; padding: 0 12px 6px; }
+.prod-cat.open .prod-cat-body { display: block; }
+.prod-cat-body .prod-row { background: var(--bg3); }
 /* Cadastro de produto vira TELA CHEIA (separado da lista) */
 #add-product-form.apf-open { position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(10px + env(safe-area-inset-top)) 16px calc(64px + env(safe-area-inset-bottom)); margin: 0; border-radius: 0; border: 0; }
 .apf-hd { display: none; }
@@ -1621,7 +1633,7 @@ function renderProdutos(list) {
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
   if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ Manual"</div>'; return; }
   if (!items.length) { el.innerHTML = '<div class="empty">Nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
-  el.innerHTML = items.map(p => {
+  function _prodRowHtml(p) {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
     const thumb = p.image_url
@@ -1716,7 +1728,33 @@ function renderProdutos(list) {
         <button class="pf-btn sec full" style="margin-top:8px;color:#ff6b8f;border-color:rgba(255,107,143,.35)" onclick="deleteProduct(${p.id})">Excluir produto</button>
       </div>
     </div>`;
-  }).join('');
+  }
+  // Agrupa por categoria (acordeão) na visão padrão. Em busca/filtro/organizar → lista plana.
+  const grouped = !_batchMode && !q && f === 'todos';
+  if (grouped) {
+    const byCat = new Map();
+    items.forEach(p => { const k = (p.filtro_id != null ? String(p.filtro_id) : '__none'); if (!byCat.has(k)) byCat.set(k, []); byCat.get(k).push(p); });
+    const order = [];
+    (_filtros || []).forEach(f0 => { const k = String(f0.id); if (byCat.has(k)) order.push([k, f0.nome]); });
+    if (byCat.has('__none')) order.push(['__none', 'Sem categoria']);
+    if (order.length === 1 && !_prodCatOpen.size) _prodCatOpen.add(order[0][0]); // 1 categoria só → já abre
+    el.innerHTML = order.map(([key, nome]) => {
+      const arr = byCat.get(key);
+      const open = _prodCatOpen.has(key);
+      const addBtn = key !== '__none' ? `<button class="prod-cat-add" onclick="event.stopPropagation();addProductInCat('${esc(key)}')" title="Adicionar produto nessa categoria">＋</button>` : '';
+      return `<div class="prod-cat ${open ? 'open' : ''}">
+        <div class="prod-cat-hd" onclick="toggleProdCat('${esc(key)}')">
+          <svg class="cat-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <span class="prod-cat-name">${esc(nome)}</span>
+          <span class="prod-cat-count">${arr.length}</span>
+          ${addBtn}
+        </div>
+        <div class="prod-cat-body">${arr.map(_prodRowHtml).join('')}</div>
+      </div>`;
+    }).join('');
+  } else {
+    el.innerHTML = items.map(_prodRowHtml).join('');
+  }
   // preenche a linha "você recebe" de cada produto (comissão + lucro)
   try { (all || []).forEach(p => { try { epRecebe(p.id); } catch (e) {} }); } catch (e) {}
 }
@@ -1761,6 +1799,16 @@ async function applyBatchFiltro() {
 }
 let _prodFilter = 'todos';
 let _prodSort = 'recentes';
+// Acordeão de categorias em "Meus produtos": guarda quais categorias estão abertas.
+let _prodCatOpen = new Set();
+function toggleProdCat(key) { key = String(key); if (_prodCatOpen.has(key)) _prodCatOpen.delete(key); else _prodCatOpen.add(key); renderProdutos(); }
+// Abre o cadastro já com a categoria pré-selecionada (botão ＋ da categoria).
+function addProductInCat(fid) {
+  const f = document.getElementById('add-product-form');
+  if (f && f.style.display === 'none') { toggleAddProduct(); }
+  const sel = document.getElementById('ap-filtro');
+  if (sel) { sel.value = String(fid); try { _apFiltroChange(); } catch (e) {} }
+}
 function setProdSort(v) { _prodSort = v; renderProdutos(); }
 function setProdFilter(f, el) {
   _prodFilter = f;
