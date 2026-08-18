@@ -4325,13 +4325,14 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
 async function analyzeProductImage(caixaUrl, podUrl = null) {
-  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE (tabacaria + adega). Analise a foto de UM produto — pode ser pod/vape, cigarro, tabaco, seda/filtro, narguile, essencia, isqueiro, carvao, cerveja, vinho, destilado ou outro — e extraia em JSON valido (sem markdown). Se nao identificar um campo, deixa null.
+  const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE (tabacaria + adega). Analise a foto de UM produto — pode ser pod/vape, cigarro, tabaco, seda/filtro, piteira, boquilha, dichavador, narguile, essencia, isqueiro, carvao, cerveja, vinho, destilado ou outro — e extraia em JSON valido (sem markdown). Se nao identificar um campo, deixa null.
 IMPORTANTE: os campos model, puffs, ml, mg_nicotina, device_color, device_visual, device_visual_detailed, flavor_elements, flavor_category SO valem pra POD/VAPE — pra QUALQUER outro produto, deixa esses null e preenche "name".
+ACESSORIOS de tabacaria (piteira, filtro, boquilha, dichavador, isqueiro, seda, carvao): LEIA na embalagem o TIPO do produto e o MATERIAL/TAMANHO visivel (ex "piteira de vidro", "glass tip", "filtro 6mm", "king size", "slim", "aluminio") e monte um "name" COMPLETO com marca + tipo + material/tamanho (ex "Piteira de Vidro Sadhu", "Filtro Sadhu 6mm Slim", "Dichavador de Aluminio"). NUNCA devolva so a marca no "name". Poe a variacao/tamanho/material no "model" tambem (ex "Vidro King Size").
 
 {
   "barcode": "OCR dos NUMEROS IMPRESSOS embaixo (ou ao lado) do codigo de barras. NAO decodifica as listras pretas/brancas — LE o numero em TEXTO que esta escrito ali, igual OCR comum. Le digito por digito EXATO, da esquerda pra direita. Se 1 unico digito estiver duvidoso/embacado/cortado, retorna null (nunca chuta). Atencao a 2/5/7, 0/8, 3/8, 1/7, 6/9 quando o texto for pequeno. EAN-13=13 digitos, UPC-A=12, EAN-8=8. Se nao ver os numeros claramente impressos, retorna null.",
-  "name": "nome do produto pra vitrine, portugues BR, curto e claro (ex 'Cigarro Marlboro Box', 'Cerveja Heineken Long Neck 330ml', 'Seda Smoking King Size', 'Carvao de Coco 250g', 'Whisky Johnnie Walker Red Label'). SO pra pod deixa null (nesse caso o nome vem de brand+model+flavor).",
-  "type": "categoria do produto: 'pod' | 'cigarro' | 'tabaco' | 'seda' | 'narguile' | 'essencia' | 'isqueiro' | 'carvao' | 'cerveja' | 'vinho' | 'destilado' | 'bebida' | 'outro'. Escolhe a mais especifica.",
+  "name": "nome do produto pra vitrine, portugues BR, curto e claro (ex 'Cigarro Marlboro Box', 'Cerveja Heineken Long Neck 330ml', 'Seda Smoking King Size', 'Piteira de Vidro Sadhu', 'Filtro Sadhu 6mm Slim', 'Carvao de Coco 250g', 'Whisky Johnnie Walker Red Label'). SO pra pod deixa null (nesse caso o nome vem de brand+model+flavor).",
+  "type": "categoria do produto: 'pod' | 'cigarro' | 'tabaco' | 'seda' | 'piteira' | 'filtro' | 'dichavador' | 'narguile' | 'essencia' | 'isqueiro' | 'carvao' | 'cerveja' | 'vinho' | 'destilado' | 'bebida' | 'acessorio' | 'outro'. Escolhe a mais especifica.",
   "brand": "marca do produto em maiusculo. Pods: IGNITE, ELFBAR, BLACKSHEEP, DOJO, LOSTMARY, GEEKBAR, ADALYA, VANTHER (LOST MARY=LOSTMARY). Outros: le a marca da embalagem (ex MARLBORO, HEINEKEN, SMOKING, JOHNNIE WALKER, ADALYA).",
   "model": "linha/modelo. SE NAO LER, USA null. NUNCA escreve 'unknown', 'desconhecido', '?'. Catalogo de modelos por marca:\n  - IGNITE: 'V155', 'V250', 'V300', 'V55', 'Boost'\n  - ELFBAR: 'BC15K', 'BC Pro', 'Trio', 'Iceking', 'TE 30K', 'GH 23K'\n  - BLACKSHEEP: 'Cyber Tank Pro', 'Cybertank', 'Spherex', 'Spherex Plus'\n  - LOSTMARY: 'MO5000', 'MO10000', 'MO20000', 'MT15000', 'OS5000', 'BM6000', 'PSYBER', 'Cosmic Edition', 'Tappo'\n  - DOJO: 'Fresh', 'Frosty', 'Splash'\n  - GEEKBAR: 'Frozen', 'White Peach', 'Stone Freeze', 'Pulse'\n  - ADALYA: 'AD5000', 'AD40K'\n  - VANTHER: '30K', 'Cool Mint Edition'\nSe a foto mostrar marca mas modelo ilegivel/cortado, preenche brand e deixa model=null. Procura na CAIXA texto pequeno tipo 'MO20000', 'V300', 'BC15K' (frequentemente perto do logo ou no canto).",
   "flavor_en": "sabor em ingles (ex 'Menthol', 'Mango Magic', 'Strawberry Ice')",
@@ -4412,11 +4413,11 @@ async function _enrichProductFromWeb(v) {
 
     const sys = `${IA_SERVO_PREAMBULO}Voce refina a identificacao de UM produto de tabacaria/adega usando resultados de busca da web. Recebe (1) o que a Vision leu da foto e (2) trechos de busca. Devolve SO JSON valido (sem markdown), com o produto o mais COMPLETO e CORRETO possivel pra vitrine BR:
 {
-  "name": "nome completo pra vitrine PT-BR, curto e claro, com a LINHA/variacao (ex 'Seda Zomo Natural Perfect King Size', 'Essencia Zomo Blood 50g', 'Cerveja Heineken Long Neck 330ml')",
+  "name": "nome completo pra vitrine PT-BR, curto e claro, com a LINHA/variacao/material (ex 'Seda Zomo Natural Perfect King Size', 'Piteira de Vidro Sadhu', 'Filtro Sadhu 6mm Slim', 'Essencia Zomo Blood 50g', 'Cerveja Heineken Long Neck 330ml')",
   "brand": "marca em maiusculo",
-  "model": "linha/variacao (ex 'Natural Perfect King Size', 'Blood', 'Long Neck') ou null",
+  "model": "linha/variacao/material (ex 'Natural Perfect King Size', 'Vidro King Size', 'Blood', 'Long Neck') ou null",
   "flavor_pt": "sabor em PT-BR se o produto tiver sabor (essencia/seda com sabor) ou null",
-  "type": "pod|cigarro|tabaco|seda|narguile|essencia|isqueiro|carvao|cerveja|vinho|destilado|bebida|outro",
+  "type": "pod|cigarro|tabaco|seda|piteira|filtro|dichavador|narguile|essencia|isqueiro|carvao|cerveja|vinho|destilado|bebida|acessorio|outro",
   "spec": "1 linha curta de spec relevante (ex '33 folhas, king size, natural sem branqueamento' / '50g' / '355ml lata') ou null",
   "confidence": "high|medium|low"
 }
