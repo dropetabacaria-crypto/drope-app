@@ -917,6 +917,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <img id="ap-scan-thumb" src="" alt="" style="display:none;width:66px;height:66px;object-fit:cover;border-radius:10px;background:var(--bg2);flex:0 0 auto">
             <div id="ap-scan-status" style="display:none;font-size:12px;min-height:14px;flex:1"></div>
           </div>
+          <!-- Não ficou certo? Lojista descreve o produto → IA busca de novo (foto + descrição + internet/imagem) -->
+          <div id="ap-scan-hint-wrap" style="display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px">
+            <div style="font-size:11.5px;color:var(--fg-dim);margin-bottom:6px">Não ficou certo? Descreve o produto que eu busco de novo (cruzo tua descrição + a foto + a internet):</div>
+            <div style="display:flex;gap:8px">
+              <input class="pf-input" id="ap-scan-hint" placeholder="ex: Bolsa de acessórios Sadhu vermelha" maxlength="80" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();apRescanWithHint();}">
+              <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="apRescanWithHint()">Buscar</button>
+            </div>
+          </div>
         </div>
         <label class="pf-lbl">Nome do produto</label>
         <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
@@ -1983,7 +1991,7 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
-function _wizReset() { _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; } const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; } _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
+function _wizReset() { _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; } const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; } const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none'; const _hi = document.getElementById('ap-scan-hint'); if (_hi) _hi.value = ''; _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
@@ -2065,19 +2073,35 @@ let _apPhotoB64 = null;
 let _scanRefB64 = null; // foto do scan → referência pra gerar a arte na etapa 3
 // Foto no INÍCIO do cadastro manual (câmera ou galeria) → IA identifica e preenche.
 // Igual ao scanner da lista, mas dentro do form e com opção de galeria. Status/thumb ficam no form.
+let _apLastScanB64 = null; // última foto escaneada (pra rebuscar com descrição sem re-tirar)
 async function apScanPhoto(input) {
   const file = input.files && input.files[0]; input.value = ''; if (!file) return;
   const st = document.getElementById('ap-scan-status');
+  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = 'preparando foto…'; }
+  const b64 = await _fileToDataUrl(file, 1280).catch(() => null);
+  if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+  _apLastScanB64 = b64;
+  const hi = document.getElementById('ap-scan-hint'); if (hi) hi.value = ''; // nova foto → limpa descrição anterior
+  await _apRunScan(b64, '');
+}
+// Rebusca usando a MESMA foto + a descrição que o lojista digitou (2 cruzamentos + internet).
+async function apRescanWithHint() {
+  const hint = ((document.getElementById('ap-scan-hint') || {}).value || '').trim();
+  if (!_apLastScanB64) { const st = document.getElementById('ap-scan-status'); if (st) { st.style.display = 'block'; st.style.color = 'var(--pink)'; st.textContent = 'tire ou escolha uma foto primeiro'; } return; }
+  if (!hint) { const hi = document.getElementById('ap-scan-hint'); if (hi) hi.focus(); return; }
+  await _apRunScan(_apLastScanB64, hint);
+}
+async function _apRunScan(b64, hint) {
+  const st = document.getElementById('ap-scan-status');
   const thumb = document.getElementById('ap-scan-thumb');
-  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = 'identificando o produto…'; }
+  const hintWrap = document.getElementById('ap-scan-hint-wrap');
+  _scanRefB64 = b64; // vira referência pra IA gerar a arte na etapa 3
+  if (thumb) { thumb.src = b64; thumb.style.display = 'block'; }
+  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = hint ? 'buscando com a sua descrição + a foto + internet…' : 'identificando o produto…'; }
   try {
-    const b64 = await _fileToDataUrl(file, 1280);
-    if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-    _scanRefB64 = b64; // vira referência pra IA gerar a arte na etapa 3
-    if (thumb) { thumb.src = b64; thumb.style.display = 'block'; }
     const r = await fetch('/api/webhook?action=filial_analyze_photo', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, caixaBase64: b64 }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, caixaBase64: b64, hint: hint || '' }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.data) {
@@ -2092,11 +2116,12 @@ async function apScanPhoto(input) {
       const sb = document.getElementById('ap-sabor'); if (sb) sb.value = variacao;
       try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
-      if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque (a arte a IA gera na etapa 3)'; }
+      if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque'; }
     } else {
-      if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — preencha manualmente (a foto fica salva pra arte)'; }
+      if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — descreve o produto abaixo que eu busco de novo'; }
     }
-  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro ao ler a foto'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro ao ler a foto — tenta de novo'; } }
+  if (hintWrap) hintWrap.style.display = 'block'; // sempre libera o campo de descrição pra refinar
 }
 async function onApFotoFile(input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;

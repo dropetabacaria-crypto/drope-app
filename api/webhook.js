@@ -4324,7 +4324,7 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 }
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
-async function analyzeProductImage(caixaUrl, podUrl = null) {
+async function analyzeProductImage(caixaUrl, podUrl = null, hint = '') {
   const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE — uma TABACARIA + ADEGA. Analise a foto de UM produto e devolva JSON valido (sem markdown). O produto pode ser QUALQUER item de tabacaria ou adega: seda, piteira, filtro, boquilha, dichavador, isqueiro, estojo/case/bolsa/necessaire, narguile e pecas (rosh, mangueira, abafador, prato), carvao, essencia de narguile, cigarro, tabaco/fumo, OU bebida (cerveja, vinho, destilado, energetico) — e tambem pode ser vape/pod. VAPE/POD e apenas UMA categoria entre muitas; NAO assuma que o produto e pod.
 
 REGRA DE OURO (nao errar): identifique SO o que esta REALMENTE VISIVEL na foto. A marca vem do TEXTO/LOGO impresso ou gravado na embalagem — se esta escrito/gravado "Sadhu", a marca e SADHU e o produto e um item Sadhu (ex um estojo/case vermelho gravado 'Sadhu' = "Estojo Sadhu"). NUNCA invente marca, tipo ou sabor que nao aparece na foto. NUNCA troque por um produto parecido (ex: nao chame um estojo de "tabaco de narguile"). Se um campo nao da pra ler com certeza, use null — melhor devolver menos e certo do que chutar.
@@ -4382,6 +4382,9 @@ Identifique o produto EXATAMENTE como esta na foto e preenche name+type+brand (+
   } else {
     userText = "Extrai os dados desse produto de tabacaria/adega. Identifique EXATAMENTE o que esta na foto (le a marca do texto/logo). Responde SO o JSON, sem texto antes ou depois.";
   }
+  if (hint && String(hint).trim()) {
+    userText += `\n\nO LOJISTA descreveu este produto como: "${String(hint).trim().slice(0, 120)}". Use essa descricao pra guiar a identificacao (marca, tipo, cor, material), desde que NAO contradiga o que voce ve na foto.`;
+  }
   content.push({ type: "text", text: userText });
 
   const messages = [{ role: "user", content }];
@@ -4401,22 +4404,50 @@ Identifique o produto EXATAMENTE como esta na foto e preenche name+type+brand (+
 // Enriquecimento por BUSCA WEB (Serper) — completa a identificação da Vision pra
 // QUALQUER produto (seda, essência, bebida…), não só pod. Igual ao fluxo do Andrade:
 // a foto identifica o básico, a web confirma a linha/variação e as specs.
-async function _enrichProductFromWeb(v) {
+// Busca reversa por IMAGEM (Google Lens via Serper). Recebe URL PUBLICA da foto.
+// Retorna lista de matches visuais [{title, source/link}]. Vazio se sem key/erro.
+async function _serperLens(imageUrl) {
+  const key = process.env.SERPER_API_KEY || '';
+  if (!key || !imageUrl) return [];
+  try {
+    const r = await fetch('https://google.serper.dev/lens', {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: imageUrl }),
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!r.ok) return [];
+    const d = await r.json().catch(() => ({}));
+    return (d && (d.organic || d.results || d.visual_matches || [])) || [];
+  } catch (e) { console.warn('[serper lens]', e.message); return []; }
+}
+async function _enrichProductFromWeb(v, opts) {
   try {
     if (!v || typeof v !== 'object') return v;
     if (v.specs && !v.web_spec) v.web_spec = v.specs; // specs da foto viram web_spec (mostradas mesmo sem enrich)
+    opts = opts || {};
+    const hint = String(opts.hint || '').trim();
+    const lens = Array.isArray(opts.lens) ? opts.lens : [];
     const brand = String(v.brand || '').trim();
     const isPod = (v.type === 'pod');
     const nameExtra = (v.name && v.name.toLowerCase() !== brand.toLowerCase()) ? v.name : '';
     const typeWord = (v.type && v.type !== 'pod' && v.type !== 'outro') ? v.type : '';
-    const q = [brand, v.model, typeWord, nameExtra].filter(Boolean).join(' ').trim();
-    if (q.length < 3) return v;
-    const web = await _serperSearch(q, 'search', 6);
+    // Query de texto = o que a foto leu + a descricao do lojista (hint pesa muito).
+    const q = [brand, v.model, typeWord, nameExtra, hint].filter(Boolean).join(' ').trim();
+    // Com hint OU matches de imagem, sempre vale refinar (mesmo query curta).
+    if (q.length < 3 && !hint && !lens.length) return v;
+    const web = q.length >= 3 ? await _serperSearch(q, 'search', 6) : null;
     const organic = (web && web.organic) || [];
-    if (!organic.length) return v;
-    const blob = organic.slice(0, 6).map(o => `• ${o.title || ''} — ${o.snippet || ''}`).join('\n').slice(0, 2500);
+    if (!organic.length && !lens.length && !hint) return v;
+    const textBlob = organic.slice(0, 6).map(o => `• ${o.title || ''} — ${o.snippet || ''}`).join('\n');
+    const lensBlob = lens.slice(0, 6).map(l => `• ${l.title || ''} — ${l.source || l.link || ''}`).join('\n');
+    const blob = [
+      hint ? `DESCRICAO DO LOJISTA (peso alto): ${hint}` : '',
+      textBlob ? `BUSCA POR TEXTO:\n${textBlob}` : '',
+      lensBlob ? `BUSCA POR IMAGEM (Google Lens / reverse):\n${lensBlob}` : '',
+    ].filter(Boolean).join('\n\n').slice(0, 2800);
 
-    const sys = `${IA_SERVO_PREAMBULO}Voce refina a identificacao de UM produto de tabacaria/adega usando resultados de busca da web. Recebe (1) o que a Vision leu da foto e (2) trechos de busca. Devolve SO JSON valido (sem markdown), com o produto o mais COMPLETO e CORRETO possivel pra vitrine BR:
+    const sys = `${IA_SERVO_PREAMBULO}Voce refina a identificacao de UM produto de tabacaria/adega CRUZANDO fontes. Recebe (1) o que a Vision leu da foto, (2) a DESCRICAO do lojista (quando houver — peso ALTO, o lojista tem o produto na mao), (3) busca por TEXTO e (4) busca por IMAGEM (Google Lens/reverse da foto). Cruze tudo e devolve SO JSON valido (sem markdown), com o produto o mais COMPLETO e CORRETO possivel pra vitrine BR:
 {
   "name": "nome completo pra vitrine PT-BR, curto e claro, com a LINHA/variacao/material (ex 'Seda Zomo Natural Perfect King Size', 'Piteira de Vidro Sadhu', 'Filtro Sadhu 6mm Slim', 'Essencia Zomo Blood 50g', 'Cerveja Heineken Long Neck 330ml')",
   "brand": "marca em maiusculo",
@@ -4426,13 +4457,14 @@ async function _enrichProductFromWeb(v) {
   "spec": "1 linha curta de spec relevante (ex '33 folhas, king size, natural sem branqueamento' / '50g' / '355ml lata') ou null",
   "confidence": "high|medium|low"
 }
-REGRAS: NAO inventa. Se a busca nao casar com a marca/produto da foto, mantem o que a Vision leu e poe confidence 'low'. Completa a variacao e o nome quando a busca deixar claro. Nunca 'unknown'.`;
-    const usr = `VISION leu:\n${JSON.stringify({ name: v.name || null, brand: v.brand || null, model: v.model || null, type: v.type || null, flavor_pt: v.flavor_pt || null, barcode: v.barcode || null })}\n\nBUSCA WEB (query "${q}"):\n${blob}\n\nResponde SO o JSON.`;
+REGRAS: NAO inventa. A DESCRICAO do lojista tem prioridade sobre a busca (ele viu o produto). Se as fontes nao casarem entre si, prioriza foto+descricao e poe confidence 'medium'/'low'. Completa variacao/nome quando as fontes deixarem claro. Nunca 'unknown'.`;
+    const usr = `VISION leu:\n${JSON.stringify({ name: v.name || null, brand: v.brand || null, model: v.model || null, type: v.type || null, flavor_pt: v.flavor_pt || null, barcode: v.barcode || null })}\n\nFONTES CRUZADAS:\n${blob}\n\nResponde SO o JSON.`;
     const out = await callClaude([{ role: 'user', content: usr }], sys, 700);
     if (!out) return v;
     let ref;
     try { ref = JSON.parse(out.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()); } catch (_) { return v; }
-    if (!ref || typeof ref !== 'object' || ref.confidence === 'low') return v; // busca nao bateu → mantem Vision
+    if (!ref || typeof ref !== 'object') return v;
+    if (ref.confidence === 'low' && !hint) return v; // busca fraca e SEM descricao do lojista → mantem Vision (com descricao, confia nela)
 
     const merged = Object.assign({}, v);
     if (ref.name && (!isPod || !v.name)) merged.name = ref.name;   // pod mantem a logica propria de nome
@@ -5398,11 +5430,19 @@ async function handleFilialAnalyzePhoto(req, res) {
     const caixaUrl = caixaB64.startsWith('data:') ? caixaB64 : `data:image/jpeg;base64,${caixaB64}`;
     const podB64 = body.podBase64 || null;
     const podUrl = podB64 ? (podB64.startsWith('data:') ? podB64 : `data:image/jpeg;base64,${podB64}`) : null;
-    const data = await analyzeProductImage(caixaUrl, podUrl);
+    const hint = String(body.hint || '').trim().slice(0, 120); // descrição do lojista (opcional)
+    const data = await analyzeProductImage(caixaUrl, podUrl, hint);
     if (!data) return res.status(502).json({ ok: false, error: 'não consegui identificar — tira a foto mais de perto, com a frente da caixa nítida' });
-    // Enriquece com busca web (linha/variação + specs) — completa o que a foto não mostra.
+    // 2º cruzamento de dado: busca reversa por IMAGEM (Google Lens) — sobe a foto e procura o produto igual na web.
+    let lens = [];
+    try {
+      const slug = 'scan-' + String(filial.slug || 'x') + '-' + Date.now().toString(36);
+      const pub = await uploadToStorage(slug, caixaUrl, 'image/jpeg');
+      if (pub) lens = await _serperLens(pub);
+    } catch (e) { console.warn('[filial_analyze_photo] lens falhou:', e.message); }
+    // Enriquece cruzando: foto (Vision) + descrição do lojista (hint) + busca texto + busca imagem (lens).
     let enriched = data;
-    try { enriched = await _enrichProductFromWeb(data); } catch (e) { console.warn('[filial_analyze_photo] enrich falhou:', e.message); }
+    try { enriched = await _enrichProductFromWeb(data, { hint, lens }); } catch (e) { console.warn('[filial_analyze_photo] enrich falhou:', e.message); }
     return res.status(200).json({ ok: true, data: enriched });
   } catch (e) {
     console.error('[filial_analyze_photo] ERROR:', e.message);
