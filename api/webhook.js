@@ -5382,36 +5382,40 @@ async function handleFilialProductArtFast(req, res) {
     const type = String(body.type || '').trim();
     if (!name && !brand) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
     const subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
-    // Referência p/ img2img: foto do próprio lojista OU imagem real buscada na web
-    // (deixa a arte fiel à embalagem, pra seda/essência/bebida também).
-    let refBuf = null;
-    if (body.ref_base64) {
-      try { const m = String(body.ref_base64).match(/base64,(.+)$/); refBuf = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
-    }
-    if (!refBuf) {
-      const q = [brand, name, (type && type !== 'pod' ? type : '')].filter(Boolean).join(' ').trim();
-      if (q.length >= 3) refBuf = await _findProductRefImage(q);
-    }
+    // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
+    // Usado tanto na foto do lojista quanto na imagem real buscada na web.
+    const editPrompt = [
+      'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
+      'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
+      'Single product centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
+      ART_QUALITY_RULES.background,
+      ART_QUALITY_RULES.vapor,
+      ART_QUALITY_RULES.lighting,
+      ART_QUALITY_RULES.noText,
+      'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
+    ].join(' ');
+    // Query pra achar a imagem REAL do produto na web (inclui o SABOR pra não trocar variação).
+    const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : '')].filter(Boolean).join(' ').trim();
     let tempUrl = null;
-    if (refBuf) {
-      // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
-      const editPrompt = [
-        'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
-        'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
-        'Single product centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
-        ART_QUALITY_RULES.background,
-        ART_QUALITY_RULES.vapor,
-        ART_QUALITY_RULES.lighting,
-        ART_QUALITY_RULES.noText,
-        'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
-      ].join(' ');
-      // high = texto nítido. Se o edit falhar (imagem de ref ruim, moderação, timeout),
-      // NÃO estoura: cai pro fallback text2img abaixo.
-      try { tempUrl = await openaiEditImage(refBuf, editPrompt, { quality: 'high' }); }
-      catch (e) { console.warn('[art_fast] edit falhou, tenta fallback:', e.message); }
+
+    // 1) Foto do PRÓPRIO lojista (mais fiel à embalagem real).
+    let lojaRef = null;
+    if (body.ref_base64) {
+      try { const m = String(body.ref_base64).match(/base64,(.+)$/); lojaRef = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
     }
+    if (lojaRef) {
+      try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
+      catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
+    }
+    // 2) CRUZA COM A INTERNET: busca a imagem REAL do produto identificado e estiliza ELA.
+    //    Evita o text2img inventar outra marca/sabor (bug: foto Blunt Wrap Grape virou G-ROLLZ).
+    if (!tempUrl && webQ.length >= 3) {
+      try { const webRef = await _findProductRefImage(webQ); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
+      catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
+    }
+    // 3) ÚLTIMO recurso: gera do zero por texto (pode não bater 100% — só quando não achou referência).
     if (!tempUrl) {
-      try { tempUrl = await generateProductScene(subject); } // fallback text-only
+      try { tempUrl = await generateProductScene(subject); }
       catch (e) { console.warn('[art_fast] scene falhou:', e.message); }
     }
     if (!tempUrl) return res.status(502).json({ ok: false, error: 'a IA não conseguiu gerar essa imagem agora — tenta de novo ou envie uma foto' });
