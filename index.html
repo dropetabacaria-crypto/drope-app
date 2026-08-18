@@ -8574,6 +8574,9 @@
   // Chamada pelo card de loja (picker)
   function pickClientFilial(slug) {
     const loja = (_lojasCache || []).find(l => l.slug === slug);
+    // Proteção: se o cache de lojas já carregou e esse slug NÃO é de uma loja real
+    // (ex: passaram o slug de um PRODUTO), ignora pra não gravar filial inválida.
+    if (!loja && (_lojasCache || []).length > 0) { if (typeof go === 'function') go('home'); return; }
     const nm = loja ? (loja.name || loja.city || '') : '';
     setClientFilial(slug, nm);
     const overlay = document.getElementById('filial-picker-overlay');
@@ -13803,9 +13806,14 @@
   }
   // "Continuar comprando" no carrinho → volta pro cardápio da LOJA do produto
   // (não pro catálogo genérico). Igual iFood/Zé: o carrinho linka de volta pra loja.
+  // IMPORTANTE: usa o slug da LOJA (store_slug / CLIENT_FILIAL), NUNCA o p.slug
+  // (que é o slug do PRODUTO — usá-lo quebrava o cabeçalho da loja).
   function continuarComprando() {
-    const slug = (cart[0] && cart[0].slug) || (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || '';
-    if (slug && typeof pickClientFilial === 'function') { pickClientFilial(slug); return; }
+    const cur = (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL) || '';
+    const storeSlug = (cart[0] && cart[0].store_slug) || cur || (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || '';
+    // Só troca de loja (recarrega catálogo) se o item for de OUTRA loja que não a atual.
+    if (storeSlug && storeSlug !== cur && typeof pickClientFilial === 'function') { pickClientFilial(storeSlug); return; }
+    // Já está na loja certa: só volta pro cardápio (mantém nome/catálogo corretos).
     go('home');
   }
 
