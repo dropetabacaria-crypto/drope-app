@@ -204,9 +204,11 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .sheet-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; -webkit-overflow-scrolling: touch; }
 .sheet-foot { padding: 14px 16px; border-top: 0.5px solid var(--border); background: var(--bg2); }
 /* Cadastro de produto vira TELA CHEIA (separado da lista) */
-#add-product-form.apf-open { position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 16px 40px; margin: 0; border-radius: 0; border: 0; }
+#add-product-form.apf-open { position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(10px + env(safe-area-inset-top)) 16px calc(64px + env(safe-area-inset-bottom)); margin: 0; border-radius: 0; border: 0; }
 .apf-hd { display: none; }
-#add-product-form.apf-open .apf-hd { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg); padding: 8px 0 12px; margin-bottom: 8px; border-bottom: 0.5px solid var(--border); z-index: 3; }
+#add-product-form.apf-open .apf-hd { display: flex; align-items: center; gap: 8px; position: sticky; top: calc(-1 * env(safe-area-inset-top)); background: var(--bg); padding: 8px 0 12px; margin-bottom: 8px; border-bottom: 0.5px solid var(--border); z-index: 3; }
+#add-product-form.apf-open .apf-hd b { flex: 1; }
+#add-product-form.apf-open .apf-hd .apf-back { font-size: 22px; line-height: 1; }
 #add-product-form.apf-open .apf-hd b { font-size: 17px; }
 /* Pedidos: grade de tiles compactos (3 por fileira) */
 .ped-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -876,7 +878,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
-      <div class="apf-hd"><b>Novo produto</b><button class="sheet-x" onclick="toggleAddProduct()" aria-label="Fechar">✕</button></div>
+      <div class="apf-hd"><button class="sheet-x apf-back" onclick="apBack()" aria-label="Voltar">‹</button><b>Novo produto</b><button class="sheet-x" onclick="toggleAddProduct()" aria-label="Fechar">✕</button></div>
       <!-- progresso do wizard -->
       <div id="wiz-steps" style="display:flex;gap:6px;margin-bottom:14px">
         <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Produto</div>
@@ -959,7 +961,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
         <div style="display:flex;gap:10px">
           <button class="pf-btn" id="ap-artgen-btn" style="flex:1" onclick="apGerarArte()">Gerar arte com IA ✦</button>
-          <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto</button>
+          <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto da galeria</button>
         </div>
         <input type="file" id="ap-foto-file" accept="image/*" style="display:none" onchange="onApFotoFile(this)">
         <div id="ap-art-status" style="font-size:11px;color:var(--fg-dim);margin-top:6px;min-height:12px"></div>
@@ -1894,6 +1896,8 @@ function generateProductArt(id) {
   _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden });
 }
 
+// Setinha ‹ do topo do cadastro: volta uma etapa do wizard; na etapa 1, fecha o form.
+function apBack() { if (typeof _wizStep !== 'undefined' && _wizStep > 1) { wizGo(-1); } else { toggleAddProduct(); } }
 function toggleAddProduct() {
   const f = document.getElementById('add-product-form');
   const opening = f.style.display === 'none';
