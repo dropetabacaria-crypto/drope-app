@@ -2630,6 +2630,22 @@ function _motoboyCalcValorCents(distKm) {
   const valor = Math.max(7.5, Math.round((6 + 1.5 * km) * 100) / 100);
   return Math.round(valor * 100); // cents
 }
+// Monta o endereço COMPLETO cadastrado (pro Waze/Maps do motoboy). Tolerante às
+// chaves do cliente (street/num/neigh/city/uf) E do lojista (rua/numero/bairro).
+// SEMPRE inclui cidade + UF + CEP (sem cidade o Waze acha a rua na cidade errada).
+function _fullAddrText(a) {
+  a = a || {};
+  const rua = a.rua || a.street || a.logradouro || a.address || '';
+  const num = a.numero || a.num || a.number || '';
+  const bairro = a.bairro || a.neigh || a.neighborhood || a.district || '';
+  const cidade = a.cidade || a.city || a.localidade || '';
+  const uf = a.uf || a.estado || a.state || '';
+  const cep = a.cep || '';
+  const line1 = [rua, num].filter(Boolean).join(', ');
+  const cidadeUf = [cidade, uf].filter(Boolean).join(' - ');
+  const out = [line1, bairro, cidadeUf, cep].filter(Boolean).join(', ');
+  return out || a.endereco || a.full_address || '';
+}
 function _haversineKmSrv(a, b) {
   const R = 6371, toR = d => d * Math.PI / 180;
   const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
@@ -7562,7 +7578,8 @@ async function handleFilialCorridaCreate(req, res) {
     const assignedTo = body.assigned_to ? String(body.assigned_to) : null;
     if (assignedTo && !fixos.some(e => e.id === assignedTo)) return res.status(400).json({ ok: false, error: 'entregador fixo inválido' });
     const addr = order.address || {};
-    const enderecoDest = [addr.rua, addr.numero, addr.bairro, addr.complemento].filter(Boolean).join(', ') || addr.endereco || addr.full_address || '(sem endereço)';
+    // Endereço do Waze = SEMPRE o endereço COMPLETO cadastrado pelo cliente (com cidade/UF/CEP).
+    const enderecoDest = _fullAddrText(addr) || '(sem endereço)';
     const clientePhone = (order.customer_snapshot || {}).phone || addr.phone || null;
     // FRETE AUTOMÁTICO: distância loja→cliente (GPS real do cliente ou geo da loja) →
     // base R$6 + R$1,50/km. A loja NÃO escolhe o valor.
@@ -7696,7 +7713,7 @@ async function handleEntregadorCorridas(req, res) {
         cep: (o.address || {}).cep || null,
         delivery_geo: (o.metadata || {}).delivery_geo || (o.address || {}).geo || null,
         retirada_solicitada: !!(c.metadata || {}).pickup_req,
-        endereco: c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
+        endereco: _fullAddrText(o.address) || c.endereco_destino || '', cliente_phone: c.cliente_phone || '',
         cliente_nome: (o.customer_snapshot || {}).name || '',
         itens: Array.isArray(o.items) ? o.items.map(i => `${i.qty || i.quantity || 1}x ${i.name || i.slug || 'item'}`).join(', ').slice(0, 160) : '',
       };
