@@ -10984,7 +10984,10 @@
   function renderBrandsCarousel() {
     const wrap = document.getElementById('brands-wrap');
     const scroll = document.getElementById('brands-scroll');
-    if (!wrap || !scroll || !products || products.length === 0) return;
+    if (!wrap || !scroll) return;
+    // Loja sem produtos (ou catálogo ainda não carregou): esconde e LIMPA os chips,
+    // senão os chips da loja anterior vazam pra essa (bug: Drope Santos mostrava marcas da SP).
+    if (!products || products.length === 0) { wrap.style.display = 'none'; scroll.innerHTML = ''; return; }
     // NÍVEL 2 = marcas. Só as marcas dos produtos da categoria (Nível 1) selecionada.
     const inCat = p => !homeState.filtroId || (p.filtro_id || null) === homeState.filtroId;
     // Conta produtos por marca, ignora vazias
@@ -11010,7 +11013,7 @@
     const brands = Object.entries(brandMap)
       .filter(([_, n]) => n >= 1)
       .sort((a, b) => b[1] - a[1]); // mais produtos primeiro
-    if (brands.length === 0) { wrap.style.display = 'none'; return; }
+    if (brands.length === 0) { wrap.style.display = 'none'; scroll.innerHTML = ''; return; }
     wrap.style.display = '';
     // Render: cada marca vira bolinha. Primeiro item = "tudo" pra resetar.
     // Capa do TUDO = imagem de IA (mistura de pods), se gerada no admin; senão.
