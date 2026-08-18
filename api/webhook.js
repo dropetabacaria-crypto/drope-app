@@ -7677,7 +7677,8 @@ async function _deliveryCodeFromBirth(phone) {
     const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(p)}&select=birthdate&limit=1`);
     const bd = rows && rows[0] && rows[0].birthdate;
     if (!bd || !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return null;
-    return bd.slice(5, 7) + '/' + bd.slice(0, 4);
+    // Código de entrega = MM/AA (4 dígitos: mês + 2 últimos do ano). Ex: 1996-10 -> "10/96".
+    return bd.slice(5, 7) + '/' + bd.slice(2, 4);
   } catch (e) { return null; }
 }
 const _codeDigits = (s) => String(s || '').replace(/\D/g, '');
