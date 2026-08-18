@@ -904,6 +904,20 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <button type="button" id="apmode-normal" class="seg-btn active" onclick="apSetMode('normal')">Produto</button>
           <button type="button" id="apmode-combo" class="seg-btn" onclick="apSetMode('combo')">Combo</button>
         </div>
+        <!-- Foto do produto no INÍCIO: câmera OU galeria → a IA identifica e preenche -->
+        <div id="ap-scan-block" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
+          <div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto do produto <span style="opacity:.7">— a IA identifica e preenche pra você (opcional)</span></div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-scan-cam').click()">Tirar foto</button>
+            <button type="button" class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-scan-gal').click()">Da galeria</button>
+          </div>
+          <input type="file" id="ap-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="apScanPhoto(this)">
+          <input type="file" id="ap-scan-gal" accept="image/*" style="display:none" onchange="apScanPhoto(this)">
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+            <img id="ap-scan-thumb" src="" alt="" style="display:none;width:66px;height:66px;object-fit:cover;border-radius:10px;background:var(--bg2);flex:0 0 auto">
+            <div id="ap-scan-status" style="display:none;font-size:12px;min-height:14px;flex:1"></div>
+          </div>
+        </div>
         <label class="pf-lbl">Nome do produto</label>
         <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
         <!-- COMBO: escolher os produtos que formam o combo -->
@@ -1969,7 +1983,7 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
-function _wizReset() { _wizStep = 1; _apClearArt(); _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
+function _wizReset() { _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; } const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; } _apComboSel = {}; _apComboVariant = 0; const _cd = document.getElementById('ap-combo-disc'); if (_cd) _cd.value = ''; const _ai = document.getElementById('ap-img'); if (_ai) _ai.value = ''; const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none'; try { apSetMode('normal'); } catch (e) {} wizRender(); }
 function wizRender() {
   for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
@@ -2049,6 +2063,41 @@ async function apGerarArte() {
 let _scanMeta = null;
 let _apPhotoB64 = null;
 let _scanRefB64 = null; // foto do scan → referência pra gerar a arte na etapa 3
+// Foto no INÍCIO do cadastro manual (câmera ou galeria) → IA identifica e preenche.
+// Igual ao scanner da lista, mas dentro do form e com opção de galeria. Status/thumb ficam no form.
+async function apScanPhoto(input) {
+  const file = input.files && input.files[0]; input.value = ''; if (!file) return;
+  const st = document.getElementById('ap-scan-status');
+  const thumb = document.getElementById('ap-scan-thumb');
+  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = 'identificando o produto…'; }
+  try {
+    const b64 = await _fileToDataUrl(file, 1280);
+    if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+    _scanRefB64 = b64; // vira referência pra IA gerar a arte na etapa 3
+    if (thumb) { thumb.src = b64; thumb.style.display = 'block'; }
+    const r = await fetch('/api/webhook?action=filial_analyze_photo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, caixaBase64: b64 }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.data) {
+      const v = d.data; _scanMeta = v;
+      const brand = (v.brand || '').trim(), model = (v.model || '').trim();
+      const flavor = (v.flavor_pt || v.flavor_en || '').trim();
+      const genname = (v.name || '').trim();
+      const isPod = (v.type === 'pod');
+      const variacao = flavor || (!isPod ? model : '');
+      const nm = document.getElementById('ap-name'); if (nm) nm.value = genname || [brand, model].filter(Boolean).join(' ') || flavor || '';
+      const mc = document.getElementById('ap-marca'); if (mc) mc.value = brand;
+      const sb = document.getElementById('ap-sabor'); if (sb) sb.value = variacao;
+      try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {}
+      const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
+      if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque (a arte a IA gera na etapa 3)'; }
+    } else {
+      if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — preencha manualmente (a foto fica salva pra arte)'; }
+    }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro ao ler a foto'; } }
+}
 async function onApFotoFile(input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;
   const st = document.getElementById('ap-art-status');
@@ -2646,6 +2695,7 @@ function apSetMode(mode) {
   const bn = document.getElementById('apmode-normal'), bc = document.getElementById('apmode-combo');
   if (bn) bn.classList.toggle('active', !combo);
   if (bc) bc.classList.toggle('active', combo);
+  const sb2 = document.getElementById('ap-scan-block'); if (sb2) sb2.style.display = combo ? 'none' : 'block'; // combo não usa foto/scan
   const cw = document.getElementById('ap-combo-wrap'); if (cw) cw.style.display = combo ? 'block' : 'none';
   const rm = document.getElementById('ap-row-marca'); if (rm) rm.style.display = combo ? 'none' : 'flex';
   const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
