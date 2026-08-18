@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DROPE ✦ Painel de Status</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0713; --bg2:#140a20; --card:rgba(255,255,255,.04); --card-brd:rgba(168,85,247,.22);
+    --txt:#f3edff; --dim:#a394c4; --purple:#a855f7; --pink:#ec4899; --lime:#c8ff4d;
+    --green:#3ddc84; --amber:#ffb020; --red:#ff5470;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Space Grotesk',sans-serif;color:var(--txt);
+    background:
+      radial-gradient(1100px 620px at 12% -8%, rgba(168,85,247,.20), transparent 60%),
+      radial-gradient(1000px 560px at 92% 4%, rgba(236,72,153,.16), transparent 58%),
+      linear-gradient(180deg, var(--bg), var(--bg2));
+    background-attachment:fixed; min-height:100vh; padding:26px 16px 60px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* HERO */
+  .hero{
+    position:relative;border-radius:26px;padding:30px 30px 26px;overflow:hidden;
+    background:linear-gradient(135deg, rgba(168,85,247,.20), rgba(236,72,153,.12));
+    border:1px solid var(--card-brd);
+    box-shadow:0 24px 60px -22px rgba(168,85,247,.55), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .hero .cham{position:absolute;right:-6px;top:-14px;font-size:120px;filter:drop-shadow(0 8px 24px rgba(236,72,153,.5));opacity:.9;transform:rotate(8deg)}
+  .kicker{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--pink);font-weight:600}
+  .hero h1{font-size:40px;font-weight:700;margin:6px 0 4px;letter-spacing:-1px;
+    background:linear-gradient(92deg,#fff,#e9d5ff 40%,#f9a8d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero .sub{color:var(--dim);font-size:15px;max-width:640px}
+  .hero .date{margin-top:14px;display:inline-block;font-size:12px;color:var(--dim);background:rgba(0,0,0,.25);padding:6px 12px;border-radius:999px;border:1px solid var(--card-brd)}
+
+  /* READINESS BAR */
+  .ready{margin-top:20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .gauge{--p:90;position:relative;width:118px;height:118px;border-radius:50%;flex:none;
+    background:conic-gradient(var(--lime) calc(var(--p)*1%), rgba(255,255,255,.08) 0);
+    display:grid;place-items:center}
+  .gauge::after{content:"";position:absolute;inset:11px;border-radius:50%;background:linear-gradient(160deg,#160c22,#0e0717)}
+  .gauge b{position:relative;z-index:1;font-size:30px;font-weight:700;color:var(--lime)}
+  .gauge span{position:relative;z-index:1;font-size:10px;color:var(--dim);letter-spacing:1px}
+  .ready .txt{flex:1;min-width:220px}
+  .ready .txt h3{font-size:17px;margin-bottom:4px}
+  .ready .txt p{color:var(--dim);font-size:13.5px;line-height:1.5}
+
+  /* STAT STRIP */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:12px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--card-brd);border-radius:16px;padding:15px 14px;text-align:center;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .stat b{display:block;font-size:26px;font-weight:700;background:linear-gradient(92deg,#e9d5ff,#f9a8d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .stat span{font-size:11px;color:var(--dim);letter-spacing:.5px}
+
+  /* SECTION GRID */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .col{background:var(--card);border:1px solid var(--card-brd);border-radius:20px;padding:18px 18px 8px;
+    box-shadow:0 18px 44px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.05)}
+  .col h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .col .badge{margin-left:auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--dim)}
+  .col .hint{font-size:11.5px;color:var(--dim);margin-bottom:12px;line-height:1.4}
+  .col.done{border-color:rgba(61,220,132,.28)}
+  .col.wip{border-color:rgba(255,176,32,.28)}
+  .col.block{border-color:rgba(255,84,112,.30)}
+  .col.launch{border-color:rgba(200,255,77,.28)}
+  ul{list-style:none}
+  li{display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-top:1px solid rgba(255,255,255,.05);font-size:13.5px;line-height:1.4}
+  li:first-of-type{border-top:none}
+  .dot{flex:none;width:15px;height:15px;border-radius:5px;margin-top:2px;display:grid;place-items:center;font-size:10px;font-weight:800}
+  .d-ok{background:rgba(61,220,132,.16);color:var(--green)}
+  .d-wip{background:rgba(255,176,32,.16);color:var(--amber)}
+  .d-blk{background:rgba(255,84,112,.16);color:var(--red)}
+  .d-lch{background:rgba(200,255,77,.16);color:var(--lime)}
+  li .tag{margin-left:auto;flex:none;font-size:10px;color:var(--dim);opacity:.8}
+
+  /* CAPACITY */
+  .cap{margin:16px 0;background:linear-gradient(135deg,rgba(168,85,247,.14),rgba(236,72,153,.08));
+    border:1px solid var(--card-brd);border-radius:20px;padding:20px}
+  .cap h2{font-size:16px;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+  .cap .lead{color:var(--dim);font-size:13px;margin-bottom:15px}
+  .cap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:13px}
+  .capbox{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px}
+  .capbox .lbl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim)}
+  .capbox .val{font-size:19px;font-weight:700;margin:4px 0 3px}
+  .capbox .note{font-size:12px;color:var(--dim);line-height:1.45}
+  .pill{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:6px}
+  .pill.ok{background:rgba(61,220,132,.16);color:var(--green)}
+  .pill.warn{background:rgba(255,176,32,.16);color:var(--amber)}
+  .rec{margin-top:14px;background:rgba(200,255,77,.08);border:1px solid rgba(200,255,77,.28);border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.55}
+  .rec b{color:var(--lime)}
+
+  /* DEBT */
+  .debt{margin-top:16px;border:1px dashed rgba(236,72,153,.4);border-radius:16px;padding:15px 18px;background:rgba(236,72,153,.05);font-size:13px;color:var(--dim);line-height:1.55}
+  .debt b{color:var(--pink)}
+
+  footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:30px;opacity:.75}
+  .sec-title{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:24px 6px 12px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="cham">🦎</div>
+    <div class="kicker">✦ Painel de Status</div>
+    <h1>DROPE</h1>
+    <div class="sub">Mapa do que já está pronto, o que falta pro app ficar 100% funcional e a capacidade real da plataforma hoje.</div>
+    <div class="date" id="today">atualizado em —</div>
+
+    <div class="ready">
+      <div class="gauge" style="--p:90"><b>90%</b><span>NÚCLEO</span></div>
+      <div class="txt">
+        <h3>Núcleo funcional pronto ✦</h3>
+        <p>O app roda de ponta a ponta (cliente → loja → motoca) com Pix funcionando. O que segura o lançamento não é o app — são itens externos (CNPJ, cartão, WhatsApp) e alguns ajustes finos.</p>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b>3</b><span>CLIENTES</span></div>
+      <div class="stat"><b>3</b><span>LOJAS</span></div>
+      <div class="stat"><b>1</b><span>MOTOCA</span></div>
+      <div class="stat"><b>1</b><span>PEDIDOS</span></div>
+      <div class="stat"><b>~20 MB</b><span>BANCO (de 500)</span></div>
+      <div class="stat"><b>3</b><span>APPS / PWA</span></div>
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--dim);text-align:center;opacity:.85">números reais ✦ banco limpo (só contas reais: Rafael · Lucas · Renan / Drope SP · Santos · Gordão)</div>
+  </div>
+
+  <!-- CAPACIDADE -->
+  <div class="cap">
+    <h2>⚙️ Capacidade da plataforma hoje</h2>
+    <div class="lead">O gargalo é o banco (Supabase Free), não o app. Não trava num número exato — degrada aos poucos em pico.</div>
+    <div class="cap-grid">
+      <div class="capbox">
+        <div class="lbl">Simultâneos hoje</div>
+        <div class="val">~dezenas a 100</div>
+        <div class="note">Pessoas mexendo no app ao mesmo tempo. Costuma equivaler a milhares de usuários no dia.</div>
+      </div>
+      <div class="capbox">
+        <div class="lbl">Com Supabase Pro</div>
+        <div class="val">centenas a milhares</div>
+        <div class="note">~US$25/mês: compute dedicado, mais conexões, sem pausa, backup diário.</div>
+      </div>
+      <div class="capbox">
+        <div class="lbl">Vercel</div>
+        <div class="val">Pro ✓</div>
+        <div class="note">Escala ~1000+ funções simultâneas, 1 TB banda. Não é o gargalo.</div>
+        <span class="pill ok">não limita</span>
+      </div>
+      <div class="capbox">
+        <div class="lbl">Supabase</div>
+        <div class="val">Free (São Paulo)</div>
+        <div class="note">Baixa latência BR. Limite prático = 500 MB + 5 GB banda/mês. Pausa se ficar ~7 dias parado.</div>
+        <span class="pill warn">gargalo</span>
+      </div>
+      <div class="capbox">
+        <div class="lbl">Contas cadastradas</div>
+        <div class="val">sem teto fixo</div>
+        <div class="note">Cliente/loja/motoca são só linhas. Caberiam dezenas de milhares antes do espaço apertar.</div>
+      </div>
+      <div class="capbox">
+        <div class="lbl">Imagens no banco</div>
+        <div class="val">ok ✓</div>
+        <div class="note">Não estão inchando o banco (maior tabela é log, 1,7 MB).</div>
+      </div>
+    </div>
+    <div class="rec">🎯 <b>Recomendação nº 1 antes de divulgar:</b> subir o Supabase pro plano <b>Pro (~US$25/mês)</b>. Numa tacada: multiplica a capacidade, acaba com a pausa automática por inatividade (risco de app sair do ar) e liga o backup diário.</div>
+  </div>
+
+  <!-- SEÇÕES -->
+  <div class="sec-title">Mapa de execução</div>
+  <div class="grid">
+
+    <!-- PRONTO -->
+    <div class="col done">
+      <h2>✅ Pronto <span class="badge">roda hoje</span></h2>
+      <div class="hint">Núcleo funcional de ponta a ponta.</div>
+      <ul>
+        <li><span class="dot d-ok">✓</span> 3 apps/PWAs separados (Cliente, Loja, Moto) com ícones próprios</li>
+        <li><span class="dot d-ok">✓</span> Cliente: login obrigatório + cadastro por senha + data nasc./+18</li>
+        <li><span class="dot d-ok">✓</span> Multi-sessão: mesma conta no cel e no PC, sincronizadas</li>
+        <li><span class="dot d-ok">✓</span> Perfil com foto (cropper) + avatares IA, favoritos, endereços (ViaCEP)</li>
+        <li><span class="dot d-ok">✓</span> Pedidos vindos do servidor + acompanhar pedido</li>
+        <li><span class="dot d-ok">✓</span> Push + som do camaleão + badge no ícone + puxar-pra-atualizar</li>
+        <li><span class="dot d-ok">✓</span> Loja: painel de pedidos, estoque, chamar entregador (frete auto), PDV</li>
+        <li><span class="dot d-ok">✓</span> Motoca: pool de corridas, fluxo em etapas, retirada c/ código, frete base+km</li>
+        <li><span class="dot d-ok">✓</span> Pagamento Pix (Mercado Pago) + split por loja</li>
+        <li><span class="dot d-ok">✓</span> Rastreio por status/botão · Home estilo iFood</li>
+      </ul>
+    </div>
+
+    <!-- FALTA PRO 100% -->
+    <div class="col wip">
+      <h2>⏳ Falta pro 100% <span class="badge">é comigo</span></h2>
+      <div class="hint">Não depende de terceiros — dá pra atacar já.</div>
+      <ul>
+        <li><span class="dot d-wip">•</span> Filtro inteligente do catálogo (marca/sabor/modelo) <span class="tag">#02·03</span></li>
+        <li><span class="dot d-wip">•</span> Debug do "erro no Pix rápido" <span class="tag">#08</span></li>
+        <li><span class="dot d-wip">•</span> Decidir fluxo pós-adicionar ao carrinho <span class="tag">#06</span></li>
+        <li><span class="dot d-wip">•</span> Mais info na tela do produto <span class="tag">#04</span></li>
+        <li><span class="dot d-wip">•</span> "Modo teste" pro dono <span class="tag">#09</span></li>
+        <li><span class="dot d-wip">•</span> Auth admin hardcoded → mover pro servidor <span class="tag">segur.</span></li>
+      </ul>
+    </div>
+
+    <!-- BLOQUEIOS -->
+    <div class="col block">
+      <h2>🔴 Bloqueios de lançamento <span class="badge">externo</span></h2>
+      <div class="hint">Dependem de decisão/terceiros (Andrade/Lucas).</div>
+      <ul>
+        <li><span class="dot d-blk">!</span> Cartão de crédito recusado (high_risk MP) → precisa CNPJ + gateway (Pagar.me)</li>
+        <li><span class="dot d-blk">!</span> CNPJ do DROPE (destrava cartão + WhatsApp)</li>
+        <li><span class="dot d-blk">!</span> WhatsApp oficial (Meta) — hoje off, app roda sem</li>
+        <li><span class="dot d-blk">!</span> Payout Pix pro motoboy/indicador (Fase 2) — provedor</li>
+        <li><span class="dot d-blk">!</span> Teste real do split MP (2ª conta real)</li>
+        <li><span class="dot d-blk">!</span> Backup automático do Supabase</li>
+      </ul>
+    </div>
+
+    <!-- LANÇAMENTO -->
+    <div class="col launch">
+      <h2>🚩 Dia do lançamento <span class="badge">checklist</span></h2>
+      <div class="hint">Virar chaves antes de divulgar.</div>
+      <ul>
+        <li><span class="dot d-lch">✦</span> Reverter preços dos planos (R$1 → R$99,90 / R$169,90)</li>
+        <li><span class="dot d-lch">✦</span> Rotacionar ADMIN_TOKEN + senha <code>drope2026</code></li>
+        <li><span class="dot d-lch">✦</span> Rotacionar OPENAI_API_KEY</li>
+        <li><span class="dot d-lch">✦</span> Subir Supabase pro Pro (capacidade + backup)</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- DÍVIDA CATÁLOGO -->
+  <div class="debt">
+    ⚖️ <b>Dívida futura (não mexer agora):</b> vender cigarro/tabaco/vape pela internet é proibido no Brasil (nem catálogo online pode). Quando for a hora, pivotar o catálogo pra <b>adega (bebidas) + acessórios de tabacaria</b> — a estrutura de +18/data de nascimento já ajuda nisso. Confirmar antes com advogado.
+  </div>
+
+  <footer>DROPE ✦ painel interno de status · dados reais puxados da infra (Vercel + Supabase)</footer>
+</div>
+
+<script>
+  (function(){
+    var meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var d=new Date();
+    document.getElementById('today').textContent='atualizado em '+d.getDate()+' '+meses[d.getMonth()]+' '+d.getFullYear();
+  })();
+</script>
+</body>
+</html>
