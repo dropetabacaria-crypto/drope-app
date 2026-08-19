@@ -4386,6 +4386,16 @@ function switchPanelTab(tab){
   }, { passive: true });
   function restore(){
     try {
+      // Só restaura a última tela num REFRESH (mesma sessão). Abrir o app do zero
+      // (cold start) → tela inicial. sessionStorage sobrevive ao reload e zera ao fechar o app.
+      var isReload = false;
+      try { isReload = sessionStorage.getItem('drope_sess') === '1'; } catch(e){}
+      try { sessionStorage.setItem('drope_sess', '1'); } catch(e){}
+      if (!isReload) {
+        // Abertura nova → limpa a última tela/scroll e fica na inicial.
+        try { localStorage.removeItem(VIEW_KEY); localStorage.removeItem(SCROLL_KEY); } catch(e){}
+        return;
+      }
       var view = localStorage.getItem(VIEW_KEY);
       if (view === 'produtos') { try { openProdutos(); } catch(e){} }
       else if (view === 'config') { try { openConfigOverlay(); } catch(e){} }
