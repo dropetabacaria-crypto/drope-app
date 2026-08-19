@@ -5399,30 +5399,35 @@ async function handleFilialProductArtFast(req, res) {
     const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : ''), 'unidade'].filter(Boolean).join(' ').trim();
     const _avoidBox = ['caixa', 'display', 'atacado', 'expositor', 'carton', 'box of', 'pacote com', 'fardo', 'wholesale', 'bulk', 'sealed box', ' un)', '24 un', '50 un', 'blocks'];
     let tempUrl = null;
+    let outBuf = null; // imagem final vinda direto (foto do lojista), quando não passa por URL
 
-    // 1) Foto do PRÓPRIO lojista (mais fiel à embalagem real).
+    // Foto do PRÓPRIO lojista?
     let lojaRef = null;
     if (body.ref_base64) {
       try { const m = String(body.ref_base64).match(/base64,(.+)$/); lojaRef = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
     }
+
     if (lojaRef) {
+      // TEM foto → a imagem é SEMPRE o produto REAL do lojista. NUNCA troca por web/gerada
+      // (senão vira outra variação/marca, como aconteceu). 1º tenta estilizar; se falhar, usa a foto.
       try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
       catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
+      if (!tempUrl) {
+        try { const sharp = require('sharp'); outBuf = await sharp(lojaRef).rotate().resize(1024, 1024, { fit: 'contain', background: { r: 12, g: 7, b: 19 } }).png().toBuffer(); }
+        catch (e) { console.warn('[art_fast] quadrado da foto falhou:', e.message); outBuf = lojaRef; }
+      }
+    } else {
+      // SEM foto: cruza com a INTERNET (imagem real do produto) → text2img só em último caso.
+      if (webQ.length >= 3) {
+        try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
+        catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
+      }
+      if (!tempUrl) { try { tempUrl = await generateProductScene(subject); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
     }
-    // 2) CRUZA COM A INTERNET: busca a imagem REAL do produto identificado e estiliza ELA.
-    //    Evita o text2img inventar outra marca/sabor (bug: foto Blunt Wrap Grape virou G-ROLLZ).
-    if (!tempUrl && webQ.length >= 3) {
-      try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
-      catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
-    }
-    // 3) ÚLTIMO recurso: gera do zero por texto (pode não bater 100% — só quando não achou referência).
-    if (!tempUrl) {
-      try { tempUrl = await generateProductScene(subject); }
-      catch (e) { console.warn('[art_fast] scene falhou:', e.message); }
-    }
-    if (!tempUrl) return res.status(502).json({ ok: false, error: 'a IA não conseguiu gerar essa imagem agora — tenta de novo ou envie uma foto' });
-    const imgResp = await fetch(tempUrl);
-    let buf = Buffer.from(await imgResp.arrayBuffer());
+
+    let buf = outBuf;
+    if (!buf && tempUrl) { const imgResp = await fetch(tempUrl); buf = Buffer.from(await imgResp.arrayBuffer()); }
+    if (!buf) return res.status(502).json({ ok: false, error: 'a IA não conseguiu gerar essa imagem agora — tenta de novo ou envie uma foto da galeria' });
     // Toque final DROPE: aplica o selo (mesmo dos pods).
     try { const sealed = await applyDropeSeal(buf); if (sealed && sealed.length) buf = sealed; } catch (e) { console.warn('[art_fast] seal:', e.message); }
     const url = await uploadToStorage(`prodgen-${filial.id}-${Date.now().toString(36)}`, buf, 'image/png');
