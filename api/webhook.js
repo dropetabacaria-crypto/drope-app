@@ -5363,6 +5363,17 @@ async function handleFilialProductArt(req, res) {
   }
 }
 
+// Acabamento DROPE numa FOTO REAL (sem redesenhar): coloca o produto num fundo
+// escuro com gradiente roxo/pink, quadrado 1024. Fiel ao produto (não muda texto).
+async function _dropeFinishPhoto(refBuf) {
+  const sharp = require('sharp');
+  const SIZE = 1024;
+  const bgSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}"><defs><radialGradient id="g" cx="50%" cy="40%" r="80%"><stop offset="0%" stop-color="#2a1740"/><stop offset="55%" stop-color="#140a20"/><stop offset="100%" stop-color="#080510"/></radialGradient></defs><rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/></svg>`);
+  const bg = await sharp(bgSvg).png().toBuffer();
+  const box = Math.round(SIZE * 0.8);
+  const prod = await sharp(refBuf).rotate().resize(box, box, { fit: 'inside', withoutEnlargement: false }).png().toBuffer();
+  return await sharp(bg).composite([{ input: prod, gravity: 'center' }]).png().toBuffer();
+}
 // POST action=filial_product_art_fast — gera a arte DROPE do produto (motor rápido,
 // mesmo dos filtros) SEM salvar em produto: devolve image_url pra PRÉ-VISUALIZAR.
 // O save do produto (image_url) anexa a arte confirmada. Usado no wizard de cadastro.
@@ -5380,7 +5391,7 @@ async function handleFilialProductArtFast(req, res) {
     const brand = String(body.brand || '').trim();
     const flavor = String(body.flavor || '').trim();
     const type = String(body.type || '').trim();
-    if (!name && !brand) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
+    if (!name && !brand && !body.photo_only) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
     const subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
     // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
     // Usado tanto na foto do lojista quanto na imagem real buscada na web.
@@ -5407,14 +5418,18 @@ async function handleFilialProductArtFast(req, res) {
       try { const m = String(body.ref_base64).match(/base64,(.+)$/); lojaRef = Buffer.from(m ? m[1] : body.ref_base64, 'base64'); } catch (e) {}
     }
 
-    if (lojaRef) {
+    if (body.photo_only && lojaRef) {
+      // "Enviar foto da galeria": acabamento DROPE (fundo escuro) SEM redesenhar → 100% fiel.
+      try { outBuf = await _dropeFinishPhoto(lojaRef); }
+      catch (e) { console.warn('[art_fast] finish foto falhou:', e.message); outBuf = lojaRef; }
+    } else if (lojaRef) {
       // TEM foto → a imagem é SEMPRE o produto REAL do lojista. NUNCA troca por web/gerada
       // (senão vira outra variação/marca, como aconteceu). 1º tenta estilizar; se falhar, usa a foto.
       try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
       catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
       if (!tempUrl) {
-        try { const sharp = require('sharp'); outBuf = await sharp(lojaRef).rotate().resize(1024, 1024, { fit: 'contain', background: { r: 12, g: 7, b: 19 } }).png().toBuffer(); }
-        catch (e) { console.warn('[art_fast] quadrado da foto falhou:', e.message); outBuf = lojaRef; }
+        try { outBuf = await _dropeFinishPhoto(lojaRef); }
+        catch (e) { console.warn('[art_fast] finish foto (fallback) falhou:', e.message); outBuf = lojaRef; }
       }
     } else {
       // SEM foto: cruza com a INTERNET (imagem real do produto) → text2img só em último caso.

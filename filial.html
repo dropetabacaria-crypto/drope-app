@@ -2145,11 +2145,27 @@ async function _apRunScan(b64, hint) {
 async function onApFotoFile(input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;
   const st = document.getElementById('ap-art-status');
-  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'preparando foto…'; }
-  const b64 = await _fileToDataUrl(f, 900);
+  if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'aplicando o acabamento DROPE na sua foto…'; }
+  const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+  // Acabamento DROPE (fundo escuro) na foto REAL — SEM redesenhar, produto 100% fiel.
+  try {
+    const r = await fetch('/api/webhook?action=filial_product_art_fast', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, photo_only: true, ref_base64: b64, name: ((document.getElementById('ap-name') || {}).value) || 'produto' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok && d.image_url) {
+      const link = document.getElementById('ap-img'); if (link) link.value = d.image_url; // usa a URL já estilizada
+      _apPhotoB64 = null;
+      _apShowArtPreview(d.image_url, false);
+      if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta no estilo DROPE ✦'; }
+      return;
+    }
+  } catch (e) {}
+  // Fallback: se o acabamento falhar, usa a foto crua mesmo.
   _apPhotoB64 = b64;
-  const link = document.getElementById('ap-img'); if (link) link.value = ''; // foto própria tem prioridade sobre link/arte
+  const link = document.getElementById('ap-img'); if (link) link.value = '';
   _apShowArtPreview(b64, false);
   if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta ✦ será usada como imagem do produto'; }
 }
