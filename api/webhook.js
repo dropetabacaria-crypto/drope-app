@@ -5387,15 +5387,17 @@ async function handleFilialProductArtFast(req, res) {
     const editPrompt = [
       'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
       'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
-      'Single product centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
+      'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
       ART_QUALITY_RULES.lighting,
       ART_QUALITY_RULES.noText,
       'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
     ].join(' ');
-    // Query pra achar a imagem REAL do produto na web (inclui o SABOR pra não trocar variação).
-    const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : '')].filter(Boolean).join(' ').trim();
+    // Query pra achar a imagem REAL do produto na web (inclui o SABOR pra não trocar variação;
+    // "unidade" pra evitar caixa/display de atacado).
+    const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : ''), 'unidade'].filter(Boolean).join(' ').trim();
+    const _avoidBox = ['caixa', 'display', 'atacado', 'expositor', 'carton', 'box of', 'pacote com', 'fardo', 'wholesale', 'bulk', 'sealed box', ' un)', '24 un', '50 un', 'blocks'];
     let tempUrl = null;
 
     // 1) Foto do PRÓPRIO lojista (mais fiel à embalagem real).
@@ -5410,7 +5412,7 @@ async function handleFilialProductArtFast(req, res) {
     // 2) CRUZA COM A INTERNET: busca a imagem REAL do produto identificado e estiliza ELA.
     //    Evita o text2img inventar outra marca/sabor (bug: foto Blunt Wrap Grape virou G-ROLLZ).
     if (!tempUrl && webQ.length >= 3) {
-      try { const webRef = await _findProductRefImage(webQ); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
+      try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
       catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
     }
     // 3) ÚLTIMO recurso: gera do zero por texto (pode não bater 100% — só quando não achou referência).
@@ -7410,13 +7412,20 @@ async function generateProductScene(subject) {
 
 // Busca uma imagem REAL do produto na web (Serper images) e baixa a 1ª válida.
 // Serve de referência pro img2img — deixa a arte fiel à embalagem (pra qualquer tipo).
-async function _findProductRefImage(query) {
+async function _findProductRefImage(query, opts) {
+  opts = opts || {};
+  const avoid = Array.isArray(opts.avoid) ? opts.avoid.map(s => String(s).toLowerCase()) : [];
   try {
-    const data = await _serperSearch(query, 'images', 8);
+    const data = await _serperSearch(query, 'images', 10);
     const imgs = (data && data.images) || [];
-    for (const im of imgs.slice(0, 6)) {
+    for (const im of imgs.slice(0, 10)) {
       const src = im && im.imageUrl;
       if (!src) continue;
+      // Pula imagens de CAIXA/DISPLAY/ATACADO (queremos a UNIDADE que o cliente compra).
+      if (avoid.length) {
+        const meta = `${(im && im.title) || ''} ${(im && im.source) || ''} ${(im && im.link) || ''} ${src}`.toLowerCase();
+        if (avoid.some(a => meta.includes(a))) continue;
+      }
       try {
         const r = await fetch(src, { signal: AbortSignal.timeout(6000) });
         if (!r.ok) continue;
