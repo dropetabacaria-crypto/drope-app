@@ -4340,7 +4340,7 @@ async function callClaude(messages, systemPrompt, maxTokens = 600) {
 }
 
 // Extrai dados do pod a partir da foto da CAIXA (obrigatoria) e opcionalmente da foto do POD.
-async function analyzeProductImage(caixaUrl, podUrl = null, hint = '') {
+async function analyzeProductImage(caixaUrl, podUrl = null, hint = '', extraImages = []) {
   const systemPrompt = `${IA_SERVO_PREAMBULO}Voce e o catalogador da DROPE — uma TABACARIA + ADEGA. Analise a foto de UM produto e devolva JSON valido (sem markdown). O produto pode ser QUALQUER item de tabacaria ou adega: seda, piteira, filtro, boquilha, dichavador, isqueiro, estojo/case/bolsa/necessaire, narguile e pecas (rosh, mangueira, abafador, prato), carvao, essencia de narguile, cigarro, tabaco/fumo, OU bebida (cerveja, vinho, destilado, energetico) — e tambem pode ser vape/pod. VAPE/POD e apenas UMA categoria entre muitas; NAO assuma que o produto e pod.
 
 REGRA DE OURO (nao errar): identifique SO o que esta REALMENTE VISIVEL na foto. A marca vem do TEXTO/LOGO impresso ou gravado na embalagem — se esta escrito/gravado "Sadhu", a marca e SADHU e o produto e um item Sadhu (ex um estojo/case vermelho gravado 'Sadhu' = "Estojo Sadhu"). NUNCA invente marca, tipo ou sabor que nao aparece na foto. NUNCA troque por um produto parecido (ex: nao chame um estojo de "tabaco de narguile"). Se um campo nao da pra ler com certeza, use null — melhor devolver menos e certo do que chutar.
@@ -4397,6 +4397,12 @@ Identifique o produto EXATAMENTE como esta na foto e preenche name+type+brand (+
     }
   } else {
     userText = "Extrai os dados desse produto de tabacaria/adega. Identifique EXATAMENTE o que esta na foto (le a marca do texto/logo). Responde SO o JSON, sem texto antes ou depois.";
+  }
+  // Fotos EXTRAS do MESMO produto (ângulos/lados diferentes) → identifica melhor.
+  if (Array.isArray(extraImages) && extraImages.length) {
+    let n = 0;
+    for (const u of extraImages.slice(0, 4)) { const s = makeSource(u); if (s) { content.push({ type: "image", source: s }); n++; } }
+    if (n) userText = `São ${n + 1} fotos do MESMO produto, de ângulos/lados diferentes (frente, verso, laterais). Use TODAS juntas pra identificar com precisão a marca, o tipo e a variação. ` + userText;
   }
   if (hint && String(hint).trim()) {
     userText += `\n\nO LOJISTA descreveu este produto como: "${String(hint).trim().slice(0, 120)}". Use essa descricao pra guiar a identificacao (marca, tipo, cor, material), desde que NAO contradiga o que voce ve na foto.`;
@@ -5467,13 +5473,17 @@ async function handleFilialAnalyzePhoto(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
-    const caixaB64 = body.caixaBase64 || body.imageBase64;
+    // Aceita 1 foto (caixaBase64) OU várias (photos[] — até 5, ângulos diferentes).
+    const _toUrl = (b) => b ? (String(b).startsWith('data:') ? String(b) : `data:image/jpeg;base64,${b}`) : null;
+    const photosArr = Array.isArray(body.photos) ? body.photos.filter(Boolean).slice(0, 5) : [];
+    const caixaB64 = (photosArr[0] || body.caixaBase64 || body.imageBase64);
     if (!caixaB64) return res.status(400).json({ ok: false, error: 'foto obrigatória' });
-    const caixaUrl = caixaB64.startsWith('data:') ? caixaB64 : `data:image/jpeg;base64,${caixaB64}`;
+    const caixaUrl = _toUrl(caixaB64);
+    const extraUrls = photosArr.slice(1).map(_toUrl).filter(Boolean); // fotos extras (2ª..5ª)
     const podB64 = body.podBase64 || null;
-    const podUrl = podB64 ? (podB64.startsWith('data:') ? podB64 : `data:image/jpeg;base64,${podB64}`) : null;
+    const podUrl = _toUrl(podB64);
     const hint = String(body.hint || '').trim().slice(0, 120); // descrição do lojista (opcional)
-    const data = await analyzeProductImage(caixaUrl, podUrl, hint);
+    const data = await analyzeProductImage(caixaUrl, podUrl, hint, extraUrls);
     if (!data) return res.status(502).json({ ok: false, error: 'não consegui identificar — tira a foto mais de perto, com a frente da caixa nítida' });
     // 2º cruzamento de dado: busca reversa por IMAGEM (Google Lens) — sobe a foto e procura o produto igual na web.
     let lens = [];
