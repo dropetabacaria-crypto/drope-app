@@ -898,6 +898,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="wiz-dot" data-s="3" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">3 · Imagem</div>
       </div>
 
+      <!-- Aviso: produto já cadastrado (checa por código de barras / nome+marca) -->
+      <div id="ap-dup-warn" style="display:none;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.4);border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
+
       <!-- ETAPA 1: identificar + básicos -->
       <div class="wiz-step" id="wiz-1">
         <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -928,7 +931,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
         </div>
         <label class="pf-lbl">Nome do produto</label>
-        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60">
+        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()">
         <!-- COMBO: escolher os produtos que formam o combo -->
         <div id="ap-combo-wrap" style="display:none">
           <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: Tabaco + Seda + Piteira). Só produtos ativos e com estoque.</div>
@@ -984,7 +987,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="wiz-step" id="wiz-2" style="display:none">
         <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">(pra escanear e vender no balcão)</span></label>
         <div style="display:flex;gap:8px">
-          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0">
+          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()">
           <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
         </div>
         <div class="pf-hint" style="margin-top:6px">Com o código salvo, é só escanear no balcão que o produto entra na venda. Pode pular e adicionar depois.</div>
@@ -1993,7 +1996,7 @@ function toggleAddProduct() {
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
 function _wizReset() {
-  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; }
+  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
   const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none';
@@ -2024,6 +2027,43 @@ function wizRender() {
   if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
 }
 function wizGo(delta) { let ns = _wizStep + delta; if (_apMode === 'combo' && ns === 2) ns += delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+// ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
+let _apDupDismiss = false;
+function _apNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function _apFindDuplicate() {
+  if (_apMode === 'combo') return null; // combo não checa duplicado
+  const prods = _lastProdutos || [];
+  const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+  if (bc && bc.length >= 8) { const m = prods.find(p => String(p.barcode || '').replace(/\D/g, '') === bc); if (m) return m; } // match forte = código de barras
+  const nm = _apNorm((document.getElementById('ap-name') || {}).value);
+  if (nm.length < 3) return null;
+  const mc = _apNorm((document.getElementById('ap-marca') || {}).value);
+  const sb = _apNorm((document.getElementById('ap-sabor') || {}).value);
+  const key = _apNorm(nm + ' ' + mc + ' ' + sb);
+  return prods.find(p => { const pk = _apNorm((p.name || '') + ' ' + (p.marca || '') + ' ' + (p.sabor || '')); return pk && (pk === key || _apNorm(p.name) === nm); }) || null;
+}
+function _apRenderDupWarn() {
+  const el = document.getElementById('ap-dup-warn'); if (!el) return;
+  if (_apDupDismiss) { el.style.display = 'none'; return; }
+  const m = _apFindDuplicate();
+  if (!m) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const est = (m.stock != null ? m.stock : (m.qty_available != null ? m.qty_available : 0));
+  el.style.display = 'block';
+  el.innerHTML = '<div style="font-size:13px;color:var(--fg);font-weight:700;margin-bottom:2px">⚠️ Você já tem esse produto</div>'
+    + '<div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px">' + esc(m.name || 'produto') + ' · estoque ' + est + '. Quer editar/repor em vez de cadastrar de novo?</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button type="button" class="pf-btn" style="flex:1 1 auto;margin-bottom:0" onclick="_apEditExisting(' + m.id + ')">Editar o existente</button>'
+    + '<button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="_apDupIgnore()">É outro produto</button>'
+    + '</div>';
+}
+function _apDupIgnore() { _apDupDismiss = true; const el = document.getElementById('ap-dup-warn'); if (el) el.style.display = 'none'; }
+function _apEditExisting(id) {
+  try { if (document.getElementById('add-product-form').style.display !== 'none') toggleAddProduct(); } catch (e) {}
+  const p = (_lastProdutos || []).find(x => x.id === id);
+  try { if (p && typeof _prodCatOpen !== 'undefined') _prodCatOpen.add(p.filtro_id != null ? String(p.filtro_id) : '__none'); } catch (e) {}
+  try { renderProdutos(); } catch (e) {}
+  setTimeout(function () { const ed = document.getElementById('edit-' + id); if (ed) { ed.classList.add('open'); ed.scrollIntoView({ block: 'center' }); } }, 80);
+}
 function wizNext() {
   const msg = document.getElementById('ap-msg');
   if (_wizStep === 1) {
@@ -2152,6 +2192,7 @@ async function _apRunScan(hint) {
       try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque'; }
+      try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {} // avisa se já estiver cadastrado
     } else {
       if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — descreve o produto abaixo que eu busco de novo'; }
     }
@@ -2889,6 +2930,15 @@ async function saveNewProduct() {
   const msg = document.getElementById('ap-msg');
   if (name.length < 2) { msg.textContent = 'põe o nome do produto'; return; }
   if (!isFinite(price) || price < 0) { msg.textContent = 'preço inválido'; return; }
+  // TRAVA de duplicado: se já existe (código de barras / nome+marca) e não foi dispensado, avisa.
+  if (!_apDupDismiss) {
+    const dup = _apFindDuplicate();
+    if (dup) {
+      try { _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw) dw.scrollIntoView({ block: 'center' }); } catch (e) {}
+      msg.style.color = 'var(--pink)'; msg.textContent = 'Esse produto já parece cadastrado — edita o existente ou toca em "É outro produto".';
+      return;
+    }
+  }
   // COMBO: precisa de pelo menos 2 produtos selecionados
   let combo_items = null;
   if (_apMode === 'combo') {
