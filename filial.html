@@ -907,27 +907,20 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <!-- Foto do produto no INÍCIO: câmera OU galeria → a IA identifica e preenche -->
         <div id="ap-scan-block" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
           <div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto do produto <span style="opacity:.7">— a IA identifica e preenche pra você (opcional)</span></div>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-scan-cam').click()">Tirar foto</button>
-            <button type="button" class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-scan-gal').click()">Da galeria</button>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="document.getElementById('ap-scan-cam').click()">Tirar foto</button>
+            <button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="document.getElementById('ap-scan-gal').click()">Da galeria</button>
+            <span id="ap-scan-count" style="font-size:11.5px;color:var(--fg-dim);flex:0 0 auto"></span>
           </div>
-          <input type="file" id="ap-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="apScanPhoto(this)">
-          <input type="file" id="ap-scan-gal" accept="image/*" style="display:none" onchange="apScanPhoto(this)">
+          <input type="file" id="ap-scan-cam" accept="image/*" capture="environment" style="display:none" onchange="apAddScanPhoto(this)">
+          <input type="file" id="ap-scan-gal" accept="image/*" style="display:none" onchange="apAddScanPhoto(this)">
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
             <img id="ap-scan-thumb" src="" alt="" style="display:none;width:66px;height:66px;object-fit:cover;border-radius:10px;background:var(--bg2);flex:0 0 auto">
             <div id="ap-scan-status" style="display:none;font-size:12px;min-height:14px;flex:1"></div>
           </div>
           <!-- Não ficou certo? (1) mais fotos de ângulos diferentes  (2) descrição → IA cruza tudo -->
           <div id="ap-scan-hint-wrap" style="display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px">
-            <div style="font-size:11.5px;color:var(--fg-dim);margin-bottom:6px">Não ficou certo? Manda mais fotos de ângulos diferentes (frente, verso, lados) que eu cruzo todas:</div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-              <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="document.getElementById('ap-scan-more-cam').click()">＋ Tirar foto</button>
-              <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="document.getElementById('ap-scan-more-gal').click()">＋ Da galeria</button>
-              <span id="ap-scan-count" style="font-size:11.5px;color:var(--fg-dim)"></span>
-            </div>
-            <input type="file" id="ap-scan-more-cam" accept="image/*" capture="environment" style="display:none" onchange="apAddScanPhoto(this)">
-            <input type="file" id="ap-scan-more-gal" accept="image/*" style="display:none" onchange="apAddScanPhoto(this)">
-            <div style="font-size:11.5px;color:var(--fg-dim);margin-bottom:6px">Ou descreve o produto (a IA cruza com as fotos + a internet):</div>
+            <div style="font-size:11.5px;color:var(--fg-dim);margin-bottom:6px">Não achou certo? Tira mais fotos de ângulos diferentes (frente, verso, lados — botões acima, até 5) <b>ou</b> descreve o produto:</div>
             <div style="display:flex;gap:8px">
               <input class="pf-input" id="ap-scan-hint" placeholder="ex: Bolsa de acessórios Sadhu vermelha" maxlength="80" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();apRescanWithHint();}">
               <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="apRescanWithHint()">Buscar</button>
@@ -2107,29 +2100,22 @@ function _apUpdateScanCount() {
   const n = _apScanPhotos.length;
   el.textContent = n >= 5 ? '5/5 fotos (máx)' : (n > 1 ? n + '/5 fotos' : '');
 }
-async function apScanPhoto(input) {
-  const file = input.files && input.files[0]; input.value = ''; if (!file) return;
-  const st = document.getElementById('ap-scan-status');
-  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = 'preparando foto…'; }
-  const b64 = await _fileToDataUrl(file, 1280).catch(() => null);
-  if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-  _apScanPhotos = [b64]; _apLastScanB64 = b64;  // recomeça (foto nova = novo produto)
-  _apUpdateScanCount();
-  const hi = document.getElementById('ap-scan-hint'); if (hi) hi.value = ''; // nova foto → limpa descrição anterior
-  await _apRunScan('');
-}
-// Adiciona mais uma foto (até 5) e reprocessa cruzando TODAS.
+// Botão único "Tirar foto / Da galeria": a 1ª foto escaneia; as próximas (até 5)
+// adicionam ângulos e a IA cruza TODAS. (O scan inicial pela lista já semeia a 1ª.)
 async function apAddScanPhoto(input) {
   const file = input.files && input.files[0]; input.value = ''; if (!file) return;
   const st = document.getElementById('ap-scan-status');
-  if (!_apScanPhotos.length) { if (st) { st.style.display = 'block'; st.style.color = 'var(--pink)'; st.textContent = 'tire a 1ª foto primeiro'; } return; }
-  if (_apScanPhotos.length >= 5) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'máximo de 5 fotos'; } return; }
+  if (_apScanPhotos.length >= 5) { if (st) { st.style.display = 'block'; st.style.color = 'var(--pink)'; st.textContent = 'máximo de 5 fotos'; } return; }
+  if (st) { st.style.display = 'block'; st.style.color = 'var(--lime)'; st.textContent = 'preparando foto…'; }
   const b64 = await _fileToDataUrl(file, 1280).catch(() => null);
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-  _apScanPhotos.push(b64); _apUpdateScanCount();
+  if (!_apScanPhotos.length) { _apScanPhotos = [b64]; const hi = document.getElementById('ap-scan-hint'); if (hi) hi.value = ''; }
+  else { _apScanPhotos.push(b64); }
+  _apLastScanB64 = _apScanPhotos[0]; _apUpdateScanCount();
   const hint = ((document.getElementById('ap-scan-hint') || {}).value || '').trim();
   await _apRunScan(hint);
 }
+async function apScanPhoto(input) { return apAddScanPhoto(input); } // compat
 // Rebusca usando as MESMAS fotos + a descrição que o lojista digitou.
 async function apRescanWithHint() {
   const hint = ((document.getElementById('ap-scan-hint') || {}).value || '').trim();
@@ -2250,6 +2236,13 @@ async function onScanFile(input) {
       try { const _sf = document.getElementById('ap-filtro'); if (_sf) _sf.innerHTML = _apFiltroOptions(); _apFiltroChange(); } catch (e) {}
       try { const _scg = document.getElementById('ap-catglobal'); if (_scg && !_scg.innerHTML) _scg.innerHTML = _catGlobalOptions(''); } catch (e) {}
       try { _wizReset(); } catch (e) {} // começa na etapa 1 (produto identificado)
+      // Semeia a foto escaneada DEPOIS do reset: vira referência da arte E permite
+      // "adicionar mais fotos / descrever" no form cruzando com ela.
+      try {
+        _scanRefB64 = b64; _apScanPhotos = [b64]; _apLastScanB64 = b64; _apUpdateScanCount();
+        const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.src = b64; _th.style.display = 'block'; }
+        const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'block';
+      } catch (e) {}
       const brand = (v.brand || '').trim(), model = (v.model || '').trim();
       const flavor = (v.flavor_pt || v.flavor_en || '').trim();
       const genname = (v.name || '').trim();
