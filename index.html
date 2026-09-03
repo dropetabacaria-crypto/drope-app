@@ -10475,14 +10475,12 @@
     if (filterState.perfil !== 'tudo' && p.cat === 'pod' && p.perfil !== filterState.perfil) return false;
     if (filterState.puffs && (p.cat !== 'pod' || String(p.puffs) !== filterState.puffs)) return false;
     if (filterState.sabor) {
-      // DROPE FILTROS v2 (04/06): match em name+flavor+sabor (não só campo sabor)
-      if (p.cat !== 'pod') return false;
+      // Match em name+flavor+sabor de QUALQUER produto (pod, seda, bebida…).
       const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
       if (!txt.includes(filterState.sabor.toLowerCase())) return false;
     }
     if (filterState.marca) {
-      // DROPE FILTROS v2 (04/06): match case-insensitive (chips agora vêm lowercase do catálogo)
-      if (p.cat !== 'pod') return false;
+      // Marca de QUALQUER produto (case-insensitive; chips vêm lowercase do catálogo).
       const pMarca = (p.marca || p.brand || '').toLowerCase();
       if (pMarca !== filterState.marca.toLowerCase()) return false;
     }
@@ -10698,8 +10696,9 @@
   // os puffs/sabores que não existem em ELFBAR ficam disabled (count 0).
   // Tipo Mercado Livre — cliente não perde tempo procurando o que não tem.
   function _matchProductsExcept(excludeDim) {
-    const pods = products.filter(p => p.cat === 'pod');
-    return pods.filter(p => {
+    // Cruza sobre TODO o catálogo (não só pods) — filtro serve tabacaria+adega também.
+    const base = products || [];
+    return base.filter(p => {
       if (excludeDim !== 'marca' && draftFilter.marca) {
         const pMarca = (p.marca || '').toLowerCase();
         if (pMarca !== draftFilter.marca.toLowerCase()) return false;
@@ -10731,7 +10730,7 @@
     });
     // Marcas de TODO catálogo (pra mostrar mesmo as zeradas, disabled)
     const todasAsMarcas = new Set();
-    products.filter(p => p.cat === 'pod').forEach(p => {
+    (products || []).forEach(p => {
       const b = (p.marca || p.brand || '').trim().toLowerCase();
       if (b) todasAsMarcas.add(b);
     });
@@ -10769,35 +10768,21 @@
           return `<div class="s-chip${String(draftFilter.puffs) === String(p) ? ' active' : ''}${isDisabled ? ' disabled' : ''}" data-val="${p}">${label}${n > 0 ? ` <span style="opacity:0.5;font-size:10px">${n}</span>` : ''}</div>`;
         }).join('');
     }
+    // Puffs é coisa de POD — esconde o grupo quando a loja não tem pod (tabacaria/adega).
+    const puffsGroup = puffsEl ? puffsEl.closest('.sheet-group') : null;
+    if (puffsGroup) puffsGroup.style.display = todosPuffs.size ? '' : 'none';
 
-    // === SABORES ===
-    const flavorKeywords = [
-      'morango','melancia','uva','manga','maçã','maca','banana','abacaxi','pêssego','pessego',
-      'cereja','laranja','limão','limao','lima','blueberry','mirtilo','framboesa','amora',
-      'kiwi','maracujá','maracuja','romã','roma','goiaba','toranja','tropical','menta',
-      'mentol','gelado','gelada','ice','frutas vermelhas','aloe','tamarindo','melão','melao',
-      'doce','bubblegum','salgada','energético','energetico'
-    ];
+    // === SABOR / VARIAÇÃO — distintos do catálogo REAL (serve pod, seda, bebida, essência…) ===
+    const _saborKey = p => (p.sabor || p.flavor_pt || p.flavor_en || '').trim().toLowerCase();
     const saborPossiveis = _matchProductsExcept('sabor');
     const flavorMap = {};
-    saborPossiveis.forEach(p => {
-      const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
-      flavorKeywords.forEach(kw => {
-        if (txt.includes(kw)) flavorMap[kw] = (flavorMap[kw] || 0) + 1;
-      });
-    });
-    // Sabores que existem em TODO catálogo (pra mostrar mesmo zerados)
+    saborPossiveis.forEach(p => { const s = _saborKey(p); if (s) flavorMap[s] = (flavorMap[s] || 0) + 1; });
     const todosSabores = new Set();
-    products.filter(p => p.cat === 'pod').forEach(p => {
-      const txt = ((p.name || '') + ' ' + (p.flavor_pt || '') + ' ' + (p.sabor || '')).toLowerCase();
-      flavorKeywords.forEach(kw => {
-        if (txt.includes(kw)) todosSabores.add(kw);
-      });
-    });
-    const flavors = [...todosSabores]
-      .map(f => [f, flavorMap[f] || 0])
-      .sort((a, b) => b[1] - a[1]);
+    (products || []).forEach(p => { const s = _saborKey(p); if (s) todosSabores.add(s); });
+    const flavors = [...todosSabores].map(f => [f, flavorMap[f] || 0]).sort((a, b) => b[1] - a[1]).slice(0, 24);
     const saborEl = document.getElementById('sheet-sabor');
+    const saborGroup = saborEl ? saborEl.closest('.sheet-group') : null;
+    if (saborGroup) saborGroup.style.display = todosSabores.size ? '' : 'none'; // esconde se não há sabor/variação
     if (saborEl) {
       saborEl.innerHTML = '<div class="s-chip' + (!draftFilter.sabor ? ' active' : '') + '" data-val="">todos</div>' +
         flavors.map(([f, n]) => {
