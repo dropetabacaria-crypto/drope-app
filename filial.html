@@ -2995,6 +2995,8 @@ async function saveNewProduct() {
     _savedRef = saved; // { id, slug } deste cadastro — imune à corrida do background
     // Concluiu → limpa TUDO e FECHA o form, voltando pra lista de Meus produtos.
     _apPhotoB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
+    // some com o balão verde do scan da lista — agora só o card com ⏳ mostra a arte gerando.
+    try { const _ss = document.getElementById('scan-status'); if (_ss) { _ss.style.display = 'none'; _ss.textContent = ''; } const _sb = document.getElementById('scan-btn'); if (_sb) _sb.disabled = false; } catch (e) {}
     try { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); } catch (e) {}
     try { const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions(''); } catch (e) {}
     try { _wizReset(); } catch (e) {}            // zera campos/selects/scan/combo
