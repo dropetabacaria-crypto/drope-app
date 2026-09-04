@@ -2031,7 +2031,13 @@ function toggleAddProduct() {
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
+// "Época" do cadastro atual: sobe a cada _wizReset (produto novo). Toda geração de imagem
+// em 1º plano guarda a época em que começou; se a época mudou quando ela responde, a imagem
+// é DESCARTADA (pertencia ao produto anterior) — nunca vaza pro próximo. Corrige o bug de
+// "a arte do produto anterior aparece no próximo".
+let _apGenEpoch = 0;
 function _wizReset() {
+  _apGenEpoch++;
   _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2151,6 +2157,8 @@ function _apClearArt() {
   const fw = document.getElementById('ap-fix-wrap'); if (fw) fw.style.display = 'none';
   const ft = document.getElementById('ap-fix-txt'); if (ft) ft.value = '';
   const fl = document.getElementById('ap-fix-link'); if (fl) fl.style.display = 'none';
+  // botão "Gerar arte" sempre volta ao normal (pode ter ficado "gerando…" de um cadastro anterior).
+  const gb = document.getElementById('ap-artgen-btn'); if (gb) { gb.disabled = false; gb.style.opacity = '1'; gb.textContent = 'Gerar arte com IA ✦'; }
 }
 function apLinkPreview() {
   const v = (document.getElementById('ap-img').value || '').trim();
@@ -2162,6 +2170,7 @@ async function apGerarArte(fix) {
   const flavor = (document.getElementById('ap-sabor').value || '').trim();
   const st = document.getElementById('ap-art-status');
   if (name.length < 2 && brand.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'preencha o produto na etapa 1 primeiro'; } return; }
+  const epoch = _apGenEpoch; // amarra ESTA geração ao cadastro atual
   const btn = document.getElementById('ap-artgen-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = 'gerando… (até 1 min)'; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE… (pode concluir o produto, ela entra depois)'; }
@@ -2171,13 +2180,15 @@ async function apGerarArte(fix) {
     if (fix && String(fix).trim()) body.fix = String(fix).trim(); // correção do lojista ("nome certo é NIKBAR")
     const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
+    if (epoch !== _apGenEpoch) return; // já mudou de produto → NÃO escreve nada (imagem atrasada é descartada)
     if (r.ok && d.ok && d.image_url) {
       document.getElementById('ap-img').value = d.image_url; // vira a imagem do produto (image_url no save)
       _apPhotoB64 = null; // arte tem prioridade sobre foto própria
       _apShowArtPreview(d.image_url, true);
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
     } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ou conclui e gera depois'; } }
-  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo ou conclui e gera depois'; } }
+  } catch (e) { if (epoch !== _apGenEpoch) return; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo ou conclui e gera depois'; } }
+  if (epoch !== _apGenEpoch) return; // não mexe no botão do próximo produto
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
 }
 
@@ -2256,8 +2267,10 @@ async function _apRunScan(hint) {
 async function onApFotoFile(input) {
   const f = input.files && input.files[0]; input.value = ''; if (!f) return;
   const st = document.getElementById('ap-art-status');
+  const epoch = _apGenEpoch; // amarra ao cadastro atual
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'aplicando o acabamento DROPE na sua foto…'; }
   const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
+  if (epoch !== _apGenEpoch) return; // já mudou de produto → descarta
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
   // Acabamento DROPE (fundo escuro) na foto REAL — SEM redesenhar, produto 100% fiel.
   try {
@@ -2266,6 +2279,7 @@ async function onApFotoFile(input) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, photo_only: true, ref_base64: b64, name: ((document.getElementById('ap-name') || {}).value) || 'produto' }),
     });
     const d = await r.json().catch(() => ({}));
+    if (epoch !== _apGenEpoch) return; // foto do produto anterior chegou tarde → NÃO escreve no próximo
     if (r.ok && d.ok && d.image_url) {
       const link = document.getElementById('ap-img'); if (link) link.value = d.image_url; // usa a URL já estilizada
       _apPhotoB64 = null;
@@ -2273,7 +2287,8 @@ async function onApFotoFile(input) {
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'foto pronta no estilo DROPE ✦'; }
       return;
     }
-  } catch (e) {}
+  } catch (e) { if (epoch !== _apGenEpoch) return; }
+  if (epoch !== _apGenEpoch) return;
   // Fallback: se o acabamento falhar, usa a foto crua mesmo.
   _apPhotoB64 = b64;
   const link = document.getElementById('ap-img'); if (link) link.value = '';
