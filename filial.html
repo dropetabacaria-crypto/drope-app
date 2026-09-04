@@ -2797,7 +2797,7 @@ async function _saveProduct(payload, onOk) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { _lastSavedProduct = { id: d.id, slug: d.slug }; onOk && onOk(); loadData(true); return true; }
+    if (r.ok && d.ok) { const _saved = { id: d.id, slug: d.slug }; _lastSavedProduct = _saved; onOk && onOk(_saved); loadData(true); return true; }
     return d.error || ('erro ' + r.status);
   } catch (e) { return 'Erro de rede'; }
 }
@@ -2973,7 +2973,11 @@ async function saveNewProduct() {
   // Capturado ANTES do reset: se o produto entra sem imagem, a arte é gerada em background.
   const _hadImg = !!img || !!_apPhotoB64;
   const _bgMeta = { name: name, brand: marca, flavor: sabor, type: (_scanMeta && _scanMeta.type) || '', ref: _scanRefB64 || null };
-  const err = await _saveProduct(payload, () => {
+  // id DESTE produto, capturado no exato momento da resposta do save. NÃO lê a global
+  // _lastSavedProduct (ela é sobrescrita pela arte em background de OUTRO produto → arte no produto errado).
+  let _savedRef = null;
+  const err = await _saveProduct(payload, (saved) => {
+    _savedRef = saved; // { id, slug } deste cadastro — imune à corrida do background
     // Concluiu → limpa TUDO e FECHA o form, voltando pra lista de Meus produtos.
     _apPhotoB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
     try { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); } catch (e) {}
@@ -2987,8 +2991,8 @@ async function saveNewProduct() {
   if (err !== true) { msg.textContent = err; return; }
   // Produto salvo sem imagem → gera a arte em SEGUNDO PLANO (o lojista já pode cadastrar o próximo).
   // Combo NÃO gera arte-IA em background (a imagem é a colagem das fotos reais, feita no backend).
-  if (_apMode !== 'combo' && !_hadImg && _lastSavedProduct && _lastSavedProduct.id) {
-    _bgArt(_lastSavedProduct.id, _bgMeta);
+  if (_apMode !== 'combo' && !_hadImg && _savedRef && _savedRef.id) {
+    _bgArt(_savedRef.id, _bgMeta);
   }
 }
 
