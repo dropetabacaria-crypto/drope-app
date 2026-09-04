@@ -951,6 +951,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div style="flex:1"><label class="pf-lbl" id="ap-price-lbl">Preço de venda (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco(true)"></div>
           <div style="flex:1" id="ap-stock-wrap"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
         </div>
+        <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:6px;min-height:16px"></div>
         <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-top:6px">
           <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.8 10.6c.7.6 1.1 1.2 1.2 2.4h5.2c.1-1.2.5-1.8 1.2-2.4A6 6 0 0 0 12 3Z"/></svg> Não sabe o preço? Deixa eu calcular <span style="opacity:.6">(opcional)</span></div>
           <div style="display:flex;gap:10px">
@@ -962,7 +963,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
               </div>
             </div>
           </div>
-          <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:8px;min-height:16px"></div>
         </div>
         <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
         <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
@@ -1701,6 +1701,7 @@ function renderProdutos(list) {
         <input class="pf-input" id="ep-name-${p.id}" value="${esc(p.name || '')}" maxlength="70" style="margin-bottom:0" placeholder="ex: Piteira Sadhu Black King Size">
         <label class="pf-lbl" style="margin-top:12px">Preço de venda (R$)</label>
         <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço" oninput="epRecebe(${p.id}, true)">
+        <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:6px;min-height:14px"></div>
         <div style="display:flex;gap:10px;margin-top:10px">
           <div style="flex:1"><label class="pf-lbl">Quanto você pagou (R$) <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
             <input class="pf-input" id="ep-custo-${p.id}" inputmode="decimal" value="${p.cost_cents ? ((p.cost_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 45,00" style="margin-bottom:0" oninput="epRecebe(${p.id})"></div>
@@ -1710,7 +1711,6 @@ function renderProdutos(list) {
               <select class="pf-input" id="ep-lucro-tipo-${p.id}" style="width:60px;margin-bottom:0" onchange="epRecebe(${p.id})"><option value="rs">R$</option><option value="pct">%</option></select>
             </div></div>
         </div>
-        <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:8px;min-height:14px"></div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
         <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
         ${p.combo ? `
