@@ -5404,9 +5404,12 @@ async function handleFilialProductArtFast(req, res) {
     // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
     // Usado tanto na foto do lojista quanto na imagem real buscada na web.
     const editPrompt = [
-      'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
-      'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
-      fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. Any visible brand name or label text MUST match this correction EXACTLY — spell it precisely as written, do not alter the letters.') : '',
+      // ===== REGRA #1: fidelidade 100% ao produto real. NUNCA inventar rótulo/marca/título. =====
+      'ABSOLUTE #1 RULE — 100% FIDELITY TO THE REAL PRODUCT: keep the product IDENTICAL to the reference photo. Same brand name, same logo, same colors, same shapes, and ALL printed text must stay EXACTLY as in the photo — every letter sharp, legible and UNCHANGED. Do NOT blur, warp, redraw, translate, restyle, reposition or invent any text or logo.',
+      'NEVER invent, add, remove, swap or replace ANY brand name, product name, title, label or logo. The product keeps its OWN real brand exactly as shown (for example IGNITE, NIKBAR, etc.). If unsure of a letter, copy it exactly from the reference — never guess.',
+      'CRITICAL: Do NOT write the word "DROPE" — or any store/app name — anywhere on the product, packaging, or scene. "DROPE" is ONLY the name of the lighting/background style here; it must NEVER appear as text or as a brand on the item.',
+      fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. The visible brand/label text MUST match this correction EXACTLY — spell it precisely, do not alter the letters.') : '',
+      'Only restyle the BACKGROUND and LIGHTING around the product into a premium dark-neon e-commerce hero scene — never touch the product itself.',
       'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
@@ -7438,8 +7441,8 @@ async function generateProductScene(subject) {
     `Dark cinematic product photography. HERO PRODUCT centered and in sharp focus: ${subject}. Single product, photorealistic, resting on a matte black reflective surface with a subtle mirror reflection.`,
     `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space around the product.`,
     `Atmospheric vapor/smoke drifting behind, catching neon rim lights with pink (#FF2D6F) and acid green (#D4FF2E) tints and a faint ultraviolet (#7B2FBE) fill.`,
-    `Low-key premium lighting, glossy, high detail. Keep the product's own packaging and label plausible and legible.`,
-    `NO people, NO hands, NO extra text or watermark beyond the product's own label. Square 1024x1024.`,
+    `Low-key premium lighting, glossy, high detail. Render the product's REAL brand name and packaging text (${subject}) accurately and legibly — do NOT invent, swap or restyle the brand.`,
+    `Do NOT write "DROPE" or any store/app name on the product. NO people, NO hands, NO extra text or watermark beyond the product's own real label. Square 1024x1024.`,
   ].join(' ');
   return await openaiGenerateImage(prompt, 'produto', { quality: 'high' });
 }
