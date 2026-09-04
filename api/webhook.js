@@ -5398,19 +5398,22 @@ async function handleFilialProductArtFast(req, res) {
     const flavor = String(body.flavor || '').trim();
     const type = String(body.type || '').trim();
     if (!name && !brand && !body.photo_only) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
-    const subject = [brand, name, flavor].filter(Boolean).join(' ').trim() || name;
+    // Correção enviada pelo lojista ("a arte saiu com o nome errado: é NIKBAR, não NIQBAR").
+    const fix = String(body.fix || '').trim();
+    const subject = ([brand, name, flavor].filter(Boolean).join(' ').trim() || name) + (fix ? ' (' + fix + ')' : '');
     // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
     // Usado tanto na foto do lojista quanto na imagem real buscada na web.
     const editPrompt = [
       'Transform this product photo into a DROPE premium dark-neon e-commerce hero shot.',
       'KEEP THE PRODUCT EXACTLY as it is — same shape, same colors, same brand logo, and ALL printed text must stay perfectly SHARP, LEGIBLE and UNCHANGED. Do NOT blur, warp, redraw, translate or invent any text or label. Fidelity to the real packaging is the TOP priority.',
+      fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. Any visible brand name or label text MUST match this correction EXACTLY — spell it precisely as written, do not alter the letters.') : '',
       'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
       ART_QUALITY_RULES.lighting,
       ART_QUALITY_RULES.noText,
       'Remove any clutter, hands or extra objects around the product. Square 1024x1024.',
-    ].join(' ');
+    ].filter(Boolean).join(' ');
     // Query pra achar a imagem REAL do produto na web (inclui o SABOR pra não trocar variação;
     // "unidade" pra evitar caixa/display de atacado).
     const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : ''), 'unidade'].filter(Boolean).join(' ').trim();

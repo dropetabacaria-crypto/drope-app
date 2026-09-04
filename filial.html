@@ -1007,6 +1007,11 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <img id="ap-art-img" src="" alt="" style="width:160px;height:160px;object-fit:cover;border-radius:14px;margin:0 auto;display:block;background:var(--bg2)">
           <div style="font-size:11px;color:var(--fg-dim);margin-top:8px">Prévia da imagem do produto</div>
           <button class="pf-btn sec" id="ap-art-again" style="margin-top:10px;width:100%;display:none" onclick="apGerarArte()">Não gostou? Gerar outra ✦</button>
+          <div id="ap-fix-link" style="display:none;margin-top:8px"><span class="mini-link" style="font-size:11px;color:var(--fg-dim)" onclick="apToggleFix()">⚠️ Nome ou texto errado? Corrigir</span></div>
+          <div id="ap-fix-wrap" style="display:none;margin-top:8px;text-align:left">
+            <input class="pf-input" id="ap-fix-txt" placeholder="ex: o nome certo é NIKBAR, não NIQBAR" style="margin-bottom:6px">
+            <button class="pf-btn sec" style="width:100%;margin-bottom:0" onclick="apFixArt()">Gerar com a correção ✦</button>
+          </div>
         </div>
         <input class="pf-input" id="ap-img" placeholder="ou cole o link de uma foto (opcional)" style="margin-top:10px" oninput="apLinkPreview()">
         <!-- COMBO: prévia da colagem das fotos reais + gerar outra -->
@@ -1753,6 +1758,12 @@ function renderProdutos(list) {
         <div id="ep-imgprev-${p.id}" style="margin-bottom:8px">${p.image_url
           ? `<img src="${esc(p.image_url)}" alt="" style="width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:14px;border:0.5px solid var(--border);display:block">`
           : `<div style="font-size:12.5px;color:var(--fg-dim);background:var(--bg3);border:0.5px dashed var(--border);border-radius:12px;padding:14px;text-align:center">${gerando ? 'Gerando a imagem… ⏳' : 'Sem foto ainda — envie a sua ou gere com IA ✦'}</div>`}</div>
+        ${p.image_url ? `<div style="margin:0 0 8px"><span class="mini-link" style="font-size:12px;color:var(--fg-dim)" onclick="epToggleFix(${p.id})">⚠️ Imagem errada? Reportar / corrigir</span></div>
+        <div id="ep-fix-${p.id}" style="display:none;margin-bottom:8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:10px">
+          <input class="pf-input" id="ep-fix-txt-${p.id}" placeholder="O que está errado? ex: o nome certo é NIKBAR, não NIQBAR" style="margin-bottom:6px">
+          <button class="pf-btn full" style="margin-bottom:0" onclick="epFixArt(${p.id})">Gerar de novo com a correção ✦</button>
+          <div class="pf-hint" style="margin-top:6px">Se o texto continuar errado, use "Enviar foto" — sua foto entra 100% fiel, sem a IA redesenhar.</div>
+        </div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ep-foto-${p.id}').click()">Enviar foto</button>
           <button class="pf-btn sec" style="flex:1" onclick="generateProductArt(${p.id})">Gerar com IA</button>
@@ -1950,6 +1961,7 @@ async function _bgArt(id, meta) {
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: nm, brand: meta.brand || '', flavor: meta.flavor || '', type: meta.type || '' };
     if (meta.ref) body.ref_base64 = meta.ref; // foto do lojista como referência
+    if (meta.fix) body.fix = meta.fix; // correção do lojista (ex: "o nome certo é NIKBAR")
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -1975,9 +1987,23 @@ async function _bgArt(id, meta) {
   try { loadData(false); } catch (e) {}
 }
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
-function generateProductArt(id) {
+function generateProductArt(id, fix) {
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
-  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden });
+  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim() });
+}
+// "Imagem errada? Reportar / corrigir" na edição → abre o campo e regera a arte com a correção.
+function epToggleFix(id) {
+  const b = document.getElementById('ep-fix-' + id); if (!b) return;
+  const open = b.style.display === 'none';
+  b.style.display = open ? 'block' : 'none';
+  if (open) { const t = document.getElementById('ep-fix-txt-' + id); if (t) { try { t.focus(); } catch (e) {} } }
+}
+function epFixArt(id) {
+  const el = document.getElementById('ep-fix-txt-' + id);
+  const t = ((el || {}).value || '').trim();
+  if (t.length < 2) { if (el) { try { el.focus(); } catch (e) {} } return; }
+  try { const b = document.getElementById('ep-fix-' + id); if (b) b.style.display = 'none'; } catch (e) {}
+  generateProductArt(id, t); // regera em segundo plano com a correção (mostra ⏳ no card)
 }
 
 // Setinha ‹ do topo do cadastro: volta uma etapa do wizard; na etapa 1, fecha o form.
@@ -2101,6 +2127,20 @@ function _apShowArtPreview(src, isArt) {
   const img = document.getElementById('ap-art-img'); if (img) img.src = src;
   const w = document.getElementById('ap-art-preview'); if (w) w.style.display = 'block';
   const again = document.getElementById('ap-art-again'); if (again) again.style.display = isArt ? 'block' : 'none';
+  // "corrigir texto" só faz sentido na arte gerada pela IA (na foto própria o texto já é fiel).
+  const fixLink = document.getElementById('ap-fix-link'); if (fixLink) fixLink.style.display = isArt ? 'block' : 'none';
+  const fixWrap = document.getElementById('ap-fix-wrap'); if (fixWrap) fixWrap.style.display = 'none';
+}
+function apToggleFix() {
+  const w = document.getElementById('ap-fix-wrap'); if (!w) return;
+  const open = w.style.display === 'none';
+  w.style.display = open ? 'block' : 'none';
+  if (open) { const t = document.getElementById('ap-fix-txt'); if (t) { try { t.focus(); } catch (e) {} } }
+}
+function apFixArt() {
+  const t = ((document.getElementById('ap-fix-txt') || {}).value || '').trim();
+  if (t.length < 2) { const el = document.getElementById('ap-fix-txt'); if (el) { try { el.focus(); } catch (e) {} } return; }
+  apGerarArte(t); // regera a prévia com a correção
 }
 function _apClearArt() {
   _apPhotoB64 = null;
@@ -2108,12 +2148,15 @@ function _apClearArt() {
   const img = document.getElementById('ap-art-img'); if (img) img.src = '';
   const st = document.getElementById('ap-art-status'); if (st) st.textContent = '';
   const link = document.getElementById('ap-img'); if (link) link.value = '';
+  const fw = document.getElementById('ap-fix-wrap'); if (fw) fw.style.display = 'none';
+  const ft = document.getElementById('ap-fix-txt'); if (ft) ft.value = '';
+  const fl = document.getElementById('ap-fix-link'); if (fl) fl.style.display = 'none';
 }
 function apLinkPreview() {
   const v = (document.getElementById('ap-img').value || '').trim();
   if (/^https?:\/\//.test(v)) { _apPhotoB64 = null; _apShowArtPreview(v, false); }
 }
-async function apGerarArte() {
+async function apGerarArte(fix) {
   const name = (document.getElementById('ap-name').value || '').trim();
   const brand = (document.getElementById('ap-marca').value || '').trim();
   const flavor = (document.getElementById('ap-sabor').value || '').trim();
@@ -2125,6 +2168,7 @@ async function apGerarArte() {
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
     if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
+    if (fix && String(fix).trim()) body.fix = String(fix).trim(); // correção do lojista ("nome certo é NIKBAR")
     const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.image_url) {
