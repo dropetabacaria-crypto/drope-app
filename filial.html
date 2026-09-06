@@ -1896,7 +1896,7 @@ function setStock(id, val) {
   p.stock = n;
   _stockSync(id);
   _stockPersist(id, true); // salva imediato ao digitar
-  try { toast('Estoque salvo ✦ ' + n); } catch (e) {}
+  try { _toast('Estoque salvo ✦ ' + n); } catch (e) {}
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
@@ -1957,7 +1957,7 @@ async function _bgArt(id, meta) {
   _artBusy[id] = true;
   try { renderProdutos(); } catch (e) {}
   const nm = meta.name || '';
-  try { toast('Gerando arte' + (nm ? ' de ' + nm : '') + ' em segundo plano ✦ pode seguir cadastrando'); } catch (e) {}
+  try { _toast('Gerando arte' + (nm ? ' de ' + nm : '') + ' em segundo plano ✦ pode seguir cadastrando'); } catch (e) {}
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: nm, brand: meta.brand || '', flavor: meta.flavor || '', type: meta.type || '' };
     if (meta.ref) body.ref_base64 = meta.ref; // foto do lojista como referência
@@ -1975,14 +1975,14 @@ async function _bgArt(id, meta) {
       const pp = (_lastProdutos || []).find(x => x.id === id);
       if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
       try { renderProdutos(); } catch (e) {}
-      try { toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e) {}
+      try { _toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e) {}
     } else {
       try { renderProdutos(); } catch (e) {}
-      try { toast((d && d.error) || 'não rolou gerar a arte ✦ toca no <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto pra tentar de novo'); } catch (e) {}
+      try { _toast((d && d.error) || 'não rolou gerar a arte ✦ toca no <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto pra tentar de novo'); } catch (e) {}
     }
   } catch (e) {
     _artBusy[id] = false; try { renderProdutos(); } catch (e2) {}
-    try { toast('erro de rede na arte ✦ toca no <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> pra tentar de novo'); } catch (e2) {}
+    try { _toast('erro de rede na arte ✦ toca no <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> pra tentar de novo'); } catch (e2) {}
   }
   try { loadData(false); } catch (e) {}
 }
@@ -2003,6 +2003,7 @@ function epFixArt(id) {
   const t = ((el || {}).value || '').trim();
   if (t.length < 2) { if (el) { try { el.focus(); } catch (e) {} } return; }
   try { const b = document.getElementById('ep-fix-' + id); if (b) b.style.display = 'none'; } catch (e) {}
+  try { _toast('Correção enviada ✦ gerando a imagem de novo em segundo plano'); } catch (e) {}
   generateProductArt(id, t); // regera em segundo plano com a correção (mostra ⏳ no card)
 }
 
