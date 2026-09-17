@@ -4591,7 +4591,7 @@
   <!-- ============ HOME ============ -->
   <div class="screen no-nav" id="home">
     <div class="header lj-float-hd" style="position:absolute;top:0;left:0;right:0;z-index:6;padding:calc(12px + env(safe-area-inset-top)) 14px 8px;background:transparent">
-      <div class="icon-btn" onclick="go('inicio')" title="Voltar" style="flex:0 0 auto;margin-right:6px">
+      <div class="icon-btn" id="home-back-btn" onclick="go('inicio')" title="Voltar" style="flex:0 0 auto;margin-right:6px">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="greet" id="home-greet" style="display:none">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
@@ -7412,6 +7412,7 @@
   let _pendingLojaSlug = null;
   function _entryGo() {
     if (_pendingLojaSlug) { const s = _pendingLojaSlug; _pendingLojaSlug = null; if (typeof pickClientFilial === 'function') { pickClientFilial(s); return; } }
+    if (SINGLE_STORE) { pickClientFilial(SINGLE_STORE_SLUG); return; } // loja única: entra direto na Drope SP
     go('inicio');
   }
   function _splashSkip() {
@@ -7457,6 +7458,13 @@
     if (confirmed) {
       let saved = null;
       try { saved = localStorage.getItem(LAST_SCREEN_KEY); } catch (e) {}
+      if (SINGLE_STORE) {
+        // Loja única: sempre abre a Drope SP (carrega catálogo). Se o cliente estava
+        // numa tela mais funda (pedidos, perfil, carrinho...), restaura ela por cima.
+        pickClientFilial(SINGLE_STORE_SLUG);
+        if (saved && saved !== 'inicio' && saved !== 'home' && _RESTORABLE_SCREENS.has(saved) && document.getElementById(saved)) go(saved);
+        return;
+      }
       if (saved && _RESTORABLE_SCREENS.has(saved) && document.getElementById(saved)) { go(saved); return; }
       go('inicio');
       return;
@@ -7492,6 +7500,12 @@
   document.addEventListener('DOMContentLoaded', () => {
     const sp = document.getElementById('splash');
     if (sp) sp.addEventListener('click', () => { clearTimeout(_splashTimer); clearTimeout(_vanishTimer); _splashSkip(); });
+    // LOJA ÚNICA: a loja (#home) vira a tela-base do cliente → mostra a barra de baixo
+    // (pedidos/perfil/favoritos) e esconde a seta "voltar" (não há home multi-loja).
+    if (SINGLE_STORE) {
+      try { const h = document.getElementById('home'); if (h) h.classList.remove('no-nav'); } catch (e) {}
+      try { const b = document.getElementById('home-back-btn'); if (b) b.style.display = 'none'; } catch (e) {}
+    }
   });
 
   // ===== PWA — Service Worker + Install Prompt =====
@@ -8562,9 +8576,14 @@
   // ('sp' default, 'santos', etc.). Salva em localStorage e filtra o catálogo.
   const FILIAL_STORAGE_KEY = 'drope_client_filial_v1';
   const FILIAL_NAME_KEY = 'drope_client_filial_name_v1';
+  // LOJA ÚNICA (Drope SP) — set/2026: o cliente entra direto na loja; sem home
+  // multi-loja e sem escolher loja. Reverter pra false quando voltar o SaaS multi-loja.
+  const SINGLE_STORE = true;
+  const SINGLE_STORE_SLUG = 'sp';
   let CLIENT_FILIAL = 'sp';
   let CLIENT_FILIAL_NAME = '';
   try { CLIENT_FILIAL = (localStorage.getItem(FILIAL_STORAGE_KEY) || 'sp').toLowerCase(); } catch(_){}
+  if (SINGLE_STORE) CLIENT_FILIAL = SINGLE_STORE_SLUG; // trava na Drope SP
   try { CLIENT_FILIAL_NAME = localStorage.getItem(FILIAL_NAME_KEY) || ''; } catch(_){}
   function setClientFilial(slug, name) {
     CLIENT_FILIAL = (slug || 'sp').toLowerCase();
@@ -8577,6 +8596,7 @@
   }
   // Chamada pelo card de loja (picker)
   function pickClientFilial(slug) {
+    if (SINGLE_STORE) slug = SINGLE_STORE_SLUG; // loja única: qualquer loja abre a Drope SP
     const loja = (_lojasCache || []).find(l => l.slug === slug);
     // Proteção: se o cache de lojas já carregou e esse slug NÃO é de uma loja real
     // (ex: passaram o slug de um PRODUTO), ignora pra não gravar filial inválida.
@@ -8671,7 +8691,7 @@
         <div class="lj-hd-info">
           <div class="lj-hd-titlerow">
             <div class="lj-hd-name">${escapeHtml(nm)}</div>
-            <span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>
+            ${SINGLE_STORE ? '' : `<span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>`}
           </div>
           ${bio ? `<div class="lj-hd-bio">${escapeHtml(bio)}</div>` : ''}
           ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">Loja indisponível — ainda não ativou os recebimentos.</div>` : ''}
@@ -11288,6 +11308,9 @@
   const LAST_SCREEN_KEY = 'drope_last_screen_v1';
   const _RESTORABLE_SCREENS = new Set(['inicio', 'home', 'catalog', 'cart', 'orders', 'order-tracking', 'favorites', 'ofertas', 'profile', 'addresses', 'search']);
   function go(screen) {
+    // LOJA ÚNICA: a home multi-loja (#inicio) não existe pro cliente — qualquer
+    // ida pra "inicio" (nav, voltar, estados vazios) cai direto na loja Drope SP.
+    if (SINGLE_STORE && screen === 'inicio') screen = 'home';
     // Empilha a tela atual antes de trocar (menos quando é o próprio "voltar")
     try {
       const cur = (document.querySelector('.screen.active') || {}).id;

@@ -36,6 +36,11 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY |
 
 // Mercado Pago — Pix (conta plataforma DROPE, usada como fallback / recebe comissão)
 const MP_ACCESS_TOKEN = (process.env.MP_ACCESS_TOKEN || "").replace(/^["']|["']$/g, "").trim();
+// LOJA ÚNICA (Drope SP) — set/2026: SEM split. A cobrança usa o Mercado Pago da
+// própria loja (Drope SP) e 100% (produto + frete) cai nela — nada de application_fee/
+// marketplace_fee. Voltar pra true quando o SaaS multi-loja voltar (aí a comissão do
+// DROPE volta a ser descontada no split).
+const DROPE_SPLIT_ENABLED = false;
 // Mercado Pago — Marketplace/Split (OAuth das lojas)
 const MP_CLIENT_ID = (process.env.MP_CLIENT_ID || "").replace(/^["']|["']$/g, "").trim();
 const MP_CLIENT_SECRET = (process.env.MP_CLIENT_SECRET || "").replace(/^["']|["']$/g, "").trim();
@@ -18312,7 +18317,7 @@ async function handleMPCreatePix(req, res) {
       date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     };
     // Split: comissão do DROPE só vale com o token da LOJA (marketplace).
-    if (split && appFeeReais > 0) payload.application_fee = appFeeReais;
+    if (DROPE_SPLIT_ENABLED && split && appFeeReais > 0) payload.application_fee = appFeeReais; // loja única: sem split (flag off)
 
     console.log(`[MercadoPago] Creating Pix (split=${split}, loja=${slug || '-'}, fee=${appFeeReais}):`, JSON.stringify(payload).substring(0, 300));
 
@@ -18402,7 +18407,7 @@ async function handleMPCreateCheckout(req, res) {
       statement_descriptor: 'DROPE',
       binary_mode: true, // aprova ou recusa na hora (sem 'pending')
     };
-    if (split && appFeeReais > 0) pref.marketplace_fee = appFeeReais; // comissão do DROPE (split)
+    if (DROPE_SPLIT_ENABLED && split && appFeeReais > 0) pref.marketplace_fee = appFeeReais; // loja única: sem split (flag off)
 
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
@@ -18629,7 +18634,7 @@ async function handleMPProcessCard(req, res) {
     if (payer && payer.identification && payer.identification.number) {
       payload.payer.identification = { type: payer.identification.type || 'CPF', number: String(payer.identification.number).replace(/\D/g, '') };
     }
-    if (split && appFeeReais > 0) payload.application_fee = appFeeReais;
+    if (DROPE_SPLIT_ENABLED && split && appFeeReais > 0) payload.application_fee = appFeeReais; // loja única: sem split (flag off)
 
     const _cardHeaders = {
       'Content-Type': 'application/json',
