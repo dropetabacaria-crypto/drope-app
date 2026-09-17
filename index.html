@@ -4357,7 +4357,7 @@
           <button class="btn-primary" id="age-login-btn" onclick="confirmAge('login')" disabled style="opacity:0.4">Entrar / criar conta</button>
           <button class="btn-secondary" id="age-guest-btn" onclick="confirmAge('guest')" disabled style="opacity:0.4;margin-top:8px">Entrar como convidado</button>
         </div>
-        <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-dim);line-height:1.5">
+        <div id="onboard-partner-cta" style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-dim);line-height:1.5">
           É parceiro DROPE?<br><span style="color:var(--lime);font-weight:800;cursor:pointer" onclick="goPartnerEntry()">Entrar como loja →</span>
         </div>
       </div>
@@ -5317,7 +5317,7 @@
         <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
       </div>
       <!-- CTA lojista: vira texto (não botão) embaixo do menu -->
-      <div style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
+      <div id="profile-lojista-cta" style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
         Tem tabacaria?<br>
         <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Cadastrar minha loja ✦</span>
       </div>
@@ -7505,6 +7505,9 @@
     if (SINGLE_STORE) {
       try { const h = document.getElementById('home'); if (h) h.classList.remove('no-nav'); } catch (e) {}
       try { const b = document.getElementById('home-back-btn'); if (b) b.style.display = 'none'; } catch (e) {}
+      // esconde os resquícios de "entrar como loja / cadastrar tabacaria" (é loja única)
+      try { const p = document.getElementById('onboard-partner-cta'); if (p) p.style.display = 'none'; } catch (e) {}
+      try { const q = document.getElementById('profile-lojista-cta'); if (q) q.style.display = 'none'; } catch (e) {}
     }
   });
 
@@ -9199,9 +9202,24 @@
       return false;
     }
   }
-  // Boot: 1) cache pra fast-paint  2) fetch async pra atualizar
+  // Pré-aquece as imagens principais da loja (capa, logo, categorias e 1as fotos de
+  // produto) enquanto o splash roda → quando o cliente entra, já estão no cache e a
+  // tela aparece PRONTA, sem ir "abrindo aos poucos". Corre em segundo plano.
+  function _preWarmStoreImages() {
+    try {
+      const urls = [];
+      const L = CLIENT_LOJA || {};
+      if (L.cover_url) urls.push(L.cover_url);
+      if (L.photo_url) urls.push(L.photo_url);
+      (L.filtros || []).forEach(f => { if (f && f.image_url) urls.push(f.image_url); });
+      (products || []).slice(0, 12).forEach(p => { if (p && p.image_url) urls.push(p.image_url); });
+      const seen = {};
+      urls.forEach(u => { if (u && !seen[u]) { seen[u] = 1; try { const im = new Image(); im.decoding = 'async'; im.src = u; } catch (e) {} } });
+    } catch (e) {}
+  }
+  // Boot: 1) cache pra fast-paint  2) fetch async pra atualizar  3) pré-aquece imagens
   loadProducts();
-  fetchCatalog();
+  fetchCatalog().then(function (ok) { if (ok) { try { _preWarmStoreImages(); } catch (e) {} } });
 
   // ===== Imagens das vibes (chips Frutado/Doce/Gelado/Mentol) =====
   // URLs geradas por IA no painel adm. Cache local pra render instantâneo.
