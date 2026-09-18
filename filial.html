@@ -772,8 +772,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <span id="pdv-total" style="font-weight:800;color:var(--lime)">R$ 0,00</span>
   </div>
   <div style="padding:12px 16px 0">
-    <button class="pf-btn full" onclick="openBarcodeScanner('pdv')" style="font-size:14px;padding:14px">Escanear código de barras</button>
-    <div style="font-size:11px;color:var(--fg-dim);text-align:center;margin-top:6px">Aponte a câmera no código — o produto entra na venda na hora</div>
+    <input class="pf-input" id="pdv-barcode" inputmode="numeric" autocomplete="off" placeholder="Bipe o código de barras aqui" style="margin-bottom:6px;font-size:15px;padding:14px;text-align:center" onkeydown="if(event.key==='Enter'){event.preventDefault();_pdvSubmitInput();}">
+    <div id="pdv-scan-msg" style="font-size:12px;color:var(--fg-dim);text-align:center;min-height:15px;margin-bottom:8px"></div>
+    <button class="pf-btn sec full" onclick="openBarcodeScanner('pdv')" style="font-size:13px;padding:12px">Ou escanear pela câmera</button>
+    <div style="font-size:11px;color:var(--fg-dim);text-align:center;margin-top:6px">Leitor USB: clique no campo acima e bipe o produto. Sem leitor: use a câmera.</div>
   </div>
   <div class="sheet-scroll" id="pdv-list"></div>
   <div class="sheet-foot">
@@ -3133,6 +3135,14 @@ function openPDV() {
   }
   renderPDV();
   document.getElementById('pdv-ov').classList.add('open');
+  // Leitor USB: foca o campo de código pra "bipar" direto (só em desktop, pra não
+  // abrir o teclado do celular). Limpa campo e mensagem.
+  try {
+    const _b = document.getElementById('pdv-barcode'); if (_b) _b.value = '';
+    const _m = document.getElementById('pdv-scan-msg'); if (_m) { _m.textContent = ''; _m.style.color = 'var(--fg-dim)'; }
+    const _fine = window.matchMedia && window.matchMedia('(pointer:fine)').matches;
+    if (_b && _fine) setTimeout(() => { try { _b.focus(); } catch (e) {} }, 60);
+  } catch (e) {}
 }
 function closePDV() { document.getElementById('pdv-ov').classList.remove('open'); }
 function renderPDV() {
@@ -3215,6 +3225,42 @@ function _onBarcode(raw) {
     hint.textContent = 'Código ' + code + ' não cadastrado. Cadastre em "＋ Manual".';
   }
 }
+// ===== Leitor USB (keyboard-wedge) + campo de código no PDV =====
+// Leitor USB de código de barras funciona como TECLADO: digita os números e dá Enter.
+// Aqui a gente captura isso, acha o produto pelo código e joga na venda — mesmo match
+// do scanner por câmera. Resolve o "bipou e não puxou".
+function _pdvHandleCode(raw) {
+  const code = String(raw || '').replace(/\D/g, '');
+  const msg = document.getElementById('pdv-scan-msg');
+  if (code.length < 6) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'código muito curto — bipe de novo'; } return; }
+  const p = (_lastProdutos || []).find(x => String(x.barcode || '').replace(/\D/g, '') === code || (Array.isArray(x.barcodes) && x.barcodes.map(v => String(v).replace(/\D/g, '')).includes(code)));
+  if (p) {
+    pdvInc(p.id);
+    if (msg) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') na venda'; }
+    try { navigator.vibrate && navigator.vibrate(50); } catch (e) {}
+  } else if (msg) {
+    msg.style.color = 'var(--pink)'; msg.textContent = 'Código ' + code + ' não está em nenhum produto — cadastre o código de barras dele em "Meus produtos".';
+  }
+}
+function _pdvSubmitInput() {
+  const el = document.getElementById('pdv-barcode'); if (!el) return;
+  const v = el.value; el.value = '';
+  _pdvHandleCode(v);
+  try { el.focus(); } catch (e) {}
+}
+// Reserva: se o foco NÃO estiver num campo, ainda captura o "bip" (dígitos rápidos + Enter).
+let _pdvWedgeBuf = '', _pdvWedgeT = 0;
+document.addEventListener('keydown', function (e) {
+  const ov = document.getElementById('pdv-ov');
+  if (!ov || !ov.classList.contains('open')) return;
+  const ae = document.activeElement;
+  if (ae && ae.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // deixa o campo cuidar
+  const now = Date.now();
+  if (now - _pdvWedgeT > 120) _pdvWedgeBuf = ''; // gap grande = digitação humana → zera
+  _pdvWedgeT = now;
+  if (e.key === 'Enter') { if (_pdvWedgeBuf.length >= 6) _pdvHandleCode(_pdvWedgeBuf); _pdvWedgeBuf = ''; return; }
+  if (/^[0-9]$/.test(e.key)) _pdvWedgeBuf += e.key;
+});
 function pdvDec(id) { _pdvCart[id] = Math.max(0, (_pdvCart[id] || 0) - 1); if (!_pdvCart[id]) delete _pdvCart[id]; renderPDV(); }
 function pdvPay(m, el) { _pdvPay = m; document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active')); if (el) el.classList.add('active'); renderPDV(); }
 async function pdvFinalize() {
