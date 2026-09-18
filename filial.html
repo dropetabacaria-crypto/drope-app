@@ -3179,10 +3179,12 @@ function renderPDV() {
     const q = _pdvCart[id];
     const unit = p.price_cents || 0;
     const line = unit * q; cents += line;
+    const stk = p.stock || 0;
+    const stkHtml = stk > 0 ? (stk + ' em estoque') : '<span style="color:var(--pink)">sem estoque — repor depois</span>';
     const thumb = p.image_url ? `<img class="thumb" src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="thumb"></div>`;
     return `<div class="pdv-cart-item">
       ${thumb}
-      <div class="info"><div class="nm">${esc(p.name)}</div><div class="un">R$ ${(unit / 100).toFixed(2).replace('.', ',')} cada · ${p.stock || 0} em estoque</div></div>
+      <div class="info"><div class="nm">${esc(p.name)}</div><div class="un">R$ ${(unit / 100).toFixed(2).replace('.', ',')} cada · ${stkHtml}</div></div>
       <div class="rgt">
         <div class="line">R$ ${(line / 100).toFixed(2).replace('.', ',')}</div>
         <div class="step"><button onclick="pdvDec(${p.id})">−</button><span class="q">${q}</span><button onclick="pdvInc(${p.id})">+</button></div>
@@ -3223,7 +3225,9 @@ function pdvAddFromSearch(id) {
   if (msg && p) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ ' + p.name + ' (' + (_pdvCart[id] || 1) + ') na venda'; }
   try { const b = document.getElementById('pdv-barcode'); if (b && window.matchMedia && window.matchMedia('(pointer:fine)').matches) b.focus(); } catch (e) {}
 }
-function pdvInc(id) { const p = _pdvProds().find(x => x.id === id); const max = (p && typeof p.stock === 'number') ? p.stock : 999; _pdvCart[id] = Math.min(max, (_pdvCart[id] || 0) + 1); renderPDV(); }
+// Balcão: o operador tem o produto EM MÃOS — vende mesmo com estoque 0 (contagem pode
+// estar desatualizada). NÃO trava por estoque; o backend já não deixa o estoque negativar.
+function pdvInc(id) { _pdvCart[id] = Math.min(999, (_pdvCart[id] || 0) + 1); renderPDV(); }
 
 // ===== Leitor de código de barras ao vivo (ZXing) — PDV: escaneia e vende =====
 let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 }, _scanTargetId = null;
