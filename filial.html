@@ -1540,6 +1540,7 @@ function renderDash(d) {
 
 let _lastProdutos = [];
 const _artBusy = {};
+const _artVariant = {}; // por produto: sobe a cada "gerar outra" → imagem diferente
 // ===== Destaque da vitrine (carrossel da loja): auto (mais vendidos) | manual =====
 let _featuredMode = 'auto';
 function renderDestaqueBar() {
@@ -2001,6 +2002,7 @@ async function _bgArt(id, meta) {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: nm, brand: meta.brand || '', flavor: meta.flavor || '', type: meta.type || '' };
     if (meta.ref) body.ref_base64 = meta.ref; // foto do lojista como referência
     if (meta.fix) body.fix = meta.fix; // correção do lojista (ex: "o nome certo é NIKBAR")
+    if (meta.variant) body.variant = meta.variant; // "gerar outra" → busca outra imagem na web
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -2028,7 +2030,8 @@ async function _bgArt(id, meta) {
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
 function generateProductArt(id, fix) {
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
-  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim() });
+  _artVariant[id] = (_artVariant[id] || 0) + 1; // cada "gerar outra" → imagem diferente
+  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim(), variant: _artVariant[id] });
 }
 // "Imagem errada? Reportar / corrigir" na edição → abre o campo e regera a arte com a correção.
 function epToggleFix(id) {
@@ -2233,6 +2236,7 @@ function apLinkPreview() {
   const v = (document.getElementById('ap-img').value || '').trim();
   if (/^https?:\/\//.test(v)) { _apPhotoB64 = null; _apShowArtPreview(v, false); }
 }
+let _apArtVariant = 0; // etapa 3: sobe a cada "gerar outra"
 async function apGerarArte(fix) {
   const name = (document.getElementById('ap-name').value || '').trim();
   const brand = (document.getElementById('ap-marca').value || '').trim();
@@ -2247,6 +2251,7 @@ async function apGerarArte(fix) {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
     if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
     if (fix && String(fix).trim()) body.fix = String(fix).trim(); // correção do lojista ("nome certo é NIKBAR")
+    _apArtVariant = (_apArtVariant || 0) + 1; body.variant = _apArtVariant; // "gerar outra" → imagem diferente
     const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (epoch !== _apGenEpoch) return; // já mudou de produto → NÃO escreve nada (imagem atrasada é descartada)

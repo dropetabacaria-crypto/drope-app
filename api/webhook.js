@@ -5426,6 +5426,8 @@ async function handleFilialProductArtFast(req, res) {
     // "unidade" pra evitar caixa/display de atacado).
     const webQ = [brand, name, flavor, (type && type !== 'pod' ? type : ''), 'unidade'].filter(Boolean).join(' ').trim();
     const _avoidBox = ['caixa', 'display', 'atacado', 'expositor', 'carton', 'box of', 'pacote com', 'fardo', 'wholesale', 'bulk', 'sealed box', ' un)', '24 un', '50 un', 'blocks'];
+    // "Gerar outra" manda um variant crescente → pega uma imagem DIFERENTE da web a cada vez.
+    const variant = Math.max(0, parseInt(body.variant, 10) || 0);
     let tempUrl = null;
     let outBuf = null; // imagem final vinda direto (foto do lojista), quando não passa por URL
 
@@ -5449,13 +5451,14 @@ async function handleFilialProductArtFast(req, res) {
         try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
       }
-      // 2) busca profunda: imagem REAL do produto na web → estiliza ELA.
+      // 2) busca profunda: imagem REAL do produto na web → estiliza ELA. O variant
+      // rotaciona pelos resultados (gerar outra = imagem diferente do mesmo produto).
       if (!tempUrl && webQ.length >= 3) {
-        try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
+        try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox, skip: variant }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
       }
-      // 3) último recurso: gera do zero por texto.
-      if (!tempUrl) { try { tempUrl = await generateProductScene(subject); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
+      // 3) último recurso: gera do zero por texto (variant varia o ângulo/composição).
+      if (!tempUrl) { try { tempUrl = await generateProductScene(subject, variant); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
     }
 
     let buf = outBuf;
@@ -7441,9 +7444,12 @@ async function generateFilterScene(subjectEn) {
 
 // Arte RÁPIDA do produto (mesmo motor dos filtros): cena dark-neon DROPE com o
 // produto no centro. quality=low (~24s). NÃO roda o pipeline pesado de referência.
-async function generateProductScene(subject) {
+async function generateProductScene(subject, variant) {
+  // "Gerar outra" (variant>0) muda o ângulo/composição pra sair uma imagem diferente.
+  const angles = ['front three-quarter view, tilted 4 degrees', 'straight-on front view, centered', 'slight low-angle hero shot', 'three-quarter view from the right, tilted 6 degrees', 'top-down 30-degree angle'];
+  const ang = angles[Math.max(0, parseInt(variant, 10) || 0) % angles.length];
   const prompt = [
-    `Dark cinematic product photography. HERO PRODUCT centered and in sharp focus: ${subject}. Single product, photorealistic, resting on a matte black reflective surface with a subtle mirror reflection.`,
+    `Dark cinematic product photography. HERO PRODUCT centered and in sharp focus: ${subject}. Single product, photorealistic, ${ang}, resting on a matte black reflective surface with a subtle mirror reflection.`,
     `Deep dark background gradient (#0A0C1B to #12091F) with clean negative space around the product.`,
     `Atmospheric vapor/smoke drifting behind, catching neon rim lights with pink (#FF2D6F) and acid green (#D4FF2E) tints and a faint ultraviolet (#7B2FBE) fill.`,
     `Low-key premium lighting, glossy, high detail. Render the product's REAL brand name and packaging text (${subject}) accurately and legibly — do NOT invent, swap or restyle the brand.`,
@@ -7457,19 +7463,24 @@ async function generateProductScene(subject) {
 async function _findProductRefImage(query, opts) {
   opts = opts || {};
   const avoid = Array.isArray(opts.avoid) ? opts.avoid.map(s => String(s).toLowerCase()) : [];
+  const skip = Math.max(0, parseInt(opts.skip, 10) || 0); // "gerar outra" → começa de outra imagem
   try {
     const data = await _serperSearch(query, 'images', 10);
-    const imgs = (data && data.images) || [];
-    for (const im of imgs.slice(0, 10)) {
-      const src = im && im.imageUrl;
-      if (!src) continue;
-      // Pula imagens de CAIXA/DISPLAY/ATACADO (queremos a UNIDADE que o cliente compra).
-      if (avoid.length) {
-        const meta = `${(im && im.title) || ''} ${(im && im.source) || ''} ${(im && im.link) || ''} ${src}`.toLowerCase();
-        if (avoid.some(a => meta.includes(a))) continue;
-      }
+    let cand = ((data && data.images) || []).filter(im => im && im.imageUrl);
+    // Tira imagens de CAIXA/DISPLAY/ATACADO (queremos a UNIDADE que o cliente compra).
+    if (avoid.length) {
+      cand = cand.filter(im => {
+        const meta = `${im.title || ''} ${im.source || ''} ${im.link || ''} ${im.imageUrl}`.toLowerCase();
+        return !avoid.some(a => meta.includes(a));
+      });
+    }
+    if (!cand.length) return null;
+    // Rotaciona a partir do offset: "gerar outra" pega a próxima imagem real do produto.
+    const off = skip % cand.length;
+    const ordered = cand.slice(off).concat(cand.slice(0, off));
+    for (const im of ordered) {
       try {
-        const r = await fetch(src, { signal: AbortSignal.timeout(6000) });
+        const r = await fetch(im.imageUrl, { signal: AbortSignal.timeout(6000) });
         if (!r.ok) continue;
         const ct = r.headers.get('content-type') || '';
         if (!/image\//.test(ct)) continue;
