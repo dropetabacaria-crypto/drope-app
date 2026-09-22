@@ -815,6 +815,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 </div>
 
+<!-- Overlay: escolher produto base (novo sabor de um produto que já existe) -->
+<div class="sheet-ov" id="ap-base-ov" style="z-index:110">
+  <div class="sheet-hd">
+    <button class="sheet-x" onclick="closeApBasePicker()">←</button>
+    <h3>Escolher produto base</h3>
+  </div>
+  <div style="padding:12px 16px 0">
+    <input class="pf-input" id="ap-base-search" autocomplete="off" placeholder="Buscar por nome ou marca" style="margin-bottom:6px" oninput="apBaseSearch(this.value)">
+    <div class="pf-hint" style="margin-bottom:2px">Escolha um produto parecido — o app copia marca, categoria e preço. Você só troca o sabor.</div>
+  </div>
+  <div class="sheet-scroll" id="ap-base-list"></div>
+</div>
+
 <!-- Overlay: Ajuda contextual (explica cada seção; 1ª vez automática + botão ?) -->
 <!-- TELA: todos os pedidos pra entregar -->
 <div class="sheet-ov" id="pedidos-ov">
@@ -930,6 +943,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <button type="button" id="apmode-normal" class="seg-btn active" onclick="apSetMode('normal')">Produto</button>
           <button type="button" id="apmode-combo" class="seg-btn" onclick="apSetMode('combo')">Combo</button>
         </div>
+        <!-- Atalho: novo sabor de um produto que já existe (copia marca/categoria/preço) -->
+        <button type="button" id="ap-base-btn" class="pf-btn sec full" style="margin-bottom:12px" onclick="apOpenBasePicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;margin-right:4px"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Novo sabor de um produto que já tenho</button>
         <!-- Foto do produto no INÍCIO: câmera OU galeria → a IA identifica e preenche -->
         <div id="ap-scan-block" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
           <div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto do produto <span style="opacity:.7">— a IA identifica e preenche pra você (opcional)</span></div>
@@ -966,9 +981,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <select class="pf-input" id="ap-combo-disc-tipo" style="width:64px;margin-bottom:0" onchange="_apComboRecalc()"><option value="pct">%</option><option value="rs">R$</option></select>
           </div>
         </div>
+        <div id="ap-base-note" style="display:none;background:rgba(212,255,46,0.1);border:0.5px solid var(--lime);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:var(--lime)">✦ Copiado de um produto seu — agora é só pôr o <b>sabor</b> e o estoque.</div>
         <div style="display:flex; gap:10px" id="ap-row-marca">
           <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
-          <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40"></div>
+          <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40" oninput="_apOnSaborInput()"></div>
         </div>
         <div style="display:flex; gap:10px">
           <div style="flex:1"><label class="pf-lbl" id="ap-price-lbl">Preço de venda (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco(true)"></div>
@@ -2062,6 +2078,7 @@ let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte
 let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
+  _apNovoSaborBase = null; _apBaseName = ''; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; }
   _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2245,6 +2262,64 @@ async function apAddScanPhoto(input) {
   await _apRunScan(hint);
 }
 async function apScanPhoto(input) { return apAddScanPhoto(input); } // compat
+
+// ===== Novo sabor de um produto que já existe (copia marca/categoria/preço) =====
+let _apNovoSaborBase = null; // { id, sabor } do produto base copiado
+let _apBaseName = '';        // nome do modelo SEM o sabor (pra recompor com o novo sabor)
+function _stripSabor(name, sabor) {
+  name = String(name || '').trim(); sabor = String(sabor || '').trim();
+  if (sabor && name.toLowerCase().endsWith(sabor.toLowerCase())) return name.slice(0, name.length - sabor.length).trim();
+  return name;
+}
+function apOpenBasePicker() {
+  try { apSetMode('normal'); } catch (e) {}
+  const s = document.getElementById('ap-base-search'); if (s) s.value = '';
+  apBaseSearch('');
+  const o = document.getElementById('ap-base-ov'); if (o) o.classList.add('open');
+}
+function closeApBasePicker() { const o = document.getElementById('ap-base-ov'); if (o) o.classList.remove('open'); }
+function apBaseSearch(q) {
+  const list = document.getElementById('ap-base-list'); if (!list) return;
+  q = (q || '').trim().toLowerCase();
+  let prods = (_lastProdutos || []).filter(p => !p.hidden && !p.combo);
+  if (q) prods = prods.filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q));
+  prods = prods.slice(0, 60);
+  list.innerHTML = prods.length ? prods.map(p => {
+    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    const price = 'R$ ' + ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+    return `<div class="pdv-sr-item" onclick="apUseBase(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')} · ${price}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">usar ›</span></div>`;
+  }).join('') : '<div class="empty" style="padding:30px;text-align:center;color:var(--fg-dim)">Nenhum produto pra copiar ainda</div>';
+}
+function apUseBase(id) {
+  const p = (_lastProdutos || []).find(x => String(x.id) === String(id)); if (!p) return;
+  try { apSetMode('normal'); } catch (e) {}
+  _apNovoSaborBase = { id: p.id, sabor: p.sabor || '' };
+  _apBaseName = _stripSabor(p.name, p.sabor);
+  const setv = (elid, v) => { const e = document.getElementById(elid); if (e) e.value = (v == null ? '' : v); };
+  setv('ap-marca', p.marca || '');
+  setv('ap-name', _apBaseName);
+  setv('ap-sabor', '');
+  setv('ap-price', p.price_cents ? (p.price_cents / 100).toFixed(2).replace('.', ',') : '');
+  setv('ap-custo', p.cost_cents ? (p.cost_cents / 100).toFixed(2).replace('.', ',') : '');
+  setv('ap-barcode', ''); setv('ap-stock', '');
+  try { const f = document.getElementById('ap-filtro'); if (f && p.filtro_id != null) { f.value = String(p.filtro_id); _apFiltroChange(); } } catch (e) {}
+  try { const cg = document.getElementById('ap-catglobal'); if (cg && p.cat_global) cg.value = p.cat_global; } catch (e) {}
+  try { const pay = document.getElementById('ap-payment'); if (pay) pay.value = p.pix_only ? 'pix' : 'both'; } catch (e) {}
+  _scanMeta = { brand: p.marca || '', model: '', type: p.category || p.cat || '', name: p.name || '' };
+  try { apCalcPreco(true); } catch (e) {}
+  try { const n = document.getElementById('ap-base-note'); if (n) n.style.display = 'block'; } catch (e) {}
+  closeApBasePicker();
+  try { const sb = document.getElementById('ap-sabor'); if (sb) sb.focus(); } catch (e) {}
+  try { _toast('Base copiada ✦ agora é só pôr o sabor'); } catch (e) {}
+}
+// Ao digitar o sabor no modo "novo sabor", recompõe o nome = modelo + sabor.
+function _apOnSaborInput() {
+  if (_apNovoSaborBase && _apBaseName) {
+    const sb = ((document.getElementById('ap-sabor') || {}).value || '').trim();
+    const nm = document.getElementById('ap-name'); if (nm) nm.value = (_apBaseName + ' ' + sb).trim();
+  }
+  try { _apRenderDupWarn(); } catch (e) {}
+}
 // Rebusca usando as MESMAS fotos + a descrição que o lojista digitou.
 async function apRescanWithHint() {
   const hint = ((document.getElementById('ap-scan-hint') || {}).value || '').trim();
@@ -2918,6 +2993,7 @@ function apSetMode(mode) {
   if (bn) bn.classList.toggle('active', !combo);
   if (bc) bc.classList.toggle('active', combo);
   const sb2 = document.getElementById('ap-scan-block'); if (sb2) sb2.style.display = combo ? 'none' : 'block'; // combo não usa foto/scan
+  const bbtn = document.getElementById('ap-base-btn'); if (bbtn) bbtn.style.display = combo ? 'none' : ''; // combo não usa "novo sabor"
   const cw = document.getElementById('ap-combo-wrap'); if (cw) cw.style.display = combo ? 'block' : 'none';
   const rm = document.getElementById('ap-row-marca'); if (rm) rm.style.display = combo ? 'none' : 'flex';
   const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
