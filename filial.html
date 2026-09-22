@@ -930,8 +930,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <!-- progresso do wizard -->
       <div id="wiz-steps" style="display:flex;gap:6px;margin-bottom:14px">
         <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Produto</div>
-        <div class="wiz-dot" data-s="2" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">2 · Código</div>
-        <div class="wiz-dot" data-s="3" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">3 · Imagem</div>
+        <div class="wiz-dot" data-s="2" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">2 · Imagem</div>
       </div>
 
       <!-- Aviso: produto já cadastrado (checa por código de barras / nome+marca) -->
@@ -945,6 +944,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
         <!-- Atalho: novo sabor de um produto que já existe (copia marca/categoria/preço) -->
         <button type="button" id="ap-base-btn" class="pf-btn sec full" style="margin-bottom:12px" onclick="apOpenBasePicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;margin-right:4px"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Novo sabor de um produto que já tenho</button>
+        <!-- COMEÇA PELO CÓDIGO DE BARRAS: se já existe, avisa na hora (match forte) -->
+        <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">— comece por aqui</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="Bipe ou digite o código" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+          <button type="button" class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
+        </div>
+        <div class="pf-hint" style="margin-top:6px;margin-bottom:12px">Bipe o código: se já estiver cadastrado, aviso na hora. Se for novo, continue abaixo. Sem código? Pode pular.</div>
         <!-- Foto do produto no INÍCIO: câmera OU galeria → a IA identifica e preenche -->
         <div id="ap-scan-block" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
           <div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto do produto <span style="opacity:.7">— a IA identifica e preenche pra você (opcional)</span></div>
@@ -1022,18 +1028,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="pf-hint" style="margin-top:2px">"Só Pix" = o cliente não vê a opção de cartão nesse produto.</div>
       </div>
 
-      <!-- ETAPA 2: código de barras -->
+      <!-- ETAPA 2: imagem (gerar IA ou foto própria) -->
       <div class="wiz-step" id="wiz-2" style="display:none">
-        <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">(pra escanear e vender no balcão)</span></label>
-        <div style="display:flex;gap:8px">
-          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="escaneie ou digite" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()">
-          <button class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
-        </div>
-        <div class="pf-hint" style="margin-top:6px">Com o código salvo, é só escanear no balcão que o produto entra na venda. Pode pular e adicionar depois.</div>
-      </div>
-
-      <!-- ETAPA 3: imagem (gerar IA ou foto própria) -->
-      <div class="wiz-step" id="wiz-3" style="display:none">
         <div class="pf-hint" id="ap-img-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
         <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
         <div style="display:flex;gap:10px">
@@ -2107,6 +2103,8 @@ function toggleAddProduct() {
     try { _apFiltroChange(); } catch (e) {}
     _apPhotoB64 = null; const afs = document.getElementById('ap-art-status'); if (afs) afs.textContent = '';
     try { _wizReset(); } catch (e) {} // sempre abre na etapa 1
+    // Começa pelo código de barras: foca o campo (só desktop, pra não abrir teclado no cel).
+    try { const _bc = document.getElementById('ap-barcode'); const _fine = window.matchMedia && window.matchMedia('(pointer:fine)').matches; if (_bc && _fine) setTimeout(() => { try { _bc.focus(); } catch (e) {} }, 80); } catch (e) {}
     try { helpShow('produtos'); } catch (e) {} // explica filtro-primeiro na 1ª vez
   }
 }
@@ -2141,7 +2139,7 @@ function _wizReset() {
   try { apSetMode('normal'); } catch (e) {} wizRender();
 }
 function wizRender() {
-  for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
+  for (let s = 1; s <= 2; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
     const s = +d.getAttribute('data-s'); const on = (s === _wizStep);
     d.style.background = on ? 'var(--lime)' : 'var(--bg3)';
@@ -2149,9 +2147,9 @@ function wizRender() {
   });
   const back = document.getElementById('wiz-back'), next = document.getElementById('wiz-next');
   if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
-  if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
+  if (next) next.textContent = _wizStep < 2 ? 'Avançar' : 'Concluir ✦';
 }
-function wizGo(delta) { let ns = _wizStep + delta; if (_apMode === 'combo' && ns === 2) ns += delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(2, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 // ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
 let _apDupDismiss = false;
 function _apNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -2233,11 +2231,11 @@ function wizNext() {
       if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
     }
     msg.textContent = '';
-    if (_apMode === 'combo') { _wizStep = 3; wizRender(); if (!((document.getElementById('ap-img') || {}).value)) apComboPreview(0); return; } // combo pula a etapa Código
-    _wizStep = 2; wizRender(); return;
+    _wizStep = 2; wizRender(); // etapa 2 = imagem
+    if (_apMode === 'combo' && !((document.getElementById('ap-img') || {}).value)) apComboPreview(0);
+    return;
   }
-  if (_wizStep === 2) { msg.textContent = ''; _wizStep = 3; wizRender(); return; }
-  if (_wizStep === 3) { saveNewProduct(); return; }
+  if (_wizStep === 2) { saveNewProduct(); return; }
 }
 // ----- Etapa 3: imagem (arte IA rápida / foto própria / link) -----
 function _apShowArtPreview(src, isArt) {
