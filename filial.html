@@ -969,7 +969,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           </div>
         </div>
         <label class="pf-lbl">Nome do produto</label>
-        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()">
+        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
         <!-- COMBO: escolher os produtos que formam o combo -->
         <div id="ap-combo-wrap" style="display:none">
           <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: Tabaco + Seda + Piteira). Só produtos ativos e com estoque.</div>
@@ -1606,6 +1606,45 @@ function _apFiltroChange() {
   wrap.style.display = isNew ? 'block' : 'none';
   if (isNew && hint) hint.textContent = 'Crie a categoria e o produto já entra nela ✦';
   if (isNew) { const nc = document.getElementById('ap-newcat'); if (nc) setTimeout(() => nc.focus(), 50); }
+}
+// ===== Auto-categoria + pagamento (pod = só pix) no cadastro =====
+function _catNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+function _isPodLike(type, name, marca) {
+  if (_catNorm(type) === 'pod') return true;
+  const hay = _catNorm((name || '') + ' ' + (marca || ''));
+  return ['pod', 'vape', 'puff', 'descartav', 'ignite', 'nikbar', 'elf bar', 'elfbar', 'dinner lady', 'oxbar', 'lost mary'].some(k => hay.includes(k));
+}
+function _tipoParaFiltroId(type, name, marca) {
+  const filtros = _filtros || [];
+  if (!filtros.length) return '';
+  const hay = _catNorm((type || '') + ' ' + (name || '') + ' ' + (marca || ''));
+  const rules = [
+    { kw: ['pod', 'vape', 'puff', 'descartav', 'ignite', 'nikbar', 'elf bar', 'elfbar', 'dinner lady', 'oxbar', 'lost mary'], cat: ['pod'] },
+    { kw: ['seda', 'blunt wrap', 'rolling paper', 'ocb', 'smoking', 'bem bolado'], cat: ['seda'] },
+    { kw: ['tabaco', 'fumo', 'cigarro', 'virginia'], cat: ['tabaco', 'fumo'] },
+    { kw: ['piteira', 'boquilha'], cat: ['piteira'] },
+    { kw: ['isqueiro', ' bic', 'clipper', 'lighter'], cat: ['isqueiro'] },
+    { kw: ['filtro', 'dichav', 'estojo', 'case', 'bolsa', 'necessaire', 'narguile', 'essencia', 'carvao', 'acessor', 'rosh'], cat: ['acessor', 'filtro'] },
+    { kw: ['cerveja', 'vinho', 'destilado', 'whisky', 'vodka', 'energetico', 'bebida'], cat: ['bebida', 'adega'] },
+  ];
+  const findByCat = (cats) => { for (const f of filtros) { const fn = _catNorm(f.nome); if (cats.some(c => fn.includes(c) || c.includes(fn))) return f.id; } return ''; };
+  for (const r of rules) { if (r.kw.some(k => hay.includes(k))) { const id = findByCat(r.cat); if (id) return id; } }
+  return '';
+}
+// force=true (scan): sobrescreve a categoria; force=false (digitação manual): só preenche se ainda não escolhida.
+function _apAutoCatPay(force) {
+  const name = ((document.getElementById('ap-name') || {}).value) || '';
+  const marca = ((document.getElementById('ap-marca') || {}).value) || '';
+  const type = (_scanMeta && _scanMeta.type) || '';
+  const sel = document.getElementById('ap-filtro');
+  if (sel) {
+    const jaEscolhida = sel.value && sel.value !== '' && sel.value !== '__new__';
+    if (force || !jaEscolhida) {
+      const fid = _tipoParaFiltroId(type, name, marca);
+      if (fid) { sel.value = String(fid); try { _apFiltroChange(); } catch (e) {} }
+    }
+  }
+  if (_isPodLike(type, name, marca)) { const pay = document.getElementById('ap-payment'); if (pay) pay.value = 'pix'; } // pod = só Pix
 }
 // Cria a categoria na hora (opcionalmente já gera a arte por IA). Retorna o filtro criado ou null.
 async function _criarCategoriaInline(nome, opts) {
@@ -2389,6 +2428,7 @@ async function _apRunScan(hint) {
       try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque'; }
+      try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
       try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {} // avisa se já estiver cadastrado
     } else {
       if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — descreve o produto abaixo que eu busco de novo'; }
@@ -2494,6 +2534,7 @@ async function onScanFile(input) {
       document.getElementById('ap-marca').value = brand;
       document.getElementById('ap-sabor').value = variacao;
       try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {} // barcode lido pela Vision
+      try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       st.textContent = ' ' + label + (v.web_spec ? ' (' + v.web_spec + ')' : '') + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
