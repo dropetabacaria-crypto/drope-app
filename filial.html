@@ -2131,13 +2131,41 @@ function _apRenderDupWarn() {
   const m = _apFindDuplicate();
   if (!m) { el.style.display = 'none'; el.innerHTML = ''; return; }
   const est = (m.stock != null ? m.stock : (m.qty_available != null ? m.qty_available : 0));
+  const price = 'R$ ' + ((m.price_cents || 0) / 100).toFixed(2).replace('.', ',');
+  const thumb = m.image_url
+    ? '<img src="' + esc(m.image_url) + '" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">'
+    : '<div style="width:46px;height:46px;border-radius:10px;background:var(--bg3);flex:0 0 auto"></div>';
   el.style.display = 'block';
-  el.innerHTML = '<div style="font-size:13px;color:var(--fg);font-weight:700;margin-bottom:2px">⚠️ Você já tem esse produto</div>'
-    + '<div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px">' + esc(m.name || 'produto') + ' · estoque ' + est + '. Quer editar/repor em vez de cadastrar de novo?</div>'
+  el.innerHTML = '<div style="font-size:13px;color:var(--fg);font-weight:700;margin-bottom:8px">⚠️ Você já tem esse produto</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' + thumb
+    + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.name || 'produto') + '</div>'
+    + '<div style="font-size:11.5px;color:var(--fg-dim)">' + price + ' · ' + est + ' em estoque</div></div></div>'
+    // atualizar estoque na hora
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">'
+    + '<span style="font-size:12px;color:var(--fg-dim);flex:0 0 auto">Atualizar estoque:</span>'
+    + '<input id="ap-dup-stock" inputmode="numeric" value="' + est + '" onfocus="this.select()" style="width:66px;text-align:center;background:var(--bg);border:0.5px solid var(--border);color:var(--fg);border-radius:8px;padding:9px;font-family:inherit;font-weight:700">'
+    + '<button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0;padding:9px 14px" onclick="_apDupSetStock(' + m.id + ')">Salvar</button>'
+    + '<span id="ap-dup-stock-msg" style="font-size:11.5px;color:var(--lime);flex:1 1 100%"></span>'
+    + '</div>'
+    // ações
     + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    + '<button type="button" class="pf-btn" style="flex:1 1 auto;margin-bottom:0" onclick="_apEditExisting(' + m.id + ')">Editar o existente</button>'
-    + '<button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="_apDupIgnore()">É outro produto</button>'
+    + '<button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="_apDupTrocarImg(' + m.id + ')">Trocar imagem</button>'
+    + '<button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="_apEditExisting(' + m.id + ')">Ver / editar</button>'
+    + '<button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="_apDupIgnore()">É outro produto</button>'
     + '</div>';
+}
+// Atualiza o estoque do produto já cadastrado direto do aviso de duplicado.
+function _apDupSetStock(id) {
+  const inp = document.getElementById('ap-dup-stock'); if (!inp) return;
+  let n = parseInt(String(inp.value).replace(/\D/g, ''), 10); if (isNaN(n) || n < 0) n = 0;
+  try { setStock(id, n); } catch (e) {}
+  const msg = document.getElementById('ap-dup-stock-msg'); if (msg) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ estoque salvo: ' + n; }
+  try { _toast('Estoque atualizado ✦ ' + n); } catch (e) {}
+}
+// Abre o produto existente já rolando até a foto (pra trocar a imagem).
+function _apDupTrocarImg(id) {
+  _apEditExisting(id);
+  setTimeout(function () { const im = document.getElementById('ep-imgprev-' + id); if (im) { try { im.scrollIntoView({ block: 'center' }); } catch (e) {} } }, 220);
 }
 function _apDupIgnore() { _apDupDismiss = true; const el = document.getElementById('ap-dup-warn'); if (el) el.style.display = 'none'; }
 function _apEditExisting(id) {
