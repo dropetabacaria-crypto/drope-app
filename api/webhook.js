@@ -5075,6 +5075,13 @@ async function handleFilialProductSave(req, res) {
         if (isFinite(cc) && cc > 0) md.cost_cents = cc; else delete md.cost_cents;
         mdChanged = true;
       }
+      // sabor / marca — editáveis (ex.: completar produtos na aba "Sem código")
+      if (Object.prototype.hasOwnProperty.call(body, 'sabor')) {
+        const s = String(body.sabor || '').trim(); if (s) md.sabor = s; else delete md.sabor; mdChanged = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'marca')) {
+        const mc = String(body.marca || '').trim(); if (mc) md.marca = mc; else delete md.marca; mdChanged = true;
+      }
       // COMBO — editar composição (produtos/quantidades). Recalcula o estoque derivado
       // e, se a composição mudou, regenera a imagem (das novas fotos). Slug do combo fica estável.
       if (Array.isArray(body.combo_items) && body.combo_items.length >= 2) {

@@ -914,16 +914,17 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeProdutos()">←</button>
     <h3>Meus produtos</h3>
-    <span><span class="mini-link" onclick="switchProdTab('produtos');toggleBatchMode()" id="batch-toggle">Organizar</span> &nbsp; <span class="mini-link" onclick="switchProdTab('produtos');toggleAddProduct()">＋ Manual</span></span>
+    <span><span class="mini-link" onclick="switchProdTab('produtos');toggleBatchMode()" id="batch-toggle">Organizar</span></span>
   </div>
   <div class="sheet-scroll">
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button id="ptab-produtos" onclick="switchProdTab('produtos')" style="flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)">Produtos</button>
-      <button id="ptab-categorias" onclick="switchProdTab('categorias')" style="flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Categorias</button>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button id="ptab-produtos" onclick="switchProdTab('produtos')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)">Produtos</button>
+      <button id="ptab-categorias" onclick="switchProdTab('categorias')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Categorias</button>
+      <button id="ptab-cadastrar" onclick="switchProdTab('cadastrar')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">＋ Cadastrar</button>
+      <button id="ptab-semcodigo" onclick="switchProdTab('semcodigo')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Sem código</button>
     </div>
     <div id="prodtab-produtos">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
-    <button class="pf-btn full" id="scan-btn" style="margin-bottom:12px; font-size:14px; padding:15px" onclick="document.getElementById('scan-input').click()">Escanear produto — a IA preenche pra você</button>
     <div id="scan-status" style="display:none; font-size:12px; margin-bottom:12px; padding:10px 12px; border-radius:10px"></div>
     <div id="add-product-form" style="display:none; background:var(--bg2); border:0.5px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px">
       <div class="apf-hd"><button class="sheet-x apf-back" onclick="apBack()" aria-label="Voltar">‹</button><b>Novo produto</b><button class="sheet-x" onclick="toggleAddProduct()" aria-label="Fechar">✕</button></div>
@@ -951,7 +952,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="Bipe ou digite o código" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
           <button type="button" class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
         </div>
-        <div class="pf-hint" style="margin-top:6px">Bipe o código: se já estiver cadastrado, aviso na hora. Se for novo, toque em Avançar. Sem código? Pode pular.</div>
+        <div class="pf-hint" style="margin-top:6px">Bipe o código: se já existe, aviso na hora. Se for novo, toque em <b>Avançar</b>.</div>
+        <button type="button" id="ap-nobarcode-btn" style="display:inline-block;margin-top:8px;font-size:12px;color:var(--fg-dim);background:none;border:0;cursor:pointer;padding:0;text-decoration:underline" onclick="_apMarkNoBarcode()">Este produto não tem código de barras ›</button>
       </div>
 
       <!-- ETAPA 2: produto (foto identifica + dados) -->
@@ -1142,6 +1144,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
       </div>
       <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
+    </div>
+    <div id="prodtab-semcodigo" style="display:none">
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Produtos <b>sem código de barras</b>. Bipe/adicione o código pra evitar duplicados e vender no balcão — dá pra ajustar o sabor também.</div>
+      <div id="semcodigo-list"></div>
     </div>
   </div>
 </div>
@@ -2117,6 +2123,8 @@ function toggleAddProduct() {
 }
 // ===== Wizard do cadastro (3 etapas: Produto · Código · Imagem) =====
 let _wizStep = 1;
+let _apNoBarcode = false; // marcado quando o lojista diz "este produto não tem código de barras"
+function _apMarkNoBarcode() { _apNoBarcode = true; try { const b = document.getElementById('ap-barcode'); if (b) b.value = ''; } catch (e) {} try { wizNext(); } catch (e) {} }
 let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte em background)
 // "Época" do cadastro atual: sobe a cada _wizReset (produto novo). Toda geração de imagem
 // em 1º plano guarda a época em que começou; se a época mudou quando ela responde, a imagem
@@ -2125,7 +2133,7 @@ let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte
 let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
-  _apNovoSaborBase = null; _apBaseName = ''; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
+  _apNovoSaborBase = null; _apBaseName = ''; _apNoBarcode = false; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
   _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2225,7 +2233,14 @@ function _apEditExisting(id) {
 function wizNext() {
   const msg = document.getElementById('ap-msg');
   // ETAPA 1 = Código de barras: opcional, só avança (o duplicado já é avisado ao bipar).
-  if (_wizStep === 1) { msg.textContent = ''; _wizStep = 2; wizRender(); if (_apMode === 'combo') { try { _apRenderComboList(); } catch (e) {} } return; }
+  if (_wizStep === 1) {
+    // Código obrigatório (evita duplicados) — exceto combo, ou se marcou "não tem código".
+    const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+    if (_apMode !== 'combo' && !_apNoBarcode && bc.length < 8) {
+      msg.style.color = 'var(--pink)'; msg.textContent = 'Bipe o código de barras — ou toque em "Este produto não tem código".'; return;
+    }
+    msg.textContent = ''; _wizStep = 2; wizRender(); if (_apMode === 'combo') { try { _apRenderComboList(); } catch (e) {} } return;
+  }
   // ETAPA 2 = Produto (foto + dados): valida aqui.
   if (_wizStep === 2) {
     const name = (document.getElementById('ap-name').value || '').trim();
@@ -3551,19 +3566,63 @@ async function pdvFinalize() {
 function openBalanco() { renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
 function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
 function openProdutos() { try { renderProdutos(); } catch (e) {} try { renderFiltros(); } catch (e) {} try { switchProdTab('produtos'); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); try { localStorage.setItem('drope_panel_view', 'produtos'); } catch (e) {} }
-// Abas de Meus produtos: Produtos | Categorias
+// Abas de Meus produtos: Produtos | Categorias | ＋ Cadastrar | Sem código
 function switchProdTab(tab) {
-  const isP = tab !== 'categorias';
-  const tp = document.getElementById('prodtab-produtos'), tc = document.getElementById('prodtab-categorias');
-  if (tp) tp.style.display = isP ? 'block' : 'none';
-  if (tc) tc.style.display = isP ? 'none' : 'block';
-  const base = 'flex:1;padding:11px;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;';
+  // "Cadastrar" é um lançador: abre o wizard (tela cheia) começando pelo código de barras.
+  if (tab === 'cadastrar') { try { if (document.getElementById('add-product-form').style.display === 'none') toggleAddProduct(); } catch (e) {} return; }
+  const tabs = ['produtos', 'categorias', 'semcodigo'];
+  const active = tabs.indexOf(tab) >= 0 ? tab : 'produtos';
+  const cont = { produtos: 'prodtab-produtos', categorias: 'prodtab-categorias', semcodigo: 'prodtab-semcodigo' };
+  tabs.forEach(t => { const el = document.getElementById(cont[t]); if (el) el.style.display = (t === active) ? 'block' : 'none'; });
+  const base = 'flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;';
   const on = 'background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)';
   const off = 'background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)';
-  const bp = document.getElementById('ptab-produtos'), bc = document.getElementById('ptab-categorias');
-  if (bp) bp.style.cssText = base + (isP ? on : off);
-  if (bc) bc.style.cssText = base + (isP ? off : on);
-  if (!isP) { try { renderFiltros(); } catch (e) {} }
+  const btn = { produtos: 'ptab-produtos', categorias: 'ptab-categorias', semcodigo: 'ptab-semcodigo' };
+  tabs.forEach(t => { const b = document.getElementById(btn[t]); if (b) b.style.cssText = base + (t === active ? on : off); });
+  const bcad = document.getElementById('ptab-cadastrar'); if (bcad) bcad.style.cssText = base + off; // lançador, nunca "ativo"
+  if (active === 'categorias') { try { renderFiltros(); } catch (e) {} }
+  if (active === 'semcodigo') { try { renderSemCodigo(); } catch (e) {} }
+}
+// ===== Aba "Sem código": completa os produtos que estão sem código de barras =====
+function renderSemCodigo() {
+  const el = document.getElementById('semcodigo-list'); if (!el) return;
+  const prods = (_lastProdutos || []).filter(p => !p.combo && String(p.barcode || '').replace(/\D/g, '').length < 8);
+  if (!prods.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Todos os produtos já têm código ✦</div>'; return; }
+  el.innerHTML = prods.map(p => {
+    const thumb = p.image_url
+      ? `<img src="${esc(p.image_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
+      : `<div style="width:46px;height:46px;border-radius:10px;background:var(--bg3);flex:0 0 auto"></div>`;
+    return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${thumb}<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')}${p.sabor ? ' · ' + esc(p.sabor) : ''}</div></div></div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input class="pf-input" id="sc-bc-${p.id}" inputmode="numeric" placeholder="Bipe/digite o código de barras" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();scSave(${p.id});}">
+        <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0;padding:0 12px" onclick="openBarcodeScanner('cadastro','sc-bc-${p.id}')" title="Escanear com a câmera"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg></button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <input class="pf-input" id="sc-sabor-${p.id}" placeholder="Sabor (opcional)" value="${esc(p.sabor || '')}" style="flex:1;margin-bottom:0">
+        <button type="button" class="pf-btn" style="flex:0 0 auto;margin-bottom:0" onclick="scSave(${p.id})">Salvar</button>
+      </div>
+      <div id="sc-msg-${p.id}" style="font-size:11px;color:var(--lime);margin-top:5px;min-height:13px"></div>
+    </div>`;
+  }).join('');
+}
+async function scSave(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id) || {};
+  const bc = (((document.getElementById('sc-bc-' + id) || {}).value) || '').replace(/\D/g, '');
+  const sabor = (((document.getElementById('sc-sabor-' + id) || {}).value) || '').trim();
+  const msg = document.getElementById('sc-msg-' + id);
+  if (!bc && sabor === (p.sabor || '')) { if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'bipe o código (ou mude o sabor) pra salvar'; } return; }
+  if (bc && (bc.length < 8 || bc.length > 14)) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'código inválido (8 a 14 dígitos)'; } return; }
+  if (msg) { msg.style.color = 'var(--fg-dim)'; msg.textContent = 'salvando…'; }
+  const payload = { id, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden };
+  if (bc) payload.barcode = bc;
+  if (sabor !== (p.sabor || '')) payload.sabor = sabor;
+  const err = await _saveProduct(payload, () => {
+    if (bc) p.barcode = bc; if (sabor !== (p.sabor || '')) p.sabor = sabor;
+    if (msg) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ salvo'; }
+    setTimeout(() => { try { renderSemCodigo(); } catch (e) {} }, 500); // sai da lista quando ganha código
+  });
+  if (err !== true && msg) { msg.style.color = 'var(--pink)'; msg.textContent = (typeof err === 'string' ? err : 'erro ao salvar'); }
 }
 function closeProdutos() { document.getElementById('produtos-ov').classList.remove('open'); try { if (localStorage.getItem('drope_panel_view') === 'produtos') localStorage.removeItem('drope_panel_view'); } catch (e) {} }
 function renderBalanco() {
