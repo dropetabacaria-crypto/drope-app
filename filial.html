@@ -929,8 +929,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="apf-hd"><button class="sheet-x apf-back" onclick="apBack()" aria-label="Voltar">‹</button><b>Novo produto</b><button class="sheet-x" onclick="toggleAddProduct()" aria-label="Fechar">✕</button></div>
       <!-- progresso do wizard -->
       <div id="wiz-steps" style="display:flex;gap:6px;margin-bottom:14px">
-        <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Produto</div>
-        <div class="wiz-dot" data-s="2" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">2 · Imagem</div>
+        <div class="wiz-dot" data-s="1" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--lime);color:#0a0a0a">1 · Código</div>
+        <div class="wiz-dot" data-s="2" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">2 · Produto</div>
+        <div class="wiz-dot" data-s="3" style="flex:1;text-align:center;font-size:11px;font-weight:800;padding:7px 4px;border-radius:9px;background:var(--bg3);color:var(--fg-dim)">3 · Imagem</div>
       </div>
 
       <!-- Aviso: produto já cadastrado (checa por código de barras / nome+marca) -->
@@ -950,8 +951,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="Bipe ou digite o código" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
           <button type="button" class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
         </div>
-        <div class="pf-hint" style="margin-top:6px;margin-bottom:12px">Bipe o código: se já estiver cadastrado, aviso na hora. Se for novo, continue abaixo. Sem código? Pode pular.</div>
-        <!-- Foto do produto no INÍCIO: câmera OU galeria → a IA identifica e preenche -->
+        <div class="pf-hint" style="margin-top:6px">Bipe o código: se já estiver cadastrado, aviso na hora. Se for novo, toque em Avançar. Sem código? Pode pular.</div>
+      </div>
+
+      <!-- ETAPA 2: produto (foto identifica + dados) -->
+      <div class="wiz-step" id="wiz-2" style="display:none">
+        <!-- Foto do produto: câmera OU galeria → a IA identifica e preenche -->
         <div id="ap-scan-block" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
           <div style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Foto do produto <span style="opacity:.7">— a IA identifica e preenche pra você (opcional)</span></div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -974,6 +979,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             </div>
           </div>
         </div>
+        <!-- Sabor novo? (a IA achou o mesmo modelo de um pod que a loja já tem) -->
+        <div id="ap-samemodel" style="display:none;background:rgba(212,255,46,0.1);border:1px solid var(--lime);border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
         <label class="pf-lbl">Nome do produto</label>
         <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
         <!-- COMBO: escolher os produtos que formam o combo -->
@@ -1028,8 +1035,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div class="pf-hint" style="margin-top:2px">"Só Pix" = o cliente não vê a opção de cartão nesse produto.</div>
       </div>
 
-      <!-- ETAPA 2: imagem (gerar IA ou foto própria) -->
-      <div class="wiz-step" id="wiz-2" style="display:none">
+      <!-- ETAPA 3: imagem (gerar IA ou foto própria) -->
+      <div class="wiz-step" id="wiz-3" style="display:none">
         <div class="pf-hint" id="ap-img-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
         <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
         <div style="display:flex;gap:10px">
@@ -2118,7 +2125,7 @@ let _lastSavedProduct = null; // { id, slug } do último produto salvo (pra arte
 let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
-  _apNovoSaborBase = null; _apBaseName = ''; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; }
+  _apNovoSaborBase = null; _apBaseName = ''; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
   _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2139,7 +2146,7 @@ function _wizReset() {
   try { apSetMode('normal'); } catch (e) {} wizRender();
 }
 function wizRender() {
-  for (let s = 1; s <= 2; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
+  for (let s = 1; s <= 3; s++) { const el = document.getElementById('wiz-' + s); if (el) el.style.display = (s === _wizStep) ? 'block' : 'none'; }
   document.querySelectorAll('#wiz-steps .wiz-dot').forEach(d => {
     const s = +d.getAttribute('data-s'); const on = (s === _wizStep);
     d.style.background = on ? 'var(--lime)' : 'var(--bg3)';
@@ -2147,9 +2154,9 @@ function wizRender() {
   });
   const back = document.getElementById('wiz-back'), next = document.getElementById('wiz-next');
   if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
-  if (next) next.textContent = _wizStep < 2 ? 'Avançar' : 'Concluir ✦';
+  if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
 }
-function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(2, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 // ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
 let _apDupDismiss = false;
 function _apNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -2217,13 +2224,15 @@ function _apEditExisting(id) {
 }
 function wizNext() {
   const msg = document.getElementById('ap-msg');
-  if (_wizStep === 1) {
+  // ETAPA 1 = Código de barras: opcional, só avança (o duplicado já é avisado ao bipar).
+  if (_wizStep === 1) { msg.textContent = ''; _wizStep = 2; wizRender(); if (_apMode === 'combo') { try { _apRenderComboList(); } catch (e) {} } return; }
+  // ETAPA 2 = Produto (foto + dados): valida aqui.
+  if (_wizStep === 2) {
     const name = (document.getElementById('ap-name').value || '').trim();
     const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
     if (name.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do produto'; return; }
     if (!isFinite(price) || price < 0) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe um preço válido'; return; }
     if (_apMode === 'combo') {
-      // Combo precisa de pelo menos 2 produtos; categoria da loja é opcional (vai pra vitrine Combos).
       if (Object.keys(_apComboSel).length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'selecione pelo menos 2 produtos pro combo'; return; }
     } else {
       const fv = (document.getElementById('ap-filtro') || {}).value || '';
@@ -2231,11 +2240,11 @@ function wizNext() {
       if (!fv || (fv === '__new__' && newcat.trim().length < 2)) { msg.style.color = 'var(--pink)'; msg.textContent = 'escolha ou crie uma categoria'; return; }
     }
     msg.textContent = '';
-    _wizStep = 2; wizRender(); // etapa 2 = imagem
+    _wizStep = 3; wizRender(); // etapa 3 = imagem
     if (_apMode === 'combo' && !((document.getElementById('ap-img') || {}).value)) apComboPreview(0);
     return;
   }
-  if (_wizStep === 2) { saveNewProduct(); return; }
+  if (_wizStep === 3) { saveNewProduct(); return; }
 }
 // ----- Etapa 3: imagem (arte IA rápida / foto própria / link) -----
 function _apShowArtPreview(src, isArt) {
@@ -2360,27 +2369,33 @@ function apBaseSearch(q) {
     return `<div class="pdv-sr-item" onclick="apUseBase(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')} · ${price}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">usar ›</span></div>`;
   }).join('') : '<div class="empty" style="padding:30px;text-align:center;color:var(--fg-dim)">Nenhum produto pra copiar ainda</div>';
 }
-function apUseBase(id) {
+// Copia um produto base. newSabor: se vier (ex: sabor lido pela IA na foto), já preenche
+// o sabor e monta o nome — o lojista não precisa digitar nada.
+function apUseBase(id, newSabor) {
   const p = (_lastProdutos || []).find(x => String(x.id) === String(id)); if (!p) return;
   try { apSetMode('normal'); } catch (e) {}
   _apNovoSaborBase = { id: p.id, sabor: p.sabor || '' };
   _apBaseName = _stripSabor(p.name, p.sabor);
+  const sab = (newSabor != null ? String(newSabor).trim() : '');
   const setv = (elid, v) => { const e = document.getElementById(elid); if (e) e.value = (v == null ? '' : v); };
   setv('ap-marca', p.marca || '');
-  setv('ap-name', _apBaseName);
-  setv('ap-sabor', '');
+  setv('ap-name', sab ? (_apBaseName + ' ' + sab).trim() : _apBaseName);
+  setv('ap-sabor', sab);
   setv('ap-price', p.price_cents ? (p.price_cents / 100).toFixed(2).replace('.', ',') : '');
   setv('ap-custo', p.cost_cents ? (p.cost_cents / 100).toFixed(2).replace('.', ',') : '');
   setv('ap-barcode', ''); setv('ap-stock', '');
   try { const f = document.getElementById('ap-filtro'); if (f && p.filtro_id != null) { f.value = String(p.filtro_id); _apFiltroChange(); } } catch (e) {}
   try { const cg = document.getElementById('ap-catglobal'); if (cg && p.cat_global) cg.value = p.cat_global; } catch (e) {}
   try { const pay = document.getElementById('ap-payment'); if (pay) pay.value = p.pix_only ? 'pix' : 'both'; } catch (e) {}
-  _scanMeta = { brand: p.marca || '', model: '', type: p.category || p.cat || '', name: p.name || '' };
+  // Se NÃO veio de scan (base escolhida na mão), zera o meta. Se veio do scan (newSabor),
+  // mantém o _scanMeta/foto que a IA já leu, pra gerar a arte com a referência certa.
+  if (newSabor == null) _scanMeta = { brand: p.marca || '', model: '', type: p.category || p.cat || '', name: p.name || '' };
   try { apCalcPreco(true); } catch (e) {}
   try { const n = document.getElementById('ap-base-note'); if (n) n.style.display = 'block'; } catch (e) {}
-  closeApBasePicker();
+  try { closeApBasePicker(); } catch (e) {}
+  _wizStep = 2; wizRender(); // vai pra etapa 2 (Produto/dados)
   try { const sb = document.getElementById('ap-sabor'); if (sb) sb.focus(); } catch (e) {}
-  try { _toast('Base copiada ✦ agora é só pôr o sabor'); } catch (e) {}
+  try { _toast(sab ? ('Copiado ✦ sabor: ' + sab) : 'Base copiada ✦ agora é só pôr o sabor'); } catch (e) {}
 }
 // Ao digitar o sabor no modo "novo sabor", recompõe o nome = modelo + sabor.
 function _apOnSaborInput() {
@@ -2390,6 +2405,46 @@ function _apOnSaborInput() {
   }
   try { _apRenderDupWarn(); } catch (e) {}
 }
+// ===== "É um sabor novo?" — a IA achou o MESMO modelo de um pod que a loja já tem =====
+function _apFindSameModel(v) {
+  if (!v) return null;
+  const brand = v.brand || '', model = v.model || '';
+  const flavor = (v.flavor_pt || v.flavor_en || '').trim();
+  if (!_isPodLike(v.type || '', v.name || '', brand)) return null; // só pod
+  const nb = _catNorm(brand); if (!nb) return null;
+  const nm = _catNorm(model);
+  const prods = (_lastProdutos || []).filter(p => !p.hidden && !p.combo);
+  for (const p of prods) {
+    if (_catNorm(p.marca) !== nb) continue;               // mesma marca
+    const pBase = _catNorm(_stripSabor(p.name || '', p.sabor || ''));
+    const sameModel = (nm && pBase && (pBase.includes(nm) || nm.includes(pBase)));
+    if (!sameModel) continue;                             // mesmo modelo
+    if (flavor && _catNorm(p.sabor) === _catNorm(flavor)) continue; // sabor igual = duplicado (outro aviso)
+    return p;
+  }
+  return null;
+}
+function _apRenderSameModel(v) {
+  const el = document.getElementById('ap-samemodel'); if (!el) return;
+  const m = _apFindSameModel(v);
+  if (!m) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const flavor = ((v.flavor_pt || v.flavor_en || '')).trim();
+  el.dataset.baseId = m.id; el.dataset.sabor = flavor;
+  el.style.display = 'block';
+  el.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--lime);margin-bottom:3px">✦ É um sabor novo?</div>'
+    + '<div style="font-size:12.5px;color:var(--fg);margin-bottom:8px">Parece o mesmo modelo do <b>' + esc(m.name) + '</b>. Uso os dados dele' + (flavor ? ' e já ponho o sabor <b>' + esc(flavor) + '</b>' : '') + '?</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button type="button" class="pf-btn" style="flex:1 1 auto;margin-bottom:0" onclick="_apUseSameModel()">Sim, usar os dados</button>'
+    + '<button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0" onclick="_apDismissSameModel()">Não, é outro</button>'
+    + '</div>';
+}
+function _apUseSameModel() {
+  const el = document.getElementById('ap-samemodel'); if (!el) return;
+  const id = el.dataset.baseId, sabor = el.dataset.sabor || '';
+  el.style.display = 'none';
+  apUseBase(Number(id), sabor); // copia tudo + já preenche o sabor lido pela IA
+}
+function _apDismissSameModel() { const el = document.getElementById('ap-samemodel'); if (el) el.style.display = 'none'; }
 // Rebusca usando as MESMAS fotos + a descrição que o lojista digitou.
 async function apRescanWithHint() {
   const hint = ((document.getElementById('ap-scan-hint') || {}).value || '').trim();
@@ -2427,6 +2482,7 @@ async function _apRunScan(hint) {
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque'; }
       try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
+      try { _apRenderSameModel(v); } catch (e) {} // "é um sabor novo?" se achar o mesmo modelo
       try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {} // avisa se já estiver cadastrado
     } else {
       if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — descreve o produto abaixo que eu busco de novo'; }
@@ -2533,6 +2589,8 @@ async function onScanFile(input) {
       document.getElementById('ap-sabor').value = variacao;
       try { if (v.barcode) { const bc = document.getElementById('ap-barcode'); if (bc && !bc.value) bc.value = String(v.barcode).replace(/\D/g, ''); } } catch (e) {} // barcode lido pela Vision
       try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
+      try { _wizStep = 2; wizRender(); } catch (e) {} // scan do topo pula pro passo Produto (dados)
+      try { _apRenderSameModel(v); } catch (e) {} // "é um sabor novo?" se achar o mesmo modelo
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       st.textContent = ' ' + label + (v.web_spec ? ' (' + v.web_spec + ')' : '') + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
