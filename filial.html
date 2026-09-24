@@ -275,11 +275,13 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .bal-hit.low { border-color: var(--pink); background: rgba(255,77,143,0.08); }
 .bal-hit.ok { border-color: var(--lime); background: rgba(212,255,46,0.07); }
 /* painel do balanço DENTRO da câmera */
-#scan-panel { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 22px; background: rgba(12,12,16,0.94); border-top-left-radius: 20px; border-top-right-radius: 20px; }
+#scan-panel { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(26px + env(safe-area-inset-bottom, 0px)); touch-action: manipulation; background: rgba(12,12,16,0.94); border-top-left-radius: 20px; border-top-right-radius: 20px; }
 #scan-panel.show { display: block; }
 #scan-panel .bal-hit { margin-top: 0; background: transparent; border-width: 2px; }
 #scan-frame.ok { border-color: var(--lime) !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45), 0 0 26px rgba(212,255,46,.6) !important; }
 #scan-frame.bad { border-color: var(--pink) !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45), 0 0 26px rgba(255,77,143,.6) !important; }
+.bal-save { margin: 12px 0 0 !important; min-height: 54px; font-size: 17px !important; touch-action: manipulation; }
+#scan-panel button { touch-action: manipulation; }
 .bal-add { display: flex; gap: 8px; margin-top: 10px; }
 .bal-add button { flex: 1; height: 42px; border-radius: 12px; border: 1px solid var(--lime); background: rgba(212,255,46,0.1); color: var(--lime); font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; }
 #prodtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -916,7 +918,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
   <div style="flex:1;position:relative;overflow:hidden;background:#000">
     <video id="scan-video" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
-    <div id="scan-frame" style="position:absolute;left:8%;right:8%;top:24%;height:22%;border:2px solid var(--lime);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);transition:border-color .15s, box-shadow .15s"></div>
+    <div id="scan-frame" style="position:absolute;left:8%;right:8%;top:18%;height:22%;border:2px solid var(--lime);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);transition:border-color .15s, box-shadow .15s"></div>
     <div id="scan-actions" style="display:none;position:absolute;bottom:22px;left:16px;right:16px;gap:8px">
       <button type="button" class="pf-btn sec" style="flex:1;margin-bottom:0;background:rgba(20,20,20,.85)" onclick="closeBarcodeScanner();setTimeout(function(){try{document.getElementById('ap-barcode').focus();}catch(e){}},80)">Digitar código</button>
       <button type="button" class="pf-btn sec" style="flex:1;margin-bottom:0;background:rgba(20,20,20,.85)" onclick="closeBarcodeScanner();_apMarkNoBarcode()">Não tem código</button>
@@ -3677,6 +3679,9 @@ async function openBarcodeScanner(ctx, targetId) {
   try {
     const ZX = await _loadZxing();
     _zxingReader = new ZX.BrowserMultiFormatReader();
+    // Sem isso a lib tenta de novo com 0ms quando não acha código → decodifica sem parar na
+    // thread principal e o toque nos botões atrasa/some. ~8 tentativas/s é de sobra.
+    try { _zxingReader.timeBetweenDecodingAttempts = 120; } catch (e) {}
     hint.textContent = 'Aponte a câmera pro código de barras';
     _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment' } }, document.getElementById('scan-video'), (result) => {
       if (result) _onBarcode(result.getText());
@@ -3690,6 +3695,14 @@ function closeBarcodeScanner() {
   if (_scanCtx === 'balanco' && _balInCam) { _balInCam = false; _balCode = ''; _balHitId = null; const sp = document.getElementById('scan-panel'); if (sp) { sp.className = ''; sp.innerHTML = ''; } }
   try { if (_zxingReader) _zxingReader.reset(); } catch (e) {}
   _zxingReader = null;
+}
+// Pausa/retoma a decodificação sem desligar a câmera (o vídeo continua na tela).
+function _scanPause() { try { if (_zxingReader && _zxingReader.stopContinuousDecode) _zxingReader.stopContinuousDecode(); } catch (e) {} }
+function _scanResume() {
+  try {
+    const v = document.getElementById('scan-video');
+    if (_zxingReader && _zxingReader.decodeContinuously && v && v.srcObject) _zxingReader.decodeContinuously(v, (result) => { if (result) _onBarcode(result.getText()); });
+  } catch (e) {}
 }
 function _onBarcode(raw) {
   const code = String(raw || '').replace(/\D/g, '');
@@ -3720,6 +3733,7 @@ function _onBarcode(raw) {
   // BALANÇO: mostra o painel DENTRO da câmera (verde cadastrado / vermelho não).
   if (_scanCtx === 'balanco') {
     if (hint) hint.style.display = 'none';
+    _scanPause(); // painel aberto → para de decodificar (libera o toque nos botões)
     balFindCode(code, true);
     return;
   }
@@ -3927,7 +3941,8 @@ function balFindCode(raw, inCam) {
     <div style="font-size:12px;color:var(--fg-dim);margin-top:12px">Chegou mais? Soma aqui:</div>
     <div class="bal-add"><button type="button" onclick="balStep(1)">+1</button><button type="button" onclick="balStep(5)">+5</button><button type="button" onclick="balStep(10)">+10</button></div>
     <div class="bal-step"><button type="button" onclick="balStep(-1)" aria-label="menos">−</button><input id="bal-hit-qty" type="number" inputmode="numeric" min="0" value="${p.stock || 0}" oninput="balHitPaint()"><button type="button" onclick="balStep(1)" aria-label="mais">＋</button></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="pf-btn full" style="margin-bottom:0" id="bal-hit-save" onclick="balHitSave()">Salvar</button><button type="button" class="pf-btn sec" style="margin-bottom:0;flex:0 0 auto" onclick="balEdit(${p.id})">Editar</button>${nextBtn}</div>
+    <button type="button" class="pf-btn full bal-save" id="bal-hit-save" onclick="balHitSave()">Salvar</button>
+    <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="pf-btn sec full" style="margin-bottom:0" onclick="balEdit(${p.id})">Editar</button>${nextBtn}</div>
     <div id="bal-hit-msg" style="font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div></div>`;
   balHitPaint();
   if (!_balInCam) { try { box.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
@@ -3943,7 +3958,7 @@ function balStep(d) { const q = document.getElementById('bal-hit-qty'); if (!q) 
 function balNext() {
   _balHitId = null; _balCode = ''; _balFrame('');
   const box = _balBox(); if (box) { box.className = ''; box.innerHTML = ''; }
-  if (_balInCam) { const h = document.getElementById('scan-hint'); if (h) { h.style.display = ''; h.textContent = 'Aponte a câmera pro código de barras'; } _lastScan = { code: '', t: 0 }; }
+  if (_balInCam) { const h = document.getElementById('scan-hint'); if (h) { h.style.display = ''; h.textContent = 'Aponte a câmera pro código de barras'; } _lastScan = { code: '', t: 0 }; _scanResume(); }
   else { const b = document.getElementById('bal-barcode'); if (b) try { b.focus(); } catch (e) {} }
 }
 async function balHitSave() {
