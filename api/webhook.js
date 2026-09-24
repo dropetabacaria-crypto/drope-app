@@ -6020,9 +6020,13 @@ async function handleBalancoResolveBarcode(req, res) {
     // produto estiver escondido). Sem all → só visíveis (fluxo do balanço).
     const wantAll = /(^|&)all=1(&|$)/.test(qs);
 
-    // Busca por barcode OU array barcodes[]
+    // Busca por barcode OU array barcodes[] — tolerante a zero à esquerda:
+    // UPC-A (12 dígitos) e o mesmo código lido como EAN-13 ("0" + 12) são o MESMO produto.
+    const _core = barcode.replace(/^0+/, '');
+    const _vars = [...new Set([barcode, _core, '0' + _core, '00' + _core].filter(v => v.length >= 6 && v.length <= 14))];
+    const _or = _vars.map(v => `barcode.eq.${encodeURIComponent(v)},barcodes.cs.{${encodeURIComponent(v)}}`).join(',');
     const r = await sbGet('drope_products',
-      `or=(barcode.eq.${encodeURIComponent(barcode)},barcodes.cs.{${encodeURIComponent(barcode)}})&select=id,name,slug,barcode,barcodes,qty_available,price_cents,image_url,box_photo_url${wantAll ? '' : '&hidden=eq.false'}&limit=1`);
+      `or=(${_or})&select=id,name,slug,barcode,barcodes,qty_available,price_cents,image_url,box_photo_url${wantAll ? '' : '&hidden=eq.false'}&limit=1`);
 
     if (r && r[0]) {
       return res.status(200).json({ ok: true, product: r[0] });

@@ -275,7 +275,7 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .bal-hit.low { border-color: var(--pink); background: rgba(255,77,143,0.08); }
 .bal-hit.ok { border-color: var(--lime); background: rgba(212,255,46,0.07); }
 /* painel do balanço DENTRO da câmera */
-#scan-panel { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(26px + env(safe-area-inset-bottom, 0px)); touch-action: manipulation; background: rgba(12,12,16,0.94); border-top-left-radius: 20px; border-top-right-radius: 20px; }
+#scan-panel { display: none; position: absolute; left: 0; right: 0; bottom: 0; max-height: 78%; overflow-y: auto; padding: 14px 16px calc(26px + env(safe-area-inset-bottom, 0px)); touch-action: manipulation; background: rgba(12,12,16,0.94); border-top-left-radius: 20px; border-top-right-radius: 20px; }
 #scan-panel.show { display: block; }
 #scan-panel .bal-hit { margin-top: 0; background: transparent; border-width: 2px; }
 #scan-frame.ok { border-color: var(--lime) !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45), 0 0 26px rgba(212,255,46,.6) !important; }
@@ -3652,7 +3652,7 @@ function pdvAddFromSearch(id) {
 function pdvInc(id) { _pdvCart[id] = Math.min(999, (_pdvCart[id] || 0) + 1); renderPDV(); }
 
 // ===== Leitor de código de barras ao vivo (ZXing) — PDV: escaneia e vende =====
-let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 }, _scanTargetId = null;
+let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 }, _scanTargetId = null, _scanVote = { code: '', n: 0, t: 0 };
 function _loadZxing() {
   return new Promise((resolve, reject) => {
     if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return resolve(window.ZXing);
@@ -3678,12 +3678,20 @@ async function openBarcodeScanner(ctx, targetId) {
   hint.textContent = 'Carregando leitor…';
   try {
     const ZX = await _loadZxing();
-    _zxingReader = new ZX.BrowserMultiFormatReader();
+    // Só formatos de produto (EAN/UPC/Code128) + TRY_HARDER: lê melhor e erra menos.
+    let _hints = null;
+    try {
+      const F = ZX.BarcodeFormat, H = ZX.DecodeHintType;
+      _hints = new Map([[H.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128]], [H.TRY_HARDER, true]]);
+    } catch (e) { _hints = null; }
+    _zxingReader = new ZX.BrowserMultiFormatReader(_hints, 250); // 250ms entre leituras OK (antes 500)
+    _scanVote = { code: '', n: 0, t: 0 };
     // Sem isso a lib tenta de novo com 0ms quando não acha código → decodifica sem parar na
     // thread principal e o toque nos botões atrasa/some. ~8 tentativas/s é de sobra.
     try { _zxingReader.timeBetweenDecodingAttempts = 120; } catch (e) {}
     hint.textContent = 'Aponte a câmera pro código de barras';
-    _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment' } }, document.getElementById('scan-video'), (result) => {
+    // 1280x720 + foco contínuo: código pequeno de caixa de pod fica nítido (antes ~640x480).
+    _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] } }, document.getElementById('scan-video'), (result) => {
       if (result) _onBarcode(result.getText());
     });
   } catch (e) {
@@ -3709,6 +3717,14 @@ function _onBarcode(raw) {
   if (code.length < 8) return;
   if (_scanCtx === 'balanco' && _balInCam && _balCode) return; // painel aberto → não lê de novo (soma só nos botões)
   const now = Date.now();
+  // CONSENSO anti-leitura-errada: a câmera às vezes troca um dígito e o código ainda "fecha"
+  // no dígito verificador (~1 em 10). Código que JÁ é de um produto da loja → aceita na hora.
+  // Código desconhecido → só aceita quando ler 2x IGUAL (evita vermelho falso e cadastro com código errado).
+  if (!_findByBarcode(code)) {
+    if (_scanVote.code === code && now - _scanVote.t < 3000) _scanVote.n++; else _scanVote = { code, n: 1, t: now };
+    _scanVote.t = now;
+    if (_scanVote.n < 2) { const h0 = document.getElementById('scan-hint'); if (h0 && h0.style.display !== 'none') h0.textContent = 'Confirmando o código… segura firme'; return; }
+  }
   if (code === _lastScan.code && now - _lastScan.t < 2500) return; // debounce leitura repetida
   _lastScan = { code, t: now };
   const hint = document.getElementById('scan-hint');
@@ -3737,7 +3753,7 @@ function _onBarcode(raw) {
     balFindCode(code, true);
     return;
   }
-  const p = (_lastProdutos || []).find(x => x.barcode === code || (Array.isArray(x.barcodes) && x.barcodes.includes(code)));
+  const p = _findByBarcode(code);
   if (p) {
     try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
     if (_scanCtx === 'pdv') { pdvInc(p.id); if (hint) hint.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') — na venda'; }
@@ -3753,7 +3769,7 @@ function _pdvHandleCode(raw) {
   const code = String(raw || '').replace(/\D/g, '');
   const msg = document.getElementById('pdv-scan-msg');
   if (code.length < 6) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'código muito curto — bipe de novo'; } return; }
-  const p = (_lastProdutos || []).find(x => String(x.barcode || '').replace(/\D/g, '') === code || (Array.isArray(x.barcodes) && x.barcodes.map(v => String(v).replace(/\D/g, '')).includes(code)));
+  const p = _findByBarcode(code);
   if (p) {
     pdvInc(p.id);
     if (msg) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') na venda'; }
@@ -3903,9 +3919,11 @@ function renderBalanco() {
 // Com o painel aberto a câmera NÃO lê de novo → bipar o mesmo produto não soma (soma é nos botões).
 let _balHitId = null, _balCode = '', _balInCam = false;
 let _pendCad = []; // [{ barcode, at }] — vem do painel (metadata da loja)
+// Chave do código sem zeros à esquerda: UPC-A (12) e EAN-13 com 0 na frente são o MESMO código.
+function _bcKey(v) { return String(v || '').replace(/\D/g, '').replace(/^0+/, ''); }
 function _findByBarcode(raw) {
-  const code = String(raw || '').replace(/\D/g, ''); if (code.length < 6) return null;
-  return (_lastProdutos || []).find(x => String(x.barcode || '').replace(/\D/g, '') === code || (Array.isArray(x.barcodes) && x.barcodes.map(v => String(v).replace(/\D/g, '')).includes(code))) || null;
+  const k = _bcKey(raw); if (k.length < 6) return null;
+  return (_lastProdutos || []).find(x => _bcKey(x.barcode) === k || (Array.isArray(x.barcodes) && x.barcodes.some(v => _bcKey(v) === k))) || null;
 }
 function _balBox() { return document.getElementById(_balInCam ? 'scan-panel' : 'bal-hit'); }
 function _balFrame(kind) { const f = document.getElementById('scan-frame'); if (f) f.className = kind || ''; }
@@ -3928,6 +3946,8 @@ function balFindCode(raw, inCam) {
       <div class="nm" style="color:var(--pink)">Não cadastrado</div>
       <div style="font-size:12.5px;color:var(--fg-dim);margin-top:3px">Código <b style="color:var(--fg)">${esc(code)}</b>${jaPend ? ' · já está em Pendentes' : ''}</div>
       <div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="pf-btn full" style="margin-bottom:0" onclick="balCadastrar('${esc(code)}')">Cadastrar agora</button></div>
+      <button type="button" class="pf-btn sec full" style="margin:8px 0 0" onclick="balLinkOpen()">É um produto que já tenho</button>
+      <div id="bal-link" style="display:none;margin-top:10px"><input class="pf-input" id="bal-link-q" placeholder="Busca pelo nome (ex: ignite v400)" style="margin-bottom:6px" oninput="balLinkSearch(this.value)"><div id="bal-link-res" style="max-height:34vh;overflow-y:auto"></div></div>
       <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="pf-btn sec full" style="margin-bottom:0" id="bal-pend-btn" onclick="balDepois('${esc(code)}')"${jaPend ? ' disabled' : ''}>${jaPend ? 'Já está pra depois ✓' : 'Deixar pra depois'}</button>${nextBtn}</div>
       <div id="bal-hit-msg" style="font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div></div>`;
     return;
@@ -3984,6 +4004,41 @@ async function balHitSave() {
     if (m) { m.style.color = 'var(--pink)'; m.textContent = (d && d.error) || 'não salvou, tenta de novo'; }
   } catch (e) { if (m) { m.style.color = 'var(--pink)'; m.textContent = 'sem conexão, tenta de novo'; } }
   if (btn) btn.disabled = false;
+}
+// "É um produto que já tenho": o código lido não bate com nenhum produto porque o produto foi
+// cadastrado com código errado (ou sem código). Escolhe o produto → grava o código CERTO nele.
+function balLinkOpen() { const w = document.getElementById('bal-link'); if (!w) return; w.style.display = 'block'; balLinkSearch(''); const q = document.getElementById('bal-link-q'); if (q) try { q.focus(); } catch (e) {} }
+function balLinkSearch(q) {
+  const box = document.getElementById('bal-link-res'); if (!box) return;
+  q = String(q || '').trim().toLowerCase();
+  let prods = (_lastProdutos || []).filter(p => !p.combo);
+  if (q) prods = prods.filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q));
+  else prods = prods.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); // sem busca: mais recentes primeiro
+  prods = prods.slice(0, 12);
+  box.innerHTML = prods.length ? prods.map(p => {
+    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    return `<div class="pdv-sr-item" onclick="balLinkPick(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">código atual: ${esc(p.barcode || 'nenhum')}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">é esse ›</span></div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--fg-dim);padding:10px 2px">Nada com esse nome</div>';
+}
+async function balLinkPick(id) {
+  const p = (_lastProdutos || []).find(x => x.id === id); const code = _balCode; if (!p || !code) return;
+  const antigo = p.barcode || '';
+  if (!confirm(`Colocar o código ${code} em "${p.name}"?` + (antigo ? `\n\nO código atual (${antigo}) não bate com a caixa e vai ser trocado.` : ''))) return;
+  const m = document.getElementById('bal-hit-msg'); if (m) { m.style.color = 'var(--fg-dim)'; m.textContent = 'salvando o código…'; }
+  try {
+    const r = await fetch('/api/webhook?action=filial_product_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id: p.id, price: (p.price_cents || 0) / 100, stock: p.stock || 0, hidden: !!p.hidden, barcode: code }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      p.barcode = code; // cache já reconhece o código certo
+      try { _toast('✓ Código corrigido em ' + p.name); } catch (e) {}
+      _balCode = ''; balFindCode(code, _balInCam); // agora aparece VERDE, pronto pra conferir o estoque
+      return;
+    }
+    if (m) { m.style.color = 'var(--pink)'; m.textContent = (d && d.error) || 'não salvou, tenta de novo'; }
+  } catch (e) { if (m) { m.style.color = 'var(--pink)'; m.textContent = 'sem conexão, tenta de novo'; } }
 }
 // Editar: fecha câmera/balanço e abre o produto em Meus produtos.
 function balEdit(id) {
