@@ -1002,7 +1002,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40" oninput="_apOnSaborInput()"></div>
         </div>
         <div style="display:flex; gap:10px">
-          <div style="flex:1"><label class="pf-lbl" id="ap-price-lbl">Preço de venda (R$)</label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="12,00" oninput="apCalcPreco(true)"></div>
+          <div style="flex:1"><label class="pf-lbl" id="ap-price-lbl">Preço de venda (R$) <span style="color:var(--fg-dim);font-weight:400">· sempre ,99</span></label><input class="pf-input" id="ap-price" inputmode="decimal" placeholder="11,99" oninput="apCalcPreco(true)" onblur="apPrice99(this, () => apCalcPreco(true))"></div>
           <div style="flex:1" id="ap-stock-wrap"><label class="pf-lbl">Estoque</label><input class="pf-input" id="ap-stock" inputmode="numeric" placeholder="0"></div>
         </div>
         <div id="ap-calc" style="font-size:12.5px;color:var(--fg-dim);margin-top:6px;min-height:16px"></div>
@@ -1798,7 +1798,7 @@ function renderProdutos(list) {
         <label class="pf-lbl" style="margin-top:12px">Nome do produto</label>
         <input class="pf-input" id="ep-name-${p.id}" value="${esc(p.name || '')}" maxlength="70" style="margin-bottom:0" placeholder="ex: Piteira Sadhu Black King Size">
         <label class="pf-lbl" style="margin-top:12px">Preço de venda (R$)</label>
-        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço" oninput="epRecebe(${p.id}, true)">
+        <input class="pf-input" id="ep-price-${p.id}" inputmode="decimal" value="${price}" style="margin-bottom:0" placeholder="Preço (,99)" oninput="epRecebe(${p.id}, true)" onblur="apPrice99(this, () => epRecebe(${p.id}, true))">
         <div id="ep-recebe-${p.id}" style="font-size:12px;color:var(--fg-dim);margin-top:6px;min-height:14px"></div>
         <div style="display:flex;gap:10px;margin-top:10px">
           <div style="flex:1"><label class="pf-lbl">Quanto você pagou (R$) <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
@@ -2699,6 +2699,9 @@ async function onScanFile(input) {
 function _comm() { try { return Number((((_painelData || {}).filial || {}).plan || {}).commission_pct) || 10; } catch (e) { return 10; } }
 function _num(v) { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : NaN; }
 function _brl(n) { return 'R$ ' + n.toFixed(2).replace('.', ','); }
+// Regra da casa (Andrade 24/09): preço de venda SEMPRE termina em ,99 — arredonda pra cima (66,67 → 66,99; 60,00 → 59,99).
+function _to99(n) { if (!isFinite(n) || n <= 0) return n; const c = Math.round(n * 100); return (Math.ceil(c / 100) * 100 - 1) / 100; }
+function apPrice99(el, after) { if (!el) return; const v = _num(el.value); if (!isFinite(v) || v <= 0) return; const r = _to99(v); if (Math.abs(r - v) > 0.001) el.value = r.toFixed(2).replace('.', ','); if (typeof after === 'function') after(); }
 function apUsarPreco(v) { const el = document.getElementById('ap-price'); if (el) { el.value = Number(v).toFixed(2).replace('.', ','); apCalcPreco(true); } }
 // Calculadora simples: "quanto paguei" + "quanto quero ganhar" → PREENCHE o preço sozinho.
 // fromPrice=true quando o próprio campo de preço mudou (aí não sobrescreve o que a pessoa digitou).
@@ -2712,7 +2715,7 @@ function apCalcPreco(fromPrice) {
   // custo + lucro comandam o preço → escreve automaticamente no campo de venda.
   if (!fromPrice && isFinite(custo) && custo > 0 && isFinite(lucroV)) {
     const lucroRs = tipo === 'pct' ? custo * lucroV / 100 : lucroV;
-    const sugerido = (custo + lucroRs) / (1 - c / 100); // embute a comissão do DROPE
+    const sugerido = _to99((custo + lucroRs) / (1 - c / 100)); // embute a comissão do DROPE + arredonda pra ,99
     if (priceEl) priceEl.value = sugerido.toFixed(2).replace('.', ',');
   }
   out.innerHTML = _precoResumo(_num(priceEl ? priceEl.value : ''), custo, c);
@@ -2727,7 +2730,7 @@ function _precoResumo(preco, custo, c) {
     const cor = lucro >= 0 ? 'var(--lime)' : 'var(--pink)';
     html += ` · lucro <b style="color:${cor}">${_brl(lucro)}</b>`;
   }
-  return html + `.<br><span style="opacity:.6">A DROPE fica com ${String(c).replace('.', ',')}% e o Pix ~1% do Mercado Pago.</span>`;
+  return html + `.<br><span style="opacity:.6">Preço sempre fecha em ,99 (arredonda pra cima). A DROPE fica com ${String(c).replace('.', ',')}% e o Pix ~1% do Mercado Pago.</span>`;
 }
 // Edição: mesma lógica do cadastro. "quanto paguei" + "quanto quero ganhar" → preenche o preço.
 // fromPrice=true quando o campo de preço foi editado à mão (não sobrescreve).
@@ -2740,7 +2743,7 @@ function epRecebe(id, fromPrice) {
   const tipo = (document.getElementById('ep-lucro-tipo-' + id) || {}).value || 'rs';
   if (!fromPrice && isFinite(custo) && custo > 0 && isFinite(lucroV)) {
     const lucroRs = tipo === 'pct' ? custo * lucroV / 100 : lucroV;
-    const sugerido = (custo + lucroRs) / (1 - c / 100);
+    const sugerido = _to99((custo + lucroRs) / (1 - c / 100));
     if (priceEl) priceEl.value = sugerido.toFixed(2).replace('.', ',');
   }
   el.innerHTML = _precoResumo(_num(priceEl ? priceEl.value : ''), custo, c);

@@ -5011,7 +5011,9 @@ async function handleFilialProductSave(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
 
     const id = body.id;
-    const priceCents = Math.round(Number(body.price) * 100);
+    // Regra da casa (Andrade 24/09): preço sempre termina em ,99 — arredonda pra cima (6667 → 6699; 6000 → 5999).
+    const _rawPriceCents = Math.round(Number(body.price) * 100);
+    const priceCents = (isFinite(_rawPriceCents) && _rawPriceCents > 0) ? Math.ceil(_rawPriceCents / 100) * 100 - 1 : _rawPriceCents;
     const stock = parseInt(body.stock, 10);
     const hidden = !!body.hidden;
     let imageUrl = body.image_url != null ? String(body.image_url).trim() : undefined;
@@ -19603,9 +19605,10 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
       // Se preço chegou redondo (8000 = R$ 80,00) vira 7999 (R$ 79,99).
       // Frontend já faz, isso é fallback caso quick_register seja chamado direto via API
       // ou auto-preço da regra de marca tenha valor redondo.
-      if (priceCents && priceCents > 0 && priceCents % 100 === 0) {
+      // 24/09 Andrade: vale pra QUALQUER preço, não só redondo (6667 → 6699).
+      if (priceCents && priceCents > 0 && priceCents % 100 !== 99) {
         const original = priceCents;
-        priceCents = priceCents - 1;
+        priceCents = Math.ceil(priceCents / 100) * 100 - 1;
         console.log(`[quick_register] auto-.99: ${original/100} → ${priceCents/100}`);
       }
       const finalPriceCents = priceCents || 0;
