@@ -2232,12 +2232,21 @@ function _apEditExisting(id) {
 }
 function wizNext() {
   const msg = document.getElementById('ap-msg');
-  // ETAPA 1 = Código de barras: opcional, só avança (o duplicado já é avisado ao bipar).
+  // ETAPA 1 = Código de barras: obrigatório e checa duplicado antes de avançar.
   if (_wizStep === 1) {
     // Código obrigatório (evita duplicados) — exceto combo, ou se marcou "não tem código".
     const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
     if (_apMode !== 'combo' && !_apNoBarcode && bc.length < 8) {
       msg.style.color = 'var(--pink)'; msg.textContent = 'Bipe o código de barras — ou toque em "Este produto não tem código".'; return;
+    }
+    // Backstop: se o código já é de um produto seu, NÃO avança — mostra o aviso (mesmo que
+    // o oninput não tenha rodado, ex: código veio da câmera). Só passa por "É outro produto".
+    if (bc.length >= 8 && !_apDupDismiss) {
+      const dupe = _apFindDuplicate();
+      if (dupe) {
+        try { _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw) dw.scrollIntoView({ block: 'center' }); } catch (e) {}
+        msg.style.color = 'var(--pink)'; msg.textContent = 'Esse código já é de um produto seu — veja o aviso acima (ou toque em "É outro produto").'; return;
+      }
     }
     msg.textContent = ''; _wizStep = 2; wizRender(); if (_apMode === 'combo') { try { _apRenderComboList(); } catch (e) {} } return;
   }
@@ -3494,7 +3503,16 @@ function _onBarcode(raw) {
   // CADASTRO: escaneou pra salvar no produto → preenche o campo e fecha.
   if (_scanCtx === 'cadastro') {
     const t = _scanTargetId && document.getElementById(_scanTargetId);
-    if (t) t.value = code;
+    if (t) {
+      t.value = code;
+      // .value por JS NÃO dispara oninput → o aviso de duplicado não rodava. Dispara na mão.
+      try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    }
+    // Cadastro pelo código: se já existe, avisa AGORA (não só ao digitar).
+    if (_scanTargetId === 'ap-barcode') {
+      try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {}
+      try { const dw = document.getElementById('ap-dup-warn'); if (dw && dw.style.display !== 'none') dw.scrollIntoView({ block: 'center' }); } catch (e) {}
+    }
     try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
     if (hint) hint.textContent = '✓ código ' + code + ' capturado';
     setTimeout(closeBarcodeScanner, 650);
@@ -3543,6 +3561,27 @@ document.addEventListener('keydown', function (e) {
   _pdvWedgeT = now;
   if (e.key === 'Enter') { if (_pdvWedgeBuf.length >= 6) _pdvHandleCode(_pdvWedgeBuf); _pdvWedgeBuf = ''; return; }
   if (/^[0-9]$/.test(e.key)) _pdvWedgeBuf += e.key;
+});
+// Mesma reserva pro CADASTRO: bip do leitor USB na etapa 1 mesmo se o foco saiu do campo.
+let _apWedgeBuf = '', _apWedgeT = 0;
+document.addEventListener('keydown', function (e) {
+  const form = document.getElementById('add-product-form');
+  if (!form || form.style.display === 'none') return; // só com o wizard aberto
+  if (_wizStep !== 1) return;                           // só na etapa do código
+  const ae = document.activeElement;
+  if (ae && ae.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // o campo cuida
+  const now = Date.now();
+  if (now - _apWedgeT > 120) _apWedgeBuf = '';
+  _apWedgeT = now;
+  if (e.key === 'Enter') {
+    if (_apWedgeBuf.length >= 8) {
+      const el = document.getElementById('ap-barcode');
+      if (el) { el.value = _apWedgeBuf; try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e2) {} }
+      try { _apDupDismiss = false; _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw && dw.style.display !== 'none') dw.scrollIntoView({ block: 'center' }); } catch (e2) {}
+    }
+    _apWedgeBuf = ''; return;
+  }
+  if (/^[0-9]$/.test(e.key)) _apWedgeBuf += e.key;
 });
 function pdvDec(id) { _pdvCart[id] = Math.max(0, (_pdvCart[id] || 0) - 1); if (!_pdvCart[id]) delete _pdvCart[id]; renderPDV(); }
 function pdvPay(m, el) { _pdvPay = m; document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active')); if (el) el.classList.add('active'); renderPDV(); }
