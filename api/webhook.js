@@ -4859,6 +4859,7 @@ async function handleFilialPainel(req, res) {
         endereco: (filial.metadata || {}).endereco || {},
         segmentos: _normSegmentos((filial.metadata || {}).segmentos),
         filtros: (filial.metadata || {}).filtros || [],
+        pendentes_cadastro: (filial.metadata || {}).pendentes_cadastro || [], // códigos bipados no balanço, "cadastrar depois"
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
         entregadores_fixos: entregadoresFixos,
@@ -5039,6 +5040,7 @@ async function handleFilialProductSave(req, res) {
       if (Object.prototype.hasOwnProperty.call(body, 'barcode')) {
         const bc = String(body.barcode || '').replace(/\D/g, '');
         upd.barcode = (bc.length >= 8 && bc.length <= 14) ? bc : null;
+        if (upd.barcode) await _filialPendenteRemove(filial, upd.barcode); // código ganhou produto → sai dos pendentes
       }
       // metadata: oferta e/ou filtro/categoria da loja
       const md = ex[0].metadata || {};
@@ -5189,6 +5191,7 @@ async function handleFilialProductSave(req, res) {
       },
     });
     if (!row) return res.status(502).json({ ok: false, error: sbInsert._lastError || 'insert failed' });
+    if (barcodeVal) await _filialPendenteRemove(filial, barcodeVal); // estava pendente no balanço → resolvido
     return res.status(200).json({ ok: true, id: row.id, slug: row.slug });
   } catch (e) {
     console.error('[filial_product_save] ERROR:', e.message);
@@ -8185,6 +8188,40 @@ async function handleFilialParceiroManage(req, res) {
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     return res.status(200).json({ ok: true, parceiros });
   } catch (e) { console.error('[filial_parceiro_manage] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
+}
+
+// Pendentes de cadastro: códigos bipados no balanço que a loja deixou pra cadastrar depois.
+// Ficam em drope_filiais.metadata.pendentes_cadastro = [{ barcode, at }].
+async function _filialPendenteRemove(filial, barcode) {
+  try {
+    const md = filial.metadata || {};
+    const list = Array.isArray(md.pendentes_cadastro) ? md.pendentes_cadastro : [];
+    if (!list.some(x => x && x.barcode === barcode)) return;
+    md.pendentes_cadastro = list.filter(x => x && x.barcode !== barcode);
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+  } catch (e) { console.error('[pendente_remove]', e.message); }
+}
+// POST action=filial_pendente_save — op add|remove { barcode }. Devolve a lista atualizada.
+async function handleFilialPendenteSave(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const bc = String(body.barcode || '').replace(/\D/g, '');
+    if (bc.length < 8 || bc.length > 14) return res.status(400).json({ ok: false, error: 'código inválido' });
+    const md = filial.metadata || {};
+    let list = Array.isArray(md.pendentes_cadastro) ? md.pendentes_cadastro.filter(x => x && x.barcode) : [];
+    if (body.op === 'remove') list = list.filter(x => x.barcode !== bc);
+    else if (!list.some(x => x.barcode === bc)) list.unshift({ barcode: bc, at: new Date().toISOString() });
+    md.pendentes_cadastro = list.slice(0, 300);
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    return res.status(200).json({ ok: true, pendentes: md.pendentes_cadastro });
+  } catch (e) { console.error('[filial_pendente_save] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_filtro_save — cria/edita/apaga um filtro da loja.
@@ -21989,6 +22026,10 @@ async function generateAll(){
   // action=filial_products_filtro — POST: marca vários produtos com um filtro
   if (req.url && req.url.indexOf('action=filial_products_filtro') >= 0) {
     return await handleFilialProductsFiltro(req, res);
+  }
+  // action=filial_pendente_save — POST: código bipado no balanço pra cadastrar depois (add/remove)
+  if (req.url && req.url.indexOf('action=filial_pendente_save') >= 0) {
+    return await handleFilialPendenteSave(req, res);
   }
   // action=filial_filtro_save — POST: lojista cria/edita/apaga filtro da loja
   if (req.url && req.url.indexOf('action=filial_filtro_save') >= 0) {

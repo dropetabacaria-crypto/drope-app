@@ -274,6 +274,16 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .bal-hit { margin-top: 12px; border-radius: 14px; padding: 12px; border: 1.5px solid var(--border); background: var(--bg3); }
 .bal-hit.low { border-color: var(--pink); background: rgba(255,77,143,0.08); }
 .bal-hit.ok { border-color: var(--lime); background: rgba(212,255,46,0.07); }
+/* painel do balanço DENTRO da câmera */
+#scan-panel { display: none; position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 22px; background: rgba(12,12,16,0.94); border-top-left-radius: 20px; border-top-right-radius: 20px; }
+#scan-panel.show { display: block; }
+#scan-panel .bal-hit { margin-top: 0; background: transparent; border-width: 2px; }
+#scan-frame.ok { border-color: var(--lime) !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45), 0 0 26px rgba(212,255,46,.6) !important; }
+#scan-frame.bad { border-color: var(--pink) !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45), 0 0 26px rgba(255,77,143,.6) !important; }
+.bal-add { display: flex; gap: 8px; margin-top: 10px; }
+.bal-add button { flex: 1; height: 42px; border-radius: 12px; border: 1px solid var(--lime); background: rgba(212,255,46,0.1); color: var(--lime); font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; }
+#prodtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+#prodtabs::-webkit-scrollbar { display: none; }
 .bal-hit .top { display: flex; gap: 12px; align-items: center; }
 .bal-hit img, .bal-hit .ph { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; background: var(--bg2); flex: 0 0 auto; }
 .bal-hit .nm { font-weight: 800; font-size: 14px; line-height: 1.25; }
@@ -283,7 +293,6 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .bal-step { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .bal-step button { width: 46px; height: 46px; border-radius: 12px; border: 0.5px solid var(--border); background: var(--bg2); color: var(--fg); font-size: 22px; font-weight: 800; cursor: pointer; font-family: inherit; }
 .bal-step input { flex: 1; min-width: 0; height: 46px; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); border-radius: 12px; font-size: 22px; font-weight: 800; text-align: center; }
-.bal-row.low input { border-color: var(--pink); color: var(--pink); }
 .bal-row input { width: 72px; background: var(--bg); border: 0.5px solid var(--border); color: var(--fg); padding: 8px; border-radius: 8px; font-size: 14px; text-align: center; }
 /* Tema claro (o lojista escolhe) */
 body.light { --bg: #F4F3F9; --bg2: #FFFFFF; --bg3: #ECEAF5; --fg: #161425; --fg-dim: #6C6880; --border: #E3E0EE; }
@@ -903,15 +912,16 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="sheet-ov" id="scan-ov" style="background:#000;z-index:120">
   <div class="sheet-hd" style="background:rgba(0,0,0,0.55)">
     <button class="sheet-x" onclick="closeBarcodeScanner()">←</button>
-    <h3>Escanear código</h3>
+    <h3 id="scan-title">Escanear código</h3>
   </div>
   <div style="flex:1;position:relative;overflow:hidden;background:#000">
     <video id="scan-video" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
-    <div style="position:absolute;left:8%;right:8%;top:38%;height:22%;border:2px solid var(--lime);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45)"></div>
+    <div id="scan-frame" style="position:absolute;left:8%;right:8%;top:24%;height:22%;border:2px solid var(--lime);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);transition:border-color .15s, box-shadow .15s"></div>
     <div id="scan-actions" style="display:none;position:absolute;bottom:22px;left:16px;right:16px;gap:8px">
       <button type="button" class="pf-btn sec" style="flex:1;margin-bottom:0;background:rgba(20,20,20,.85)" onclick="closeBarcodeScanner();setTimeout(function(){try{document.getElementById('ap-barcode').focus();}catch(e){}},80)">Digitar código</button>
       <button type="button" class="pf-btn sec" style="flex:1;margin-bottom:0;background:rgba(20,20,20,.85)" onclick="closeBarcodeScanner();_apMarkNoBarcode()">Não tem código</button>
     </div>
+    <div id="scan-panel"></div>
     <div id="scan-hint" style="position:absolute;bottom:28px;left:0;right:0;text-align:center;color:#fff;font-size:14px;font-weight:600;padding:0 24px;text-shadow:0 2px 8px rgba(0,0,0,0.8)">Aponte a câmera pro código de barras</div>
   </div>
 </div>
@@ -946,7 +956,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <input class="pf-input" id="bal-barcode" inputmode="numeric" placeholder="ou bipe / digite o código e Enter" style="margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();const v=this.value;this.value='';balFindCode(v);}">
       <div id="bal-hit"></div>
     </div>
-    <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Ou conte o estoque de cada produto na lista e ajuste os números. Em vermelho: menos de 2 no estoque.</div>
+    <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Ou conte o estoque de cada produto na lista e ajuste os números.</div>
     <div id="bal-list"></div>
   </div>
   <div class="sheet-foot">
@@ -963,11 +973,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <span><span class="mini-link" onclick="switchProdTab('produtos');toggleBatchMode()" id="batch-toggle">Organizar</span></span>
   </div>
   <div class="sheet-scroll">
-    <div style="display:flex;gap:6px;margin-bottom:14px">
+    <div id="prodtabs">
       <button id="ptab-produtos" onclick="switchProdTab('produtos')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)">Produtos</button>
       <button id="ptab-categorias" onclick="switchProdTab('categorias')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Categorias</button>
       <button id="ptab-cadastrar" onclick="switchProdTab('cadastrar')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">＋ Cadastrar</button>
+      <button id="ptab-balanco" onclick="switchProdTab('balanco')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Balanço</button>
       <button id="ptab-semcodigo" onclick="switchProdTab('semcodigo')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Sem código</button>
+      <button id="ptab-pendentes" onclick="switchProdTab('pendentes')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Pendentes</button>
     </div>
     <div id="prodtab-produtos">
     <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
@@ -1195,6 +1207,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Produtos <b>sem código de barras</b>. Bipe/adicione o código pra evitar duplicados e vender no balcão — dá pra ajustar o sabor também.</div>
       <div id="semcodigo-list"></div>
     </div>
+    <div id="prodtab-pendentes" style="display:none">
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Códigos bipados no <b>balanço</b> que ainda não têm produto. Cadastre quando puder — o código já vai preenchido.</div>
+      <div id="pendcad-list"></div>
+    </div>
   </div>
 </div>
 
@@ -1374,6 +1390,7 @@ function render(d) {
   _filialName = f.name || '';
   _featuredMode = f.featured_mode || 'auto';
   _funcionarios = Array.isArray(f.funcionarios) ? f.funcionarios : [];
+  _pendCad = Array.isArray(f.pendentes_cadastro) ? f.pendentes_cadastro : [];
   _parceiros = Array.isArray(f.parceiros) ? f.parceiros : [];
   _entregadoresFixos = Array.isArray(f.entregadores_fixos) ? f.entregadores_fixos : [];
   _entrega = f.entrega || { base: 6, km: 1.5 };
@@ -3651,7 +3668,10 @@ async function openBarcodeScanner(ctx, targetId) {
   // Cadastro: atalhos pra quem não vai escanear (digitar / produto sem código).
   const _acts = document.getElementById('scan-actions'), _isAp = (_scanCtx === 'cadastro' && _scanTargetId === 'ap-barcode');
   if (_acts) _acts.style.display = _isAp ? 'flex' : 'none';
-  hint.style.bottom = _isAp ? '84px' : '28px';
+  hint.style.bottom = _isAp ? '84px' : '28px'; hint.style.display = '';
+  { const tt = document.getElementById('scan-title'); if (tt) tt.textContent = _scanCtx === 'balanco' ? 'Balanço · conferir' : 'Escanear código'; }
+  { const sp = document.getElementById('scan-panel'); if (sp) { sp.className = ''; sp.innerHTML = ''; } const fr = document.getElementById('scan-frame'); if (fr) fr.className = ''; }
+  if (_scanCtx === 'balanco') { _balInCam = true; _balCode = ''; _balHitId = null; }
   ov.classList.add('open');
   hint.textContent = 'Carregando leitor…';
   try {
@@ -3667,12 +3687,14 @@ async function openBarcodeScanner(ctx, targetId) {
 }
 function closeBarcodeScanner() {
   const ov = document.getElementById('scan-ov'); if (ov) ov.classList.remove('open');
+  if (_scanCtx === 'balanco' && _balInCam) { _balInCam = false; _balCode = ''; _balHitId = null; const sp = document.getElementById('scan-panel'); if (sp) { sp.className = ''; sp.innerHTML = ''; } }
   try { if (_zxingReader) _zxingReader.reset(); } catch (e) {}
   _zxingReader = null;
 }
 function _onBarcode(raw) {
   const code = String(raw || '').replace(/\D/g, '');
   if (code.length < 8) return;
+  if (_scanCtx === 'balanco' && _balInCam && _balCode) return; // painel aberto → não lê de novo (soma só nos botões)
   const now = Date.now();
   if (code === _lastScan.code && now - _lastScan.t < 2500) return; // debounce leitura repetida
   _lastScan = { code, t: now };
@@ -3695,10 +3717,10 @@ function _onBarcode(raw) {
     setTimeout(closeBarcodeScanner, 650);
     return;
   }
-  // BALANÇO: leu → fecha e mostra o produto com a cor do estoque pra ajustar.
+  // BALANÇO: mostra o painel DENTRO da câmera (verde cadastrado / vermelho não).
   if (_scanCtx === 'balanco') {
-    if (hint) hint.textContent = '✓ código ' + code + ' lido';
-    setTimeout(function () { closeBarcodeScanner(); balFindCode(code); }, 350);
+    if (hint) hint.style.display = 'none';
+    balFindCode(code, true);
     return;
   }
   const p = (_lastProdutos || []).find(x => x.barcode === code || (Array.isArray(x.barcodes) && x.barcodes.includes(code)));
@@ -3784,25 +3806,32 @@ async function pdvFinalize() {
 }
 
 // ===================== Balanço — contagem de estoque =====================
-function openBalanco() { _balHitId = null; { const h = document.getElementById('bal-hit'); if (h) { h.className = ''; h.innerHTML = ''; } } renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open'); }
+function openBalanco() { _balHitId = null; { const h = document.getElementById('bal-hit'); if (h) { h.className = ''; h.innerHTML = ''; } } renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open');
+  // Celular: já abre a câmera (conferência por código). Desktop: foca o campo pro leitor USB.
+  try { const _fine = window.matchMedia && window.matchMedia('(pointer:fine)').matches; if (_fine) { const b = document.getElementById('bal-barcode'); if (b) setTimeout(() => b.focus(), 80); } else openBarcodeScanner('balanco'); } catch (e) {} }
 function closeBalanco() { document.getElementById('bal-ov').classList.remove('open'); }
 function openProdutos() { try { renderProdutos(); } catch (e) {} try { renderFiltros(); } catch (e) {} try { switchProdTab('produtos'); } catch (e) {} document.getElementById('produtos-ov').classList.add('open'); try { localStorage.setItem('drope_panel_view', 'produtos'); } catch (e) {} }
 // Abas de Meus produtos: Produtos | Categorias | ＋ Cadastrar | Sem código
 function switchProdTab(tab) {
   // "Cadastrar" é um lançador: abre o wizard (tela cheia) começando pelo código de barras.
   if (tab === 'cadastrar') { try { if (document.getElementById('add-product-form').style.display === 'none') toggleAddProduct(); } catch (e) {} return; }
-  const tabs = ['produtos', 'categorias', 'semcodigo'];
+  if (tab === 'balanco') { openBalanco(); return; } // lançador: abre o balanço (câmera direto no celular)
+  const tabs = ['produtos', 'categorias', 'semcodigo', 'pendentes'];
   const active = tabs.indexOf(tab) >= 0 ? tab : 'produtos';
-  const cont = { produtos: 'prodtab-produtos', categorias: 'prodtab-categorias', semcodigo: 'prodtab-semcodigo' };
+  const cont = { produtos: 'prodtab-produtos', categorias: 'prodtab-categorias', semcodigo: 'prodtab-semcodigo', pendentes: 'prodtab-pendentes' };
   tabs.forEach(t => { const el = document.getElementById(cont[t]); if (el) el.style.display = (t === active) ? 'block' : 'none'; });
-  const base = 'flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;';
+  const base = 'flex:1 0 auto;padding:10px 12px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;';
   const on = 'background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)';
   const off = 'background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)';
-  const btn = { produtos: 'ptab-produtos', categorias: 'ptab-categorias', semcodigo: 'ptab-semcodigo' };
+  const btn = { produtos: 'ptab-produtos', categorias: 'ptab-categorias', semcodigo: 'ptab-semcodigo', pendentes: 'ptab-pendentes' };
   tabs.forEach(t => { const b = document.getElementById(btn[t]); if (b) b.style.cssText = base + (t === active ? on : off); });
   const bcad = document.getElementById('ptab-cadastrar'); if (bcad) bcad.style.cssText = base + off; // lançador, nunca "ativo"
+  const bbal = document.getElementById('ptab-balanco'); if (bbal) bbal.style.cssText = base + off;   // lançador também
   if (active === 'categorias') { try { renderFiltros(); } catch (e) {} }
   if (active === 'semcodigo') { try { renderSemCodigo(); } catch (e) {} }
+  if (active === 'pendentes') { try { renderPendCad(); } catch (e) {} }
+  try { _pendTabLabel(); } catch (e) {}
+  try { const ab = document.getElementById(btn[active]); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} // aba ativa sempre visível
 }
 // ===== Aba "Sem código": completa os produtos que estão sem código de barras =====
 function renderSemCodigo() {
@@ -3850,55 +3879,79 @@ function renderBalanco() {
   const list = document.getElementById('bal-list');
   const prods = _lastProdutos || [];
   list.innerHTML = prods.length
-    ? prods.map(p => `<div class="bal-row${(p.stock || 0) < 2 ? ' low' : ''}"><div class="n">${esc(p.name)}</div><input type="number" inputmode="numeric" id="bal-${p.id}" value="${p.stock || 0}" min="0"></div>`).join('')
+    ? prods.map(p => `<div class="bal-row"><div class="n">${esc(p.name)}</div><input type="number" inputmode="numeric" id="bal-${p.id}" value="${p.stock || 0}" min="0"></div>`).join('')
     : '<div class="empty">Sem produtos</div>';
 }
-// ===== Balanço por código de barras: bipou → mostra o produto (vermelho < 2 / verde ≥ 2) → ajusta =====
-const BAL_LOW = 2; // abaixo disso = estoque baixo (vermelho)
-let _balHitId = null;
+// ===== Balanço por código de barras (conferência) =====
+// Bipou → VERDE = cadastrado (mostra estoque + somar fácil) · VERMELHO = não cadastrado
+// (cadastrar agora ou deixar pra depois em "Pendentes"). No celular tudo acontece DENTRO
+// da câmera; no desktop (leitor USB) o mesmo painel aparece no card do topo do balanço.
+// Com o painel aberto a câmera NÃO lê de novo → bipar o mesmo produto não soma (soma é nos botões).
+let _balHitId = null, _balCode = '', _balInCam = false;
+let _pendCad = []; // [{ barcode, at }] — vem do painel (metadata da loja)
 function _findByBarcode(raw) {
   const code = String(raw || '').replace(/\D/g, ''); if (code.length < 6) return null;
   return (_lastProdutos || []).find(x => String(x.barcode || '').replace(/\D/g, '') === code || (Array.isArray(x.barcodes) && x.barcodes.map(v => String(v).replace(/\D/g, '')).includes(code))) || null;
 }
-function balFindCode(raw) {
+function _balBox() { return document.getElementById(_balInCam ? 'scan-panel' : 'bal-hit'); }
+function _balFrame(kind) { const f = document.getElementById('scan-frame'); if (f) f.className = kind || ''; }
+// Mostra o resultado de um código. inCam=true → painel por cima da câmera.
+function balFindCode(raw, inCam) {
   const code = String(raw || '').replace(/\D/g, '');
-  const box = document.getElementById('bal-hit'); if (!box) return;
-  if (code.length < 6) { box.className = ''; box.innerHTML = '<div style="margin-top:10px;font-size:12.5px;color:var(--pink)">Código muito curto, bipe de novo.</div>'; return; }
+  _balInCam = !!inCam;
+  { const other = document.getElementById(_balInCam ? 'bal-hit' : 'scan-panel'); if (other) { other.className = ''; other.innerHTML = ''; } }
+  const box = _balBox(); if (!box) return;
+  if (code.length < 6) { box.className = _balInCam ? 'show' : ''; box.innerHTML = '<div style="margin-top:10px;font-size:12.5px;color:var(--pink)">Código muito curto, bipe de novo.</div>'; return; }
+  _balCode = code;
   const p = _findByBarcode(code);
+  const nextBtn = `<button type="button" class="pf-btn sec" style="margin-bottom:0;flex:0 0 auto" onclick="balNext()">Próximo</button>`;
   if (!p) {
-    _balHitId = null; box.className = 'bal-hit';
-    box.innerHTML = `<div style="font-size:13px"><b>Código ${esc(code)}</b> não está em nenhum produto.</div>
-      <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="pf-btn full" style="margin-bottom:0" onclick="balCadastrar('${esc(code)}')">Cadastrar este produto</button><button type="button" class="pf-btn sec" style="margin-bottom:0;flex:0 0 auto" onclick="openBarcodeScanner('balanco')">Escanear outro</button></div>`;
+    _balHitId = null; _balFrame('bad');
+    try { navigator.vibrate && navigator.vibrate([60, 40, 60]); } catch (e) {}
+    const jaPend = (_pendCad || []).some(x => x.barcode === code);
+    box.className = (_balInCam ? 'show' : '');
+    box.innerHTML = `<div class="bal-hit low">
+      <div class="nm" style="color:var(--pink)">Não cadastrado</div>
+      <div style="font-size:12.5px;color:var(--fg-dim);margin-top:3px">Código <b style="color:var(--fg)">${esc(code)}</b>${jaPend ? ' · já está em Pendentes' : ''}</div>
+      <div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="pf-btn full" style="margin-bottom:0" onclick="balCadastrar('${esc(code)}')">Cadastrar agora</button></div>
+      <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="pf-btn sec full" style="margin-bottom:0" id="bal-pend-btn" onclick="balDepois('${esc(code)}')"${jaPend ? ' disabled' : ''}>${jaPend ? 'Já está pra depois ✓' : 'Deixar pra depois'}</button>${nextBtn}</div>
+      <div id="bal-hit-msg" style="font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div></div>`;
     return;
   }
-  _balHitId = p.id;
+  _balHitId = p.id; _balFrame('ok');
   try { navigator.vibrate && navigator.vibrate(50); } catch (e) {}
   const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : '<div class="ph"></div>';
-  box.className = 'bal-hit';
-  box.innerHTML = `<div class="top">${img}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><span class="bal-badge" id="bal-hit-badge"></span></div></div>
-    <div style="font-size:12px;color:var(--fg-dim);margin-top:12px">Quanto tem agora na loja?</div>
+  box.className = (_balInCam ? 'show' : '');
+  box.innerHTML = `<div class="bal-hit ok">
+    <div class="top">${img}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><span class="bal-badge" id="bal-hit-badge"></span></div></div>
+    <div style="font-size:12px;color:var(--fg-dim);margin-top:12px">Chegou mais? Soma aqui:</div>
+    <div class="bal-add"><button type="button" onclick="balStep(1)">+1</button><button type="button" onclick="balStep(5)">+5</button><button type="button" onclick="balStep(10)">+10</button></div>
     <div class="bal-step"><button type="button" onclick="balStep(-1)" aria-label="menos">−</button><input id="bal-hit-qty" type="number" inputmode="numeric" min="0" value="${p.stock || 0}" oninput="balHitPaint()"><button type="button" onclick="balStep(1)" aria-label="mais">＋</button></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="pf-btn full" style="margin-bottom:0" id="bal-hit-save" onclick="balHitSave()">Salvar estoque</button><button type="button" class="pf-btn sec" style="margin-bottom:0;flex:0 0 auto" onclick="openBarcodeScanner('balanco')">Próximo</button></div>
-    <div id="bal-hit-msg" style="font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div>`;
+    <div style="display:flex;gap:8px;margin-top:10px"><button type="button" class="pf-btn full" style="margin-bottom:0" id="bal-hit-save" onclick="balHitSave()">Salvar</button><button type="button" class="pf-btn sec" style="margin-bottom:0;flex:0 0 auto" onclick="balEdit(${p.id})">Editar</button>${nextBtn}</div>
+    <div id="bal-hit-msg" style="font-size:12px;margin-top:8px;min-height:14px;text-align:center"></div></div>`;
   balHitPaint();
-  try { box.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  if (!_balInCam) { try { box.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
 }
-// Cor segue o número (o atual ou o que você está colocando): vermelho < 2, verde ≥ 2.
 function balHitPaint() {
-  const box = document.getElementById('bal-hit'), q = document.getElementById('bal-hit-qty'), b = document.getElementById('bal-hit-badge');
-  const p = (_lastProdutos || []).find(x => x.id === _balHitId); if (!box || !q || !p) return;
-  const v = parseInt(q.value, 10), n = Number.isInteger(v) && v >= 0 ? v : (p.stock || 0);
-  box.className = 'bal-hit ' + (n < BAL_LOW ? 'low' : 'ok');
-  const atual = p.stock || 0;
-  if (b) b.textContent = n === 0 ? 'sem estoque' : (n < BAL_LOW ? 'estoque baixo · ' + n : n + ' em estoque') + (n !== atual ? ' (era ' + atual + ')' : '');
+  const q = document.getElementById('bal-hit-qty'), b = document.getElementById('bal-hit-badge');
+  const p = (_lastProdutos || []).find(x => x.id === _balHitId); if (!q || !p || !b) return;
+  const atual = p.stock || 0, v = parseInt(q.value, 10), n = Number.isInteger(v) && v >= 0 ? v : atual;
+  b.textContent = n !== atual ? (n + ' no estoque (era ' + atual + ')') : (atual === 0 ? 'cadastrado · sem estoque' : atual + ' no estoque');
 }
 function balStep(d) { const q = document.getElementById('bal-hit-qty'); if (!q) return; const v = parseInt(q.value, 10) || 0; q.value = Math.max(0, v + d); balHitPaint(); }
+// Próximo: fecha o painel e volta a ler (câmera) ou volta pro campo (desktop).
+function balNext() {
+  _balHitId = null; _balCode = ''; _balFrame('');
+  const box = _balBox(); if (box) { box.className = ''; box.innerHTML = ''; }
+  if (_balInCam) { const h = document.getElementById('scan-hint'); if (h) { h.style.display = ''; h.textContent = 'Aponte a câmera pro código de barras'; } _lastScan = { code: '', t: 0 }; }
+  else { const b = document.getElementById('bal-barcode'); if (b) try { b.focus(); } catch (e) {} }
+}
 async function balHitSave() {
   const p = (_lastProdutos || []).find(x => x.id === _balHitId); if (!p) return;
   const q = document.getElementById('bal-hit-qty'), m = document.getElementById('bal-hit-msg'), btn = document.getElementById('bal-hit-save');
   const v = parseInt(q && q.value, 10);
   if (!Number.isInteger(v) || v < 0) { if (m) { m.style.color = 'var(--pink)'; m.textContent = 'coloca um número (0 ou mais)'; } return; }
-  if (v === (p.stock || 0)) { if (m) { m.style.color = 'var(--fg-dim)'; m.textContent = 'estoque já está em ' + v + ' ✦'; } return; }
+  if (v === (p.stock || 0)) { balNext(); try { _toast('Conferido ✦ ' + v + ' no estoque'); } catch (e) {} return; }
   if (btn) btn.disabled = true; if (m) { m.style.color = 'var(--fg-dim)'; m.textContent = 'salvando…'; }
   try {
     const r = await fetch('/api/webhook?action=filial_product_save', {
@@ -3908,20 +3961,70 @@ async function balHitSave() {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
       p.stock = v; p.qty_available = v; // atualiza o cache → lista e próximo bip já veem o número novo
-      const li = document.getElementById('bal-' + p.id); if (li) { li.value = v; const row = li.closest('.bal-row'); if (row) row.classList.toggle('low', v < BAL_LOW); }
-      balHitPaint();
-      if (m) { m.style.color = 'var(--green)'; m.textContent = '✓ estoque salvo: ' + v + ' — toque em Próximo pra bipar outro'; }
-    } else if (m) { m.style.color = 'var(--pink)'; m.textContent = (d && d.error) || 'não salvou, tenta de novo'; }
+      const li = document.getElementById('bal-' + p.id); if (li) li.value = v;
+      try { _toast('✓ ' + p.name + ': ' + v + ' no estoque'); } catch (e) {}
+      balNext(); // salvou → já volta a ler o próximo
+      return;
+    }
+    if (m) { m.style.color = 'var(--pink)'; m.textContent = (d && d.error) || 'não salvou, tenta de novo'; }
   } catch (e) { if (m) { m.style.color = 'var(--pink)'; m.textContent = 'sem conexão, tenta de novo'; } }
   if (btn) btn.disabled = false;
 }
-// Código que não existe → vai direto pro cadastro com o código já preenchido.
-function balCadastrar(code) {
+// Editar: fecha câmera/balanço e abre o produto em Meus produtos.
+function balEdit(id) {
+  try { closeBarcodeScanner(); } catch (e) {}
   closeBalanco();
   try { openProdutos(); } catch (e) {}
+  setTimeout(function () { try { _apEditExisting(id); } catch (e) {} }, 60);
+}
+// Deixar pra depois: guarda o código em Pendentes (servidor, por loja) e volta a ler.
+async function balDepois(code) {
+  const m = document.getElementById('bal-hit-msg'), btn = document.getElementById('bal-pend-btn');
+  if (btn) btn.disabled = true; if (m) { m.style.color = 'var(--fg-dim)'; m.textContent = 'guardando…'; }
+  const ok = await _pendSave('add', code);
+  if (ok) { try { _toast('Guardado em Pendentes ✦ cadastra depois'); } catch (e) {} balNext(); return; }
+  if (btn) btn.disabled = false; if (m) { m.style.color = 'var(--pink)'; m.textContent = 'não guardou, tenta de novo'; }
+}
+async function _pendSave(op, code) {
+  try {
+    const r = await fetch('/api/webhook?action=filial_pendente_save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op, barcode: code }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _pendCad = Array.isArray(d.pendentes) ? d.pendentes : _pendCad; try { _pendTabLabel(); renderPendCad(); } catch (e) {} return true; }
+  } catch (e) {}
+  return false;
+}
+// Código que não existe → vai direto pro cadastro com o código já preenchido.
+function balCadastrar(code) {
+  try { closeBarcodeScanner(); } catch (e) {}
+  closeBalanco();
+  try { if (!document.getElementById('produtos-ov').classList.contains('open')) openProdutos(); } catch (e) {}
   try { const f = document.getElementById('add-product-form'); if (f && f.style.display === 'none') toggleAddProduct(); } catch (e) {}
   const bc = document.getElementById('ap-barcode');
   if (bc) { bc.value = code; try { _apDupDismiss = false; _apOnBarcodeChanged(); _apBcConfirm(true); } catch (e) {} }
+}
+// ===== Aba "Pendentes": códigos do balanço esperando cadastro =====
+function _pendAtivos() { return (_pendCad || []).filter(x => x && x.barcode && !_findByBarcode(x.barcode)); } // já cadastrado some
+function _pendTabLabel() { const b = document.getElementById('ptab-pendentes'); if (!b) return; const n = _pendAtivos().length; b.textContent = n ? 'Pendentes (' + n + ')' : 'Pendentes'; }
+function renderPendCad() {
+  const el = document.getElementById('pendcad-list'); if (!el) return;
+  const list = _pendAtivos();
+  if (!list.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Nenhum código pendente ✦<br><span style="font-size:12px">No balanço, "Deixar pra depois" guarda o código aqui.</span></div>'; return; }
+  el.innerHTML = list.map(x => {
+    let quando = ''; try { quando = new Date(x.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg2);border:0.5px solid var(--border);border-left:3px solid var(--pink);border-radius:14px;padding:10px 12px;margin-bottom:10px">
+      <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;letter-spacing:.3px">${esc(x.barcode)}</div><div style="font-size:11px;color:var(--fg-dim)">bipado no balanço${quando ? ' · ' + esc(quando) : ''}</div></div>
+      <button type="button" class="pf-btn" style="flex:0 0 auto;margin-bottom:0" onclick="balCadastrar('${esc(x.barcode)}')">Cadastrar</button>
+      <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0;padding:0 12px" aria-label="Remover" onclick="pendRemove('${esc(x.barcode)}')">✕</button>
+    </div>`;
+  }).join('');
+}
+async function pendRemove(code) {
+  if (!confirm('Tirar o código ' + code + ' dos pendentes?')) return;
+  const ok = await _pendSave('remove', code);
+  if (!ok) try { _toast('não deu pra remover, tenta de novo'); } catch (e) {}
 }
 async function saveBalanco() {
   const prods = _lastProdutos || [];
