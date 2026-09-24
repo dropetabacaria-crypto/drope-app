@@ -395,6 +395,11 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
   <!-- ABA: Início -->
   <div id="tab-inicio">
+  <!-- Resolva agora: pendências proativas (estoque, foto, código, pedido parado) -->
+  <div class="section sec-resolva" id="sec-resolva" style="display:none">
+    <h2>Resolva agora</h2>
+    <div id="resolva-agora"></div>
+  </div>
 <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
@@ -1377,6 +1382,7 @@ function render(d) {
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
   if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
+  try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -4641,7 +4647,41 @@ function _renderPendentes() {
   try { _renderNotifBadge(_bellUnread()); } catch (e) {}
   try { _setAppBadge(pendentes.length); } catch (e) {}
   _refreshPedidoSurfaces();
+  try { renderResolvaAgora(); } catch (e) {}
 }
+// ===== "Resolva agora" — pendências proativas do dono (estoque/foto/código/pedido) =====
+const _RA_LOW = 3; // estoque considerado "acabando"
+function _raProdsBase() { return (_lastProdutos || []).filter(p => !p.hidden && !p.combo); }
+function renderResolvaAgora() {
+  const box = document.getElementById('resolva-agora');
+  const sec = document.getElementById('sec-resolva');
+  if (!box) return;
+  const prods = _raProdsBase();
+  const semFoto = prods.filter(p => !p.image_url && p.image_status !== 'generating');
+  const semCod = prods.filter(p => String(p.barcode || '').replace(/\D/g, '').length < 8);
+  const repor = prods.filter(p => (p.stock || 0) <= _RA_LOW);
+  const now = Date.now();
+  const parados = (_pendentesAll || []).filter(p => { const t = p.created_at ? Date.parse(p.created_at) : 0; return t && (now - t) > 15 * 60 * 1000; });
+  const rows = [];
+  if (parados.length) rows.push(_raRow('⏱️', parados.length, parados.length === 1 ? 'pedido parado há +15 min' : 'pedidos parados há +15 min', 'Ver', 'openAllPedidos()', 'var(--pink)'));
+  if (repor.length) rows.push(_raRow('📦', repor.length, repor.length === 1 ? 'produto acabando' : 'produtos acabando', 'Repor', '_raGoEstoque()', 'var(--yellow)'));
+  if (semFoto.length) rows.push(_raRow('📷', semFoto.length, semFoto.length === 1 ? 'produto sem foto' : 'produtos sem foto', 'Resolver', "_raGoFiltro('sem-imagem')", 'var(--fg)'));
+  if (semCod.length) rows.push(_raRow('🏷️', semCod.length, semCod.length === 1 ? 'produto sem código de barras' : 'produtos sem código de barras', 'Resolver', '_raGoSemCodigo()', 'var(--fg)'));
+  if (!rows.length) {
+    box.innerHTML = '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px 16px;font-size:13px;color:var(--fg-dim);text-align:center">Tudo em dia ✦ nada pra resolver agora</div>';
+  } else { box.innerHTML = rows.join(''); }
+  if (sec) sec.style.display = 'block';
+}
+function _raRow(emoji, count, label, actLabel, actFn, accent) {
+  return '<button type="button" onclick="' + actFn + '" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">'
+    + '<span style="font-size:20px;flex:0 0 auto">' + emoji + '</span>'
+    + '<span style="flex:1;min-width:0"><b style="color:' + accent + '">' + count + '</b> ' + esc(label) + '</span>'
+    + '<span style="flex:0 0 auto;font-size:12px;font-weight:800;color:var(--lime)">' + esc(actLabel) + ' ›</span>'
+    + '</button>';
+}
+function _raGoFiltro(f) { openProdutos(); setTimeout(function () { try { switchProdTab('produtos'); } catch (e) {} const chip = document.querySelector('#prod-filters .fchip[data-f="' + f + '"]'); try { setProdFilter(f, chip); } catch (e) {} }, 70); }
+function _raGoEstoque() { openProdutos(); setTimeout(function () { try { switchProdTab('produtos'); } catch (e) {} try { const s = document.getElementById('prod-sort'); if (s) s.value = 'estoque-baixo'; setProdSort('estoque-baixo'); } catch (e) {} }, 70); }
+function _raGoSemCodigo() { openProdutos(); setTimeout(function () { try { switchProdTab('semcodigo'); } catch (e) {} }, 70); }
 // Bolinha de notificação no ÍCONE do app (Badging API). No iPhone funciona com o
 // app adicionado à Tela de Início; mostra quantos pedidos em aberto a loja tem.
 function _setAppBadge(n) {
