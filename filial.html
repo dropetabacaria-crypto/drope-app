@@ -1646,14 +1646,19 @@ function _apAutoCatPay(force) {
   const marca = ((document.getElementById('ap-marca') || {}).value) || '';
   const type = (_scanMeta && _scanMeta.type) || '';
   const sel = document.getElementById('ap-filtro');
+  let selName = '';
   if (sel) {
     const jaEscolhida = sel.value && sel.value !== '' && sel.value !== '__new__';
     if (force || !jaEscolhida) {
       const fid = _tipoParaFiltroId(type, name, marca);
       if (fid) { sel.value = String(fid); try { _apFiltroChange(); } catch (e) {} }
     }
+    try { const opt = sel.options[sel.selectedIndex]; selName = _catNorm(opt ? opt.text : ''); } catch (e) {}
   }
-  if (_isPodLike(type, name, marca)) { const pay = document.getElementById('ap-payment'); if (pay) pay.value = 'pix'; } // pod = só Pix
+  // Regra fixa do Rafael: categoria pod (ou o produto é pod) → pagamento SÓ Pix.
+  if (_isPodLike(type, name, marca) || selName.includes('pod')) {
+    const pay = document.getElementById('ap-payment'); if (pay) pay.value = 'pix';
+  }
 }
 // Cria a categoria na hora (opcionalmente já gera a arte por IA). Retorna o filtro criado ou null.
 async function _criarCategoriaInline(nome, opts) {
@@ -2411,9 +2416,13 @@ function apUseBase(id, newSabor) {
   try { const f = document.getElementById('ap-filtro'); if (f && p.filtro_id != null) { f.value = String(p.filtro_id); _apFiltroChange(); } } catch (e) {}
   try { const cg = document.getElementById('ap-catglobal'); if (cg && p.cat_global) cg.value = p.cat_global; } catch (e) {}
   try { const pay = document.getElementById('ap-payment'); if (pay) pay.value = p.pix_only ? 'pix' : 'both'; } catch (e) {}
-  // Se NÃO veio de scan (base escolhida na mão), zera o meta. Se veio do scan (newSabor),
-  // mantém o _scanMeta/foto que a IA já leu, pra gerar a arte com a referência certa.
+  // Se NÃO veio de scan (base escolhida na mão), zera o meta com o tipo do base. Se veio do
+  // scan (newSabor), mantém o _scanMeta/foto que a IA já leu (referência certa da arte).
+  // Definido ANTES do auto-categoria, que usa _scanMeta.type.
   if (newSabor == null) _scanMeta = { brand: p.marca || '', model: '', type: p.category || p.cat || '', name: p.name || '' };
+  // Se o base não tinha categoria (filtro_id nulo), infere pela categoria/nome; e garante
+  // a regra: categoria pod → pagamento só Pix. (non-force = não sobrescreve a que já veio do base)
+  try { _apAutoCatPay(false); } catch (e) {}
   try { apCalcPreco(true); } catch (e) {}
   try { const n = document.getElementById('ap-base-note'); if (n) n.style.display = 'block'; } catch (e) {}
   try { closeApBasePicker(); } catch (e) {}
