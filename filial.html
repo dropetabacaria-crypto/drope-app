@@ -3678,20 +3678,14 @@ async function openBarcodeScanner(ctx, targetId) {
   hint.textContent = 'Carregando leitor…';
   try {
     const ZX = await _loadZxing();
-    // Só formatos de produto (EAN/UPC/Code128) + TRY_HARDER: lê melhor e erra menos.
-    let _hints = null;
-    try {
-      const F = ZX.BarcodeFormat, H = ZX.DecodeHintType;
-      _hints = new Map([[H.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128]], [H.TRY_HARDER, true]]);
-    } catch (e) { _hints = null; }
-    _zxingReader = new ZX.BrowserMultiFormatReader(_hints, 250); // 250ms entre leituras OK (antes 500)
+    // Leitor padrão (sem TRY_HARDER/resolução alta: no celular deixava cada tentativa lenta demais e parava de ler).
+    _zxingReader = new ZX.BrowserMultiFormatReader(null, 250); // 250ms entre leituras OK (antes 500)
     _scanVote = { code: '', n: 0, t: 0 };
     // Sem isso a lib tenta de novo com 0ms quando não acha código → decodifica sem parar na
     // thread principal e o toque nos botões atrasa/some. ~8 tentativas/s é de sobra.
     try { _zxingReader.timeBetweenDecodingAttempts = 120; } catch (e) {}
     hint.textContent = 'Aponte a câmera pro código de barras';
-    // 1280x720 + foco contínuo: código pequeno de caixa de pod fica nítido (antes ~640x480).
-    _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] } }, document.getElementById('scan-video'), (result) => {
+    _zxingReader.decodeFromConstraints({ video: { facingMode: 'environment' } }, document.getElementById('scan-video'), (result) => {
       if (result) _onBarcode(result.getText());
     });
   } catch (e) {
