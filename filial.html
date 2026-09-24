@@ -1041,6 +1041,8 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             </div>
           </div>
         </div>
+        <!-- Conferência do código de barras: IA da foto × câmera × padrão da marca -->
+        <div id="ap-bc-check" style="display:none;border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
         <!-- Sabor novo? (a IA achou o mesmo modelo de um pod que a loja já tem) -->
         <div id="ap-samemodel" style="display:none;background:rgba(212,255,46,0.1);border:1px solid var(--lime);border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
         <label class="pf-lbl">Nome do produto</label>
@@ -1058,7 +1060,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
         <div id="ap-base-note" style="display:none;background:rgba(212,255,46,0.1);border:0.5px solid var(--lime);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:var(--lime)">✦ Copiado de um produto seu — agora é só pôr o <b>sabor</b> e o estoque.</div>
         <div style="display:flex; gap:10px" id="ap-row-marca">
-          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30"></div>
+          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30" onblur="try{_apCheckBarcode()}catch(e){}"></div>
           <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40" oninput="_apOnSaborInput()"></div>
         </div>
         <div style="display:flex; gap:10px">
@@ -1206,7 +1208,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div id="filtro-msg" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:14px"></div>
     </div>
     <div id="prodtab-semcodigo" style="display:none">
-      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Produtos <b>sem código de barras</b>. Bipe/adicione o código pra evitar duplicados e vender no balcão — dá pra ajustar o sabor também.</div>
+      <div style="font-size:12px;color:var(--fg-dim);margin-bottom:12px">Produtos <b>sem código de barras</b> ou com <b style="color:var(--pink)">código suspeito</b> (não bate com a marca — a câmera leu errado no cadastro). Bipe o código da caixa pra corrigir — dá pra ajustar o sabor também.</div>
       <div id="semcodigo-list"></div>
     </div>
     <div id="prodtab-pendentes" style="display:none">
@@ -2211,7 +2213,7 @@ function _wizReset() {
   _apGenEpoch++;
   _apNovoSaborBase = null; _apBaseName = ''; _apNoBarcode = false; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
   _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
-  _apBcConfirm(false);
+  _apBcConfirm(false); _apBcOkFor = ''; { const _bk = document.getElementById('ap-bc-check'); if (_bk) { _bk.style.display = 'none'; _bk.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
   const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none';
@@ -2230,6 +2232,77 @@ function _wizReset() {
   const _cp = document.getElementById('ap-combo-preview'); if (_cp) _cp.style.display = 'none';
   try { apSetMode('normal'); } catch (e) {} wizRender();
 }
+// ===== Conferência inteligente do código de barras (evita cadastrar com código lido errado) =====
+// A câmera às vezes troca dígitos e o código ainda "fecha" no verificador. Duas checagens
+// independentes: (1) a IA da foto lê os NÚMEROS impressos na caixa e compara com a câmera;
+// (2) o começo do código (prefixo do fabricante, GS1) tem que bater com o dos outros produtos
+// da MESMA marca na loja (todo Nikbar começa 6970504, todo Ignite 840472/810136…).
+function _gtinOk(v) {
+  const c = String(v || '').replace(/\D/g, ''); if (![8, 12, 13, 14].includes(c.length)) return false;
+  const d = c.split('').map(Number), chk = d.pop(); let sum = 0;
+  d.reverse().forEach((x, i) => { sum += x * (i % 2 === 0 ? 3 : 1); });
+  return (10 - sum % 10) % 10 === chk;
+}
+function _brandKey(v) { return String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, ''); }
+function _prodBrandKey(p) { return _brandKey((p && p.marca) || String((p && p.name) || '').replace(/^(pod( descart[aá]vel)?|vape( descart[aá]vel)?)\s+/i, '').split(/\s+/)[0]); }
+function _gs1Pre(v) { const c = String(v || '').replace(/\D/g, ''); return c.length >= 12 ? c.padStart(13, '0').slice(0, 7) : ''; } // país + fabricante
+// null = ok/sem base pra julgar. Senão { brand, prefixes } (o código NÃO parece da marca).
+function _bcBrandCheck(code, brandRaw, excludeId) {
+  const pre = _gs1Pre(code), bk = _brandKey(brandRaw); if (!pre || bk.length < 2) return null;
+  const sibs = (_lastProdutos || []).filter(p => p.id !== excludeId && !p.combo && _prodBrandKey(p) === bk && _gs1Pre(p.barcode));
+  if (sibs.length < 2) return null; // pouca base → não arrisca aviso falso
+  const cnt = {}; sibs.forEach(p => { const k = _gs1Pre(p.barcode); cnt[k] = (cnt[k] || 0) + 1; });
+  if (cnt[pre]) return null;
+  const prefixes = Object.keys(cnt).filter(k => cnt[k] >= 2); if (!prefixes.length) return null; // marca sem padrão claro (todos diferentes) → não julga
+  prefixes.sort((a, b) => cnt[b] - cnt[a]);
+  const show = prefixes.slice(0, 3).map(k => k.replace(/^0/, ''));
+  return { brand: String(brandRaw || '').trim(), prefixes: show };
+}
+let _apBcOkFor = ''; // código que o lojista confirmou "está certo" (não avisa de novo)
+// Mostra a conferência no passo 2. Devolve true se há aviso PENDENTE (bloqueia avançar).
+function _apCheckBarcode() {
+  const box = document.getElementById('ap-bc-check'); if (!box) return false;
+  const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+  const marca = (((document.getElementById('ap-marca') || {}).value) || '').trim() || (((document.getElementById('ap-name') || {}).value) || '').trim().split(/\s+/)[0];
+  const vbRaw = String(((_scanMeta || {}).barcode) || '').replace(/\D/g, ''), vb = _gtinOk(vbRaw) ? vbRaw : '';
+  const hide = () => { box.style.display = 'none'; box.innerHTML = ''; return false; };
+  if (_apMode === 'combo' || bc.length < 8) return hide();
+  const warnStyle = 'background:rgba(255,77,143,0.09);border:1px solid var(--pink)';
+  const btn = (label, fn, main) => `<button type="button" class="pf-btn${main ? '' : ' sec'}" style="margin:8px 0 0;flex:1 1 auto" onclick="${fn}">${label}</button>`;
+  // (1) IA leu os números na foto e NÃO bate com a câmera → aviso forte
+  if (vb && _bcKey(vb) !== _bcKey(bc) && _apBcOkFor !== bc) {
+    const vbMarca = _bcBrandCheck(vb, marca), camMarca = _bcBrandCheck(bc, marca);
+    const dica = (!vbMarca && camMarca) ? ' O da foto bate com o padrão da marca — provavelmente é ele.' : '';
+    box.style.cssText = 'display:block;border-radius:12px;padding:11px 12px;margin-bottom:12px;' + warnStyle;
+    box.innerHTML = `<div style="font-weight:800;font-size:13px;color:var(--pink)">O código não bate com a foto</div>
+      <div style="font-size:12.5px;margin-top:4px">A câmera leu <b>${esc(bc)}</b>, mas a IA leu <b>${esc(vb)}</b> nos números da caixa.${dica} Confere na caixa:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${btn('Usar ' + esc(vb), `_apBcUse('${esc(vb)}')`, true)}${btn('O da câmera está certo', `_apBcAccept()`)}${btn('Ler de novo', `_apBcRescan()`)}</div>`;
+    return true;
+  }
+  // (2) começo do código não é o da marca → aviso
+  const chk = _apBcOkFor === bc ? null : _bcBrandCheck(bc, marca);
+  if (chk) {
+    box.style.cssText = 'display:block;border-radius:12px;padding:11px 12px;margin-bottom:12px;' + warnStyle;
+    box.innerHTML = `<div style="font-weight:800;font-size:13px;color:var(--pink)">Esse código parece não ser da ${esc(chk.brand)}</div>
+      <div style="font-size:12.5px;margin-top:4px">A câmera leu <b>${esc(bc)}</b>, mas os outros ${esc(chk.brand)} da loja começam com <b>${chk.prefixes.map(esc).join('</b> ou <b>')}</b>. A câmera pode ter lido um número errado — confere os números na caixa.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${btn('Ler de novo', `_apBcRescan()`, true)}${btn('Está certo', `_apBcAccept()`)}</div>`;
+    return true;
+  }
+  // (3) IA confirmou o mesmo código → selo verde (confiança)
+  if (vb && _bcKey(vb) === _bcKey(bc)) {
+    box.style.cssText = 'display:block;border-radius:12px;padding:9px 12px;margin-bottom:12px;background:rgba(212,255,46,0.08);border:1px solid var(--lime)';
+    box.innerHTML = `<div style="font-size:12.5px;color:var(--lime);font-weight:700">✓ Código ${esc(bc)} conferido pela IA na foto da caixa</div>`;
+    return false;
+  }
+  return hide();
+}
+function _apBcAccept() { _apBcOkFor = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, ''); _apCheckBarcode(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
+function _apBcUse(code) {
+  const el = document.getElementById('ap-barcode'); if (!el) return;
+  el.value = code; try { _apDupDismiss = false; _apOnBarcodeChanged(); } catch (e) {}
+  _apBcOkFor = code; _apCheckBarcode(); const m = document.getElementById('ap-msg'); if (m) m.textContent = '';
+}
+function _apBcRescan() { _wizStep = 1; wizRender(); try { openBarcodeScanner('cadastro', 'ap-barcode'); } catch (e) {} }
 // Código lido pela câmera → realça o campo e pede pra conferir (on=false volta ao normal).
 function _apBcConfirm(on) {
   const h = document.getElementById('ap-bc-hint'), b = document.getElementById('ap-barcode');
@@ -2396,6 +2469,7 @@ async function wizNext() {
   }
   // ETAPA 2 = Produto (foto + dados): valida aqui.
   if (_wizStep === 2) {
+    try { if (_apCheckBarcode()) { const bw = document.getElementById('ap-bc-check'); if (bw) bw.scrollIntoView({ block: 'center' }); msg.style.color = 'var(--pink)'; msg.textContent = 'Confere o código de barras (aviso acima) antes de avançar.'; return; } } catch (e) {}
     const name = (document.getElementById('ap-name').value || '').trim();
     const price = parseFloat((document.getElementById('ap-price').value || '').replace(',', '.'));
     if (name.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'põe o nome do produto'; return; }
@@ -2696,6 +2770,7 @@ async function _apRunScan(hint) {
       if (st) { st.style.color = 'var(--green)'; st.textContent = label + ' ✦ confira, põe preço e estoque'; }
       try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
       try { _apRenderSameModel(v); } catch (e) {} // "é um sabor novo?" se achar o mesmo modelo
+      try { _apCheckBarcode(); } catch (e) {} // código: IA da foto × câmera × padrão da marca
       try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {} // avisa se já estiver cadastrado
     } else {
       if (st) { st.style.color = 'var(--pink)'; st.textContent = (d && d.error) || 'não identifiquei — descreve o produto abaixo que eu busco de novo'; }
@@ -2804,6 +2879,7 @@ async function onScanFile(input) {
       try { _apAutoCatPay(true); } catch (e) {} // já cai na categoria certa + pod = só pix
       try { _wizStep = 2; wizRender(); } catch (e) {} // scan do topo pula pro passo Produto (dados)
       try { _apRenderSameModel(v); } catch (e) {} // "é um sabor novo?" se achar o mesmo modelo
+      try { _apCheckBarcode(); } catch (e) {} // código: IA da foto × câmera × padrão da marca
       try { document.getElementById('ap-price').focus(); } catch (e) {}
       const label = genname || [brand, model, flavor].filter(Boolean).join(' · ') || 'produto identificado';
       st.textContent = ' ' + label + (v.web_spec ? ' (' + v.web_spec + ')' : '') + ' — confira, põe preço e estoque, e adiciona (a arte a IA gera)';
@@ -3860,14 +3936,18 @@ function switchProdTab(tab) {
 // ===== Aba "Sem código": completa os produtos que estão sem código de barras =====
 function renderSemCodigo() {
   const el = document.getElementById('semcodigo-list'); if (!el) return;
-  const prods = (_lastProdutos || []).filter(p => !p.combo && String(p.barcode || '').replace(/\D/g, '').length < 8);
-  if (!prods.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Todos os produtos já têm código ✦</div>'; return; }
+  const semCod = (_lastProdutos || []).filter(p => !p.combo && String(p.barcode || '').replace(/\D/g, '').length < 8);
+  // Faxina: produtos com código que NÃO parece da marca (provável leitura errada no cadastro).
+  const susp = (_lastProdutos || []).filter(p => !p.combo && String(p.barcode || '').replace(/\D/g, '').length >= 8 && _bcBrandCheck(p.barcode, p.marca || _prodBrandKey(p), p.id));
+  const prods = susp.concat(semCod);
+  if (!prods.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Todos os produtos têm código e todos batem com a marca ✦</div>'; return; }
   el.innerHTML = prods.map(p => {
     const thumb = p.image_url
       ? `<img src="${esc(p.image_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
       : `<div style="width:46px;height:46px;border-radius:10px;background:var(--bg3);flex:0 0 auto"></div>`;
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:10px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${thumb}<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')}${p.sabor ? ' · ' + esc(p.sabor) : ''}</div></div></div>
+      ${susp.includes(p) ? `<div style="font-size:11.5px;color:var(--pink);margin:-2px 0 8px">Código atual <b>${esc(p.barcode)}</b> não parece da marca (provável leitura errada) — bipe o código da caixa pra corrigir.</div>` : ''}
       <div style="display:flex;gap:6px;margin-bottom:6px">
         <input class="pf-input" id="sc-bc-${p.id}" inputmode="numeric" placeholder="Bipe/digite o código de barras" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter'){event.preventDefault();scSave(${p.id});}">
         <button type="button" class="pf-btn sec" style="flex:0 0 auto;margin-bottom:0;padding:0 12px" onclick="openBarcodeScanner('cadastro','sc-bc-${p.id}')" title="Escanear com a câmera"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg></button>
