@@ -6011,10 +6011,13 @@ async function handleBalancoResolveBarcode(req, res) {
     if (!barcode || barcode.length < 6) {
       return res.status(400).json({ ok: false, error: 'missing or invalid barcode' });
     }
+    // all=1 → inclui produtos ocultos (usado no cadastro pra impedir duplicado mesmo se o
+    // produto estiver escondido). Sem all → só visíveis (fluxo do balanço).
+    const wantAll = /(^|&)all=1(&|$)/.test(qs);
 
     // Busca por barcode OU array barcodes[]
     const r = await sbGet('drope_products',
-      `or=(barcode.eq.${encodeURIComponent(barcode)},barcodes.cs.{${encodeURIComponent(barcode)}})&select=id,name,slug,barcode,barcodes,qty_available,box_photo_url&hidden=eq.false&limit=1`);
+      `or=(barcode.eq.${encodeURIComponent(barcode)},barcodes.cs.{${encodeURIComponent(barcode)}})&select=id,name,slug,barcode,barcodes,qty_available,price_cents,image_url,box_photo_url${wantAll ? '' : '&hidden=eq.false'}&limit=1`);
 
     if (r && r[0]) {
       return res.status(200).json({ ok: true, product: r[0] });

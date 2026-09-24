@@ -949,7 +949,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <!-- COMEÇA PELO CÓDIGO DE BARRAS: se já existe, avisa na hora (match forte) -->
         <label class="pf-lbl">Código de barras <span style="color:var(--fg-dim);font-weight:400">— comece por aqui</span></label>
         <div style="display:flex;gap:8px">
-          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="Bipe ou digite o código" style="flex:1;margin-bottom:0" oninput="_apRenderDupWarn()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+          <input class="pf-input" id="ap-barcode" inputmode="numeric" placeholder="Bipe ou digite o código" style="flex:1;margin-bottom:0" oninput="_apOnBarcodeChanged()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
           <button type="button" class="pf-btn sec" style="flex:0 0 auto;white-space:nowrap;margin-bottom:0" onclick="openBarcodeScanner('cadastro','ap-barcode')"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg> Escanear</button>
         </div>
         <div class="pf-hint" style="margin-top:6px">Bipe o código: se já existe, aviso na hora. Se for novo, toque em <b>Avançar</b>.</div>
@@ -2139,7 +2139,7 @@ let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
   _apNovoSaborBase = null; _apBaseName = ''; _apNoBarcode = false; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
-  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
+  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
   const _hw = document.getElementById('ap-scan-hint-wrap'); if (_hw) _hw.style.display = 'none';
@@ -2172,12 +2172,26 @@ function wizRender() {
 function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 // ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
 let _apDupDismiss = false;
+let _apServerDup = null; // {bc, prod} — duplicado CONFIRMADO PELO BANCO (não depende do cache local)
+let _apBcT = 0, _apLastBc = '';
 function _apNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+// Normaliza código pra comparar EAN/UPC tolerando zero à esquerda (UPC-A 12 vs EAN-13 13).
+function _bcNorm(s) { return String(s || '').replace(/\D/g, '').replace(/^0+/, ''); }
 function _apFindDuplicate() {
   if (_apMode === 'combo') return null; // combo não checa duplicado
   const prods = _lastProdutos || [];
   const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
-  if (bc && bc.length >= 8) { const m = prods.find(p => String(p.barcode || '').replace(/\D/g, '') === bc); if (m) return m; } // match forte = código de barras
+  if (bc && bc.length >= 8) {
+    // 1) Banco (autoritativo) — pega mesmo se o cache local estiver desatualizado.
+    if (_apServerDup && _apServerDup.bc === bc) {
+      const local = prods.find(p => String(p.id) === String(_apServerDup.prod.id));
+      return local || _apServerDup.prod;
+    }
+    // 2) Cache local: casa por barcode OU barcodes[], tolerante a zero à esquerda.
+    const m = prods.find(p => _bcNorm(p.barcode) === _bcNorm(bc)
+      || (Array.isArray(p.barcodes) && p.barcodes.some(x => _bcNorm(x) === _bcNorm(bc))));
+    if (m) return m;
+  }
   const nm = _apNorm((document.getElementById('ap-name') || {}).value);
   if (nm.length < 3) return null;
   const mc = _apNorm((document.getElementById('ap-marca') || {}).value);
@@ -2214,6 +2228,44 @@ function _apRenderDupWarn() {
     + '<button type="button" class="pf-btn sec" style="flex:1 1 auto;margin-bottom:0" onclick="_apDupIgnore()">É outro produto</button>'
     + '</div>';
 }
+// Pergunta ao BANCO se o código já existe (autoritativo — não depende do cache local).
+// Guarda em _apServerDup e mostra o aviso na hora. Retorna o produto (ou null).
+async function _apLookupBarcodeServer(bc) {
+  bc = String(bc || '').replace(/\D/g, '');
+  if (_apMode === 'combo' || bc.length < 8) { _apServerDup = null; return null; }
+  if (_apServerDup && _apServerDup.bc === bc) return _apServerDup.prod; // já resolvido
+  try {
+    const r = await fetch('/api/webhook?action=balanco_resolve_barcode&all=1&barcode=' + encodeURIComponent(bc), { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    // Só aplica se o código no campo ainda é o mesmo (evita corrida entre bips).
+    const cur = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+    if (cur !== bc) return null;
+    if (d && d.ok && d.product) {
+      const p = d.product;
+      const local = (_lastProdutos || []).find(x => String(x.id) === String(p.id));
+      _apServerDup = { bc, prod: local || {
+        id: p.id, name: p.name, slug: p.slug,
+        image_url: p.image_url || p.box_photo_url || '',
+        price_cents: p.price_cents || 0,
+        stock: (p.qty_available != null ? p.qty_available : 0),
+        qty_available: (p.qty_available != null ? p.qty_available : 0),
+        barcode: p.barcode || bc, _fromServer: true,
+      } };
+      // Se veio do banco mas não estava no cache, atualiza o cache pra as ações funcionarem.
+      if (!local) { try { loadData(false); } catch (e) {} }
+      if (!_apDupDismiss) { try { _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw && dw.style.display !== 'none') dw.scrollIntoView({ block: 'center' }); } catch (e) {} }
+      return _apServerDup.prod;
+    }
+    _apServerDup = null; return null;
+  } catch (e) { return null; }
+}
+// Chamado quando o código muda (digitou/bipou): aviso instantâneo pelo cache + confirma no banco.
+function _apOnBarcodeChanged() {
+  const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
+  if (bc !== _apLastBc) { _apDupDismiss = false; if (_apServerDup && _apServerDup.bc !== bc) _apServerDup = null; _apLastBc = bc; }
+  try { _apRenderDupWarn(); } catch (e) {}
+  clearTimeout(_apBcT); _apBcT = setTimeout(function () { _apLookupBarcodeServer(bc); }, 250);
+}
 // Atualiza o estoque do produto já cadastrado direto do aviso de duplicado.
 function _apDupSetStock(id) {
   const inp = document.getElementById('ap-dup-stock'); if (!inp) return;
@@ -2235,20 +2287,25 @@ function _apEditExisting(id) {
   try { renderProdutos(); } catch (e) {}
   setTimeout(function () { const ed = document.getElementById('edit-' + id); if (ed) { ed.classList.add('open'); ed.scrollIntoView({ block: 'center' }); } }, 80);
 }
-function wizNext() {
+async function wizNext() {
   const msg = document.getElementById('ap-msg');
-  // ETAPA 1 = Código de barras: obrigatório e checa duplicado antes de avançar.
+  // ETAPA 1 = Código de barras: obrigatório e checa duplicado (banco) antes de avançar.
   if (_wizStep === 1) {
     // Código obrigatório (evita duplicados) — exceto combo, ou se marcou "não tem código".
     const bc = (((document.getElementById('ap-barcode') || {}).value) || '').replace(/\D/g, '');
     if (_apMode !== 'combo' && !_apNoBarcode && bc.length < 8) {
       msg.style.color = 'var(--pink)'; msg.textContent = 'Bipe o código de barras — ou toque em "Este produto não tem código".'; return;
     }
-    // Backstop: se o código já é de um produto seu, NÃO avança — mostra o aviso (mesmo que
-    // o oninput não tenha rodado, ex: código veio da câmera). Só passa por "É outro produto".
+    // Backstop AUTORITATIVO: confirma no BANCO se o código já existe. Não avança se existir —
+    // só passa por "É outro produto". Pega mesmo se o cache local estiver desatualizado.
     if (bc.length >= 8 && !_apDupDismiss) {
-      const dupe = _apFindDuplicate();
-      if (dupe) {
+      let dupe = _apFindDuplicate();
+      if (!dupe) {
+        msg.style.color = 'var(--fg-dim)'; msg.textContent = 'Conferindo o código…';
+        try { dupe = await _apLookupBarcodeServer(bc); } catch (e) {}
+      }
+      // o usuário pode ter tocado em "É outro produto" durante a consulta
+      if (dupe && !_apDupDismiss) {
         try { _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw) dw.scrollIntoView({ block: 'center' }); } catch (e) {}
         msg.style.color = 'var(--pink)'; msg.textContent = 'Esse código já é de um produto seu — veja o aviso acima (ou toque em "É outro produto").'; return;
       }
@@ -3517,10 +3574,9 @@ function _onBarcode(raw) {
       // .value por JS NÃO dispara oninput → o aviso de duplicado não rodava. Dispara na mão.
       try { t.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
     }
-    // Cadastro pelo código: se já existe, avisa AGORA (não só ao digitar).
+    // Cadastro pelo código: se já existe, avisa AGORA (cache + confirma no banco).
     if (_scanTargetId === 'ap-barcode') {
-      try { _apDupDismiss = false; _apRenderDupWarn(); } catch (e) {}
-      try { const dw = document.getElementById('ap-dup-warn'); if (dw && dw.style.display !== 'none') dw.scrollIntoView({ block: 'center' }); } catch (e) {}
+      try { _apDupDismiss = false; _apOnBarcodeChanged(); } catch (e) {}
     }
     try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
     if (hint) hint.textContent = '✓ código ' + code + ' capturado';
@@ -3585,8 +3641,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') {
     if (_apWedgeBuf.length >= 8) {
       const el = document.getElementById('ap-barcode');
-      if (el) { el.value = _apWedgeBuf; try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e2) {} }
-      try { _apDupDismiss = false; _apRenderDupWarn(); const dw = document.getElementById('ap-dup-warn'); if (dw && dw.style.display !== 'none') dw.scrollIntoView({ block: 'center' }); } catch (e2) {}
+      if (el) { el.value = _apWedgeBuf; try { _apDupDismiss = false; _apOnBarcodeChanged(); } catch (e2) {} }
     }
     _apWedgeBuf = ''; return;
   }
