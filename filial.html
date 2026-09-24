@@ -444,7 +444,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="kpi">
         <div class="kpi-label">Recebido</div>
         <div class="kpi-value" id="saldo" style="font-size:19px;color:var(--lime)">R$ 0</div>
-        <div class="kpi-sub" id="liq-sub">100% cai na sua conta</div>
+        <div class="kpi-sub" id="liq-sub">líquido, após comissão</div>
       </div>
     </div>
     <div class="dash-card">
@@ -1350,17 +1350,14 @@ function render(d) {
   try { renderSegs(f.segmentos); } catch(e) {}
   try { renderFiltros(f.filtros); } catch(e) {}
   try { renderQR(); } catch(e) {}
-  // LOJA ÚNICA (Drope SP): sem split no pagamento → 100% cai na conta da loja.
-  // Por isso "Recebido" mostra o valor CHEIO (sem desconto de comissão). Reverter no SaaS:
-  // trocar SINGLE_STORE_PAINEL pra false e volta a descontar a comissão do plano.
-  const SINGLE_STORE_PAINEL = true;
+  // Faturamento = BRUTO (total vendido). "Recebido" = líquido após a comissão do DROPE.
   const _commPct = Number((((d.filial || {}).plan || {}).commission_pct)) || 10;
   const _fatCents = d.faturamento_mes_cents || 0;
-  const _liqCents = SINGLE_STORE_PAINEL ? _fatCents : Math.round(_fatCents * (1 - _commPct / 100));
+  const _liqCents = Math.round(_fatCents * (1 - _commPct / 100));
   document.getElementById('faturamento-mes').textContent = fmtBRL(_fatCents);
   document.getElementById('vendas-mes').textContent = d.vendas_mes;
   document.getElementById('saldo').textContent = fmtBRL(_liqCents);
-  const _ls = document.getElementById('liq-sub'); if (_ls) _ls.textContent = SINGLE_STORE_PAINEL ? '100% cai na sua conta' : `após comissão de ${String(_commPct).replace('.', ',')}%`;
+  const _ls = document.getElementById('liq-sub'); if (_ls) _ls.textContent = `após comissão de ${String(_commPct).replace('.', ',')}%`;
   try { renderDash(d); } catch (e) {}
 
   _buildProdImgIndex(d.produtos || []);  // pra mostrar a foto ao tocar no item do pedido
