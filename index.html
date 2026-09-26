@@ -390,6 +390,13 @@
   .cat-page-btn[disabled] { opacity: 0.35; pointer-events: none; }
   .cat-page-ind { font-size: 13px; color: var(--text-dim); font-weight: 600; }
   @media (max-width: 380px) { .catalog-grid .tile .flavor { font-size: 13px; } }
+  /* "+" no card (UX R1): área de toque 44px, responde na hora */
+  .tile-add { position: absolute; right: 10px; bottom: 10px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--lime); color: #0a0a0a; font-size: 26px; font-weight: 800; line-height: 1; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 14px rgba(212,255,46,.35); z-index: 2; touch-action: manipulation; transition: transform .12s ease; font-family: inherit; }
+  .tile-add::after { content: ''; position: absolute; inset: -4px; } /* área de toque 46px */
+  .tile-add:active { transform: scale(.88); }
+  .tile:has(.tile-add) .price { padding-right: 44px; }
+  .tile-add.added { animation: tileAddPop .5s ease; }
+  @keyframes tileAddPop { 0% { transform: scale(.85); } 45% { transform: scale(1.18); } 100% { transform: scale(1); } }
   .tile {
     /* Card futurista: glow radial forte saindo do topo + borda neon + profundidade */
     background:
@@ -7492,10 +7499,11 @@
       });
     }
   } catch(e) {}
-  // Sequência: 0s revela camaleão (1.5s) → 1.5s nome "drope" → segura →
-  // 3.2s camufla tudo (1.1s) → 4.3s entra na home
-  let _vanishTimer = setTimeout(_startChameleon, 3200);
-  const _splashTimer = setTimeout(_splashSkip, PREVIEW_MODE ? 200 : 4300);
+  // UX (R5 "nunca espera"): quem já entrou antes (idade confirmada) passa direto (~0,5s).
+  // 1ª visita: animação curta (2,4s) — camaleão revela → camufla → entra. Toque pula.
+  const _splashReturning = (() => { try { return localStorage.getItem('drope_age_confirmed') === '1'; } catch (e) { return false; } })();
+  let _vanishTimer = setTimeout(_startChameleon, _splashReturning ? 100 : 1600);
+  const _splashTimer = setTimeout(_splashSkip, PREVIEW_MODE ? 200 : (_splashReturning ? 500 : 2400));
   // Click no splash pula direto
   document.addEventListener('DOMContentLoaded', () => {
     const sp = document.getElementById('splash');
@@ -9560,6 +9568,7 @@
     try { loadAddressesFromAccount(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
     // Retoma o fluxo que exigiu login (ex.: cliente ia pagar → volta pro checkout logado).
+    try { if (_resumePendingAdd()) { pendingAfterGate = null; return; } } catch (e) {}
     try {
       if (pendingAfterGate === 'checkout') { go('checkout'); }
       else if (pendingAfterGate === 'cart') { go('cart'); renderCart(); }
@@ -10487,13 +10496,15 @@
     // onerror: se a imagem 404 (arquivo não existe ou Storage URL quebrada), troca pelo
     // emoji do produto. Evita o "alt text feio" que apareceu quando 21-26 PNGs sumiram.
     const visual = p.img
-      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
+      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" loading="lazy" decoding="async" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
     // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
     // "preço a confirmar" em vez de "R$ 0" pro cliente.
     const hasValidPrice = typeof p.price === 'number' && p.price > 0;
     const priceLabel = hasValidPrice ? money(p.price) : 'preço a confirmar';
+    // UX R1: "+" direto no card — adiciona sem sair da vitrine.
+    const addBtn = (!soldOut && hasValidPrice) ? `<button type="button" class="tile-add" aria-label="adicionar ${escapeHtml(labels.hero)} ao carrinho" onclick="event.stopPropagation(); quickAdd(${idx}, this)">+</button>` : '';
     return `
       <div class="tile ${soldOut ? 'sold-out' : ''}" onclick="openProduct(${idx})">
         ${visual}
@@ -10501,6 +10512,7 @@
         ${labels.muted ? `<div class="brand">${escapeHtml(labels.muted)}</div>` : ''}
         <div class="price">${priceLabel}</div>
         ${stockBadge}
+        ${addBtn}
       </div>
     `;
   }
@@ -13789,35 +13801,57 @@
     document.getElementById('d-btnprice').textContent = money(p.price * currentQty);
   }
 
-  function addToCart() {
-    if (!_requireLoginToAdd()) return; // sem login, só navega — não adiciona
-    // Loja sem Mercado Pago conectado não vende (o dinheiro não teria pra onde ir).
+  // Adição que ficou esperando o login (UX R1: o item NÃO se perde ao entrar na conta).
+  let _pendingAdd = null; // { idx, qty, from: 'tile' | 'detail' }
+  // Coloca o produto no carrinho. Devolve true se entrou.
+  function _cartAdd(idx, qty) {
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
-      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
-      return;
+      toast('A loja está fora do ar agora ✦ tenta de novo em alguns minutos');
+      return false;
     }
-    const p = products[currentProduct];
-    if (typeof p.stock === 'number' && p.stock <= 0) {
-      toast('esgotado ✦ volta depois');
-      return;
-    }
+    const p = products[idx];
+    if (!p) return false;
+    if (typeof p.stock === 'number' && p.stock <= 0) { toast('Esse acabou de esgotar ✦ dá uma olhada nos outros sabores'); return false; }
     const existing = cart.find(i => i.name === p.name);
     const currentInCart = existing ? existing.qty : 0;
-    if (typeof p.stock === 'number' && currentInCart + currentQty > p.stock) {
-      toast(`só tem ${p.stock} em estoque ✦`);
-      return;
+    if (typeof p.stock === 'number' && currentInCart + qty > p.stock) {
+      toast(currentInCart ? `Só tem ${p.stock} em estoque ✦ você já tem ${currentInCart} no carrinho` : `Só tem ${p.stock} em estoque ✦`);
+      return false;
     }
-    if (existing) existing.qty += currentQty;
-    else cart.push({ ...p, qty: currentQty });
+    if (existing) existing.qty += qty;
+    else cart.push({ ...p, qty });
+    try { saveCart(); } catch (e) {}
     updateCartBadge();
+    try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
+    return true;
+  }
+  function addToCart() {
+    if (!_isLoggedIn()) { _pendingAdd = { idx: currentProduct, qty: currentQty, from: 'detail', at: Date.now() }; _requireLoginToAdd(); return; }
+    if (!_cartAdd(currentProduct, currentQty)) return;
     // FRICÇÃO #006 (17/08 Rafael): "quero levar" leva direto pro carrinho/sacola
     // (igual iFood/Zé, que mostram a sacola ao adicionar). Lá tem "Continuar
     // comprando" que volta pra loja do produto. Substitui o toast que voltava pra home.
     go('cart');
     renderCart();
   }
+  // "+" do card: adiciona 1 sem sair da vitrine (resposta visual na hora).
+  function quickAdd(idx, btn) {
+    if (!_isLoggedIn()) { _pendingAdd = { idx, qty: 1, from: 'tile', at: Date.now() }; _requireLoginToAdd(); return; }
+    if (!_cartAdd(idx, 1)) return;
+    if (btn) { btn.classList.remove('added'); void btn.offsetWidth; btn.classList.add('added'); btn.textContent = '✓'; setTimeout(() => { try { btn.textContent = '+'; btn.classList.remove('added'); } catch (e) {} }, 900); }
+    try { showAddedToast(products[idx], { stay: true }); } catch (e) {}
+  }
+  // Depois do login: completa a adição que ficou pendente.
+  function _resumePendingAdd() {
+    const pa = _pendingAdd; _pendingAdd = null;
+    if (!pa || Date.now() - (pa.at || 0) > 10 * 60 * 1000) return false; // desistiu do login faz tempo → não adiciona de surpresa
+    if (!_cartAdd(pa.idx, pa.qty)) return false;
+    if (pa.from === 'detail') { go('cart'); renderCart(); }
+    else { try { showAddedToast(products[pa.idx], { stay: true }); } catch (e) {} }
+    return true;
+  }
 
-  function showAddedToast(p) {
+  function showAddedToast(p, opts) {
     const totalItems = cart.reduce((s, i) => s + i.qty, 0);
     const totalPrice = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const labels = productLabels(p);
@@ -13835,6 +13869,7 @@
     clearTimeout(window._atTimeout);
     window._atTimeout = setTimeout(() => {
       t.classList.remove('show');
+      if (opts && opts.stay) return; // "+" do card: continua na vitrine
       // Volta auto pro home/catálogo (ou pra categoria, se veio de lá)
       if (detailOrigin === 'category' && _catFrom) openCategory(_catFrom.key, _catFrom.label);
       else if (detailOrigin && detailOrigin !== 'detail') go(detailOrigin);

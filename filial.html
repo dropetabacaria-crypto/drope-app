@@ -4811,6 +4811,8 @@ function _waitLabel(ts) {
   } catch (e) { return ''; }
 }
 
+// Número do pedido como o CLIENTE vê (#dr-xxxx) — pra loja e cliente falarem do mesmo pedido.
+function _pedNum(p) { const n = String((p && p.order_nsu) || '').trim(); return n ? '#' + n : '#' + ((p && p.id) || ''); }
 function renderPedidoTile(p) {
   const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
   const stage = _orderStage(p.status);
@@ -4825,6 +4827,7 @@ function renderPedidoTile(p) {
   return `<button class="otile" onclick="openPedidoDetail(${p.id})">
     <span class="ost" style="color:${meta.c}"><span class="dotc" style="background:${meta.c}"></span>${meta.t}</span>
     <span class="onm">${esc(first)}</span>
+    <span class="omt" style="font-weight:700;color:var(--fg)">${esc(_pedNum(p))}</span>
     <span class="omt">${nItems} ${nItems === 1 ? 'item' : 'itens'} · ${isDelivery ? 'entrega' : 'retirada'}</span>
     <span class="obot"><span class="otot">${fmtBRL(p.total_cents)}</span><span class="owt">${_waitLabel(p.created_at)}</span></span>
   </button>`;
@@ -5138,7 +5141,7 @@ function renderPedidoCard(p, isEntregue) {
         ${badges[stage] || badges.new}
       </div>
       ${schedBadge}
-      <div class="cliente-info">${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
+      <div class="cliente-info"><b style="color:var(--fg)">Pedido ${esc(_pedNum(p))}</b> · ${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
       ${addrBlock}
       ${pickupBlock}
@@ -5231,7 +5234,8 @@ function openChamarEntregador(orderId) {
   const sel = document.getElementById('chamar-ent');
   sel.innerHTML = '<option value="">Abrir pra todos os entregadores</option>' + fixos.map(e => `<option value="${e.id}">Fixo: ${esc(e.nome)}</option>`).join('');
   document.getElementById('chamar-msg').textContent = '';
-  document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido #' + orderId;
+  const _po = (_painelData && Array.isArray(_painelData.pedidos_pendentes) ? _painelData.pedidos_pendentes : []).find(x => x.id === orderId);
+  document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido ' + (_po ? _pedNum(_po) : '#' + orderId);
   document.getElementById('chamar-ov').classList.add('open');
 }
 function closeChamar() { document.getElementById('chamar-ov').classList.remove('open'); }
