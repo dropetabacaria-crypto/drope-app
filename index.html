@@ -3149,6 +3149,7 @@
   .order-status.separating { background: rgba(255, 170, 45, 0.15); color: #ffc46b; border: 1px solid rgba(255, 170, 45, 0.4); }
   .order-status.ready { background: rgba(45, 200, 255, 0.15); color: #6bd3ff; border: 1px solid rgba(45, 200, 255, 0.4); }
   .order-status.cancelled { background: rgba(120, 120, 120, 0.2); color: #888; border: 1px solid rgba(120, 120, 120, 0.4); }
+  .order-status.paid { background: rgba(74, 222, 128, 0.15); color: #86efac; border: 1px solid rgba(74, 222, 128, 0.4); }
   .order-status.confirmed { background: rgba(147, 197, 253, 0.15); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.4); }
   .order-status.reserved { background: linear-gradient(135deg, rgba(255, 45, 111, 0.2), rgba(91, 33, 182, 0.25)); color: #ffb3d1; border: 1px solid rgba(255, 45, 111, 0.45); }
   .order-status.cancelled { background: rgba(160, 160, 160, 0.15); color: #9b96b5; border: 1px solid rgba(160, 160, 160, 0.3); }
@@ -5149,6 +5150,12 @@
       <div class="success-title display">Dropou ✦</div>
       <div class="success-sub" id="success-sub">Pedido confirmado ✦ a loja já foi avisada</div>
       <div class="success-order" id="success-order">#dr-4291</div>
+      <!-- UX R6: pede pra avisar no celular na hora certa (logo depois da compra) -->
+      <div id="success-push" style="display:none;margin:18px auto 0;max-width:340px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:var(--card);text-align:left">
+        <div style="font-weight:700;font-size:15px">Quer saber quando sair pra entrega?</div>
+        <div style="font-size:13px;color:var(--text-dim);margin:4px 0 10px">A gente avisa no seu celular a cada etapa do pedido.</div>
+        <button class="btn-secondary" style="width:100%" onclick="ativarPushCliente().then(_renderSuccessPush)">Avisar no celular 🔔</button>
+      </div>
 
       <div class="success-btns">
         <button class="btn-primary" onclick="_trackedOrderNum=null; go('order-tracking')">Acompanhar pedido →</button>
@@ -6966,8 +6973,8 @@
       orders.unshift({
         num: orderNum,
         nsu: nsu || null,
-        status: 'pagamento aprovado ✦ preparando',
-        statusCls: 'confirmed',
+        status: 'pago ✦ aguardando a loja confirmar',
+        statusCls: 'paid',
         summary: cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ '),
         subtotal, total,
         delivery_fee_cents: Math.round(deliveryFeeReais * 100),
@@ -9396,6 +9403,12 @@
       _custPushTest();
     } catch (e) { toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro app'); }
   }
+  // Tela de pedido confirmado: mostra o convite pra notificação só se ainda não ativou.
+  function _renderSuccessPush() {
+    const el = document.getElementById('success-push'); if (!el) return;
+    const can = ('Notification' in window) || /iPhone|iPad/.test(navigator.userAgent || '');
+    el.style.display = (!_custPushOn() && can && _isLoggedIn()) ? 'block' : 'none';
+  }
   function _custPushTest() {
     fetch('/api/webhook?action=customer_push_subscribe', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -11460,6 +11473,7 @@
       renderAIChat();
     }
     if (screen === 'pix') renderPixScreen();
+    if (screen === 'success') { try { _renderSuccessPush(); } catch (e) {} }
     if (screen === 'checkout') {
       // Sempre entra no passo 1 (entrega). Pagamento é o passo 2.
       checkoutStep = 1; renderCheckoutStep();
@@ -12828,14 +12842,17 @@
     wrap.innerHTML = html;
   }
 
+  // Etapas claras (UX R6): Recebido → Confirmado (pago/reservado) → Preparando → A caminho → Entregue.
   const ORDER_STEPS_DELIVERY = [
-    { key: 'waiting', lbl: 'pendente' },
+    { key: 'waiting', lbl: 'recebido' },
+    { key: 'paid', lbl: 'pago' },
     { key: 'confirmed', lbl: 'preparando' },
     { key: 'way', lbl: 'a caminho' },
     { key: 'done', lbl: 'entregue' },
   ];
   const ORDER_STEPS_PICKUP = [
-    { key: 'waiting', lbl: 'pendente' },
+    { key: 'waiting', lbl: 'recebido' },
+    { key: 'paid', lbl: 'confirmado' },
     { key: 'separating', lbl: 'separando' },
     { key: 'ready', lbl: 'pronto' },
     { key: 'done', lbl: 'retirado' },
@@ -12857,15 +12874,15 @@
       else if (st === 'ready' || st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar ✦'; }
       else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
       // pago/reservado = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
-      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja'; }
-      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'waiting'; label = 'reservado ✦ pague na retirada'; }
+      else if (st === 'paid') { statusCls = 'paid'; label = 'pago ✦ aguardando a loja'; }
+      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'paid'; label = 'reservado ✦ pague na retirada'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     } else {
       if (st === 'delivered') { statusCls = 'done'; label = 'entregue ✓'; }
       else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho ✦ motoboy retirou na loja'; }
       else if (st === 'preparing') { statusCls = 'confirmed'; label = 'preparando teu pedido'; }
       // pago = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
-      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja confirmar'; }
+      else if (st === 'paid') { statusCls = 'paid'; label = 'pago ✦ aguardando a loja confirmar'; }
       else if (st === 'waiting_proof') { statusCls = 'waiting'; label = 'aguardando confirmação'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     }
@@ -14217,7 +14234,7 @@
     orders.unshift({
       num: orderNum,
       status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando confirmação',
-      statusCls: isPayLater ? 'reserved' : 'waiting',
+      statusCls: isPayLater ? 'paid' : 'waiting',
       summary,
       subtotal,
       total,
