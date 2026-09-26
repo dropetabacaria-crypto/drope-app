@@ -4659,6 +4659,38 @@ function _commissionWindow(md, now) {
 // Andrade pediu: painel pra fundadora da filial ver pedidos, saldo, mês, histórico.
 // Auth simples por código de acesso (gera-se com nome + telefone — bom o suficiente
 // pra começar). Cliente vê pedidos da filial dela e ganho por venda.
+// ===================== MINIATURAS (UX R5) =====================
+// GET action=img&w=320&u=<url da foto no Supabase> → a mesma foto em WebP pequena (~20 KB em vez
+// de ~1,5 MB PNG). Gera na 1ª vez e fica no cache da Vercel (CDN) — não grava nada no banco.
+// Só aceita fotos do nosso Storage (não vira proxy aberto). Se falhar, redireciona pra original.
+const _IMG_WIDTHS = [96, 160, 240, 320, 480, 640];
+async function handleImgThumb(req, res) {
+  let src = '';
+  try {
+    const u = new URL(req.url, 'http://x');
+    src = String(u.searchParams.get('u') || '');
+    const wReq = parseInt(u.searchParams.get('w') || '320', 10) || 320;
+    const w = _IMG_WIDTHS.reduce((best, x) => (Math.abs(x - wReq) < Math.abs(best - wReq) ? x : best), 320);
+    let host = ''; try { host = new URL(src).host; } catch (e) {}
+    const okHost = !!host && (host === new URL(SUPABASE_URL).host) && /\/storage\/v1\/object\/public\//.test(src);
+    if (!okHost) return res.status(400).json({ error: 'imagem inválida' });
+    let sharp; try { sharp = require('sharp'); } catch (e) { sharp = null; }
+    if (!sharp) { res.setHeader('Location', src); return res.status(302).end(); }
+    const r = await fetch(src, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) { res.setHeader('Location', src); return res.status(302).end(); }
+    const buf = Buffer.from(await r.arrayBuffer());
+    const out = await sharp(buf).rotate().resize(w, w, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(200).send(out);
+  } catch (e) {
+    console.warn('[img] falhou:', e.message);
+    if (src) { res.setHeader('Location', src); res.setHeader('Cache-Control', 'no-store'); return res.status(302).end(); }
+    return res.status(500).json({ error: 'falhou' });
+  }
+}
+
 async function handleFilialPainel(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
@@ -19145,6 +19177,11 @@ async function handleTestClaude(req, res) {
 // ============ HANDLER PRINCIPAL ============
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
+
+  // action=img — miniatura WebP de foto do Storage (cache na CDN)
+  if (req.url && /[?&]action=img(&|$)/.test(req.url)) {
+    return await handleImgThumb(req, res);
+  }
 
   // ===== ROTA: ESTEIRA (08/05/2026) — TELA ÚNICA: sem-sabor + pendentes + gallery =====
   // GET /api/webhook?action=esteira&token=ADMIN_TOKEN → HTML com 3 fases numa só tela

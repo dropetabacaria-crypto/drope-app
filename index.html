@@ -10506,6 +10506,13 @@
   }
 
   // ===== Render grid =====
+  // Miniatura (UX R5): foto do Storage em WebP pequena via /api/webhook?action=img (cache CDN).
+  // Card ~130px → 320px de largura (retina). A original (1,5 MB PNG) só se a miniatura falhar.
+  function _thumb(url, w) {
+    const u = String(url || '');
+    if (!/\/storage\/v1\/object\/public\//.test(u)) return u;
+    return '/api/webhook?action=img&w=' + (w || 320) + '&u=' + encodeURIComponent(u);
+  }
   function tileHTML(p, idx) {
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
     const lowStock = !soldOut && typeof p.stock === 'number' && p.stock <= 3;
@@ -10515,7 +10522,7 @@
     // onerror: se a imagem 404 (arquivo não existe ou Storage URL quebrada), troca pelo
     // emoji do produto. Evita o "alt text feio" que apareceu quando 21-26 PNGs sumiram.
     const visual = p.img
-      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" loading="lazy" decoding="async" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
+      ? `<img class="prod-img" src="${_thumb(p.img, 320)}" alt="${p.name}" draggable="false" loading="lazy" decoding="async" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
     // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
@@ -11328,7 +11335,7 @@
       const soldOut = _soldOut(p);
       const topBadge = (p.slug === topSlug) ? `<div class="hero-topseller"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3c.4 2.4 2.4 3.9 3.4 5.4C16.4 9.9 17 11.4 17 13a5 5 0 0 1-10 0c0-1.3.4-2.4 1.2-3.4.3 1.4 1.3 1.9 1.8 1.4C11.4 9.8 10 8 12 3Z"/></svg> Mais pedido</div>` : '';
       const visual = p.img
-        ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
+        ? `<img class="prod-img" src="${_thumb(p.img, 240)}" alt="${escapeHtml(p.name)}" draggable="false" loading="lazy" decoding="async" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
         : `<div class="emoji">${p.emoji || ''}</div>`;
       const muted = labels.muted ? `<div class="hero-muted" style="font-size:13px;color:var(--text-dim);font-weight:500;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
       const cta = soldOut
@@ -12581,7 +12588,7 @@
       emojiEl.innerHTML = `<video class="detail-video" src="${p.video}" autoplay loop muted playsinline poster="${p.img || ''}"></video>`;
     } else if (p.img) {
       // Fade-in só quando a imagem decodifica → não pisca o frame antigo/errado ao abrir.
-      emojiEl.innerHTML = `<img class="detail-img" src="${p.img}" alt="${p.name}" draggable="false" style="opacity:0;transition:opacity .18s ease" onload="this.style.opacity=1" onerror="this.style.opacity=1">`;
+      emojiEl.innerHTML = `<img class="detail-img" src="${_thumb(p.img, 640)}" alt="${p.name}" draggable="false" style="opacity:0;transition:opacity .18s ease" onload="this.style.opacity=1" onerror="this.style.opacity=1">`;
     } else {
       emojiEl.textContent = p.emoji;
     }
@@ -13134,7 +13141,7 @@
         const sel = !!p.brand_cover;
         return `<div onclick="setBrandCover('${b.replace(/'/g, "\\'")}', ${p.id}, [${ids.join(',')}])" style="flex:0 0 auto;width:66px;text-align:center;cursor:pointer">
           <div style="width:66px;height:66px;border-radius:12px;overflow:hidden;border:2px solid ${sel ? 'var(--lime)' : 'rgba(255,255,255,0.08)'};box-shadow:${sel ? '0 0 12px rgba(212,255,46,0.45)' : 'none'}">
-            <img src="${escapeHtml(p.img)}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">
+            <img src="${escapeHtml(_thumb(p.img, 240))}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover" draggable="false">
           </div>
           ${sel ? '<div style="font-size:9px;color:var(--lime);margin-top:3px;font-weight:700">✓ capa</div>' : ''}
         </div>`;
@@ -13898,7 +13905,7 @@
     const t = document.getElementById('added-toast');
     if (!t) return;
     t.innerHTML = `
-      <div class="at-img">${p.img ? `<img src="${escapeHtml(p.img)}" alt="">` : `<span>${p.emoji || ''}</span>`}</div>
+      <div class="at-img">${p.img ? `<img src="${escapeHtml(_thumb(p.img, 160))}" alt="">` : `<span>${p.emoji || ''}</span>`}</div>
       <div class="at-info">
         <div class="at-name">${escapeHtml(labels.hero)}</div>
         <div class="at-sub">${totalItems} ${totalItems === 1 ? 'item' : 'itens'} ✦ ${money(totalPrice)}</div>
@@ -14013,7 +14020,7 @@
       const lbl = productLabels(i);
       return `
       <div class="cart-item">
-        <div class="thumb">${i.img ? `<img class="prod-img" src="${i.img}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '').replace(/'/g,'')}'">` : (i.emoji || '')}</div>
+        <div class="thumb">${i.img ? `<img class="prod-img" src="${_thumb(i.img, 160)}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '').replace(/'/g,'')}'">` : (i.emoji || '')}</div>
         <div class="info">
           <div class="n">${escapeHtml(lbl.hero)}</div>
           ${lbl.muted ? `<div class="b">${escapeHtml(lbl.muted)}</div>` : ''}
@@ -14064,7 +14071,7 @@
     sc.innerHTML = sugg.map(p => {
       const idx = products.findIndex(x => x.slug === p.slug);
       const img = p.img
-        ? `<img src="${p.img}" alt="" draggable="false">`
+        ? `<img src="${_thumb(p.img, 160)}" alt="" loading="lazy" decoding="async" draggable="false">`
         : `<div style="width:100%;height:92px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg3)">${p.emoji || ''}</div>`;
       const nome = (productLabels(p).hero) || p.name || '';
       return `<div class="upsell-card" onclick="openProduct(${idx})">

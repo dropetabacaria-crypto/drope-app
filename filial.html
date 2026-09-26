@@ -1805,7 +1805,7 @@ function renderProdutos(list) {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
     const thumb = p.image_url
-      ? `<img src="${esc(p.image_url)}" alt="" class="prod-thumb-img" draggable="false">`
+      ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" class="prod-thumb-img" draggable="false">`
       : `<div class="prod-thumb-ph">${gerando ? '' : ''}</div>`;
     const meta = [p.marca, p.sabor].filter(Boolean).join(' · ');
     const stock = p.stock || 0;
@@ -1893,7 +1893,7 @@ function renderProdutos(list) {
         </select>
         <label class="pf-lbl" style="margin-top:10px">Foto do produto</label>
         <div id="ep-imgprev-${p.id}" style="margin-bottom:8px">${p.image_url
-          ? `<img src="${esc(p.image_url)}" alt="" style="width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:14px;border:0.5px solid var(--border);display:block">`
+          ? `<img src="${esc(_thumb(p.image_url, 480))}" alt="" style="width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:14px;border:0.5px solid var(--border);display:block">`
           : `<div style="font-size:12.5px;color:var(--fg-dim);background:var(--bg3);border:0.5px dashed var(--border);border-radius:12px;padding:14px;text-align:center">${gerando ? 'Gerando a imagem… ⏳' : 'Sem foto ainda — envie a sua ou gere com IA ✦'}</div>`}</div>
         ${p.image_url ? `<div style="margin:0 0 8px"><span class="mini-link" style="font-size:12px;color:var(--fg-dim)" onclick="epToggleFix(${p.id})">⚠️ Imagem errada? Reportar / corrigir</span></div>
         <div id="ep-fix-${p.id}" style="display:none;margin-bottom:8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:10px">
@@ -2632,7 +2632,7 @@ function apBaseSearch(q) {
   if (q) prods = prods.filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q));
   prods = prods.slice(0, 60);
   list.innerHTML = prods.length ? prods.map(p => {
-    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : `<div class="ph"></div>`;
     const price = 'R$ ' + ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     return `<div class="pdv-sr-item" onclick="apUseBase(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')} · ${price}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">usar ›</span></div>`;
   }).join('') : '<div class="empty" style="padding:30px;text-align:center;color:var(--fg-dim)">Nenhum produto pra copiar ainda</div>';
@@ -3775,7 +3775,7 @@ function renderSemCodigo() {
   if (!prods.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Todos os produtos têm código e todos batem com a marca ✦</div>'; return; }
   el.innerHTML = prods.map(p => {
     const thumb = p.image_url
-      ? `<img src="${esc(p.image_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
+      ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
       : `<div style="width:46px;height:46px;border-radius:10px;background:var(--bg3);flex:0 0 auto"></div>`;
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:10px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${thumb}<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')}${p.sabor ? ' · ' + esc(p.sabor) : ''}</div></div></div>
@@ -3860,7 +3860,7 @@ function balFindCode(raw, inCam) {
   }
   _balHitId = p.id; _balFrame('ok');
   try { navigator.vibrate && navigator.vibrate(50); } catch (e) {}
-  const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : '<div class="ph"></div>';
+  const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : '<div class="ph"></div>';
   box.className = (_balInCam ? 'show' : '');
   box.innerHTML = `<div class="bal-hit ok">
     <div class="top">${img}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><span class="bal-badge" id="bal-hit-badge"></span></div></div>
@@ -3922,7 +3922,7 @@ function balLinkSearch(q) {
   else prods = prods.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); // sem busca: mais recentes primeiro
   prods = prods.slice(0, 12);
   box.innerHTML = prods.length ? prods.map(p => {
-    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : `<div class="ph"></div>`;
     return `<div class="pdv-sr-item" onclick="balLinkPick(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">código atual: ${esc(p.barcode || 'nenhum')}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">é esse ›</span></div>`;
   }).join('') : '<div style="font-size:12px;color:var(--fg-dim);padding:10px 2px">Nada com esse nome</div>';
 }
@@ -4844,6 +4844,12 @@ function _waitLabel(ts) {
   } catch (e) { return ''; }
 }
 
+// Miniatura WebP das fotos do Storage (mesma do app do cliente): lista leve, original só se falhar.
+function _thumb(url, w) {
+  const u = String(url || '');
+  if (!/\/storage\/v1\/object\/public\//.test(u)) return u;
+  return '/api/webhook?action=img&w=' + (w || 160) + '&u=' + encodeURIComponent(u);
+}
 // Endereço do cliente em texto (chaves do app: street/num/comp/neigh/city/uf/cep).
 function _pedAddrTxt(a) {
   a = a || {};
