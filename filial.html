@@ -413,6 +413,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <h2>Resolva agora</h2>
     <div id="resolva-agora"></div>
   </div>
+  <!-- Hoje (UX A1): números do dia × mesmo dia da semana passada até a mesma hora -->
+  <div class="section sec-hoje" id="sec-hoje" style="display:none">
+    <h2>Hoje <span id="hoje-vs" style="font-size:11px;font-weight:600;color:var(--fg-dim);text-transform:none;letter-spacing:0"></span></h2>
+    <div class="kpis" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="kpi lime"><div class="kpi-label">Vendas</div><div class="kpi-value" id="hoje-vendas" style="font-size:19px">R$ 0</div><div class="kpi-sub" id="hoje-vendas-d"></div></div>
+      <div class="kpi"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="hoje-pedidos" style="font-size:19px">0</div><div class="kpi-sub" id="hoje-pedidos-d"></div></div>
+      <div class="kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value" id="hoje-ticket" style="font-size:19px">—</div><div class="kpi-sub" id="hoje-ticket-d"></div></div>
+    </div>
+  </div>
 <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
@@ -472,8 +481,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section sec-hist">
-    <h2>Últimas vendas</h2>
+    <h2>Vendas</h2>
+    <!-- Busca de pedido (UX A7): número, nome ou telefone — qualquer data, inclusive cancelados -->
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="pf-input" id="ped-busca" type="search" placeholder="Buscar pedido: #dr-…, nome ou telefone" autocomplete="off" style="flex:1;margin-bottom:0" oninput="pedBuscaInput(this.value)">
+    </div>
+    <div id="ped-busca-info" style="font-size:12px;color:var(--fg-dim);margin:-2px 0 8px;min-height:14px"></div>
     <div id="historico-list"></div>
+    <button type="button" class="pf-btn sec full" id="ped-mais-btn" style="margin-top:6px" onclick="pedBusca('')">Ver pedidos mais antigos</button>
   </div>
 
     </div>
@@ -1413,14 +1428,15 @@ function render(d) {
 
   const historico = d.historico || [];
   const histList = document.getElementById('historico-list');
-  histList.innerHTML = historico.length
+  if (!window._pedBuscaRes) histList.innerHTML = historico.length
     ? historico.map(p => renderPedidoCard(p, true)).join('')
-    : '<div class="empty">Sem vendas ainda</div>';
+    : '<div class="empty">Nenhuma venda finalizada este mês ✦ as mais antigas aparecem em "Ver pedidos mais antigos"</div>';
 
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
   if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
   try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
+  try { renderHoje(d.dia); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -4876,7 +4892,7 @@ function _pedTools(p, isDelivery) {
 }
 // Resumo do pedido pra mandar pro entregador/equipe (menu de compartilhar do celular ou copia).
 async function _pedShare(id) {
-  const p = [...(_pendentesAll || []), ...(((_painelData || {}).historico) || [])].find(x => String(x.id) === String(id));
+  const p = [...(_pendentesAll || []), ...(((_painelData || {}).historico) || []), ...(window._pedBuscaRes || [])].find(x => String(x.id) === String(id));
   if (!p) return;
   const cust = p.customer || {}, isDel = (p.delivery_mode || 'delivery') === 'delivery';
   const txt = [
@@ -4889,6 +4905,63 @@ async function _pedShare(id) {
   try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(txt); _toast('Resumo copiado ✦ é só colar no WhatsApp'); }
   catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
+}
+// Bloco "Hoje": vendas/pedidos/ticket de hoje até agora × mesmo dia da semana passada até a mesma hora.
+function renderHoje(dia) {
+  const sec = document.getElementById('sec-hoje'); if (!sec) return;
+  if (!dia || !dia.hoje) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const h = dia.hoje, w = dia.semana_passada || {};
+  const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const vs = document.getElementById('hoje-vs'); if (vs) vs.textContent = '· comparando com ' + (new Date().getDay() === 0 || new Date().getDay() === 6 ? 'o ' : 'a ') + dias[new Date().getDay()] + ' passad' + (new Date().getDay() === 0 || new Date().getDay() === 6 ? 'o' : 'a') + ' até esta hora';
+  const delta = (a, b) => {
+    if (!b && !a) return '<span>igual</span>';
+    if (!b) return '<span style="color:var(--green)">▲ novo</span>';
+    const pct = Math.round((a - b) / b * 100);
+    if (pct === 0) return '<span>igual</span>';
+    return pct > 0 ? `<span style="color:var(--green)">▲ ${pct}%</span>` : `<span style="color:var(--pink)">▼ ${Math.abs(pct)}%</span>`;
+  };
+  const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+  set('hoje-vendas', fmtBRL(h.vendas_cents || 0));
+  set('hoje-pedidos', String(h.pedidos || 0));
+  set('hoje-ticket', h.pedidos ? fmtBRL(h.ticket_cents || 0) : '—');
+  set('hoje-vendas-d', delta(h.vendas_cents || 0, w.vendas_cents || 0) + ` <span style="opacity:.7">(${fmtBRL(w.vendas_cents || 0)})</span>`);
+  set('hoje-pedidos-d', delta(h.pedidos || 0, w.pedidos || 0) + ` <span style="opacity:.7">(${w.pedidos || 0})</span>`);
+  set('hoje-ticket-d', (h.pedidos && w.pedidos) ? delta(h.ticket_cents, w.ticket_cents) : '<span style="opacity:.7">—</span>');
+}
+// ===== Busca de pedido (A7) =====
+let _pedBuscaT = null, _pedBuscaSeq = 0;
+function pedBuscaInput(v) { clearTimeout(_pedBuscaT); _pedBuscaT = setTimeout(() => pedBusca(v), 350); }
+async function pedBusca(q) {
+  q = String(q || '').trim();
+  const list = document.getElementById('historico-list'), info = document.getElementById('ped-busca-info'), mais = document.getElementById('ped-mais-btn');
+  if (!list) return;
+  const seq = ++_pedBuscaSeq;
+  if (info) info.textContent = q ? 'buscando…' : 'carregando pedidos antigos…';
+  try {
+    const r = await fetch(`/api/webhook?action=filial_pedidos_busca&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}&q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (seq !== _pedBuscaSeq) return; // chegou resposta de uma busca antiga
+    if (!(r.ok && d.ok)) throw new Error('busca');
+    const peds = d.pedidos || [];
+    window._pedBuscaRes = peds;
+    list.innerHTML = peds.length
+      ? peds.map(p => renderPedidoCard(p, ['delivered', 'picked_up', 'completed', 'cancelled'].includes(p.status))).join('')
+      : `<div class="empty">${q ? 'Nenhum pedido com "' + esc(q) + '" ✦ confere o número ou tenta pelo nome ou telefone' : 'Nenhum pedido ainda'}</div>`;
+    if (info) info.innerHTML = q ? `${peds.length} ${peds.length === 1 ? 'pedido' : 'pedidos'} · <span style="color:var(--lime);cursor:pointer;text-decoration:underline" onclick="pedBuscaLimpar()">limpar busca</span>` : `últimos ${peds.length} pedidos (todas as datas) · <span style="color:var(--lime);cursor:pointer;text-decoration:underline" onclick="pedBuscaLimpar()">voltar pro mês</span>`;
+    if (mais) mais.style.display = 'none';
+  } catch (e) {
+    if (seq !== _pedBuscaSeq) return;
+    if (info) info.textContent = 'Não consegui buscar agora ✦ confere a internet e tenta de novo';
+  }
+}
+function pedBuscaLimpar() {
+  _pedBuscaSeq++;
+  const inp = document.getElementById('ped-busca'); if (inp) inp.value = '';
+  const info = document.getElementById('ped-busca-info'); if (info) info.textContent = '';
+  const mais = document.getElementById('ped-mais-btn'); if (mais) mais.style.display = '';
+  window._pedBuscaRes = null;
+  try { const h = ((_painelData || {}).historico) || []; document.getElementById('historico-list').innerHTML = h.length ? h.map(p => renderPedidoCard(p, true)).join('') : '<div class="empty">Nenhuma venda finalizada este mês ✦ as mais antigas aparecem em "Ver pedidos mais antigos"</div>'; } catch (e) {}
 }
 // Número do pedido como o CLIENTE vê (#dr-xxxx) — pra loja e cliente falarem do mesmo pedido.
 function _pedNum(p) { const n = String((p && p.order_nsu) || '').trim(); return n ? '#' + n : '#' + ((p && p.id) || ''); }
@@ -5176,7 +5249,9 @@ function renderPedidoCard(p, isEntregue) {
     preparing: '<span class="status-badge status-novo">em separação</span>',
     ready: '<span class="status-badge status-novo">pronto p/ retirada</span>',
     dispatched: '<span class="status-badge status-novo">a caminho</span>',
-    done: `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
+    done: p.status === 'cancelled'
+      ? '<span class="status-badge" style="background:rgba(255,77,143,.14);color:var(--pink)">cancelado</span>'
+      : `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
   };
   const modeChip = `<span style="font-size:11px;font-weight:700;color:var(--fg-dim);background:var(--bg3);border-radius:999px;padding:2px 8px;margin-left:6px">${isDelivery ? '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> entrega' : '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4.5 9.5h15L18 5H6L4.5 9.5Z"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-4.5h5V20"/></svg> retirada'}</span>`;
   const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> ${esc(_pedAddrTxt(p.address))}</div>` : '';

@@ -4691,6 +4691,44 @@ async function handleImgThumb(req, res) {
   }
 }
 
+// GET action=filial_pedidos_busca&filial&token&q= — busca de pedido (UX A7): número (#dr-…),
+// nome ou telefone do cliente, em QUALQUER data e status (inclui cancelados). Sem q → últimos 50.
+async function handleFilialPedidosBusca(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const u = new URL(req.url, 'http://x');
+    const filial = await _filialAuthBySlug(String(u.searchParams.get('filial') || '').toLowerCase().trim(), String(u.searchParams.get('token') || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    let q = String(u.searchParams.get('q') || '').trim().replace(/^#/, '').slice(0, 60);
+    const safe = q.replace(/[^\p{L}\p{N} .@_-]/gu, '').trim(); // sem vírgula/parênteses (quebram o filtro)
+    let filter = `filial_id=eq.${filial.id}&status=neq.created`;
+    if (safe) {
+      const digits = safe.replace(/\D/g, '');
+      const parts = [`order_nsu.ilike.*${encodeURIComponent(safe)}*`, `customer_snapshot->>name.ilike.*${encodeURIComponent(safe)}*`];
+      if (digits.length >= 4) parts.push(`customer_snapshot->>phone.ilike.*${digits}*`);
+      filter += `&or=(${parts.join(',')})`;
+    }
+    const rows = await sbGet('drope_orders', `${filter}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=50`);
+    const pct = (_planFor(filial).commission_pct) || 10;
+    const pedidos = (Array.isArray(rows) ? rows : []).map(o => {
+      const t = Number(o.total_cents || 0);
+      return {
+        id: o.id, order_nsu: o.order_nsu, status: o.status, total_cents: t, ganho_cents: t - Math.round(t * pct / 100),
+        items: Array.isArray(o.items) ? o.items.map(it => ({ qty: it.qty || it.quantity || 1, name: it.name || 'item' })) : [],
+        customer: o.customer_snapshot || {}, address: o.address || null,
+        delivery_mode: o.delivery_mode || (o.address ? 'delivery' : 'pickup'),
+        created_at: o.created_at, delivered_at: o.delivered_at || o.picked_up_at,
+      };
+    });
+    return res.status(200).json({ ok: true, pedidos });
+  } catch (e) {
+    console.error('[filial_pedidos_busca] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: 'não consegui buscar agora' });
+  }
+}
+
 async function handleFilialPainel(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
@@ -4878,9 +4916,22 @@ async function handleFilialPainel(req, res) {
       entregadoresFixos = fixos.map(e => ({ ...e, a_pagar_cents: (owe[e.id] || {}).cents || 0, entregas_a_pagar: (owe[e.id] || {}).n || 0 }));
     } catch (e) { console.warn('[painel entregadores settle]', e.message); }
 
+    // ===== Números do dia (UX A1): hoje até agora × mesmo dia da semana passada até a MESMA hora =====
+    let dia = null;
+    try {
+      const BRT = 3 * 3600e3, nowMs = Date.now();
+      const b = new Date(nowMs - BRT); // "agora" no relógio de SP
+      const todayStart = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate()) + BRT;
+      const lwStart = todayStart - 7 * 864e5, lwNow = nowMs - 7 * 864e5;
+      const rows = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${new Date(lwStart).toISOString()}&select=created_at,total_cents&limit=2000`);
+      const sum = (from, to) => { let n = 0, c = 0; (rows || []).forEach(o => { const t = Date.parse(o.created_at); if (t >= from && t < to) { n++; c += Number(o.total_cents) || 0; } }); return { pedidos: n, vendas_cents: c, ticket_cents: n ? Math.round(c / n) : 0 }; };
+      dia = { hoje: sum(todayStart, nowMs + 1), semana_passada: sum(lwStart, lwNow + 1), semana_passada_dia_todo: sum(lwStart, lwStart + 864e5) };
+    } catch (e) { console.warn('[painel dia]', e.message); }
+
     return res.status(200).json({
       ok: true,
       comissoes,
+      dia,
       filial: {
         id: filial.id,
         slug: filial.slug,
@@ -22023,6 +22074,9 @@ async function generateAll(){
     return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && req.url.indexOf('action=filial_pedidos_busca') >= 0) {
+    return await handleFilialPedidosBusca(req, res);
+  }
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
   }
