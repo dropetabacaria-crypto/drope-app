@@ -506,7 +506,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <span><span style="font-weight:800;font-size:15px">QR da loja</span><br><small style="color:var(--fg-dim);font-weight:400">Link e QR pra vitrine/balcão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('pagamento')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Pagamentos</span><br><small style="color:var(--fg-dim);font-weight:400">Conectar o Mercado Pago pra receber</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Pagamentos</span><br><small style="color:var(--fg-dim);font-weight:400">InfinitePay · Pix ou cartão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('funcionarios')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionários</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão por venda e operador da loja</small></span><span style="color:var(--fg-dim)">›</span>
@@ -656,19 +656,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
       </div>
 
-      <!-- SEÇÃO: Pagamentos (Mercado Pago) -->
+      <!-- SEÇÃO: Pagamentos (InfinitePay — set/2026; Mercado Pago desligado) -->
       <div class="cfg-sec" id="cfg-pagamento" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
           <h2>Pagamentos<span class="help-q" onclick="helpShow('pagamento',true)" title="O que é isso?">?</span></h2>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-            <div id="mp-status" style="font-size:14px;color:var(--fg-dim);margin-bottom:12px">Verificando…</div>
-            <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">
-              Conecte a conta <b style="color:var(--fg)">Mercado Pago</b> da sua loja. Assim o dinheiro dos pedidos
-              cai <b style="color:var(--fg)">direto na sua conta</b> e a comissão do DROPE é descontada
-              automaticamente na hora do pagamento (Pix).
+            <div style="font-size:14px;font-weight:800;color:var(--lime);margin-bottom:10px">✓ Recebendo pela InfinitePay</div>
+            <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.55;margin:0">
+              O cliente paga no app por <b style="color:var(--fg)">Pix ou cartão (até 12x)</b> na página segura da InfinitePay,
+              e o dinheiro cai <b style="color:var(--fg)">direto na sua conta InfinitePay</b>. O pedido confirma sozinho e o estoque baixa.<br><br>
+              Na tela de pagamento aparece só <b style="color:var(--fg)">"Pedido Drope #…"</b>.<br>
+              <b style="color:var(--fg)">Estorno:</b> faça pelo app da InfinitePay (aqui o pedido é cancelado e o estoque volta).
             </p>
-            <button id="mp-connect-btn" onclick="mpConnect()" style="width:100%;background:linear-gradient(135deg,#00b1ea,#009ee3);border:0;border-radius:12px;padding:14px;color:#fff;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">Conectar Mercado Pago</button>
           </div>
         </div>
       </div>
@@ -4313,7 +4313,7 @@ function openCfg(name) {
     if (name === 'aparencia') renderLojaPreview();
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
     if (name === 'qr') renderQR();
-    if (name === 'pagamento') mpRefreshStatus();
+    // pagamento: InfinitePay (sem conexão a fazer; Mercado Pago desligado)
     if (name === 'funcionarios') { _fnTipoHint(); renderCommPeriod(); renderFuncionarios(); }
     if (name === 'entregadores') { renderEntregadores(); renderFrete(); }
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
@@ -4335,7 +4335,7 @@ const HELP = {
   filtros: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 7.2a2 2 0 0 1 2-2h3.6l2 2.4H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.2Z"/></svg>', title: 'Minhas categorias', body: 'Categorias são as seções da sua vitrine (Tabaco, Narguilé, Essências…).<br><br>Crie, dê uma imagem e use as setas <b>↑ ↓</b> pra definir a <b>ordem</b> que elas aparecem pro cliente. Todo produto entra numa categoria.' },
   qr: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20.5 14v0M14 20.5h0M17 20.5h4v-3"/></svg>', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
   func: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="M12 7.2V12l3 2"/></svg>', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
-  pagamento: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg>', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
+  pagamento: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg>', title: 'Pagamentos', body: 'As vendas do app são pagas pela <b>InfinitePay</b> (Pix ou cartão) e o dinheiro cai direto na sua conta InfinitePay. O pedido confirma sozinho.' },
   entregadores: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg>', title: 'Entregadores fixos', body: 'O entregador se cadastra sozinho no app (<b>/entregador</b>) com telefone e senha. Aqui você <b>vincula pelo telefone</b> os que são fixos da sua loja.<br><br>Ao chamar uma entrega, você escolhe um fixo (o frete fica com você, que paga ele) OU abre <b>pra qualquer entregador da plataforma</b> pegar (avulso — o DROPE paga o entregador). O status do pedido e o aviso pro cliente andam sozinhos ✦' },
   funcionarios: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.4"/><path d="M17.5 14.6c2 .7 3.7 2.4 3.7 5.4"/></svg>', title: 'Funcionários', body: 'Cadastre quem vende na sua loja e defina a comissão: <b>% do lucro</b> ou <b>R$ fixo por venda</b> (nunca % da venda).<br><br>O sistema calcula quanto pagar pra cada um; o pagamento é feito por você.' },
   parceiros: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="m11 16.5-2.6-2.6a1.5 1.5 0 0 1 0-2.1l3.5-3.5a2 2 0 0 1 1.4-.6H16"/><path d="m13 18.5-1.6-1.6M17 14.5l-2.4-2.4"/><path d="M3 8.5 7 7l3.2 3.2M21 8.5 17 7"/><path d="M3 8.5v4.5l3 2M21 8.5v4.5l-3 2"/></svg>', title: 'Parceiros / Indicadores', body: 'Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem.<br><br>O cliente pede pra ser parceiro, <b>você aprova</b> e define a comissão dele.' },

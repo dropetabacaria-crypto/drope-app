@@ -6691,131 +6691,87 @@
     go('card'); // o handler de 'card' chama renderCardScreen() → renderCardBrick()
   }
 
-  async function openInfinitePay(forceInfinite) {
-    // InfinitePay APOSENTADO (ago/2026): pagamento é 100% Mercado Pago — cada loja recebe
-    // na SUA conta conectada, com split. Se a loja tem MP → Pix do MP; senão, BLOQUEIA.
-    // NUNCA cai no InfinitePay (que ia 100% pro handle do Lucas, sem split — não fazia
-    // sentido com várias lojas na jogada).
-    if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
-      return openMPPix();
-    }
-    toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
-    const _ipBtn = document.getElementById('infinitepay-btn'); if (_ipBtn) { _ipBtn.textContent = 'pagar agora ✦'; _ipBtn.disabled = false; }
-    return;
-    // ↓↓↓ código antigo do InfinitePay: INALCANÇÁVEL (mantido só pra não quebrar referências) ↓↓↓
+  // ============ PAGAMENTO INFINITEPAY (set/2026 — conta da loja, Pix ou cartão) ============
+  // Salva o pedido pendente (reserva estoque) → servidor gera o link na InfinitePay com o VALOR
+  // do banco e a descrição "Pedido Drope #xxxx" → abre a página de pagamento. Ao pagar, a
+  // InfinitePay volta pro app (?pay=ip&order_nsu&transaction_nsu&slug) e o servidor confere.
+  const IP_PENDING_KEY = 'drope_ip_pending';
+  async function openInfinitePay() {
+    if (!cart.length) return;
+    if (!_requireLoginToBuy()) return;
     const btn = document.getElementById('infinitepay-btn');
-    if (!btn) return;
-    btn.textContent = 'gerando link...';
-    btn.disabled = true;
-
+    const resetBtn = () => { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } };
+    if (btn) { btn.textContent = 'abrindo pagamento…'; btn.disabled = true; }
     try {
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
       const total = Math.max(0, subtotal - discount);
-      // description: o backend força 'Drope' no payload final pro InfinitePay.
-      // Andrade 07/06: trocado de 'Tabacaria Drope' pra 'Drope' — operadora de cartão
-      // (Mastercard/Visa) flagava 'Tabacaria' como MCC restrito e bloqueava o pagamento.
-      // Frontend agora também manda 'Drope' direto pra ficar consistente em logs.
-      const items = cart.map(i => ({
-        quantity: i.qty,
-        price: Math.round(i.price * 100), // centavos
-        description: 'Drope'
-      }));
+      const deliveryFeeReais = deliveryFee();
+      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+      if (chargeCents <= 100) { toast('pedido mínimo de R$ 1,00 ✦'); resetBtn(); return; }
+      const orderNsu = `dr-${Date.now().toString(36)}`;
+      const addr = getSelectedAddress();
+      const saveResp = await fetch('/api/save-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_nsu: orderNsu, payment_method: 'infinitepay',
+          subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+          items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+          delivery_mode: deliveryMode,
+          address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
+          customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+          scheduled: _scheduledInfo(),
+          ambassador_ref: getAmbassadorRef() || undefined,
+        }),
+      });
+      const sd = await saveResp.json().catch(() => ({}));
+      if (saveResp.status === 409 && sd.error === 'out_of_stock') {
+        toast('estoque acabou ✦ ' + (sd.item || 'item indisponível'));
+        resetBtn(); go('cart'); renderCart(); renderGrid(); return;
+      }
+      if (!saveResp.ok) { toast('Não deu pra registrar o pedido ✦ tenta de novo'); resetBtn(); return; } // sem pedido salvo não cobra
 
-      // Manda dados do cliente pro checkout pré-preenchido
       const customer = {};
       if (profile.name) customer.name = profile.name;
       if (profile.email) customer.email = profile.email;
-      if (profile.phone) {
-        // BUGFIX: profile.phone já inclui o 55 nos dígitos → não prefixar '+55' de novo
-        // (gerava +55 duplicado → InfinitePay recusava "not a valid phone number").
-        const _d = profile.phone.replace(/[^0-9]/g, '');
-        customer.phone_number = '+' + (_d.startsWith('55') ? _d : '55' + _d);
-      }
-
-      // FIX 04/06 (Andrade #008): rota /api/infinitepay-checkout tava dando 404
-      // porque o vercel.json `routes` não rotava como esperado. Chamando direto
-      // /api/webhook?action=infinitepay_checkout que comprovadamente funciona.
-      // Anexa código do embaixador (se cliente veio via link /?ref=CACAU)
-      const ambassadorRef = getAmbassadorRef();
-
-      // order_nsu estável, usado NO save-order E no checkout. O webhook da InfinitePay
-      // confirma o pedido procurando por esse nsu (PATCH status='paid'). Sem isso, o
-      // pagamento cai mas nenhum pedido é registrado.
-      const orderNsu = `dr-${Date.now().toString(36)}`;
-
-      // Salva o pedido como PENDENTE antes de pagar (infinitepay → status 'created').
-      // Reserva estoque atômico; o cron de expiração libera se não for pago.
-      const addr = getSelectedAddress();
-      const deliveryFeeReais = deliveryFee(); // reais; já considera cupom frete grátis
-      // InfinitePay exige total > R$1,00. Com cupom de frete grátis num item barato
-      // (ex.: produto teste R$0,99) o total cai abaixo do mínimo e a API recusava com
-      // erro genérico. Aqui a gente avisa de forma clara e não tenta gerar o link.
-      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
-      if (chargeCents <= 100) {
-        toast('pedido mínimo de R$ 1,00 pra pagar no Pix ✦');
-        btn.textContent = 'pagar agora ✦'; btn.disabled = false;
-        return;
-      }
-      try {
-        const saveResp = await fetch('/api/save-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_nsu: orderNsu,
-            payment_method: 'infinitepay',
-            subtotal: subtotal,
-            delivery_fee: deliveryFeeReais,
-            total: total + deliveryFeeReais,
-            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
-            delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
-            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
-            scheduled: _scheduledInfo(),
-          }),
-        });
-        const saveData = await saveResp.json().catch(() => ({}));
-        if (saveResp.status === 409 && saveData.error === 'out_of_stock') {
-          toast('estoque acabou ✦ ' + (saveData.item || 'item indisponível'));
-          btn.textContent = 'pagar agora ✦'; btn.disabled = false;
-          go('cart'); renderCart(); renderGrid();
-          return;
-        }
-      } catch (eSave) {
-        console.error('[save-order/infinitepay] erro:', eSave && eSave.message);
-        // não bloqueia a venda; segue pro checkout
-      }
-
+      if (profile.phone) { const _d = profile.phone.replace(/[^0-9]/g, ''); customer.phone_number = '+' + (_d.startsWith('55') ? _d : '55' + _d); }
       const res = await fetch('/api/webhook?action=infinitepay_checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handle: INFINITEPAY_HANDLE,
-          // Cobra o VALOR TOTAL do pedido numa linha só (subtotal - desconto + entrega),
-          // garantindo que o desconto do cupom E a taxa de entrega entrem na cobrança.
-          items: [{ quantity: 1, price: Math.round((total + deliveryFeeReais) * 100), description: 'Pedido Drope' }],
-          total: Math.round((total + deliveryFeeReais) * 100),
-          order_id: orderNsu,
-          customer,
-          ambassador_ref: ambassadorRef || undefined,
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderNsu, customer }),
       });
-
-      const data = await res.json();
-      if (data.url) {
-        // Abre o checkout InfinitePay (nova aba no mobile abre in-app browser)
-        window.open(data.url, '_blank');
-        btn.textContent = 'pagar agora ✦';
-        btn.disabled = false;
-      } else {
-        throw new Error(data.error || 'erro ao gerar link');
-      }
-    } catch(e) {
-      console.error('[InfinitePay]', e);
-      toast('erro ao gerar o Pix ✦ tenta de novo');
-      btn.textContent = 'pagar agora ✦';
-      btn.disabled = false;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) { toast((data && data.message) || 'Não deu pra abrir o pagamento agora ✦ tenta de novo'); resetBtn(); return; }
+      try { localStorage.setItem(IP_PENDING_KEY, JSON.stringify({ nsu: orderNsu, at: Date.now() })); } catch (e) {}
+      window.location.href = data.url; // mesma aba: ao pagar, a InfinitePay volta direto pro app
+    } catch (e) {
+      console.error('[InfinitePay]', e && e.message);
+      toast('Não deu pra abrir o pagamento agora ✦ tenta de novo');
+      resetBtn();
     }
+  }
+  // Voltou da InfinitePay: pede pro servidor conferir o pagamento (ele pergunta pra InfinitePay).
+  // Tenta algumas vezes (o Pix pode levar uns segundos pra constar como pago).
+  async function _ipConfirmReturn(params) {
+    const waits = [0, 3000, 6000, 10000, 15000];
+    for (const w of waits) {
+      if (w) await new Promise(r => setTimeout(r, w));
+      try {
+        const r = await fetch('/api/webhook?action=infinitepay_webhook', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_nsu: params.nsu, transaction_nsu: params.tx, invoice_slug: params.slug, capture_method: params.method || '' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d && d.paid) {
+          try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {}
+          _finishPaidOrder('infinitepay', params.nsu);
+          return true;
+        }
+        if (d && (d.error === 'valor_divergente' || d.error === 'pedido_nao_encontrado')) break;
+      } catch (e) {}
+    }
+    toast('Recebemos teu retorno ✦ o pagamento aparece no pedido assim que a InfinitePay confirmar');
+    go('order-tracking'); try { loadMyOrders(); setTimeout(loadMyOrders, 8000); } catch (e) {}
+    return false;
   }
 
   // ============ PIX MERCADO PAGO (split por loja) ============
@@ -7434,13 +7390,22 @@
       const u = new URL(window.location.href);
       const payReturn = u.searchParams.get('capture_method') || u.searchParams.get('transaction_nsu') || u.hash === '#success-pay';
       if (payReturn) {
+        let pend = null; try { pend = JSON.parse(localStorage.getItem(IP_PENDING_KEY) || 'null'); } catch (e) {}
+        const params = {
+          nsu: u.searchParams.get('order_nsu') || (pend && pend.nsu) || '',
+          tx: u.searchParams.get('transaction_nsu') || '',
+          slug: u.searchParams.get('slug') || u.searchParams.get('invoice_slug') || '',
+          method: u.searchParams.get('capture_method') || '',
+        };
         history.replaceState(null, '', u.origin + u.pathname);
-        go('order-tracking');
-        loadMyOrders();
-        // webhook pode levar alguns segundos pra confirmar → re-busca o status
-        setTimeout(loadMyOrders, 4000);
-        setTimeout(loadMyOrders, 12000);
-        toast('pagamento recebido ✦ acompanhe teu pedido');
+        if (SINGLE_STORE) { try { pickClientFilial(SINGLE_STORE_SLUG); } catch (e) {} } // catálogo/carrinho carregados
+        if (params.nsu && params.tx && params.slug) {
+          toast('confirmando teu pagamento… ✦');
+          _ipConfirmReturn(params);
+        } else {
+          go('order-tracking'); loadMyOrders(); setTimeout(loadMyOrders, 6000);
+          toast('pagamento em confirmação ✦ acompanhe teu pedido');
+        }
         return;
       }
     } catch(e) {}
@@ -11760,7 +11725,7 @@
       }
     } catch (e) {}
     setTimeout(function () {
-      try { if (kind === 'card') openMPCheckout(); else openMPPix(); }
+      try { if (kind === 'ip') openInfinitePay(); else if (kind === 'card') openMPCheckout(); else openMPPix(); }
       catch (e) { if (el) el.classList.remove('loading'); }
     }, 30);
   }
@@ -11910,49 +11875,17 @@
         </div>
       `;
     } else {
-      // Caso 2: Pix antecipado (pickup pagar agora OU delivery sempre)
-      // Pix paga DIRETO (gera o QR do MP na hora) — sem tela intermediária que repetia
-      // as mesmas opções de pagamento (remove a redundância).
-      const blockClick = "openMPPix()";
-      // Cartão vai pro Checkout Pro do Mercado Pago (crédito/débito, COM split na conta
-      // da loja). InfinitePay aposentado. Só aparece pra não-pod (ver cardLiberado abaixo).
-      const blockCard = "openMPCheckout()";
-
+      // Caso 2: paga antes (pickup pagar agora OU delivery sempre) → InfinitePay (Pix ou cartão).
       html = `
-        <div class="co-method" onclick="_coPay(this,'pix')">
+        <div class="co-method" onclick="_coPay(this,'ip')">
           <div class="co-method-icon">${_ICON_PIX}</div>
           <div class="co-method-body">
-            <div class="co-method-title">Pix</div>
-            <div class="co-method-sub">aprovação automática ✦ sem comprovante</div>
+            <div class="co-method-title">Pix ou cartão</div>
+            <div class="co-method-sub">pagamento seguro InfinitePay ✦ cartão em até 12x</div>
           </div>
           <div class="co-method-arrow">→</div>
         </div>
       `;
-
-      // Cartão só pra não-pod (tabacaria). Pod é sempre só Pix, em qualquer loja.
-      const cardLiberado = kind === 'tabac';
-      if (cardLiberado) {
-        html += `
-          <div class="co-method" onclick="_coPay(this,'card')">
-            <div class="co-method-icon">${_ICON_CARD}</div>
-            <div class="co-method-body">
-              <div class="co-method-title">cartão</div>
-              <div class="co-method-sub">crédito ou débito ✦ até 3x sem juros</div>
-            </div>
-            <div class="co-method-arrow">→</div>
-          </div>
-        `;
-      } else {
-        html += `
-          <div class="co-method disabled">
-            <div class="co-method-icon">${_ICON_CARD}</div>
-            <div class="co-method-body">
-              <div class="co-method-title">cartão</div>
-              <div class="co-method-sub">indisponível pra drops</div>
-            </div>
-          </div>
-        `;
-      }
     }
 
     methods.innerHTML = html;
