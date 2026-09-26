@@ -4763,12 +4763,17 @@ async function handleFilialPainel(req, res) {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    // PERF: as consultas independentes saem JUNTAS (antes eram ~7 em fila, a cada 10s por painel aberto).
+    const _pOrders = sbGet('drope_orders',
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`).catch(() => []);
+    const _pProds = sbGet('drope_products',
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`).catch(() => []);
+    const _pSettle = sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`).catch(() => []);
 
     // Pedidos ATIVOS da filial no mês (inclui pending_pickup = pagar na retirada, e
     // preparing/ready = em separação/pronto). 'created'/'waiting_proof' ficam de fora
     // (checkout não concluído). Finalizados (delivered/picked_up/completed) vão pro histórico.
-    const orders = await sbGet('drope_orders',
-      `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
+    const orders = await _pOrders;
 
     // Calcular ganho da fundadora como (price - cost) / 2 por item
     // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
@@ -4830,8 +4835,7 @@ async function handleFilialPainel(req, res) {
     const saldoPendenteCents = pedidos.reduce((s, p) => s + (p.ganho_cents || 0), 0);
 
     // Produtos da loja (pro lojista gerenciar estoque/preço)
-    const prods = await sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`);
+    const prods = await _pProds;
     const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
       stock: p.qty_available, hidden: !!p.hidden,
@@ -4910,7 +4914,7 @@ async function handleFilialPainel(req, res) {
     const fixos = Array.isArray((filial.metadata || {}).entregadores_fixos) ? (filial.metadata || {}).entregadores_fixos : [];
     let entregadoresFixos = fixos;
     try {
-      const settleRows = await sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`);
+      const settleRows = await _pSettle;
       const owe = {};
       (settleRows || []).forEach(c => { const k = c.entregador_id; if (!k) return; owe[k] = owe[k] || { cents: 0, n: 0 }; owe[k].cents += Number(c.valor_motoboy_cents) || 0; owe[k].n++; });
       entregadoresFixos = fixos.map(e => ({ ...e, a_pagar_cents: (owe[e.id] || {}).cents || 0, entregas_a_pagar: (owe[e.id] || {}).n || 0 }));
