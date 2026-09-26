@@ -17974,7 +17974,7 @@ async function handleInfinitePayCheckout(req, res) {
     const payload = {
       handle: INFINITEPAY_HANDLE,
       order_nsu: orderNsu,
-      redirect_url: `${protocol}://${host}/?pay=ip#success-pay`,
+      redirect_url: `${protocol}://${host}/?pay=ip`, // sem #: a InfinitePay anexa ?order_nsu&transaction_nsu&slug — com # os dados iam parar depois do # e se perdiam
       webhook_url: `${protocol}://${host}/api/webhook?action=infinitepay_webhook`,
       items: [{ quantity: 1, price: totalCents, description: `Pedido Drope #${orderNsu.replace(/^dr-/, '')}` }],
     };

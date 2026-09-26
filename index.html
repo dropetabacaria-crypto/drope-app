@@ -7388,14 +7388,17 @@
     // cai direto no acompanhamento do pedido e busca o status real (webhook confirma em segundos).
     try {
       const u = new URL(window.location.href);
-      const payReturn = u.searchParams.get('capture_method') || u.searchParams.get('transaction_nsu') || u.hash === '#success-pay';
+      // Dados podem vir na query OU depois do # (link antigo com #success-pay?…) → junta os dois.
+      const _hq = (u.hash.indexOf('?') >= 0) ? new URLSearchParams(u.hash.slice(u.hash.indexOf('?') + 1)) : new URLSearchParams('');
+      const _qp = (k) => u.searchParams.get(k) || _hq.get(k) || '';
+      const payReturn = u.searchParams.get('pay') === 'ip' || _qp('capture_method') || _qp('transaction_nsu') || u.hash.indexOf('#success-pay') === 0;
       if (payReturn) {
         let pend = null; try { pend = JSON.parse(localStorage.getItem(IP_PENDING_KEY) || 'null'); } catch (e) {}
         const params = {
-          nsu: u.searchParams.get('order_nsu') || (pend && pend.nsu) || '',
-          tx: u.searchParams.get('transaction_nsu') || '',
-          slug: u.searchParams.get('slug') || u.searchParams.get('invoice_slug') || '',
-          method: u.searchParams.get('capture_method') || '',
+          nsu: _qp('order_nsu') || (pend && pend.nsu) || '',
+          tx: _qp('transaction_nsu'),
+          slug: _qp('slug') || _qp('invoice_slug'),
+          method: _qp('capture_method'),
         };
         history.replaceState(null, '', u.origin + u.pathname);
         if (SINGLE_STORE) { try { pickClientFilial(SINGLE_STORE_SLUG); } catch (e) {} } // catálogo/carrinho carregados
