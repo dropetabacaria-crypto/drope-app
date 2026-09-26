@@ -183,11 +183,11 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .qa-tile:hover { border-color: rgba(255,255,255,0.16); }
 .qa-tile:active { transform: scale(0.98); }
 .qa-emoji { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-.qa-tile.sell .qa-emoji { background: rgba(74,222,128,0.14); color: var(--green); }     /* vender = dinheiro */
+.qa-tile.sell .qa-emoji { background: rgba(74,222,128,0.14); color: var(--green); }     /* cadastrar */
 .qa-tile.stock .qa-emoji { background: rgba(140,80,255,0.16); color: #B79CFF; }          /* balanço = utilitário */
 .qa-tt { font-size: 15px; font-weight: 800; color: var(--fg); }
 .qa-ts { font-size: 11.5px; color: var(--fg-dim); }
-/* Overlays (PDV / balanço) */
+/* Overlays (balanço etc.) */
 .sheet-ov { position: fixed; inset: 0; background: var(--bg); z-index: 90; display: none; flex-direction: column; }
 .sheet-ov.open { display: flex; }
 /* Ajuda contextual */
@@ -245,25 +245,13 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .pdet-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; position: sticky; top: 0; background: var(--bg); border-bottom: 0.5px solid var(--border); z-index: 1; }
 .pdet-hd b { font-size: 15px; }
 .pdet-body { padding: 14px 16px 18px; }
-.pdv-prod { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
-.pdv-prod .n { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
-.pdv-prod .n small { display: block; color: var(--fg-dim); font-size: 11px; font-weight: 400; }
 .step { display: flex; align-items: center; gap: 8px; }
 .step button { width: 30px; height: 30px; border-radius: 8px; border: 0; background: var(--bg3); color: var(--fg); font-size: 17px; cursor: pointer; line-height: 1; }
 .step .q { min-width: 20px; text-align: center; font-weight: 700; }
 .pay-opts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
 .pay-opt { flex: 1; min-width: 68px; background: var(--bg3); border: 1px solid var(--border); color: var(--fg); border-radius: 10px; padding: 10px; font-size: 12px; cursor: pointer; text-align: center; }
 .pay-opt.active { background: rgba(212,255,46,0.15); border-color: var(--lime); color: var(--lime); }
-/* ===== Balcão (PDV) — carrinho visual ===== */
-.pdv-cart-item { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; padding: 10px; margin-bottom: 10px; }
-.pdv-cart-item .thumb { width: 54px; height: 54px; border-radius: 11px; object-fit: cover; background: var(--bg3); flex: 0 0 auto; }
-.pdv-cart-item .info { flex: 1; min-width: 0; }
-.pdv-cart-item .info .nm { font-size: 14px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.pdv-cart-item .info .un { font-size: 12px; color: var(--fg-dim); margin-top: 3px; }
-.pdv-cart-item .rgt { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex: 0 0 auto; }
-.pdv-cart-item .line { font-weight: 800; font-size: 15px; color: var(--lime); white-space: nowrap; }
-.pdv-empty { text-align: center; color: var(--fg-dim); padding: 46px 20px; font-size: 14px; line-height: 1.6; }
-.pdv-search-results { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; margin-top: 6px; overflow: hidden; }
+/* Lista de busca de produtos (novo sabor, "é um produto que já tenho") */
 .pdv-sr-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; cursor: pointer; border-bottom: 0.5px solid var(--border); }
 .pdv-sr-item:last-child { border-bottom: 0; }
 .pdv-sr-item:hover { background: var(--bg3); }
@@ -428,7 +416,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
-      <button class="qa-tile sell" onclick="openPDV()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2l2.3 12a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20.5 7.5H6"/></svg></span><span class="qa-tt">Vender no balcão</span><span class="qa-ts">PDV presencial</span></button>
+      <button class="qa-tile sell" onclick="openProdutos();switchProdTab('cadastrar')"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 8v8M11 8v8M14 8v8M17 8v8"/></svg></span><span class="qa-tt">Cadastrar</span><span class="qa-ts">Novo pod pelo código</span></button>
       <button class="qa-tile stock" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
     </div>
   </div>
@@ -799,7 +787,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 </div>
 
-<!-- Overlay: PDV (vender no balcão) -->
+<!-- Overlay: Avisos -->
 <div class="sheet-ov" id="notif-ov">
   <div class="sheet-hd">
     <button class="sheet-x" onclick="closeNotifs()">←</button>
@@ -807,42 +795,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <span></span>
   </div>
   <div class="sheet-scroll" id="notif-list" style="padding:12px 16px"></div>
-</div>
-
-<div class="sheet-ov" id="pdv-ov">
-  <div class="sheet-hd">
-    <button class="sheet-x" onclick="closePDV()">←</button>
-    <h3>Vender no balcão</h3>
-    <span id="pdv-total" style="font-weight:800;color:var(--lime)">R$ 0,00</span>
-  </div>
-  <div style="padding:12px 16px 0">
-    <input class="pf-input" id="pdv-barcode" inputmode="numeric" autocomplete="off" placeholder="Bipe o código de barras aqui" style="margin-bottom:6px;font-size:16px;padding:15px;text-align:center;font-weight:700" onkeydown="if(event.key==='Enter'){event.preventDefault();_pdvSubmitInput();}">
-    <div id="pdv-scan-msg" style="font-size:12.5px;color:var(--fg-dim);text-align:center;min-height:16px;margin-bottom:8px"></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input class="pf-input" id="pdv-search" autocomplete="off" placeholder="Buscar produto pra adicionar" style="flex:1;margin-bottom:0" oninput="pdvSearch(this.value)">
-      <button class="pf-btn sec" onclick="openBarcodeScanner('pdv')" title="Escanear pela câmera" style="flex:0 0 auto;margin-bottom:0;padding:0 14px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h2.8L8.2 6h7.6l1.4 2.5H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg></button>
-    </div>
-    <div id="pdv-search-results" class="pdv-search-results" style="display:none"></div>
-  </div>
-  <div class="sheet-scroll" id="pdv-list"></div>
-  <div class="sheet-foot">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
-      <span style="font-size:13px;color:var(--fg-dim)"><b id="pdv-count" style="color:var(--fg);font-size:16px">0</b> itens</span>
-      <span style="font-size:26px;font-weight:800;color:var(--lime)" id="pdv-foot-total">R$ 0,00</span>
-    </div>
-    <div id="pdv-vendedor-wrap" style="display:none;margin-bottom:10px">
-      <label style="font-size:11px;color:var(--fg-dim);display:block;margin-bottom:4px">Vendedor (comissão)</label>
-      <select class="pf-input" id="pdv-vendedor" style="margin-bottom:0"></select>
-    </div>
-    <div class="pay-opts" id="pdv-pay">
-      <div class="pay-opt" data-m="dinheiro" onclick="pdvPay('dinheiro',this)">Dinheiro</div>
-      <div class="pay-opt" data-m="pix" onclick="pdvPay('pix',this)">Pix</div>
-      <div class="pay-opt" data-m="debito" onclick="pdvPay('debito',this)">Débito</div>
-      <div class="pay-opt" data-m="credito" onclick="pdvPay('credito',this)">Crédito</div>
-    </div>
-    <button class="pf-btn full" id="pdv-finalize" onclick="pdvFinalize()" disabled style="opacity:0.5">Finalizar venda ✦</button>
-    <div id="pdv-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px;text-align:center"></div>
-  </div>
 </div>
 
 <!-- Overlay: escolher produto base (novo sabor de um produto que já existe) -->
@@ -2222,7 +2174,7 @@ function _wizReset() {
   ['ap-name', 'ap-marca', 'ap-sabor', 'ap-price', 'ap-stock', 'ap-custo', 'ap-lucro', 'ap-newcat', 'ap-barcode'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   const _ncw = document.getElementById('ap-newcat-wrap'); if (_ncw) _ncw.style.display = 'none';
   const _calc = document.getElementById('ap-calc'); if (_calc) _calc.innerHTML = '';
-  const _pay = document.getElementById('ap-payment'); if (_pay) _pay.value = 'both';
+  const _pay = document.getElementById('ap-payment'); if (_pay) _pay.value = 'pix'; // foco em pod: produto novo já nasce só Pix
   const _lt = document.getElementById('ap-lucro-tipo'); if (_lt) _lt.value = 'rs';
   const _fsel = document.getElementById('ap-filtro'); if (_fsel) _fsel.selectedIndex = 0;
   const _csel = document.getElementById('ap-catglobal'); if (_csel) _csel.selectedIndex = 0;
@@ -3634,101 +3586,8 @@ async function saveEditProduct(id) {
   await _saveProduct(payload);
 }
 
-// ===================== PDV — vender no balcão =====================
-let _pdvCart = {}, _pdvPay = null;
-function _pdvProds() { return (_lastProdutos || []).filter(p => !p.hidden); }
-function openPDV() {
-  _pdvCart = {}; _pdvPay = null;
-  document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active'));
-  document.getElementById('pdv-msg').textContent = '';
-  // Seletor de vendedor (comissão) — só aparece se tiver funcionário cadastrado.
-  const wrap = document.getElementById('pdv-vendedor-wrap');
-  const sel = document.getElementById('pdv-vendedor');
-  const fs = _funcionarios || [];
-  if (wrap && sel) {
-    if (fs.length) {
-      const oper = fs.find(f => f.operador);
-      sel.innerHTML = '<option value="">Ninguém / a loja</option>' + fs.map(f => `<option value="${f.id}"${oper && oper.id === f.id ? ' selected' : ''}>${esc(f.nome)}</option>`).join('');
-      wrap.style.display = 'block';
-    } else { wrap.style.display = 'none'; }
-  }
-  renderPDV();
-  document.getElementById('pdv-ov').classList.add('open');
-  // Leitor USB: foca o campo de código pra "bipar" direto (só em desktop, pra não
-  // abrir o teclado do celular). Limpa campo e mensagem.
-  try {
-    const _b = document.getElementById('pdv-barcode'); if (_b) _b.value = '';
-    const _m = document.getElementById('pdv-scan-msg'); if (_m) { _m.textContent = ''; _m.style.color = 'var(--fg-dim)'; }
-    const _s = document.getElementById('pdv-search'); if (_s) _s.value = '';
-    const _sr = document.getElementById('pdv-search-results'); if (_sr) { _sr.innerHTML = ''; _sr.style.display = 'none'; }
-    const _fine = window.matchMedia && window.matchMedia('(pointer:fine)').matches;
-    if (_b && _fine) setTimeout(() => { try { _b.focus(); } catch (e) {} }, 60);
-  } catch (e) {}
-}
-function closePDV() { document.getElementById('pdv-ov').classList.remove('open'); }
-function renderPDV() {
-  const list = document.getElementById('pdv-list');
-  const prods = _pdvProds();
-  const cartIds = Object.keys(_pdvCart).filter(id => _pdvCart[id] > 0);
-  let cents = 0;
-  const rows = cartIds.map(id => {
-    const p = prods.find(x => String(x.id) === String(id));
-    if (!p) return '';
-    const q = _pdvCart[id];
-    const unit = p.price_cents || 0;
-    const line = unit * q; cents += line;
-    const stk = p.stock || 0;
-    const stkHtml = stk > 0 ? (stk + ' em estoque') : '<span style="color:var(--pink)">sem estoque — repor depois</span>';
-    const thumb = p.image_url ? `<img class="thumb" src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="thumb"></div>`;
-    return `<div class="pdv-cart-item">
-      ${thumb}
-      <div class="info"><div class="nm">${esc(p.name)}</div><div class="un">R$ ${(unit / 100).toFixed(2).replace('.', ',')} cada · ${stkHtml}</div></div>
-      <div class="rgt">
-        <div class="line">R$ ${(line / 100).toFixed(2).replace('.', ',')}</div>
-        <div class="step"><button onclick="pdvDec(${p.id})">−</button><span class="q">${q}</span><button onclick="pdvInc(${p.id})">+</button></div>
-      </div>
-    </div>`;
-  }).join('');
-  list.innerHTML = cartIds.length ? rows
-    : '<div class="pdv-empty">Nenhum item na venda ainda ✦<br>Bipe o código de barras ou busque o produto acima.</div>';
-  const totalStr = 'R$ ' + (cents / 100).toFixed(2).replace('.', ',');
-  { const t = document.getElementById('pdv-total'); if (t) t.textContent = totalStr; }
-  { const ft = document.getElementById('pdv-foot-total'); if (ft) ft.textContent = totalStr; }
-  const n = cartIds.reduce((s, id) => s + _pdvCart[id], 0);
-  { const c = document.getElementById('pdv-count'); if (c) c.textContent = n; }
-  const ok = n > 0 && !!_pdvPay;
-  const btn = document.getElementById('pdv-finalize');
-  if (btn) { btn.disabled = !ok; btn.style.opacity = ok ? 1 : 0.5; }
-}
-// Busca por nome pra adicionar produtos SEM código de barras (ou manual).
-function pdvSearch(q) {
-  const box = document.getElementById('pdv-search-results');
-  if (!box) return;
-  q = (q || '').trim().toLowerCase();
-  if (q.length < 2) { box.innerHTML = ''; box.style.display = 'none'; return; }
-  const prods = _pdvProds().filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q)).slice(0, 8);
-  if (!prods.length) { box.innerHTML = '<div class="pdv-sr-item" style="cursor:default;color:var(--fg-dim)">Nada encontrado</div>'; box.style.display = 'block'; return; }
-  box.innerHTML = prods.map(p => {
-    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
-    return `<div class="pdv-sr-item" onclick="pdvAddFromSearch(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">R$ ${((p.price_cents || 0) / 100).toFixed(2).replace('.', ',')} · ${p.stock || 0} em estoque</div></div><span style="color:var(--lime);font-weight:800;font-size:22px;flex:0 0 auto">＋</span></div>`;
-  }).join('');
-  box.style.display = 'block';
-}
-function pdvAddFromSearch(id) {
-  pdvInc(id);
-  const s = document.getElementById('pdv-search'); if (s) s.value = '';
-  const box = document.getElementById('pdv-search-results'); if (box) { box.innerHTML = ''; box.style.display = 'none'; }
-  const p = _pdvProds().find(x => x.id === id);
-  const msg = document.getElementById('pdv-scan-msg');
-  if (msg && p) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ ' + p.name + ' (' + (_pdvCart[id] || 1) + ') na venda'; }
-  try { const b = document.getElementById('pdv-barcode'); if (b && window.matchMedia && window.matchMedia('(pointer:fine)').matches) b.focus(); } catch (e) {}
-}
-// Balcão: o operador tem o produto EM MÃOS — vende mesmo com estoque 0 (contagem pode
-// estar desatualizada). NÃO trava por estoque; o backend já não deixa o estoque negativar.
-function pdvInc(id) { _pdvCart[id] = Math.min(999, (_pdvCart[id] || 0) + 1); renderPDV(); }
-
-// ===== Leitor de código de barras ao vivo (ZXing) — PDV: escaneia e vende =====
-let _zxingReader = null, _scanCtx = 'pdv', _lastScan = { code: '', t: 0 }, _scanTargetId = null, _scanVote = { code: '', n: 0, t: 0 };
+// ===== Leitor de código de barras ao vivo (ZXing) — cadastro, balanço, sem código =====
+let _zxingReader = null, _scanCtx = 'cadastro', _lastScan = { code: '', t: 0 }, _scanTargetId = null, _scanVote = { code: '', n: 0, t: 0 };
 function _loadZxing() {
   return new Promise((resolve, reject) => {
     if (window.ZXing && window.ZXing.BrowserMultiFormatReader) return resolve(window.ZXing);
@@ -3740,7 +3599,7 @@ function _loadZxing() {
   });
 }
 async function openBarcodeScanner(ctx, targetId) {
-  _scanCtx = ctx || 'pdv';
+  _scanCtx = ctx || 'cadastro';
   _scanTargetId = targetId || null; // cadastro: id do input que recebe o código
   const ov = document.getElementById('scan-ov'), hint = document.getElementById('scan-hint');
   // Cadastro: atalhos pra quem não vai escanear (digitar / produto sem código).
@@ -3823,51 +3682,8 @@ function _onBarcode(raw) {
     balFindCode(code, true);
     return;
   }
-  const p = _findByBarcode(code);
-  if (p) {
-    try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
-    if (_scanCtx === 'pdv') { pdvInc(p.id); if (hint) hint.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') — na venda'; }
-  } else if (hint) {
-    hint.textContent = 'Código ' + code + ' não cadastrado. Cadastre em "＋ Manual".';
-  }
 }
-// ===== Leitor USB (keyboard-wedge) + campo de código no PDV =====
-// Leitor USB de código de barras funciona como TECLADO: digita os números e dá Enter.
-// Aqui a gente captura isso, acha o produto pelo código e joga na venda — mesmo match
-// do scanner por câmera. Resolve o "bipou e não puxou".
-function _pdvHandleCode(raw) {
-  const code = String(raw || '').replace(/\D/g, '');
-  const msg = document.getElementById('pdv-scan-msg');
-  if (code.length < 6) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'código muito curto — bipe de novo'; } return; }
-  const p = _findByBarcode(code);
-  if (p) {
-    pdvInc(p.id);
-    if (msg) { msg.style.color = 'var(--lime)'; msg.textContent = '✓ ' + p.name + ' (' + (_pdvCart[p.id] || 1) + ') na venda'; }
-    try { navigator.vibrate && navigator.vibrate(50); } catch (e) {}
-  } else if (msg) {
-    msg.style.color = 'var(--pink)'; msg.textContent = 'Código ' + code + ' não está em nenhum produto — cadastre o código de barras dele em "Meus produtos".';
-  }
-}
-function _pdvSubmitInput() {
-  const el = document.getElementById('pdv-barcode'); if (!el) return;
-  const v = el.value; el.value = '';
-  _pdvHandleCode(v);
-  try { el.focus(); } catch (e) {}
-}
-// Reserva: se o foco NÃO estiver num campo, ainda captura o "bip" (dígitos rápidos + Enter).
-let _pdvWedgeBuf = '', _pdvWedgeT = 0;
-document.addEventListener('keydown', function (e) {
-  const ov = document.getElementById('pdv-ov');
-  if (!ov || !ov.classList.contains('open')) return;
-  const ae = document.activeElement;
-  if (ae && ae.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // deixa o campo cuidar
-  const now = Date.now();
-  if (now - _pdvWedgeT > 120) _pdvWedgeBuf = ''; // gap grande = digitação humana → zera
-  _pdvWedgeT = now;
-  if (e.key === 'Enter') { if (_pdvWedgeBuf.length >= 6) _pdvHandleCode(_pdvWedgeBuf); _pdvWedgeBuf = ''; return; }
-  if (/^[0-9]$/.test(e.key)) _pdvWedgeBuf += e.key;
-});
-// Mesma reserva pro CADASTRO: bip do leitor USB na etapa 1 mesmo se o foco saiu do campo.
+// Leitor USB (keyboard-wedge) no CADASTRO: bip na etapa 1 mesmo se o foco saiu do campo.
 let _apWedgeBuf = '', _apWedgeT = 0;
 document.addEventListener('keydown', function (e) {
   const form = document.getElementById('add-product-form');
@@ -3887,23 +3703,6 @@ document.addEventListener('keydown', function (e) {
   }
   if (/^[0-9]$/.test(e.key)) _apWedgeBuf += e.key;
 });
-function pdvDec(id) { _pdvCart[id] = Math.max(0, (_pdvCart[id] || 0) - 1); if (!_pdvCart[id]) delete _pdvCart[id]; renderPDV(); }
-function pdvPay(m, el) { _pdvPay = m; document.querySelectorAll('#pdv-pay .pay-opt').forEach(o => o.classList.remove('active')); if (el) el.classList.add('active'); renderPDV(); }
-async function pdvFinalize() {
-  const items = Object.keys(_pdvCart).map(id => ({ product_id: Number(id), qty: _pdvCart[id] }));
-  if (!items.length || !_pdvPay) return;
-  const msg = document.getElementById('pdv-msg'); msg.textContent = 'registrando...';
-  const btn = document.getElementById('pdv-finalize'); btn.disabled = true;
-  try {
-    const r = await fetch('/api/webhook?action=filial_pos_sale', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, items, payment_method: _pdvPay, employee_id: ((document.getElementById('pdv-vendedor') || {}).value) || null }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) { closePDV(); loadData(true); }
-    else { msg.textContent = d.error || ('erro ' + r.status); btn.disabled = false; }
-  } catch (e) { msg.textContent = 'Erro de rede'; btn.disabled = false; }
-}
 
 // ===================== Balanço — contagem de estoque =====================
 function openBalanco() { _balHitId = null; { const h = document.getElementById('bal-hit'); if (h) { h.className = ''; h.innerHTML = ''; } } renderBalanco(); document.getElementById('bal-msg').textContent = ''; document.getElementById('bal-ov').classList.add('open');

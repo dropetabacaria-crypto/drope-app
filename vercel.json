@@ -2,7 +2,6 @@
   "version": 2,
   "builds": [
     { "src": "index.html", "use": "@vercel/static" },
-    { "src": "pdv.html", "use": "@vercel/static" },
     { "src": "receber.html", "use": "@vercel/static" },
     { "src": "balanco.html", "use": "@vercel/static" },
     { "src": "dashboard.html", "use": "@vercel/static" },
@@ -29,7 +28,6 @@
     { "src": "/api/infinitepay-checkout", "dest": "/api/webhook?action=infinitepay_checkout" },
     { "src": "/api/infinitepay-webhook", "dest": "/api/webhook?action=infinitepay_webhook" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
-    { "src": "/pdv.html", "dest": "/pdv.html" },
     { "src": "/receber.html", "dest": "/receber.html" },
     { "src": "/receber", "dest": "/receber.html" },
     { "src": "/balanco.html", "dest": "/balanco.html" },

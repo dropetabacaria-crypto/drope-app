@@ -18445,6 +18445,7 @@ async function handleMPCreateCheckout(req, res) {
     const body = req.body || {};
     const { total_cents, order_id, customer } = body;
     if (!total_cents || !order_id) return res.status(400).json({ error: 'missing total_cents or order_id' });
+    if (await _orderIsPixOnly(order_id)) return res.status(409).json({ error: 'pix_only', message: 'Esse pedido é só no Pix.' });
     // Split: token da loja + comissão do DROPE (mesma regra do Pix).
     const slug = String(body.filial_slug || '').toLowerCase().trim();
     let sellerToken = null, appFeeReais = 0, commissionPct = 0, split = false;
@@ -18616,6 +18617,23 @@ async function handleMPDeleteCard(req, res) {
   } catch (e) { console.error('[mp_delete_card] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// "Só Pix" vale no SERVIDOR também (antes só a tela do cliente respeitava): se algum item do
+// pedido é só Pix (pod = só Pix por padrão), cartão é recusado aqui.
+async function _orderIsPixOnly(orderId) {
+  try {
+    if (!orderId) return false;
+    const o = await sbGet('drope_orders', `id=eq.${encodeURIComponent(orderId)}&select=items&limit=1`);
+    const items = (o && o[0] && Array.isArray(o[0].items)) ? o[0].items : [];
+    const slugs = [...new Set(items.map(i => i && i.slug).filter(Boolean))];
+    if (!slugs.length) return false;
+    const prods = await sbGet('drope_products', `slug=in.(${slugs.map(x => encodeURIComponent(x)).join(',')})&select=slug,category,metadata`);
+    return (Array.isArray(prods) ? prods : []).some(p => {
+      const m = p.metadata || {};
+      return (typeof m.pix_only === 'boolean') ? m.pix_only : ((p.category || 'pod') === 'pod');
+    });
+  } catch (e) { console.warn('[pix_only check]', e.message); return false; }
+}
+
 // POST action=mp_process_card — CARTÃO TRANSPARENTE (formulário dentro do app).
 // O cliente digita o cartão no DROPE; o Brick do MP tokeniza no navegador (o número
 // NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
@@ -18632,6 +18650,7 @@ async function handleMPProcessCard(req, res) {
     if (!token || !total_cents || !payment_method_id) {
       return res.status(400).json({ error: 'missing token/total_cents/payment_method_id' });
     }
+    if (await _orderIsPixOnly(order_id)) return res.status(409).json({ error: 'pix_only', message: 'Esse pedido é só no Pix.' });
     // Split: token da loja + comissão do DROPE (mesma regra do Pix/Checkout).
     const slug = String(body.filial_slug || '').toLowerCase().trim();
     let sellerToken = null, appFeeReais = 0, commissionPct = 0, split = false;
