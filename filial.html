@@ -998,10 +998,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <!-- Sabor novo? (a IA achou o mesmo modelo de um pod que a loja já tem) -->
         <div id="ap-samemodel" style="display:none;background:rgba(212,255,46,0.1);border:1px solid var(--lime);border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
         <label class="pf-lbl">Nome do produto</label>
-        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
+        <input class="pf-input" id="ap-name" placeholder="ex: Ignite V400 Uva Sakura" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
         <!-- COMBO: escolher os produtos que formam o combo -->
         <div id="ap-combo-wrap" style="display:none">
-          <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: Tabaco + Seda + Piteira). Só produtos ativos e com estoque.</div>
+          <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: 2 pods do mesmo sabor). Só produtos ativos e com estoque.</div>
           <div id="ap-combo-list" style="max-height:230px;overflow-y:auto;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:8px;margin-bottom:8px"></div>
           <div id="ap-combo-sum" style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px;min-height:16px"></div>
           <label class="pf-lbl">Desconto do combo <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
@@ -1012,7 +1012,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
         <div id="ap-base-note" style="display:none;background:rgba(212,255,46,0.1);border:0.5px solid var(--lime);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:var(--lime)">✦ Copiado de um produto seu — agora é só pôr o <b>sabor</b> e o estoque.</div>
         <div style="display:flex; gap:10px" id="ap-row-marca">
-          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30" onblur="try{_apCheckBarcode()}catch(e){}"></div>
+          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Ignite" maxlength="30" onblur="try{_apCheckBarcode()}catch(e){}"></div>
           <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40" oninput="_apOnSaborInput()"></div>
         </div>
         <div style="display:flex; gap:10px">
@@ -1035,7 +1035,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
         <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
         <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
-          <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Essências)" maxlength="30" style="margin-bottom:0">
+          <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Pods, Ignite, Gelados)" maxlength="30" style="margin-bottom:0">
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="apCriarCatArte()">Criar categoria com arte por IA ✦</button>
           <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
@@ -1282,7 +1282,7 @@ try {
   if (_le) { const _el = document.getElementById('login-email'); if (_el && !_el.value) _el.value = _le; }
 } catch (_) {}
 
-async function loadData(showLoading) {
+async function loadData(showLoading, peek) {
   if (!ACCESS_CODE || !FILIAL_SLUG) return;
   if (showLoading) document.getElementById('last-update').textContent = 'Atualizando...';
   try {
@@ -1296,6 +1296,9 @@ async function loadData(showLoading) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'erro');
+    // Com cadastro/balanço/config abertos: NÃO redesenha (não atrapalha quem está editando),
+    // mas avisa pedido novo na hora — som + faixa clicável por cima de tudo (UX A2).
+    if (peek) { _peekNewOrders(data); return; }
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('painel').style.display = 'block';
     render(data);
@@ -1309,18 +1312,39 @@ async function loadData(showLoading) {
 }
 
 // Auto-refresh do painel: vendas/pedidos novos aparecem sozinhos (~10s), sem clicar
-// em Atualizar. PAUSA quando há overlay aberto (Meus produtos, PDV, Config…) pra não
-// interromper uma edição, e quando a aba está em segundo plano.
+// em Atualizar. Com overlay aberto (Meus produtos, cadastro, balanço, Config…) só ESPIA
+// (não redesenha nada), mas toca e mostra a faixa de pedido novo. Pausa com a aba em 2º plano.
 let _painelPoll = null;
 function _startPainelPoll() {
   if (_painelPoll) return;
   _painelPoll = setInterval(function () {
     try {
       if (document.hidden) return;
-      if (document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open')) return;
-      loadData(false);
+      const busy = !!document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open, #add-product-form.apf-open');
+      loadData(false, busy);
     } catch (e) {}
   }, 10000);
+}
+// Pedido novo chegou com a loja no meio de outra tela: som + faixa que abre o pedido.
+function _peekNewOrders(data) {
+  try {
+    const list = data.pedidos_pendentes || [];
+    const ids = list.map(p => String(p.id));
+    const novos = (_prevPendIds === null) ? [] : list.filter(p => !_prevPendIds.includes(String(p.id)));
+    _prevPendIds = ids;
+    if (!novos.length) return;
+    _pendentesAll = list; // o detalhe do pedido abre com os dados novos
+    _playPedidoSound();
+    try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {}
+    const p = novos[0];
+    let b = document.getElementById('novo-pedido-bar');
+    if (!b) { b = document.createElement('button'); b.id = 'novo-pedido-bar'; b.type = 'button'; document.body.appendChild(b); }
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:500;padding:14px 16px;border-radius:14px;border:0;background:var(--lime);color:#0a0a0a;font-family:inherit;font-size:15px;font-weight:800;text-align:left;box-shadow:0 12px 34px rgba(0,0,0,.55);cursor:pointer';
+    const nome = ((p.customer && p.customer.name) || 'cliente').split(' ')[0];
+    b.textContent = (novos.length > 1 ? novos.length + ' pedidos novos' : 'Pedido novo ' + _pedNum(p) + ' · ' + nome) + ' · toque pra ver →';
+    b.onclick = function () { b.remove(); openPedidoDetail(p.id); };
+    clearTimeout(window._npbT); window._npbT = setTimeout(function () { try { b.remove(); } catch (e) {} }, 20000);
+  } catch (e) {}
 }
 function _stopPainelPoll() { if (_painelPoll) { clearInterval(_painelPoll); _painelPoll = null; } }
 // Ao voltar pra aba, atualiza na hora (não espera o próximo ciclo do poll).
@@ -1704,7 +1728,7 @@ async function _criarCategoriaInline(nome, opts) {
 async function apCriarCatArte() {
   const nome = (document.getElementById('ap-newcat').value || '').trim();
   const st = document.getElementById('ap-newcat-status');
-  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
   const novo = await _criarCategoriaInline(nome, { art: true });
   if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
@@ -1734,7 +1758,7 @@ function _epFiltroChange(id) {
 async function epCriarCatArte(id) {
   const nome = (document.getElementById('ep-newcat-' + id).value || '').trim();
   const st = document.getElementById('ep-newcat-status-' + id);
-  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
   const novo = await _criarCategoriaInline(nome, { art: true });
   if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
@@ -1775,7 +1799,7 @@ function renderProdutos(list) {
   const cnt = document.getElementById('prod-count');
   const filtered = q || f !== 'todos';
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
-  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ Manual"</div>'; return; }
+  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ toque em <b>Cadastrar</b> e leia o código do primeiro pod</div>'; return; }
   if (!items.length) { el.innerHTML = '<div class="empty">Nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
   function _prodRowHtml(p) {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
@@ -1830,7 +1854,7 @@ function renderProdutos(list) {
             </div></div>
         </div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
-        <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
+        <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,99" style="margin-bottom:0">
         ${p.combo ? `
         <label class="pf-lbl" style="margin-top:10px">Produtos do combo</label>
         <div id="ep-combo-list-${p.id}" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:8px;max-height:230px;overflow-y:auto">
@@ -1856,7 +1880,7 @@ function renderProdutos(list) {
         <label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
         <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0" onchange="_epFiltroChange(${p.id})">${_epFiltroOptions(p.filtro_id)}</select>
         <div id="ep-newcat-wrap-${p.id}" style="display:none;margin-top:6px">
-          <input class="pf-input" id="ep-newcat-${p.id}" placeholder="Nome da categoria (ex: Tabaco, Narguilé)" maxlength="30" style="margin-bottom:0">
+          <input class="pf-input" id="ep-newcat-${p.id}" placeholder="Nome da categoria (ex: Pods, Gelados)" maxlength="30" style="margin-bottom:0">
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="epCriarCatArte(${p.id})">Criar categoria com arte por IA ✦</button>
           <div id="ep-newcat-status-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
@@ -1984,14 +2008,24 @@ function _stockSync(id) {
   if (inp) inp.value = p.stock;
   if (wrap) wrap.classList.toggle('zero', p.stock === 0);
 }
-function _stockPersist(id, immediate) {
+// Salva o estoque. A tela já mostra o número novo (resposta na hora); o "salvo" só aparece
+// depois que o servidor confirma, e se falhar a loja fica sabendo (antes o erro sumia calado).
+function _stockPersist(id, immediate, confirmMsg) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
   clearTimeout(_stockTimers[id]);
-  const doSave = () => {
-    fetch('/api/webhook?action=filial_product_save', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: p.stock, hidden: !!p.hidden }),
-    }).catch(() => {});
+  const doSave = async () => {
+    const val = p.stock;
+    try {
+      const r = await fetch('/api/webhook?action=filial_product_save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: val, hidden: !!p.hidden }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!(r.ok && d.ok)) throw new Error('save');
+      if (confirmMsg) { try { _toast('Estoque salvo ✦ ' + val); } catch (e) {} }
+    } catch (e) {
+      try { _toast('Não salvou o estoque de ' + (p.name || 'um produto') + ' ✦ confere a internet e tenta de novo', 'err'); } catch (e2) {}
+    }
   };
   if (immediate) doSave(); else _stockTimers[id] = setTimeout(doSave, 700);
 }
@@ -2008,8 +2042,7 @@ function setStock(id, val) {
   if (isNaN(n) || n < 0) n = 0;
   p.stock = n;
   _stockSync(id);
-  _stockPersist(id, true); // salva imediato ao digitar
-  try { _toast('Estoque salvo ✦ ' + n); } catch (e) {}
+  _stockPersist(id, true, true); // salva imediato ao digitar; "salvo" só depois de confirmar
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
@@ -2137,7 +2170,7 @@ function toggleAddProduct() {
     const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions('');
     // Loja nova (sem categorias) → já abre no modo "criar categoria" com aviso.
     const hint = document.getElementById('ap-filtro-hint');
-    if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
+    if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Pods) e cadastre o produto dentro dela ✦';
     try { _apFiltroChange(); } catch (e) {}
     _apPhotoB64 = null; const afs = document.getElementById('ap-art-status'); if (afs) afs.textContent = '';
     try { _wizReset(); } catch (e) {} // sempre abre na etapa 1
@@ -3372,7 +3405,7 @@ function apSetMode(mode) {
   const rm = document.getElementById('ap-row-marca'); if (rm) rm.style.display = combo ? 'none' : 'flex';
   const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
   const pl = document.getElementById('ap-price-lbl'); if (pl) pl.textContent = combo ? 'Preço do combo (R$)' : 'Preço de venda (R$)';
-  const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo do Fumante' : 'ex: Cigarro Marlboro Box';
+  const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo 2 pods' : 'ex: Ignite V400 Uva Sakura';
   // Passo 3 (imagem): combo NÃO usa arte-IA — a imagem é a colagem das fotos reais dos itens.
   const artBtn = document.getElementById('ap-artgen-btn'); if (artBtn) artBtn.style.display = combo ? 'none' : '';
   const imgHint = document.getElementById('ap-img-hint'); if (imgHint) imgHint.style.display = combo ? 'none' : 'block';
@@ -3498,7 +3531,7 @@ async function saveNewProduct() {
   if (_apMode !== 'combo') {
     if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
       const novoNome = (document.getElementById('ap-newcat').value || '').trim();
-      if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'dá um nome pra categoria do produto (ex: Tabaco)'; return; }
+      if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'Dá um nome pra categoria do produto (ex: Pods)'; return; }
       msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando a categoria...';
       const okCat = await _saveFiltro({ nome: novoNome }, true);
       if (okCat !== true) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦ tenta de novo'; return; }
@@ -3574,7 +3607,7 @@ async function saveEditProduct(id) {
       const st = document.getElementById('ep-newcat-status-' + id);
       const nome = (document.getElementById('ep-newcat-' + id) || {}).value || '';
       const novo = await _criarCategoriaInline(nome, {});
-      if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+      if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
       fval = novo.id;
     }
     payload.filtro_id = fval || null; // categoria/filtro da loja
@@ -3624,7 +3657,7 @@ async function openBarcodeScanner(ctx, targetId) {
       if (result) _onBarcode(result.getText());
     });
   } catch (e) {
-    hint.textContent = 'Não consegui abrir a câmera. Confira a permissão ou use "＋ Manual".';
+    hint.textContent = 'Não consegui abrir a câmera ✦ libere a câmera pro app nas configurações do celular, ou volte e digite o código.';
   }
 }
 function closeBarcodeScanner() {
@@ -4811,6 +4844,46 @@ function _waitLabel(ts) {
   } catch (e) { return ''; }
 }
 
+// Endereço do cliente em texto (chaves do app: street/num/comp/neigh/city/uf/cep).
+function _pedAddrTxt(a) {
+  a = a || {};
+  const l1 = [a.street || a.rua || '', a.num || a.numero || ''].filter(Boolean).join(', ');
+  return [l1, a.comp || '', a.neigh || a.bairro || '', [a.city || '', a.uf || ''].filter(Boolean).join('/'), a.ref ? 'ref: ' + a.ref : ''].filter(Boolean).join(' · ');
+}
+// Atalhos do pedido (UX A2/A3): abrir no mapa · WhatsApp do cliente (com o nº do pedido) · compartilhar resumo.
+function _pedTools(p, isDelivery) {
+  const cust = p.customer || {};
+  const btn = 'flex:1 1 0;min-width:0;margin:0;padding:10px 6px;font-size:12.5px';
+  const out = [];
+  if (isDelivery && p.address) {
+    const a = p.address, q = [a.street || a.rua || '', a.num || a.numero || '', a.neigh || a.bairro || '', a.city || 'São Paulo', a.uf || 'SP', a.cep || ''].filter(Boolean).join(', ');
+    out.push(`<a class="pf-btn sec" style="${btn};text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}">Abrir no mapa</a>`);
+  }
+  const d = String(cust.phone || '').replace(/\D/g, '');
+  if (d.length >= 10) {
+    const nome = String(cust.name || '').split(' ')[0];
+    const txt = `Oi${nome ? ' ' + nome : ''}! Aqui é da Drope, sobre o seu pedido ${_pedNum(p)} ✦`;
+    out.push(`<a class="pf-btn sec" style="${btn};text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${d.startsWith('55') ? d : '55' + d}?text=${encodeURIComponent(txt)}">WhatsApp</a>`);
+  }
+  out.push(`<button type="button" class="pf-btn sec" style="${btn}" onclick="_pedShare(${p.id})">Resumo</button>`);
+  return `<div style="display:flex;gap:6px;margin-top:10px">${out.join('')}</div>`;
+}
+// Resumo do pedido pra mandar pro entregador/equipe (menu de compartilhar do celular ou copia).
+async function _pedShare(id) {
+  const p = [...(_pendentesAll || []), ...(((_painelData || {}).historico) || [])].find(x => String(x.id) === String(id));
+  if (!p) return;
+  const cust = p.customer || {}, isDel = (p.delivery_mode || 'delivery') === 'delivery';
+  const txt = [
+    `Pedido ${_pedNum(p)} · ${isDel ? 'ENTREGA' : 'RETIRADA'}`,
+    ...(p.items || []).map(it => `• ${parseInt(it.qty || it.quantity || 1, 10) || 1}× ${it.name}`),
+    `Total: ${fmtBRL(p.total_cents)}`,
+    `Cliente: ${cust.name || '—'}${cust.phone ? ' · ' + cust.phone : ''}`,
+    isDel && p.address ? `Endereço: ${_pedAddrTxt(p.address)}` : '',
+  ].filter(Boolean).join('\n');
+  try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(txt); _toast('Resumo copiado ✦ é só colar no WhatsApp'); }
+  catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
+}
 // Número do pedido como o CLIENTE vê (#dr-xxxx) — pra loja e cliente falarem do mesmo pedido.
 function _pedNum(p) { const n = String((p && p.order_nsu) || '').trim(); return n ? '#' + n : '#' + ((p && p.id) || ''); }
 function renderPedidoTile(p) {
@@ -5100,7 +5173,7 @@ function renderPedidoCard(p, isEntregue) {
     done: `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
   };
   const modeChip = `<span style="font-size:11px;font-weight:700;color:var(--fg-dim);background:var(--bg3);border-radius:999px;padding:2px 8px;margin-left:6px">${isDelivery ? '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> entrega' : '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4.5 9.5h15L18 5H6L4.5 9.5Z"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-4.5h5V20"/></svg> retirada'}</span>`;
-  const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> ${esc((p.address.street || '') + (p.address.num ? ', ' + p.address.num : '') + (p.address.bairro ? ' · ' + p.address.bairro : ''))}</div>` : '';
+  const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> ${esc(_pedAddrTxt(p.address))}</div>` : '';
   const corr = p.corrida ? `<div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--fg-dim)">${_corridaLabel(p.corrida)}</div>` : '';
   // Ações por etapa
   let actions = '';
@@ -5144,6 +5217,7 @@ function renderPedidoCard(p, isEntregue) {
       <div class="cliente-info"><b style="color:var(--fg)">Pedido ${esc(_pedNum(p))}</b> · ${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
       ${addrBlock}
+      ${_pedTools(p, isDelivery)}
       ${pickupBlock}
       ${p.retirada_pendente ? `<button class="pf-btn" style="margin-top:8px;width:100%;background:var(--lime);color:#0A0A14;font-weight:800" onclick="confirmarRetiradaLoja(${p.id})">Confirmar retirada do entregador ✓</button>` : ''}
       <div class="total">
