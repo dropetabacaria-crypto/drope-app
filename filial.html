@@ -1284,8 +1284,9 @@ async function login() {
     }
   } catch (e) { err.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
+function _painelCacheKey() { return 'drope_painel_cache_' + String(FILIAL_SLUG || '').toLowerCase(); }
 function logout() {
-  try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
+  try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(_painelCacheKey()); } catch(_){}
   location.reload();
 }
 function confirmLogout() {
@@ -1317,6 +1318,8 @@ async function loadData(showLoading, peek) {
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('painel').style.display = 'block';
     render(data);
+    // Guarda a última versão pra próxima abertura aparecer NA HORA (atualiza por trás).
+    try { localStorage.setItem(_painelCacheKey(), JSON.stringify({ at: Date.now(), data })); } catch (e) {}
     document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     try { loadNotifs(); } catch (e) {}
     try { _startPainelPoll(); } catch (e) {} // liga o auto-refresh (novas vendas aparecem sozinhas)
@@ -5418,6 +5421,14 @@ async function confirmChamar() {
 // só sai quando o lojista clica em "Sair".
 if (ACCESS_CODE && FILIAL_SLUG) {
   try { document.getElementById('auth-overlay').style.display = 'none'; document.getElementById('painel').style.display = 'block'; } catch (e) {}
+  // Abre NA HORA com a última versão guardada (até 24h) e atualiza por trás (UX R5/A8).
+  try {
+    const c = JSON.parse(localStorage.getItem(_painelCacheKey()) || 'null');
+    if (c && c.data && c.data.ok && Date.now() - (c.at || 0) < 864e5) {
+      render(c.data);
+      const lu = document.getElementById('last-update'); if (lu) lu.textContent = 'atualizando…';
+    }
+  } catch (e) {}
   loadData(true);
 }
 function switchPanelTab(tab){
