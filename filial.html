@@ -1239,8 +1239,8 @@ async function resetRequest(method) {
       document.getElementById('reset-step2').style.display = 'block';
       const via = d.method === 'whats' ? 'WhatsApp' : 'email';
       msg.style.color = 'var(--green)'; msg.textContent = 'código enviado por ' + via + ' ' + (d.sent_to || '') + ' ✦';
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
   [be, bw].forEach(b => { if (b) b.disabled = false; });
 }
 async function resetConfirm() {
@@ -1257,8 +1257,8 @@ async function resetConfirm() {
       showLoginView();
       const le = document.getElementById('login-email'); if (le) le.value = email;
       const ae = document.getElementById('auth-err'); if (ae) { ae.style.color = 'var(--green)'; ae.textContent = 'senha redefinida ✦ entre com a nova senha'; }
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 async function login() {
   const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
@@ -1282,7 +1282,7 @@ async function login() {
     } else {
       err.textContent = d.error || 'email ou senha incorretos';
     }
-  } catch (e) { err.textContent = 'Erro de rede'; }
+  } catch (e) { err.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function logout() {
   try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
@@ -1322,7 +1322,7 @@ async function loadData(showLoading, peek) {
     try { _startPainelPoll(); } catch (e) {} // liga o auto-refresh (novas vendas aparecem sozinhas)
   } catch (e) {
     console.error('[load]', e);
-    document.getElementById('last-update').textContent = 'erro ✦ tentando de novo';
+    document.getElementById('last-update').textContent = 'sem conexão ✦ tentando de novo sozinho';
   }
 }
 
@@ -1498,8 +1498,8 @@ async function selectPlan(tier) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); }
-    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 
 // ===== Pagamento do plano: escolha Cartão (assinatura automática) OU Pix avulso (qualquer banco) =====
@@ -1526,7 +1526,7 @@ async function planPayCard(tier) {
     const r = await fetch('/api/webhook?action=filial_plan_subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
-    else _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>');
+    else _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>');
   } catch (e) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">Erro de rede</div><div style="text-align:center"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); }
 }
 async function planPayPix(tier) {
@@ -1534,7 +1534,7 @@ async function planPayPix(tier) {
   try {
     const r = await fetch('/api/webhook?action=filial_plan_pix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
     const d = await r.json().catch(() => ({}));
-    if (!(r.ok && d.ok && d.qr_code)) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); return; }
+    if (!(r.ok && d.ok && d.qr_code)) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); return; }
     const amount = (d.amount || 0).toFixed(2).replace('.', ',');
     _planModal(
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:18px;text-align:center">Pix da mensalidade</div>' +
@@ -1994,8 +1994,8 @@ async function applyBatchFiltro() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _batchSel.clear(); _updateBatchCount(); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = `${d.updated} produto(s) atualizado(s) ✦`; } loadData(true); }
-    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 let _prodFilter = 'todos';
 let _prodSort = 'recentes';
@@ -2074,7 +2074,7 @@ async function deleteProduct(id) {
     if (r.ok && d.ok) {
       _lastProdutos = (_lastProdutos || []).filter(x => x.id !== id);
       renderProdutos(); loadData(false);
-    } else { alert(' ' + ((d && d.error) || 'não deu pra excluir')); }
+    } else { _toast((d && d.error) || 'Não consegui excluir agora ✦ tenta de novo', 'err'); }
   } catch (e) { alert(' Erro de rede ao excluir'); }
 }
 // ===== Overlay animado de geração de arte (spinner + mensagens de processo) =====
@@ -2549,7 +2549,7 @@ async function apGerarArte(fix) {
       _apPhotoB64 = null; // arte tem prioridade sobre foto própria
       _apShowArtPreview(d.image_url, true);
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
-    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ou conclui e gera depois'; } }
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + ' — tenta de novo ou conclui e gera depois'; } }
   } catch (e) { if (epoch !== _apGenEpoch) return; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo ou conclui e gera depois'; } }
   if (epoch !== _apGenEpoch) return; // não mexe no botão do próximo produto
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
@@ -3004,8 +3004,8 @@ async function saveFrete() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _entrega = { base, km: (isFinite(km) && km > 0) ? km : 0 }; msg.style.color = 'var(--green)'; msg.textContent = 'tabela salva ✦'; }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function renderEntregadores() {
   const el = document.getElementById('ent-list'); if (!el) return;
@@ -3047,8 +3047,8 @@ async function linkEntregador() {
       _entregadoresFixos = d.entregadores_fixos || []; renderEntregadores();
       document.getElementById('ent-phone').value = '';
       msg.style.color = 'var(--green)'; msg.textContent = d.already ? 'esse entregador já é fixo ✦' : 'entregador vinculado ✦';
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 async function settleEntregador(id, amountCents) {
   if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' pras entregas desse entregador?\n\nIsso registra que você já acertou com ele.')) return;
@@ -3059,7 +3059,7 @@ async function settleEntregador(id, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('Erro de rede'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function unlinkEntregador(id) {
   if (!confirm('Desvincular esse entregador fixo?')) return;
@@ -3095,7 +3095,7 @@ async function setCommPeriod(period) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); } else { _commPeriod = prev; renderCommPeriod(); alert(d.error || 'erro ao salvar'); }
-  } catch (e) { _commPeriod = prev; renderCommPeriod(); alert('Erro de rede'); }
+  } catch (e) { _commPeriod = prev; renderCommPeriod(); _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 function _fmtDay(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); } catch (e) { return ''; } }
 // Bloco de comissão do mês (gerado / a pagar / pago) + botão "Marcar como pago".
@@ -3132,7 +3132,7 @@ async function markCommissionPaid(personId, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('Erro de rede'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function undoCommissionPay(personId) {
   if (!confirm('Desfazer o último pagamento registrado deste mês?')) return;
@@ -3142,8 +3142,8 @@ async function undoCommissionPay(personId) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'undo', person_id: personId }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro');
-  } catch (e) { alert('Erro de rede'); }
+    if (r.ok && d.ok) loadData(true); else _toast(d.error || 'Não deu certo agora ✦ tenta de novo em instantes', 'err');
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 let _fnEditId = null;
 function _fnTipoHint() {
@@ -3204,8 +3204,8 @@ async function saveFuncionario() {
       document.getElementById('fn-nome').value = ''; document.getElementById('fn-valor').value = '';
       document.getElementById('fn-operador').checked = false; msg.textContent = '';
       renderFuncionarios();
-    } else { msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.textContent = 'Erro de rede'; }
+    } else { msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function editFuncionario(id) {
   const f = (_funcionarios || []).find(x => x.id === id); if (!f) return;
@@ -3318,8 +3318,8 @@ async function _parceiroManage(payload) {
     const r = await fetch('/api/webhook?action=filial_parceiro_manage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _parceiros = d.parceiros || []; renderParceiros(); _updateParcBadge(); }
-    else alert(d.error || ('erro ' + r.status));
-  } catch (e) { alert('Erro de rede'); }
+    else alert(d.error || 'Não deu certo agora ✦ tenta de novo em instantes');
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 
 // ===== Avisos (notificações in-app do lojista) =====
@@ -3394,8 +3394,8 @@ async function _saveProduct(payload, onOk) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { const _saved = { id: d.id, slug: d.slug }; _lastSavedProduct = _saved; onOk && onOk(_saved); loadData(true); return true; }
-    return d.error || ('erro ' + r.status);
-  } catch (e) { return 'Erro de rede'; }
+    return d.error || 'Não deu certo agora ✦ tenta de novo em instantes';
+  } catch (e) { return 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 
 // ===== Combo: montar um produto a partir de outros produtos da loja =====
@@ -3468,7 +3468,7 @@ async function apComboPreview(bump) {
     }
   } catch (e) {
     if (load) load.style.display = 'none';
-    if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; }
+    if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
   }
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
@@ -4184,7 +4184,7 @@ async function usarFotoProduto(id, imageUrl) {
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'imagem da categoria atualizada ✦'; }
       const pick = document.getElementById('fe-prodpick-' + id); if (pick) pick.style.display = 'none';
     } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'não deu pra aplicar'; } }
-  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 let _feRef = {}; // referência (dataURL) por filtro, pra IA usar como base (img2img)
 let _feVariant = {}; // incrementa a cada "Gerar outra" → backend rotaciona a referência
@@ -4230,9 +4230,9 @@ async function gerarFiltroIAEdit(id) {
       if (st) st.textContent = '';
     } else {
       if (load) load.style.display = 'none';
-      if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || ('erro ' + r.status); }
+      if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
     }
-  } catch (e) { if (load) load.style.display = 'none'; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+  } catch (e) { if (load) load.style.display = 'none'; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
   if (again) { again.disabled = false; again.style.opacity = '1'; }
 }
 async function _saveFiltro(extra, silent) {
@@ -4244,8 +4244,8 @@ async function _saveFiltro(extra, silent) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { renderFiltros(d.filtros); if (!silent) { msg.style.color = 'var(--green)'; msg.textContent = 'filtro salvo ✦'; document.getElementById('filtro-nome').value = ''; } return true; }
-    msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); return false;
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; return false; }
+    msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; return false;
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; return false; }
 }
 async function onFiltroFile(input) {
   const nome = (document.getElementById('filtro-nome').value || '').trim();
@@ -4288,7 +4288,7 @@ async function gerarFiltroIA() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.image_url) { msg.textContent = ''; _showFiltroPreview({ nome: nome, image_url: d.image_url }); }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ✦'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + ' — tenta de novo ✦'; }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra gerar ✦ tenta de novo'; }
   _artOverlayHide();
   _setFiltroBusy(false);
@@ -4715,8 +4715,8 @@ async function saveLojaProfile(msgId) {
       try { loadData(true); } catch (e) {}                 // atualiza o painel com os novos dados
       setTimeout(() => { try { cfgBack(); } catch (e) {} }, 650); // fecha e volta pra tela anterior
     }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function _fmtWhatsStr(d) {
   d = String(d || '').replace(/\D/g, '').slice(0, 11);
@@ -4796,8 +4796,8 @@ async function saveHorario() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'horário salvo ✦'; }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function renderHorario(hours) {
   hours = hours || {};
@@ -5210,7 +5210,7 @@ async function ativarPush() {
     _renderPushBtn();
     _toast('Notificações ativadas ✦ mandando um teste…', 'ok');
     _pushTest();
-  } catch (e) { _toast(e.message || 'não deu pra ativar as notificações', 'err'); }
+  } catch (e) { _toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro painel', 'err'); }
 }
 function _pushTest() {
   fetch('/api/webhook?action=filial_push_subscribe', {
@@ -5320,7 +5320,7 @@ async function confirmarRetiradaLoja(orderId) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _toast('Retirada confirmada ✦ entregador a caminho do cliente', 'ok'); loadData(true); }
     else _toast(d.error || 'Não deu pra confirmar a retirada', 'err');
-  } catch (e) { _toast('Erro de rede', 'err'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function cancelOrder(id) {
   if (!confirm('Cancelar este pedido?\n\nSe já foi pago online, o valor é estornado ao cliente e o estoque volta pro catálogo.')) return;
@@ -5340,7 +5340,7 @@ async function cancelOrder(id) {
     loadData(false); // reconcilia em segundo plano (sem "carregando")
   } catch (e) {
     if (removed) { _pendentesAll.splice(Math.min(idx, _pendentesAll.length), 0, removed); _renderPendentes(); } // desfaz
-    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    _toast((e && e.message && !/fetch|network|Failed/i.test(e.message)) ? e.message : 'Sem conexão agora ✦ confere a internet e tenta de novo', 'err');
     loadData(false);
   }
 }
@@ -5368,7 +5368,7 @@ async function advanceOrder(id, status) {
     if (terminal && removedObj) { _pendentesAll.splice(Math.min(removedIdx, _pendentesAll.length), 0, removedObj); }
     else if (p && prev != null) { p.status = prev; }
     _renderPendentes();
-    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    _toast((e && e.message && !/fetch|network|Failed/i.test(e.message)) ? e.message : 'Sem conexão agora ✦ confere a internet e tenta de novo', 'err');
     loadData(false);
   }
 }
@@ -5408,8 +5408,8 @@ async function confirmChamar() {
       const v = d.corrida && d.corrida.valor_motoboy_cents;
       _toast('Corrida criada ✦' + (v ? (' frete R$ ' + (v / 100).toFixed(2).replace('.', ',')) : ''), 'ok');
       closeChamar(); loadData(true);
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 
 // Boot: se há sessão salva (slug + token), entra DIRETO no painel — sem flash da

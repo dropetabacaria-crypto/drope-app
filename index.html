@@ -5147,7 +5147,7 @@
     <div class="success-wrap">
       <div class="check">✓</div>
       <div class="success-title display">Dropou ✦</div>
-      <div class="success-sub" id="success-sub">Pedido confirmado ✦ avisa a gente no whats pra liberar</div>
+      <div class="success-sub" id="success-sub">Pedido confirmado ✦ a loja já foi avisada</div>
       <div class="success-order" id="success-order">#dr-4291</div>
 
       <div class="success-btns">
@@ -6707,7 +6707,7 @@
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
       return openMPPix();
     }
-    toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+    toast('A loja está fora do ar agora ✦ tenta de novo em alguns minutos');
     const _ipBtn = document.getElementById('infinitepay-btn'); if (_ipBtn) { _ipBtn.textContent = 'pagar agora ✦'; _ipBtn.disabled = false; }
     return;
     // ↓↓↓ código antigo do InfinitePay: INALCANÇÁVEL (mantido só pra não quebrar referências) ↓↓↓
@@ -6918,9 +6918,9 @@
     if (!_mpPixCode) return;
     const done = () => { const b = document.getElementById('mppix-copy'); if (b) { b.textContent = 'copiado ✦'; setTimeout(() => b.textContent = 'copiar código Pix', 1500); } toast('código Pix copiado ✦'); };
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(_mpPixCode).then(done, () => toast('não deu pra copiar')); }
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(_mpPixCode).then(done, () => toast('Não consegui copiar ✦ segura o dedo no código pra copiar')); }
       else { const t = document.createElement('textarea'); t.value = _mpPixCode; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); done(); }
-    } catch (e) { toast('não deu pra copiar'); }
+    } catch (e) { toast('Não consegui copiar ✦ segura o dedo no código pra copiar'); }
   }
 
   function _startMPPixPoll(paymentId, slug) {
@@ -7167,7 +7167,7 @@
   let pendingAfterGate = null;
   function goCartSafe() {
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
-      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+      toast('A loja está fora do ar agora ✦ tenta de novo em alguns minutos');
       return;
     }
     if (isGuest() && cart.length > 0) {
@@ -7617,7 +7617,7 @@
     try {
       const r = await fetch('/api/webhook?action=admin_revenue&token=' + encodeURIComponent(t), { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
-      if (!(r.ok && d.ok)) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); return; }
+      if (!(r.ok && d.ok)) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">' + (d.error || 'Não deu pra carregar agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); return; }
       const co = d.commission, pl = d.plans, sales = d.sales || [];
       // Lojas assinantes (planos pagos)
       let plHtml;
@@ -8675,7 +8675,7 @@
     const infoChips = [
       `<span class="lj-hd-chip"> ${escapeHtml(etaTxt)}</span>`,
       kmTxt ? `<span class="lj-hd-chip"> ${escapeHtml(kmTxt)}</span>` : '',
-      `<span class="lj-hd-chip"> frete a combinar</span>`,
+      (window._deliveryQuote && window._deliveryQuote.ok && !window._deliveryQuote.out_of_range) ? `<span class="lj-hd-chip"> entrega ${escapeHtml(window._deliveryQuote.fmt)}</span>` : `<span class="lj-hd-chip"> entrega calculada pelo seu CEP</span>`,
     ].filter(Boolean).join('');
     const cover = loja.cover_url
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
@@ -8693,7 +8693,7 @@
             ${SINGLE_STORE ? '' : `<span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>`}
           </div>
           ${bio ? `<div class="lj-hd-bio">${escapeHtml(bio)}</div>` : ''}
-          ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">Loja indisponível — ainda não ativou os recebimentos.</div>` : ''}
+          ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">A loja está fora do ar agora ✦ volta em alguns minutos.</div>` : ''}
           <div class="lj-hd-chips">${statusChip}${unavailable ? '' : infoChips}</div>
         </div>
       </div>`;
@@ -8741,7 +8741,7 @@
           <button class="parc-card-btn" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">Quero ✦</button>
         </div>`;
       }).join('');
-    } catch (e) { list.innerHTML = '<div class="parc-empty">Erro ao carregar ✦ Tenta de novo</div>'; }
+    } catch (e) { list.innerHTML = '<div class="parc-empty">Não consegui carregar agora ✦ tenta de novo em instantes</div>'; }
   }
   async function requestParceiro(slug, name) {
     if (!slug) return;
@@ -9394,7 +9394,7 @@
       _renderCustPushRow();
       toast('Notificações ativadas ✦ mandando um teste…');
       _custPushTest();
-    } catch (e) { toast(e.message || 'não deu pra ativar as notificações'); }
+    } catch (e) { toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro app'); }
   }
   function _custPushTest() {
     fetch('/api/webhook?action=customer_push_subscribe', {
@@ -9502,7 +9502,7 @@
       if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
       else { msg.textContent = d.error || 'Não deu pra criar a conta'; }
-    } catch (e) { msg.textContent = 'Erro de rede'; }
+    } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'Criar conta ✦'; btn.disabled = false; }
   }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
@@ -9518,8 +9518,8 @@
       const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) { _otpPhone = phone; document.getElementById('clogin-phone-lbl').textContent = ''; document.getElementById('clogin-step1').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'block'; document.getElementById('clogin-msg2').textContent = ''; const c = document.getElementById('clogin-code'); c.value = ''; c.focus(); }
-      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não consegui enviar o código agora ✦ tenta de novo em instantes'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = old; btn.style.pointerEvents = 'auto'; }
   }
   async function verifyOtp() {
@@ -9532,7 +9532,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { _applyCustomerLogin(d.token, _otpPhone, (d.customer && d.customer.name) || ''); }
       else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'código incorreto'; }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
   }
   // Aplica o estado de "logado" na UI (usado pelo OTP e pelo login por senha).
@@ -9549,7 +9549,7 @@
     try { updateProfileAvatar(); } catch (e) {}
     try { _syncLoginUI(); } catch (e) {}
     try { refreshMyStore(); } catch (e) {}
-    if (!profile.name) { toast('bem-vindo ✦ adicione seu nome em Editar perfil'); }
+    if (!profile.name) { toast('Bem-vindo ✦ você entrou na sua conta'); }
     else { toast('bem-vindo ✦ você tá logado'); }
     try { loadMyOrders(); } catch (e) {}
     try { loadFavoritesFromAccount(); } catch (e) {}
@@ -9577,7 +9577,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { document.getElementById('clogin-pw-pass').value = ''; _applyCustomerLogin(d.token, phone, (d.customer && d.customer.name) || ''); }
       else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'telefone ou senha incorretos'; }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
   }
   // Mostra/esconde itens do perfil conforme login
@@ -9603,7 +9603,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) toast('senha salva ✦ agora dá pra entrar com telefone + senha');
       else toast(d.error || 'não deu pra salvar a senha');
-    } catch (e) { toast('erro de rede'); }
+    } catch (e) { toast('Sem conexão agora ✦ confere a internet e tenta de novo'); }
   }
   // Renderiza avatar (string emoji ou 'cham' = imagem do camaleão da marca)
   // Resolve o avatar pra uma URL de imagem: 'cham' (marca), 'av-*' (pré-criados),
@@ -11586,7 +11586,7 @@
     // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
     if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
     // Retirada só se a loja cadastrou endereço.
-    else if (m === 'pickup' && !_pickupAvailable()) { toast('essa loja não faz retirada (sem endereço cadastrado)'); m = 'delivery'; }
+    else if (m === 'pickup' && !_pickupAvailable()) { toast('Essa loja só faz entrega por enquanto ✦'); m = 'delivery'; }
     deliveryMode = m;
     const dEl = document.getElementById('co-mode-delivery');
     const pEl = document.getElementById('co-mode-pickup');
@@ -12691,7 +12691,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
+        if (!wDigits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! qual o preço do ${p.name}?`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -12707,7 +12707,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
+        if (!wDigits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! quero saber quando chega o ${p.name}`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -13278,7 +13278,7 @@
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');
     if (!_isLoggedIn()) {
-      wrap.innerHTML = `<div class="empty"><div class="t">Entre pra ver seus pedidos</div><div class="s">um código no seu WhatsApp e pronto ✦</div><button class="btn-primary" onclick="openCustomerLogin()" style="max-width:220px;margin:0 auto">entrar</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="t">Entre pra ver seus pedidos</div><div class="s">com seu telefone e senha ✦ leva 10 segundos</div><button class="btn-primary" onclick="openCustomerLogin()" style="max-width:220px;margin:0 auto">entrar</button></div>`;
       return;
     }
     if (orders.length === 0) {
@@ -13518,7 +13518,7 @@
     if (ev) ev.stopPropagation();
     if (!_requireLoginToAdd()) return;
     const data = __personalizedHomeCache;
-    if (!data || !data.last_order) { toast('último drop não encontrado ✦'); return; }
+    if (!data || !data.last_order) { toast('Não achei seu último pedido ✦ monta o carrinho pela loja'); return; }
     const lo = data.last_order;
     if (!lo.in_stock) { toast('esgotou — te aviso quando voltar'); return; }
     // Tenta achar o produto no catálogo local pra reusar o objeto completo
@@ -14216,7 +14216,7 @@
 
     orders.unshift({
       num: orderNum,
-      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando comprovante',
+      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando confirmação',
       statusCls: isPayLater ? 'reserved' : 'waiting',
       summary,
       subtotal,
@@ -14278,7 +14278,7 @@
       if (sWhats) sWhats.style.display = 'none';
     } else {
       if (sBanner) sBanner.style.display = 'none';
-      if (sSub) sSub.textContent = 'Pedido confirmado ✦ avisa a gente no whats pra liberar';
+      if (sSub) sSub.textContent = isPayLater ? 'Reserva feita ✦ é só vir buscar e pagar na loja' : 'Pedido confirmado ✦ a loja já foi avisada';
       if (sWhats) sWhats.style.display = '';
     }
     appliedCoupon = null;
@@ -14388,7 +14388,7 @@
   }
   function openHelpWhats() {
     const digits = phoneDigits(_currentStore().whats || '');
-    if (!digits) { toast('a loja ainda não cadastrou whats ✦'); return; }
+    if (!digits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
     const phone = digits.length <= 11 ? '55' + digits : digits;
     const msg = encodeURIComponent(`oi ✦ preciso de ajuda no Drope ✦ ${profile.name || ''}`);
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
