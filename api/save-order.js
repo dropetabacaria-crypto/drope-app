@@ -21,6 +21,7 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
+const { freteQuote, freteFilialBySlug } = require('../lib/frete');
 
 
 module.exports = async function handler(req, res) {
@@ -82,6 +83,28 @@ module.exports = async function handler(req, res) {
       if (typeof it.qty !== 'number' || it.qty < 1 || it.qty > 100) return res.status(400).json({ error: 'invalid item.qty' });
       if (typeof it.price !== 'number' || it.price < 0 || it.price > 100000) return res.status(400).json({ error: 'invalid item.price' });
     }
+    // 🔒 Frete conferido no SERVIDOR (rota Google): o celular não escolhe a taxa.
+    // Frete menor que o calculado (ou endereço fora da área) → recusa e devolve o valor certo.
+    let deliveryKm = null, deliverySource = null;
+    if (delivery_mode === 'delivery' && address && typeof address === 'object') {
+      try {
+        const filialQ = await freteFilialBySlug(body.filial_slug || 'sp');
+        const q = filialQ ? await freteQuote(filialQ, address) : null;
+        if (q && q.ok && q.out_of_range) {
+          return res.status(409).json({ error: 'fora_da_area', message: q.message, km: q.km });
+        }
+        if (q && q.ok) {
+          const freeShip = String(body.coupon_code || '').toUpperCase() === 'FRETEGRATIS';
+          const clientFeeCents = Math.round((Number(delivery_fee) || 0) * 100);
+          if (!freeShip && clientFeeCents + 50 < q.fee_cents) {
+            return res.status(409).json({ error: 'frete_mudou', fee_cents: q.fee_cents, fmt: q.fmt, km: q.km, message: `A taxa de entrega pra esse endereço é ${q.fmt} ✦ atualizamos, confere e toca em pagar de novo` });
+          }
+          deliveryKm = q.km; deliverySource = q.source;
+        }
+        // q.ok false (Google e reserva fora do ar) → não trava a venda
+      } catch (eFrete) { console.warn('[save-order] frete check:', eFrete.message); }
+    }
+
     // valida customer (campos opcionais mas se vierem, trunca pra evitar bloat)
     if (customer && typeof customer === 'object') {
       if (customer.name && typeof customer.name === 'string') customer.name = customer.name.slice(0, 100);
@@ -281,6 +304,7 @@ module.exports = async function handler(req, res) {
     }
     // Atribui a venda ao operador padrão (comissão de funcionário).
     if (employeeId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: employeeId };
+    if (deliveryKm != null) orderRow.metadata = { ...(orderRow.metadata || {}), delivery_km: deliveryKm, delivery_km_source: deliverySource }; // km da ROTA (repasse do motoboy)
 
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
       method: 'POST',

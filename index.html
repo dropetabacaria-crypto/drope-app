@@ -6672,7 +6672,7 @@
       const saveResp = await fetch('/api/save-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_nsu: orderNsu, payment_method: 'mercadopago_card',
+          order_nsu: orderNsu, payment_method: 'mercadopago_card', coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined, 
           subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
           delivery_mode: deliveryMode,
@@ -6686,6 +6686,7 @@
       if (saveResp.status === 409 && sd.error === 'out_of_stock') {
         toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); go('cart'); renderCart(); renderGrid(); return;
       }
+      if (_handleFreteReject(saveResp.status, sd)) return;
     } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
     _cardCtx = { orderNsu, chargeCents, amount: chargeCents / 100, slug };
     go('card'); // o handler de 'card' chama renderCardScreen() → renderCardBrick()
@@ -6762,7 +6763,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            order_nsu: orderNsu,
+            order_nsu: orderNsu, coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined, 
             payment_method: 'infinitepay',
             subtotal: subtotal,
             delivery_fee: deliveryFeeReais,
@@ -6846,7 +6847,7 @@
         const saveResp = await fetch('/api/save-order', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            order_nsu: orderNsu, payment_method: 'mercadopago_pix',
+            order_nsu: orderNsu, payment_method: 'mercadopago_pix', coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined, 
             subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
@@ -6863,6 +6864,7 @@
           go('cart'); renderCart(); renderGrid();
           return;
         }
+        if (_handleFreteReject(saveResp.status, sd)) { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } return; }
       } catch (eSave) { console.error('[save-order/mp]', eSave && eSave.message); }
 
       // cria o Pix com split
@@ -10045,144 +10047,87 @@
       // UF é select agora — selecionar a option certa em vez de só setar value.
       if (uf && data.uf) uf.value = data.uf;
       toast('endereço preenchido pelo CEP ✦');
-      // Andrade 04/06: cota motoboy automático
-      fetchDeliveryQuote(cep);
+      // Cota a entrega pelo trajeto (endereço do formulário; o número entra ao salvar)
+      fetchDeliveryQuote({ cep, street: data.logradouro || '', neigh: data.bairro || '', city: data.localidade || '', uf: data.uf || '', num: ((document.getElementById('af-num') || {}).value || '').trim() });
     } catch(e) {
       console.warn('[ViaCEP]', e);
       toast('falha ao buscar CEP — preencha manual');
     }
   }
 
-  // OTIMIZADO 04/06 (Andrade) v2: 100% frontend.
-  // Vercel tava sendo bloqueado pela AwesomeAPI, então passei TODO o cálculo
-  // pro navegador do cliente. Velocidade total: 100-300ms na 1ª vez, 0ms depois.
-  const DROPE_STORE_LAT = -23.5838437; // fallback (loja sem geo cadastrada)
-  const DROPE_STORE_LNG = -46.5901294;
-  const DROPE_BASE_FEE_CENTS = 600;    // R$6 base — alinhado ao repasse do motoboy
-  const DROPE_PER_KM_CENTS = 150;      // R$1,50/km
-  const DROPE_MIN_FEE_CENTS = 750;     // piso R$7,50
-  const DROPE_ROAD_FACTOR = 1.35;      // aprox de rota (linha reta × 1.35) até plugar Google Directions
-  const DROPE_MAX_KM = 35;
-  // Geo da LOJA selecionada (multi-loja). Fallback: loja hardcoded (compat).
-  function _storeGeoForQuote() {
-    try { if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && typeof CLIENT_LOJA.lat === 'number' && typeof CLIENT_LOJA.lng === 'number') return { lat: CLIENT_LOJA.lat, lng: CLIENT_LOJA.lng }; } catch (e) {}
-    return { lat: DROPE_STORE_LAT, lng: DROPE_STORE_LNG };
+  // FRETE pela ROTA (set/2026): quem calcula é o SERVIDOR (Google Maps, trajeto pelas ruas até o
+  // endereço COMPLETO do cliente — rua+número). R$2/km, mínimo R$8, até 15 km. O app só mostra;
+  // o save-order recalcula e recusa frete adulterado. Aceita um endereço (objeto) ou só o CEP.
+  function _quoteAddr(a) {
+    if (!a) return null;
+    if (typeof a === 'string') return { cep: a.replace(/\D/g, '') };
+    return { cep: String(a.cep || '').replace(/\D/g, ''), street: a.street || '', num: a.num || '', neigh: a.neigh || '', city: a.city || '', uf: a.uf || '' };
   }
-  // Distância dedicada do frete (o nome _haversineKm colide com outra definição no
-  // arquivo — versão (a,b) — que quebrava o cálculo do frete de 4 args).
-  function _freteKmStraight(lat1, lng1, lat2, lng2) {
-    const R = 6371, toR = d => d * Math.PI / 180;
-    const dLat = toR(lat2 - lat1), dLng = toR(lng2 - lng1);
-    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLng / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(s));
+  function _quoteKeyOf(a) { a = _quoteAddr(a) || {}; return [a.cep, a.street, a.num, a.city].map(x => String(x || '').trim().toLowerCase()).join('|'); }
+  function _quoteCacheKey(k) { return 'drope_q2_' + k; } // q2: cache novo (o antigo era por CEP/linha reta)
+  function _loadQuoteCache(k) {
+    try { const d = JSON.parse(localStorage.getItem(_quoteCacheKey(k)) || 'null'); if (!d || Date.now() - (d.cachedAt || 0) > 6 * 3600 * 1000) return null; return d; } catch (_) { return null; }
   }
+  function _saveQuoteCache(k, data) { try { localStorage.setItem(_quoteCacheKey(k), JSON.stringify({ ...data, cachedAt: Date.now() })); } catch (_) {} }
 
-  function _quoteCacheKey(cep) { return 'drope_quote_' + cep; }
-  function _loadQuoteCache(cep) {
-    try {
-      const s = localStorage.getItem(_quoteCacheKey(cep));
-      if (!s) return null;
-      const d = JSON.parse(s);
-      if (Date.now() - (d.cachedAt || 0) > 24 * 60 * 60 * 1000) return null;
-      return d;
-    } catch (_) { return null; }
-  }
-  function _saveQuoteCache(cep, data) {
-    try { localStorage.setItem(_quoteCacheKey(cep), JSON.stringify({ ...data, cachedAt: Date.now() })); } catch (_) {}
-  }
-
-  function _haversineKm(lat1, lng1, lat2, lng2) {
-    const R = 6371;
-    const toRad = (d) => d * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
-    return 2 * R * Math.asin(Math.sqrt(a));
-  }
-
-  function _calcQuote(lat, lng, city, neigh) {
-    const sg = _storeGeoForQuote();
-    const straight = _freteKmStraight(sg.lat, sg.lng, lat, lng);   // linha reta loja→cliente
-    const kmRoad = Math.round(straight * DROPE_ROAD_FACTOR * 10) / 10; // aprox de rota
-    if (straight > DROPE_MAX_KM) {
-      return {
-        ok: true,
-        out_of_range: true,
-        km: kmRoad,
-        city, neigh,
-        message: `${city || 'esse endereço'} fica longe (~${Math.round(kmRoad)}km) ✦ vamos conversar pelo whats antes de fechar`,
-      };
-    }
-    // Frete = base R$6 + R$1,50/km (rota aprox), piso R$7,50. É o valor que o cliente paga;
-    // o DROPE fica com 6% e repassa 94% ao motoboy (Fase 2).
-    const raw = DROPE_BASE_FEE_CENTS + Math.round(kmRoad * DROPE_PER_KM_CENTS);
-    const fee_cents = Math.max(DROPE_MIN_FEE_CENTS, raw);
-    const fmt = 'R$ ' + (fee_cents / 100).toFixed(2).replace('.', ',');
-    return { ok: true, out_of_range: false, km: kmRoad, fee_cents, fmt, city, neigh };
-  }
-
-  async function fetchDeliveryQuote(cep) {
-    const cleanCep = (cep || '').replace(/\D/g, '');
-    if (cleanCep.length !== 8) return null;
+  async function fetchDeliveryQuote(addrOrCep) {
+    const addr = _quoteAddr(addrOrCep);
+    if (!addr || (addr.cep.length !== 8 && !addr.street)) return null;
+    const key = _quoteKeyOf(addr);
     const quoteEl = document.getElementById('af-quote');
-
-    // 1Cache local — 0ms
-    const cached = _loadQuoteCache(cleanCep);
-    if (cached && cached.ok) {
-      window._deliveryQuote = { ...cached, cep: cleanCep };
-      _renderQuoteBox(quoteEl, cached);
-      return cached;
-    }
-
-    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">calculando taxa…</div>';
-
-    // 2AwesomeAPI direto do navegador (~100-300ms, sem bloqueio Vercel)
+    const cached = _loadQuoteCache(key);
+    if (cached && cached.ok) { window._deliveryQuote = { ...cached, cep: addr.cep, key }; _renderQuoteBox(quoteEl, cached); return cached; }
+    if (quoteEl) quoteEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-dim)">calculando a entrega pelo trajeto…</div>';
     try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 3500);
-      const r = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`, { signal: ctrl.signal });
+      const ctrl = new AbortController(); const tid = setTimeout(() => ctrl.abort(), 9000);
+      const slug = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || 'sp';
+      const r = await fetch('/api/webhook?action=delivery_quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+        body: JSON.stringify({ filial: slug, address: addr }),
+      });
       clearTimeout(tid);
-      if (r.ok) {
-        const d = await r.json();
-        if (d.lat && d.lng) {
-          const data = _calcQuote(parseFloat(d.lat), parseFloat(d.lng), d.city || '', d.district || '');
-          window._deliveryQuote = { ...data, cep: cleanCep };
-          _saveQuoteCache(cleanCep, data);
-          _renderQuoteBox(quoteEl, data);
-          return data;
-        }
-      }
-    } catch (_) {}
-
-    // 3Fallback: backend (BrasilAPI+Nominatim com cache Supabase)
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 5000);
-      const r = await fetch(`/api/webhook?action=delivery_quote&cep=${cleanCep}`, { signal: ctrl.signal });
-      clearTimeout(tid);
-      const data = await r.json();
-      if (data.ok) {
-        window._deliveryQuote = { ...data, cep: cleanCep };
-        _saveQuoteCache(cleanCep, data);
+      const data = await r.json().catch(() => ({}));
+      if (data && data.ok) {
+        window._deliveryQuote = { ...data, cep: addr.cep, key };
+        _saveQuoteCache(key, data);
         _renderQuoteBox(quoteEl, data);
         return data;
       }
       window._deliveryQuote = null;
-      if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">${data.error || 'CEP não localizado'}</div>`;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:10px 14px;font-size:13px;color:var(--pink)">${(data && data.error) || 'não consegui calcular a entrega'}</div>`;
       return data;
     } catch (e) {
       window._deliveryQuote = null;
-      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>não consegui calcular</b><br><span style="font-size:11px;color:var(--text-dim)">a gente cota no whats — pedido segue normal</span></div>`;
+      if (quoteEl) quoteEl.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>não consegui calcular a entrega</b><br><span style="font-size:11px;color:var(--text-dim)">confere o endereço e tenta de novo</span></div>`;
       return null;
     }
+  }
+  // O servidor recusou o frete do pedido (mudou ou fora da área): atualiza a taxa na tela.
+  function _handleFreteReject(status, data) {
+    if (status !== 409 || !data) return false;
+    if (data.error === 'frete_mudou' && data.fee_cents) {
+      const q = window._deliveryQuote || {};
+      window._deliveryQuote = { ...q, ok: true, out_of_range: false, fee_cents: data.fee_cents, fmt: data.fmt, km: data.km != null ? data.km : q.km };
+      try { renderCheckout(); } catch (e) {}
+      toast(data.message || 'taxa de entrega atualizada ✦ confere e paga de novo');
+      return true;
+    }
+    if (data.error === 'fora_da_area') {
+      const q = window._deliveryQuote || {};
+      window._deliveryQuote = { ...q, ok: true, out_of_range: true, km: data.km, message: data.message };
+      try { renderCheckout(); } catch (e) {}
+      toast(data.message || 'esse endereço fica fora da área de entrega');
+      return true;
+    }
+    return false;
   }
 
   function _renderQuoteBox(el, data) {
     if (!el) return;
     if (data.out_of_range) {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);border-radius:10px;color:#FFB800;font-size:13px;line-height:1.5"><b>${data.message}</b><br><span style="font-size:11px;color:var(--text-dim)">~${data.km}km até a loja</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>${data.message}</b></div>`;
     } else {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ~${data.km}km da loja</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ${String(data.km).replace('.', ',')} km de trajeto</span></div>`;
     }
   }
 
@@ -11597,7 +11542,8 @@
         }
       }
     }
-    const canPay = deliveryMode === 'pickup' || !!getSelectedAddress();
+    const _qx = window._deliveryQuote;
+    const canPay = deliveryMode === 'pickup' || (!!getSelectedAddress() && !(_qx && _qx.out_of_range)); // fora da área: só retirada
     // Bloqueio de métodos de pagamento fica dentro do renderCheckout (unificado)
     window.__canPayNow = canPay;
     // info de taxa a combinar
@@ -11613,14 +11559,14 @@
           <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: var(--lime)">taxa de entrega ✦ ${q.fmt}</div>
-            <div class="dfn-sub">${q.km}km da loja · calculado automático</div>
+            <div class="dfn-sub">${String(q.km).replace('.', ',')} km de trajeto até você · R$ 2 por km</div>
           </div>`;
       } else if (q && q.out_of_range) {
         info.innerHTML = `
           <div class="dfn-icon"></div>
           <div class="dfn-body">
-            <div class="dfn-title" style="color: #FFB800">~${q.km}km de distância</div>
-            <div class="dfn-sub">${q.message || 'longe ✦ confirmamos pelo whats antes de fechar'}</div>
+            <div class="dfn-title" style="color: var(--pink)">fora da área de entrega</div>
+            <div class="dfn-sub">${q.message || 'esse endereço fica longe ✦ dá pra retirar na loja'}</div>
           </div>`;
       } else if (!addrCep || addrCep.length !== 8) {
         info.innerHTML = `
@@ -11819,9 +11765,9 @@
       const addr = getSelectedAddress();
       const addrCep = addr ? (addr.cep || '').replace(/\D/g, '') : '';
       const cur = window._deliveryQuote;
-      if (addrCep && addrCep.length === 8 && (!cur || cur.cep !== addrCep)) {
-        // Cota e re-renderiza
-        fetchDeliveryQuote(addrCep).then(() => {
+      if (addr && (addrCep.length === 8 || addr.street) && (!cur || cur.key !== _quoteKeyOf(addr))) {
+        // Cota pelo endereço COMPLETO (trajeto) e re-renderiza
+        fetchDeliveryQuote(addr).then(() => {
           try { renderCheckout(); } catch (_) {}
         });
       }
@@ -11844,9 +11790,9 @@
       } else {
         const q = window._deliveryQuote;
         if (q && q.ok && !q.out_of_range) {
-          bits.push(`entrega ${q.fmt} (~${q.km}km)`);
+          bits.push(`entrega ${q.fmt} (${String(q.km).replace('.', ',')} km)`);
         } else if (q && q.out_of_range) {
-          bits.push(`entrega: longe ✦ confirmar`);
+          bits.push(`fora da área de entrega`);
         } else {
           bits.push(`taxa calculada após preencher CEP`);
         }
@@ -14101,7 +14047,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            order_nsu: orderNsu,
+            order_nsu: orderNsu, coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined, 
             payment_method: paymentMethod,
             subtotal: subtotal,
             delivery_fee: deliveryFeeReais,
@@ -14120,6 +14066,7 @@
           go('cart'); renderCart(); renderGrid();
           return;
         }
+        if (_handleFreteReject(resp.status, data)) return;
         if (resp.ok && data.ok) {
           _trackToken = data.track_token || null;
           _trackUrl = data.track_url || null;

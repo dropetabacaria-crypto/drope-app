@@ -4659,6 +4659,35 @@ function _commissionWindow(md, now) {
 // Andrade pediu: painel pra fundadora da filial ver pedidos, saldo, mês, histórico.
 // Auth simples por código de acesso (gera-se com nome + telefone — bom o suficiente
 // pra começar). Cliente vê pedidos da filial dela e ganho por venda.
+// Frete pela ROTA (Google) → lib/frete.js (compartilhado com o save-order).
+const { freteQuote: _freteQuote, freteFilialBySlug: _freteFilialBySlug } = require('../lib/frete');
+
+// GET ?cep=XXXXXXXX (legado) | POST { filial, address:{cep,street,num,neigh,city,uf} }
+async function handleDeliveryQuote(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    let slug = 'sp', addr = null;
+    if (req.method === 'POST') {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      slug = String(body.filial || 'sp').toLowerCase().trim(); addr = body.address || null;
+    } else {
+      const u = new URL(req.url, 'http://x');
+      slug = String(u.searchParams.get('filial') || 'sp').toLowerCase().trim();
+      addr = { cep: u.searchParams.get('cep') || '', street: u.searchParams.get('street') || '', num: u.searchParams.get('num') || '', neigh: u.searchParams.get('neigh') || '', city: u.searchParams.get('city') || '', uf: u.searchParams.get('uf') || '' };
+    }
+    const filial = await _freteFilialBySlug(slug);
+    if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
+    const q = await _freteQuote(filial, addr);
+    return res.status(200).json(q);
+  } catch (e) {
+    console.error('[delivery_quote] ERROR:', e.message);
+    return res.status(200).json({ ok: false, error: 'não consegui calcular a entrega agora' });
+  }
+}
+
 async function handleFilialPainel(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
@@ -7670,8 +7699,8 @@ async function handleFilialCorridaCreate(req, res) {
     // base R$6 + R$1,50/km. A loja NÃO escolhe o valor.
     const storeGeo = (filial.metadata || {}).geo || {};
     const custGeo = (order.address || {}).geo || (order.metadata || {}).delivery_geo || {};
-    let distKm = null;
-    if (storeGeo.lat && storeGeo.lng && custGeo.lat && custGeo.lng) {
+    let distKm = Number(((order.metadata || {}).delivery_km)) || null; // km da ROTA (Google), gravado no pedido
+    if (distKm == null && storeGeo.lat && storeGeo.lng && custGeo.lat && custGeo.lng) {
       distKm = Math.round(_haversineKmSrv(storeGeo, custGeo) * 1.35 * 10) / 10; // ×1.35 = fator de rua
     }
     // Repasse ao motoboy = 94% do FRETE que o cliente pagou (DROPE fica com 6%).
@@ -19818,149 +19847,11 @@ ${entries.length ? cards : '<div class="empty">nenhum feedback ainda. botão adm
   }
 
   // ===== DELIVERY QUOTE (04/06/2026 Andrade) =====
-  // GET /api/webhook?action=delivery_quote&cep=XXXXXXXX
-  // Calcula taxa de motoboy via Haversine entre loja e CEP do cliente.
-  // Fórmula: R$ 5 base + R$ 2 por km. Max 35km (fora = sob consulta).
+  // action=delivery_quote — frete pela ROTA (Google) · GET ?cep= (legado) | POST { filial, address }
   if (req.url && req.url.indexOf('action=delivery_quote') >= 0) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    const qs = (req.url || '').split('?')[1] || '';
-    const params = {};
-    qs.split('&').forEach(p => { const [k,v]=p.split('='); if(k) params[decodeURIComponent(k)]=decodeURIComponent(v||''); });
-    const cep = (params.cep || '').replace(/\D/g, '');
-    if (cep.length !== 8) return res.status(400).json({ error: 'cep inválido' });
-
-    // Configuração da loja Drope — Rua Dianópolis 4100, Vila Prudente
-    const STORE_LAT = -23.5838437;
-    const STORE_LNG = -46.5901294;
-    const BASE_FEE_CENTS = 500;   // R$ 5
-    const PER_KM_CENTS = 200;     // R$ 2 / km
-    const MAX_KM = 35;
-
-    try {
-      // OTIMIZAÇÃO 04/06 (Andrade): 3 camadas
-      // 1️⃣ Cache Supabase (50ms se já viu esse CEP)
-      // 2️⃣ AwesomeAPI primária (350ms, retorna lat/lng direto)
-      // 3️⃣ BrasilAPI + Nominatim só como fallback raro
-      let lat = null, lng = null, city = '', neigh = '', street = '';
-      let source = '';
-
-      // 1️⃣ Cache Supabase
-      try {
-        const cached = await sbGet('drope_cep_cache', `cep=eq.${cep}&select=lat,lng,city,neigh,street&limit=1`);
-        if (Array.isArray(cached) && cached[0]) {
-          lat = cached[0].lat;
-          lng = cached[0].lng;
-          city = cached[0].city || '';
-          neigh = cached[0].neigh || '';
-          street = cached[0].street || '';
-          source = 'cache';
-        }
-      } catch (_) {}
-
-      // 2️⃣ AwesomeAPI (rápida, retorna lat/lng direto)
-      if (!lat || !lng) {
-        try {
-          const r = await fetch(`https://cep.awesomeapi.com.br/json/${cep}`, { signal: AbortSignal.timeout(4000) });
-          if (r.ok) {
-            const d = await r.json();
-            if (d.lat && d.lng) {
-              lat = parseFloat(d.lat);
-              lng = parseFloat(d.lng);
-              city = d.city || '';
-              neigh = d.district || '';
-              street = d.address || '';
-              source = 'awesomeapi';
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 3️⃣ Fallback: BrasilAPI v2 + Nominatim (lento mas cobre CEPs raros)
-      if (!lat || !lng) {
-        try {
-          const r1 = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`, { signal: AbortSignal.timeout(4000) });
-          if (r1.ok) {
-            const d = await r1.json();
-            city = city || d.city || '';
-            neigh = neigh || d.neighborhood || '';
-            street = street || d.street || '';
-            const c = d.location?.coordinates;
-            if (c && c.latitude && c.longitude) {
-              lat = typeof c.latitude === 'number' ? c.latitude : parseFloat(c.latitude);
-              lng = typeof c.longitude === 'number' ? c.longitude : parseFloat(c.longitude);
-              source = 'brasilapi';
-            } else if (d.street && d.neighborhood && d.city) {
-              const q = encodeURIComponent(`${d.street}, ${d.neighborhood}, ${d.city}, SP, Brasil`);
-              try {
-                const r2 = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
-                  headers: { 'User-Agent': 'drope-app/1.0' },
-                  signal: AbortSignal.timeout(4000),
-                });
-                if (r2.ok) {
-                  const arr = await r2.json();
-                  if (arr && arr[0]) {
-                    lat = parseFloat(arr[0].lat);
-                    lng = parseFloat(arr[0].lon);
-                    source = 'nominatim';
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (!lat || !lng) {
-        return res.status(200).json({ ok: false, error: 'cep não localizado', cep, city, neigh });
-      }
-
-      // Salva no cache pra próximas (best-effort, não bloqueia resposta)
-      if (source !== 'cache') {
-        try {
-          sbInsert('drope_cep_cache', { cep, lat, lng, city, neigh, street, source }).catch(() => {});
-        } catch (_) {}
-      }
-
-      // 2) Haversine
-      const R = 6371;
-      const toRad = (d) => d * Math.PI / 180;
-      const dLat = toRad(lat - STORE_LAT);
-      const dLng = toRad(lng - STORE_LNG);
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(STORE_LAT)) * Math.cos(toRad(lat)) * Math.sin(dLng/2)**2;
-      const km = 2 * R * Math.asin(Math.sqrt(a));
-
-      // 3) Out of range → sob consulta
-      if (km > MAX_KM) {
-        return res.status(200).json({
-          ok: true,
-          out_of_range: true,
-          km: Math.round(km * 10) / 10,
-          city, neigh,
-          message: `${city} fica longe (~${Math.round(km)}km) ✦ vamos conversar pelo whats antes de fechar`,
-        });
-      }
-
-      // 4) Calcula taxa: R$ 5 base + R$ 2 por km, arredondado pra real cheio + .99
-      const rawCents = BASE_FEE_CENTS + Math.round(km * PER_KM_CENTS);
-      // arredonda pra cima no real e tira 1 cent (.99)
-      const fee_cents = Math.max(500, Math.ceil(rawCents / 100) * 100 - 1);
-      const fmt = 'R$ ' + (fee_cents / 100).toFixed(2).replace('.', ',');
-
-      return res.status(200).json({
-        ok: true,
-        out_of_range: false,
-        km: Math.round(km * 10) / 10,
-        fee_cents,
-        fmt,
-        city, neigh,
-        source, // 'cache' | 'awesomeapi' | 'brasilapi' | 'nominatim' (debug)
-      });
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
-    }
+    return await handleDeliveryQuote(req, res);
   }
+
 
   // ===== ORDERS DASHBOARD (04/06/2026 Andrade) — estilo iFood =====
   // GET /api/webhook?action=orders_dashboard&token=X → HTML dashboard cards coloridos
