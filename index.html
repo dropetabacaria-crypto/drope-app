@@ -4382,14 +4382,6 @@
           <div class="welcome-privacy">
             a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
           </div>
-          <div class="welcome-gift">
-            <div class="wg-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="8" width="19" height="4.5" rx="1"/><path d="M20 12.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7.5"/><path d="M12 8v13"/><path d="M12 8S10.7 3 8.2 3a2.4 2.4 0 0 0 0 5Z"/><path d="M12 8s1.3-5 3.8-5a2.4 2.4 0 0 1 0 5Z"/></svg></div>
-            <div class="wg-body">
-              <div class="wg-title">seu cupom de estreia</div>
-              <div class="wg-code">DROPE10</div>
-              <div class="wg-sub">R$ 10 off no primeiro pedido ✦</div>
-            </div>
-          </div>
         </div>
         <div class="onboard-btns">
           <button class="btn-primary" id="welcome-btn" onclick="finishOnboard()" disabled style="opacity:0.4">dropar</button>
@@ -5812,7 +5804,7 @@
     <div style="padding: 20px">
       <div class="pe-card">
         <label class="card-lbl">código</label>
-        <input class="card-input" type="text" id="cp-code" placeholder="ex: DROPE10" maxlength="20" style="text-transform:uppercase">
+        <input class="card-input" type="text" id="cp-code" placeholder="ex: FRETEGRATIS" maxlength="20" style="text-transform:uppercase">
         <label class="card-lbl">desconto (r$)</label>
         <input class="card-input" type="number" id="cp-discount" placeholder="10">
         <label class="card-lbl">descrição</label>
@@ -6529,7 +6521,6 @@
   // ===== Cupons =====
   const COUPONS_KEY = 'drope_coupons_v1';
   let coupons = [
-    { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
     { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
     // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
     // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
@@ -6548,7 +6539,6 @@
     // FRICÇÃO #009 (04/06 Andrade): garante que built-in coupons sempre existem,
     // mesmo se o localStorage tem versão antiga sem eles.
     const BUILT_IN = [
-      { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
       { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
       { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
       { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
@@ -6556,6 +6546,8 @@
     BUILT_IN.forEach(bc => {
       if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
     });
+    // Cupom de boas-vindas DROPE10 aposentado (26/09 Andrade: mais simples, sem promessa).
+    coupons = coupons.filter(c => c.code !== 'DROPE10');
   }
   loadCoupons();
 
@@ -7117,18 +7109,8 @@
     el.value = out;
   }
 
-  function autoApplyWelcomeCoupon() {
-    if (appliedCoupon) return;
-    let code = null;
-    try { code = localStorage.getItem('drope_welcome_coupon'); } catch(e) {}
-    if (!code) return;
-    const c = coupons.find(x => x.code === code && x.active);
-    if (!c) return;
-    if (cartTotal() < c.discount) return;
-    appliedCoupon = { code: c.code, discount: c.discount };
-    try { localStorage.removeItem('drope_welcome_coupon'); } catch(e) {}
-    toast('cupom DROPE10 aplicado ✦ -R$ 10');
-  }
+  function autoApplyWelcomeCoupon() { /* DROPE10 aposentado (26/09) — não há mais cupom de boas-vindas */ }
+
 
   function finishOnboard() {
     const name = (document.getElementById('welcome-name')?.value || '').trim();
@@ -7148,9 +7130,7 @@
     profile.onboarded = true;
     persistProfile();
     updateProfileAvatar();
-    // Auto-aplica cupom de boas-vindas: marca flag pra mostrar no cart
-    try { localStorage.setItem('drope_welcome_coupon', 'DROPE10'); } catch(e) {}
-    toast('boas-vindas ✦ cupom DROPE10 na conta');
+    toast('Bem-vindo ✦ bora dropar');
     go('home');
   }
 
@@ -7250,8 +7230,7 @@
     persistProfile();
     updateProfileAvatar();
     closeGuestGate();
-    try { localStorage.setItem('drope_welcome_coupon', 'DROPE10'); } catch(e) {}
-    toast('cadastro feito ✦ cupom DROPE10 na conta');
+    toast('Cadastro feito ✦');
     // Vai pra tela que o cliente queria antes do gate
     if (pendingAfterGate === 'cart') {
       go('cart');
