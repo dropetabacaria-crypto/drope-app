@@ -6749,6 +6749,37 @@
       resetBtn();
     }
   }
+  // Pedido InfinitePay pendente: no Pix a InfinitePay NÃO volta sozinha pro app — quem confirma é
+  // o aviso automático dela (servidor). Quando o cliente volta pro app (reabre / troca de aba),
+  // o app olha o status do pedido e, se já foi pago, mostra a confirmação. Senão, acompanha.
+  let _ipPendPoll = null;
+  const _IP_PAID = ['paid', 'accepted', 'preparing', 'prepared', 'ready', 'dispatched', 'delivered', 'picked_up', 'completed'];
+  async function _ipCheckPending(loud) {
+    let pend = null; try { pend = JSON.parse(localStorage.getItem(IP_PENDING_KEY) || 'null'); } catch (e) {}
+    if (!pend || !pend.nsu) return;
+    if (Date.now() - (pend.at || 0) > 3 * 3600 * 1000) { try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {} return; } // >3h: esquece
+    try {
+      const r = await fetch('/api/get-order?nsu=' + encodeURIComponent(pend.nsu), { cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      const st = d && d.order && d.order.status;
+      if (st && _IP_PAID.includes(st)) {
+        if (_ipPendPoll) { clearInterval(_ipPendPoll); _ipPendPoll = null; }
+        try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {}
+        _finishPaidOrder('infinitepay', pend.nsu);
+        return;
+      }
+      if (st === 'cancelled' || r.status === 404) { try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {} return; }
+      // ainda 'created': acompanha por até ~3 min (o aviso da InfinitePay chega em segundos)
+      if (!_ipPendPoll) {
+        if (loud !== false) toast('confirmando teu pagamento… ✦');
+        let n = 0;
+        _ipPendPoll = setInterval(() => { n++; if (n > 45) { clearInterval(_ipPendPoll); _ipPendPoll = null; return; } _ipCheckPending(false); }, 4000);
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _ipCheckPending(); });
+  setTimeout(() => { try { _ipCheckPending(); } catch (e) {} }, 1800);
+
   // Voltou da InfinitePay: pede pro servidor conferir o pagamento (ele pergunta pra InfinitePay).
   // Tenta algumas vezes (o Pix pode levar uns segundos pra constar como pago).
   async function _ipConfirmReturn(params) {
@@ -6769,8 +6800,7 @@
         if (d && (d.error === 'valor_divergente' || d.error === 'pedido_nao_encontrado')) break;
       } catch (e) {}
     }
-    toast('Recebemos teu retorno ✦ o pagamento aparece no pedido assim que a InfinitePay confirmar');
-    go('order-tracking'); try { loadMyOrders(); setTimeout(loadMyOrders, 8000); } catch (e) {}
+    _ipCheckPending(); // acompanha pelo status (o aviso automático da InfinitePay confirma)
     return false;
   }
 
@@ -7406,8 +7436,7 @@
           toast('confirmando teu pagamento… ✦');
           _ipConfirmReturn(params);
         } else {
-          go('order-tracking'); loadMyOrders(); setTimeout(loadMyOrders, 6000);
-          toast('pagamento em confirmação ✦ acompanhe teu pedido');
+          _ipCheckPending(); // sem código no retorno: acompanha pelo status do pedido
         }
         return;
       }
