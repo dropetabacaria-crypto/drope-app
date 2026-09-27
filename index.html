@@ -4603,6 +4603,11 @@
       <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       </div>
+      <!-- Sacola sempre à vista na loja (antes só aparecia a barra depois do 1º item) -->
+      <div class="cart-btn" id="home-cart-btn" onclick="goCartSafe()" title="Sua sacola" style="position:relative;margin-left:8px">
+        <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.5 5h13"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+        <div class="cart-badge" id="home-cart-badge" style="display:none">0</div>
+      </div>
     </div>
 
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
@@ -8703,7 +8708,8 @@
           <div class="lj-hd-chips">${statusChip}${unavailable ? '' : infoChips}</div>
         </div>
       </div>`;
-    const hf = document.getElementById('home-fav-btn'); if (hf) { hf.classList.toggle('on', fav); hf.dataset.slug = loja.slug || ''; }
+    const hf = document.getElementById('home-fav-btn'); if (hf) { hf.classList.toggle('on', fav); hf.dataset.slug = loja.slug || ''; hf.style.display = SINGLE_STORE ? 'none' : ''; } // loja única: favoritar não serve pra nada — no lugar fica a sacola
+    try { updateCartBadge(); } catch (e) {}
   }
   function _homeToggleFav(el) {
     const slug = (el && el.dataset && el.dataset.slug) || (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || '';
@@ -14150,6 +14156,8 @@
     const badge = document.getElementById('cart-badge');
     badge.textContent = total;
     badge.style.display = total > 0 ? 'flex' : 'none';
+    const hb = document.getElementById('home-cart-badge');
+    if (hb) { hb.textContent = total; hb.style.display = total > 0 ? 'flex' : 'none'; }
     saveCart();
     try { updateCartFab(); } catch (e) {}
   }
@@ -14165,6 +14173,12 @@
     const sum = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const discount = (appliedCoupon && !appliedCoupon.isTest) ? (appliedCoupon.discount || 0) : 0;
     const totalVal = Math.max(0, sum - discount);
+    // Menu de baixo visível? A barra sobe pra ficar logo acima dele (antes ficava escondida atrás)
+    try {
+      const nav = document.getElementById('nav');
+      const nr = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect() : null;
+      fab.style.bottom = (nr && nr.height > 0 && nr.top < window.innerHeight) ? Math.round(window.innerHeight - nr.top + 10) + 'px' : '';
+    } catch (e) {}
     document.getElementById('cart-fab-count').textContent = n + (n === 1 ? ' item' : ' itens');
     document.getElementById('cart-fab-total').textContent = money(totalVal);
     const eco = document.getElementById('cart-fab-eco');
