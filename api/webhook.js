@@ -4658,6 +4658,7 @@ function _commissionWindow(md, now) {
 // pra começar). Cliente vê pedidos da filial dela e ganho por venda.
 // Frete pela ROTA (Google) → lib/frete.js (compartilhado com o save-order).
 const { freteQuote: _freteQuote, freteFilialBySlug: _freteFilialBySlug, motoboyPayCents: _motoboyPayCents } = require('../lib/frete');
+const { standardizePod: _standardizePod } = require('../lib/podName');
 
 // GET ?cep=XXXXXXXX (legado) | POST { filial, address:{cep,street,num,neigh,city,uf} }
 async function handleDeliveryQuote(req, res) {
@@ -5232,12 +5233,21 @@ async function handleFilialProductSave(req, res) {
       return res.status(200).json({ ok: true, id });
     }
     // novo produto
-    const name = String(body.name || '').trim();
+    let name = String(body.name || '').trim();
     const sabor = String(body.sabor || '').trim();
-    const marca = String(body.marca || '').trim();
-    const puffs = String(body.puffs || '').replace(/\D/g, '');
+    let marca = String(body.marca || '').trim();
+    let puffs = String(body.puffs || '').replace(/\D/g, '');
     // meta opcional vindo da Vision (identificação por foto) — enriquece a arte
     const vmeta = (body.meta && typeof body.meta === 'object') ? body.meta : {};
+    // Pod: título padrão "Marca Modelo Sabor NK" (mesmo padrão da vitrine). Combo/não-pod: nome digitado.
+    let _std = null;
+    const _isPodCad = !(Array.isArray(body.combo_items) && body.combo_items.length) && (!vmeta.type || vmeta.type === 'pod') && String(body.cat_global || 'pods').startsWith('pod');
+    if (_isPodCad && (marca || vmeta.brand) && (sabor || vmeta.flavor_pt)) {
+      try {
+        _std = _standardizePod({ brand: marca || vmeta.brand, model: vmeta.model || name, flavor_pt: sabor || vmeta.flavor_pt, flavor_en: vmeta.flavor_en, puffs: puffs || vmeta.puffs, name });
+        if (_std && _std.name) { name = _std.name; marca = _std.brand; if (_std.puffs) puffs = String(_std.puffs); } else _std = null;
+      } catch (e) { _std = null; }
+    }
     if (name.length < 2) return res.status(400).json({ ok: false, error: 'nome inválido' });
     if (!isFinite(priceCents) || priceCents < 0) return res.status(400).json({ ok: false, error: 'preço inválido' });
     const base = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pod';
@@ -5291,7 +5301,8 @@ async function handleFilialProductSave(req, res) {
         puffs: puffs ? parseInt(puffs, 10) : (vmeta.puffs || null),
         // campos que a pipeline de arte usa (slug único do arquivo + contexto do prompt)
         brand: marca || vmeta.brand || null,
-        model: vmeta.model || name,
+        model: _std ? _std.model : (vmeta.model || name),
+        ...(_std ? { brand_display: _std.brand, model_display: _std.model, name_std: true } : {}),
         flavor_pt: sabor || vmeta.flavor_pt || null,
         flavor_en: vmeta.flavor_en || null,
         filtro_id: body.filtro_id ? String(body.filtro_id) : null, // categoria/filtro da loja
@@ -5639,6 +5650,13 @@ async function handleFilialAnalyzePhoto(req, res) {
     // Enriquece cruzando: foto (Vision) + descrição do lojista (hint) + busca texto + busca imagem (lens).
     let enriched = data;
     try { enriched = await _enrichProductFromWeb(data, { hint, lens }); } catch (e) { console.warn('[filial_analyze_photo] enrich falhou:', e.message); }
+    // Título padrão "Marca Modelo Sabor NK" (o lojista vê já padronizado no form)
+    try {
+      if (enriched && (enriched.type === 'pod' || !enriched.type)) {
+        const std = _standardizePod(enriched);
+        if (std.name) { enriched.name = std.name; enriched.brand = std.brand; enriched.model = std.model; if (std.puffs) enriched.puffs = std.puffs; }
+      }
+    } catch (e) { console.warn('[filial_analyze_photo] padrao nome:', e.message); }
     return res.status(200).json({ ok: true, data: enriched });
   } catch (e) {
     console.error('[filial_analyze_photo] ERROR:', e.message);
@@ -14562,12 +14580,23 @@ function emojiForFlavor(flavor) {
   return '🦎';
 }
 
+// Etiquetas de sabor (um pod pode ser gelado E frutado): usadas nos atalhos da vitrine.
+function _flavorTags(txt) {
+  const f = String(txt || '').toLowerCase();
+  const t = [];
+  if (/\bice\b|icy|gelad|congelad|cool|frost|freeze|frozen/.test(f)) t.push('gelado');
+  if (/menta|mint|hortel|menthol|mentol/.test(f)) t.push('mentolado');
+  if (/morango|strawberry|abacaxi|pineapple|manga|mango|melancia|watermelon|mel[aã]o|melon|ma[cç][aã]|apple|pera|pear|uva|grape|lim[aã]o|lemon|lima|lime|mirtilo|blueberry|framboesa|raspberry|amora|berry|berries|banana|p[eê]ssego|peach|pitaya|maracuj|passion|coco|coconut|rom[aã]|pomegranate|cereja|cherry|kiwi|goiaba|guava|laranja|orange|toranja|grapefruit|frutas?|fruit|tropical|tutti|lichia|lychee|a[cç]a[ií]/.test(f)) t.push('frutado');
+  if (/doce|sweet|toffee|caramel|baunilha|vanilla|chocolate|cream|creme|bubbaloo|chiclete|gum|candy|bala/.test(f)) t.push('doce');
+  return t;
+}
+
 function inferPerfil(category, flavor, descricao) {
   const cat = (category || '').toLowerCase();
   if (cat === 'frutado' || cat === 'mentolado' || cat === 'gelado' || cat === 'doce') return cat;
   const f = `${flavor || ''} ${descricao || ''}`.toLowerCase();
-  if (/menta|mint|hortela|hortelã|menthol/.test(f)) return 'mentolado';
-  if (/ice|gelado|frio|cool|frost/.test(f)) return 'gelado';
+  if (/menta|mint|hortela|hortelã|menthol|mentol/.test(f)) return 'mentolado';
+  if (/\bice\b|gelad|congelad|frio|cool|frost|freeze|frozen/.test(f)) return 'gelado';
   if (/cream|creme|baunilha|vanilla|chocolate|doce/.test(f)) return 'doce';
   return 'frutado';
 }
@@ -16071,6 +16100,11 @@ async function handleCatalog(req, res) {
         marca: brand,
         modelo: model,
         sabor: flavorName,
+        // Vitrine padronizada (sabor → puffs → marca): textos como cadastrados (com maiúsculas)
+        sabor_nome: meta.flavor_pt || meta.flavor_en || null,
+        marca_nome: meta.brand_display || null,
+        modelo_nome: (meta.model_display != null) ? meta.model_display : null,
+        tags: _flavorTags((meta.flavor_pt || meta.flavor_en) ? `${meta.flavor_pt || ''} ${meta.flavor_en || ''}` : (p.name || '')),
         img: p.image_url || null,
         stock: typeof p.qty_available === 'number' ? p.qty_available : null,
         barcode: p.barcode || null,

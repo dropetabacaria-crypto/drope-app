@@ -189,12 +189,30 @@
     text-transform: uppercase !important;
   }
 
-  /* Números estilo matriz de pontos / LED (cara futurista Ai OS) */
+  /* Preços: fonte legível (a pixel/LED era bonita mas difícil de ler — UX R4) */
   .tile .price, .hero-sub .pink, #d-price, #d-btnprice, .co-total-val, #cart-total-val, .adm-stat .val, .dcc-total {
-    font-family: 'Doto', 'Space Grotesk', monospace !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.06em;
+    font-family: 'Space Grotesk', 'Inter', sans-serif !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
   }
+  /* ===== Redesign 27/09 — vitrine: atalhos + prateleiras ===== */
+  .home-quick { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .home-quick::-webkit-scrollbar { display: none; }
+  .hq-chip { flex: 0 0 auto; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); font: 600 13.5px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; transition: transform .12s, background .15s; }
+  .hq-chip:active { transform: scale(.95); }
+  .hq-chip.on { background: var(--lime); color: #0A0A14; border-color: var(--lime); font-weight: 700; }
+  .rail-hd { display: flex; align-items: baseline; justify-content: space-between; padding-right: 16px; }
+  .rail-hd .cat-section { padding-left: 16px; }
+  .rail-more { background: none; border: 0; color: var(--text-dim); font: 600 13px 'Inter', sans-serif; cursor: pointer; padding: 8px 0 8px 12px; }
+  .rail { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail .tile { flex: 0 0 42%; min-width: 0; max-width: 176px; scroll-snap-align: start; padding: 12px; }
+  #home .grid { padding: 0 16px; }
+  .tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; min-height: 36px; }
+  .tile-foot .price { margin-top: 0 !important; padding-right: 0 !important; }
+  .tile-foot .tile-add { position: relative; right: auto; bottom: auto; width: 36px; height: 36px; flex: 0 0 auto; font-size: 24px; }
+  .tile .price { color: var(--text) !important; font-size: 16px !important; margin-top: 6px !important; }
 
   /* Screen system */
   .screen { display: none; animation: fade 0.25s ease; }
@@ -520,7 +538,7 @@
     min-height: 36px;
   }
   .tile .brand {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--text-dim);
     letter-spacing: 0.02em;
@@ -679,8 +697,8 @@
     box-shadow: 0 0 18px rgba(176,38,255,0.4);
   }
   .brand-bubble-name {
-    font-size: 10px;
-    color: rgba(255,255,255,0.7);
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.78);
     max-width: 70px;
     text-align: center;
     white-space: nowrap;
@@ -688,7 +706,7 @@
     text-overflow: ellipsis;
   }
   .brand-bubble.active .brand-bubble-name {
-    color: var(--neon, #b026ff);
+    color: var(--lime);
     font-weight: 600;
   }
 
@@ -1104,7 +1122,7 @@
   .parc-card-btn:active { transform: scale(0.94); }
   .parc-empty { text-align: center; color: var(--text-dim); font-size: 13.5px; line-height: 1.6; padding: 34px 12px; }
   /* ===== Header de loja estilo iFood (subcapa + logo sobreposto + info row) ===== */
-  .lj-hd-cover { width: 100%; aspect-ratio: 5 / 2; background-size: cover; background-position: center; }
+  .lj-hd-cover { width: 100%; aspect-ratio: 16 / 5; background-size: cover; background-position: center; }
   .lj-hd-cover-ph { background: linear-gradient(135deg,#241046 0%, #4A1A6E 55%, #8A2A6B 100%); }
   .lj-hd-favbtn { position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.42); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
   .lj-hd-favbtn svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; }
@@ -1117,7 +1135,7 @@
   .lj-hd-name { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 19px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lj-hd-trocar { color: var(--store-accent,var(--lime)); font-weight: 700; font-size: 12px; flex: 0 0 auto; cursor: pointer; }
   .lj-hd-bio { font-size: 12.5px; color: var(--text-dim); line-height: 1.35; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lj-hd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .lj-hd-chips { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin-top: 7px; }
   .lj-hd-chip { font-size: 11px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
   .lj-hd-chip.open { color: #4ADE80; border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.1); }
   .lj-hd-chip.closed { color: #FF6B6B; border-color: rgba(255,107,107,0.35); background: rgba(255,107,107,0.1); }
@@ -1289,30 +1307,10 @@
     color: rgba(255,255,255,0.85);
     letter-spacing: 0.02em;
   }
-  /* marca = lime/amarelo neon */
-  .product-meta .meta-pill.marca {
-    color: var(--lime, #D4FF2E);
-    border-color: rgba(212,255,46,0.4);
-    background: rgba(212,255,46,0.1);
-  }
-  /* modelo = violet/roxo neon */
-  .product-meta .meta-pill.modelo {
-    color: var(--neon, #b026ff);
-    border-color: rgba(176,38,255,0.4);
-    background: rgba(176,38,255,0.1);
-  }
-  /* puffs = pink/rosa neon */
-  .product-meta .meta-pill.puffs {
-    color: var(--pink, #FF2D6F);
-    border-color: rgba(255,45,111,0.4);
-    background: rgba(255,45,111,0.1);
-  }
-  /* sabor = azul-ciano */
-  .product-meta .meta-pill.sabor {
-    color: #6fdcff;
-    border-color: rgba(111,220,255,0.4);
-    background: rgba(111,220,255,0.1);
-  }
+  /* Redesign 27/09: etiquetas neutras (neon fica só pra ação); puffs em destaque por ser a 2ª pergunta */
+  .product-meta .meta-pill { font-size: 12.5px; font-weight: 600; padding: 6px 12px; color: var(--text); }
+  .product-meta .meta-pill.puffs { font-weight: 800; border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.1); }
+  .product-meta .meta-pill.perfil { color: var(--text-dim); }
   .product-desc {
     padding: 0 24px;
     color: var(--text-dim);
@@ -1465,7 +1463,7 @@
   }
   .product-price {
     padding: 0 24px;
-    color: var(--pink);
+    color: var(--text);
     font-size: 32px;
     font-weight: 700;
     font-family: 'Space Grotesk';
@@ -1510,15 +1508,15 @@
   .btn-primary {
     width: 100%;
     padding: 18px;
-    background: var(--pink);
-    color: white;
+    background: var(--lime);
+    color: #0A0A14;
     border: none;
     border-radius: 100px;
     font-family: 'Inter';
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 10px 40px var(--pink-glow);
+    box-shadow: 0 10px 32px rgba(212,255,46,0.28);
   }
   .btn-primary:active { transform: scale(0.98); }
   .btn-secondary {
@@ -4610,6 +4608,8 @@
     <!-- NÍVEL 1 — categorias/tipos da loja (Seda, Tabaco, Pods…) logo abaixo da loja -->
     <div id="loja-filtros-row" class="loja-filtros-row" style="display:none;margin-bottom:2px"></div>
     <!-- NÍVEL 2 — marcas dos produtos (Zomo, Smoking, Amsterdam…), filtrado pela categoria -->
+    <!-- Atalhos: sabor → puffs → preço -->
+    <div class="home-quick" id="home-quick" style="display:none"></div>
     <div class="brands-wrap" id="brands-wrap" style="display:none"><div class="brands-scroll" id="brands-scroll"></div></div>
 
     <!-- Busca vira ícone de lupa no header; ao tocar, esta barra abre em overlay no topo -->
@@ -4641,9 +4641,7 @@
     <div id="home-personalized-wrap"></div>
 
     <!-- Busca e filtros ficam unificados na barra do topo (ícone de filtro dentro da busca) -->
-    <div class="section-title display">CATÁLOGO</div>
-
-    <div class="hero-carousel" id="hero-carousel"></div>
+    <div class="hero-carousel" id="hero-carousel" style="display:none"></div>
 
     <div id="home-last-order-wrap"></div>
 
@@ -8687,10 +8685,11 @@
       const km = src && typeof src._km === 'number' ? src._km : null;
       if (km != null) { kmTxt = km < 1 ? Math.round(km * 1000) + ' m' : km.toFixed(1).replace('.', ',') + ' km'; etaTxt = (typeof _etaFromKm === 'function' && _etaFromKm(km)) || etaTxt; }
     } catch (e) {}
+    // 1 linha só: status · entrega (redesign: menos chip cinza competindo com os pods)
+    const dq = window._deliveryQuote;
     const infoChips = [
-      `<span class="lj-hd-chip"> ${escapeHtml(etaTxt)}</span>`,
-      kmTxt ? `<span class="lj-hd-chip"> ${escapeHtml(kmTxt)}</span>` : '',
-      (window._deliveryQuote && window._deliveryQuote.ok && !window._deliveryQuote.out_of_range) ? `<span class="lj-hd-chip"> entrega ${escapeHtml(window._deliveryQuote.fmt)}</span>` : `<span class="lj-hd-chip"> entrega calculada pelo seu CEP</span>`,
+      kmTxt ? `<span class="lj-hd-chip">${escapeHtml(etaTxt)} · ${escapeHtml(kmTxt)}</span>` : '',
+      (dq && dq.ok && !dq.out_of_range) ? `<span class="lj-hd-chip">entrega ${escapeHtml(dq.free ? 'grátis' : dq.fmt)}</span>` : `<span class="lj-hd-chip">2+ pods = entrega grátis (até 6 km)</span>`,
     ].filter(Boolean).join('');
     const cover = loja.cover_url
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
@@ -10455,18 +10454,66 @@
   // hero = sabor (linha grande); muted = brand+model (linha menor).
   // Fallback: se sabor vazio, usa name todo no hero e deixa muted vazio.
   // Tudo lowercase (voz da marca).
+  // ===== Vitrine padronizada (o cliente pergunta: SABOR → PUFFS → MARCA → preço) =====
+  const _BRAND_NAMES = { 'elfbar': 'Elf Bar', 'elf bar': 'Elf Bar', 'ignite': 'Ignite', 'lost mary': 'Lost Mary', 'dinner lady': 'Dinner Lady', 'geek bar': 'Geek Bar', 'geekbar': 'Geek Bar', 'waka': 'Waka', 'nikbar': 'Nikbar', 'rabbeats': 'RabBeats', 'maxbar': 'Maxbar', 'icity': 'iCity', 'hqd': 'HQD', 'dojo': 'Dojo', 'hallo': 'Hallo', 'the black sheep': 'The Black Sheep', 'oxbar': 'Oxbar', 'vapesoul': 'Vapesoul' };
+  function _brandName(b) {
+    const k = String(b || '').trim().toLowerCase();
+    if (!k) return '';
+    return _BRAND_NAMES[k] || k.replace(/\b\w/g, c => c.toUpperCase());
+  }
+  // "melancia gelada com menta" → "Melancia Gelada com Menta" (conectivos minúsculos)
+  function _titleCasePt(s) {
+    const small = { e: 1, com: 1, de: 1, da: 1, do: 1, das: 1, dos: 1, 'à': 1, a: 1 };
+    return String(s || '').trim().toLowerCase().split(/\s+/).map((w, i) => (i && small[w]) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+  function _puffsFromName(name) {
+    const n = String(name || '');
+    let m = n.match(/(\d+(?:[.,]\d+)?)\s*k\b/i);
+    if (m) return Math.round(parseFloat(m[1].replace(',', '.')) * 1000);
+    m = n.match(/(\d{1,3}(?:\.\d{3})+|\d{4,6})\s*puffs/i) || n.match(/\b[A-Z]{1,3}(\d{4,5})\b/);
+    if (m) return parseInt(m[1].replace(/\./g, ''), 10);
+    return null;
+  }
+  // 40000 → "40k" · 15500 → "15,5k" · 800 → "800"
+  function _puffsTxt(n) {
+    n = Number(n) || 0;
+    if (n < 500) return '';
+    if (n < 1000) return String(n);
+    const k = Math.round(n / 100) / 10;
+    return String(k).replace('.', ',') + 'k';
+  }
+  function _podInfo(p) {
+    p = p || {};
+    const sabor = p.sabor_nome ? String(p.sabor_nome).trim() : (p.sabor ? _titleCasePt(p.sabor) : '');
+    const marca = p.marca_nome || _brandName(p.marca || p.brand);
+    const modelo = p.modelo_nome || '';
+    const puffs = (typeof p.puffs === 'number' && p.puffs >= 500) ? p.puffs : _puffsFromName(p.name);
+    const tags = Array.isArray(p.tags) ? p.tags : _flavorTagsTxt(sabor ? `${sabor} ${p.flavor_en || ''}` : (p.name || ''));
+    return { sabor, marca, modelo, puffs: puffs || null, puffsTxt: puffs ? _puffsTxt(puffs) + ' puffs' : '', tags };
+  }
+  // Mesma regra do servidor (_flavorTags) — fallback quando o catálogo vem sem "tags"
+  function _flavorTagsTxt(txt) {
+    const f = String(txt || '').toLowerCase(), t = [];
+    if (/\bice\b|icy|gelad|congelad|cool|frost|freeze|frozen/.test(f)) t.push('gelado');
+    if (/menta|mint|hortel|menthol|mentol/.test(f)) t.push('mentolado');
+    if (/morango|strawberry|abacaxi|pineapple|manga|mango|melancia|watermelon|mel[aã]o|melon|ma[cç][aã]|apple|pera|pear|uva|grape|lim[aã]o|lemon|lima|lime|mirtilo|blueberry|framboesa|raspberry|amora|berry|berries|banana|p[eê]ssego|peach|pitaya|maracuj|passion|coco|coconut|rom[aã]|pomegranate|cereja|cherry|kiwi|goiaba|guava|laranja|orange|toranja|grapefruit|frutas?|fruit|tropical|tutti|lichia|lychee|a[cç]a[ií]/.test(f)) t.push('frutado');
+    if (/doce|sweet|toffee|caramel|baunilha|vanilla|chocolate|cream|creme|bubbaloo|chiclete|gum|candy|bala/.test(f)) t.push('doce');
+    return t;
+  }
   function productLabels(p) {
     if (!p) return { hero: '', muted: '' };
-    // VITRINE = o mais importante: mostra o NOME COMPLETO do produto EXATAMENTE como
-    // cadastrado (ex.: "Tabaco Amsterdam Orgânico 25g"), sem minusculizar nem fatiar.
     const name = String(p.name || '').trim();
-    // Subtítulo = MARCA (faz sentido e é confiável), só quando NÃO já está no nome
-    // (comparação sem espaços evita "Elfbar" duplicado sob "Elf Bar ..."). Não usa mais
-    // o campo "sabor" (tinha dado legado errado, ex.: "brown" num produto "Black").
-    const brand = String(p.marca || p.brand || '').trim();
+    const info = _podInfo(p);
+    // Pod com sabor: SABOR é o título; embaixo "40k puffs · Marca Modelo" (ordem que o cliente pergunta)
+    if (info.sabor) {
+      const who = [info.marca, info.modelo].filter(Boolean).join(' ');
+      return { hero: info.sabor, muted: [info.puffsTxt, who].filter(Boolean).join(' · ') };
+    }
+    // Sem sabor (produto legado): nome como cadastrado + marca se não estiver no nome
+    const brand = info.marca;
     const nn = name.toLowerCase().replace(/\s+/g, '');
     const bn = brand.toLowerCase().replace(/\s+/g, '');
-    const muted = (brand && bn && !nn.includes(bn)) ? brand.replace(/\b\w/g, c => c.toUpperCase()) : '';
+    const muted = (brand && bn && !nn.includes(bn)) ? brand : '';
     return { hero: name, muted };
   }
 
@@ -10501,9 +10548,8 @@
         ${visual}
         <div class="flavor">${escapeHtml(labels.hero)}</div>
         ${labels.muted ? `<div class="brand">${escapeHtml(labels.muted)}</div>` : ''}
-        <div class="price">${priceLabel}</div>
+        <div class="tile-foot"><div class="price">${priceLabel}</div>${addBtn}</div>
         ${stockBadge}
-        ${addBtn}
       </div>
     `;
   }
@@ -10536,7 +10582,7 @@
       if (homeState.searchText) {
         const q = homeState.searchText;
         const hay = [
-          p.name, p.desc, p.marca, p.modelo, p.sabor, p.flavor_pt, p.flavor_en, p.brand,
+          p.name, p.desc, p.marca, p.modelo, p.sabor, p.flavor_pt, p.flavor_en, p.brand, p.sabor_nome, p.marca_nome, p.modelo_nome, (p.tags || []).join(' '),
           p.puffs ? String(p.puffs) + 'k' : '', p.puffs ? String(p.puffs) : '',
           p.perfil,
         ].filter(Boolean).join(' ').toLowerCase();
@@ -10544,6 +10590,7 @@
       }
       // Nível 2 — filtro/categoria da loja (o TIPO: Seda, Tabaco…) — Nível 1 na UI
       if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
+      if (homeState.quick) { const q = _quickDef(homeState.quick); if (q && !q.test(p)) return false; }
     }
     return true;
   }
@@ -10553,7 +10600,8 @@
     const row = document.getElementById('loja-filtros-row');
     if (!row) return;
     const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
-    if (!filtros.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+    // 1 categoria só (ex.: só "Pods") não é escolha — some (UX: nada de opção única)
+    if (filtros.length <= 1) { row.style.display = 'none'; row.innerHTML = ''; return; }
     const cur = homeState.filtroId || null;
     const acc = 'var(--store-accent, var(--lime))';
     const jid = id => id ? `'${String(id).replace(/'/g, '')}'` : 'null';
@@ -10987,7 +11035,32 @@
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
-  const homeState = { searchText: '', selectedBrand: null, filtroId: null };
+  const homeState = { searchText: '', selectedBrand: null, filtroId: null, quick: null };
+  // Atalhos da vitrine (na ordem que o cliente pergunta: sabor → puffs → preço; marca vem no carrossel)
+  const QUICK_CHIPS = [
+    { key: 'gelado', label: 'Gelados', test: p => _podInfo(p).tags.includes('gelado') },
+    { key: 'frutado', label: 'Frutados', test: p => _podInfo(p).tags.includes('frutado') },
+    { key: 'mentolado', label: 'Mentolados', test: p => _podInfo(p).tags.includes('mentolado') },
+    { key: 'doce', label: 'Doces', test: p => _podInfo(p).tags.includes('doce') },
+    { key: 'duram', label: '30k+ puffs', title: 'Duram mais · 30k+ puffs', test: p => (_podInfo(p).puffs || 0) >= 30000 },
+    { key: 'ate70', label: 'Até R$ 70', test: p => typeof p.price === 'number' && p.price > 0 && p.price <= 70 },
+  ];
+  function _quickDef(k) { return QUICK_CHIPS.find(c => c.key === k) || null; }
+  function renderQuickChips() {
+    const el = document.getElementById('home-quick');
+    if (!el) return;
+    const vis = products.filter(p => !p.hidden);
+    const chips = QUICK_CHIPS.filter(c => vis.some(c.test));
+    if (!chips.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = '';
+    el.innerHTML = chips.map(c => `<button type="button" class="hq-chip${homeState.quick === c.key ? ' on' : ''}" onclick="setQuick('${c.key}')">${escapeHtml(c.label)}</button>`).join('');
+  }
+  function setQuick(k) {
+    homeState.quick = (homeState.quick === k) ? null : (k || null);
+    renderQuickChips();
+    renderGrid();
+    try { const t = document.getElementById('home-cat-sections'); if (t && homeState.quick) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' }); } catch (e) {}
+  }
   // Categoria AMPLA (tipo de produto) inferida do nome/marca — Nível 1 do filtro.
   // Sem campo extra pro lojista: deduz do texto do produto.
   function searchProducts(text) {
@@ -10998,7 +11071,7 @@
     // Auto-scroll pro catálogo quando busca >2 chars
     if (homeState.searchText.length >= 2) {
       try {
-        const target = document.querySelector('.section-title');
+        const target = document.getElementById('home-cat-sections');
         if (target) {
           const y = target.getBoundingClientRect().top + window.scrollY - 80;
           window.scrollTo({ top: y, behavior: 'smooth' });
@@ -11010,12 +11083,13 @@
   // Estado vazio da busca (UX R8): um toque volta a mostrar tudo.
   function resetAllFilters() {
     try { const inp = document.getElementById('home-search'); if (inp) inp.value = ''; } catch (e) {}
-    homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null;
+    homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null; homeState.quick = null;
     filterState = { perfil: 'tudo', puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     try { const cb = document.getElementById('search-clear'); if (cb) cb.style.display = 'none'; } catch (e) {}
     try { renderLojaFiltros(); } catch (e) {}
     try { renderBrandsCarousel(); } catch (e) {}
+    try { renderQuickChips(); } catch (e) {}
     renderGrid();
   }
   function clearSearch() {
@@ -11085,17 +11159,17 @@
       : '';
     let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
       <div class="brand-bubble-circle"${tudoImg ? ' style="padding:0"' : ' style="background:linear-gradient(135deg,#b026ff,#ff2d95);"'}>${tudoInner}</div>
-      <div class="brand-bubble-name">TUDO</div>
+      <div class="brand-bubble-name">Todas</div>
     </div>`;
     brands.forEach(([brand, count]) => {
       const initials = brand.length >= 2 ? brand.slice(0, brand.length >= 6 ? 4 : 2).toUpperCase() : brand;
       const cover = brandCover[brand] || (brandImg[brand] && brandImg[brand].url);
       const inner = cover
-        ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(brand)}" draggable="false" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='${escapeHtml(initials)}'">`
+        ? `<img src="${escapeHtml(_thumb(cover, 160))}" alt="${escapeHtml(brand)}" draggable="false" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='${escapeHtml(initials)}'">`
         : escapeHtml(initials);
       html += `<div class="brand-bubble" data-brand="${escapeHtml(brand)}" onclick="selectBrand('${escapeHtml(brand)}')">
         <div class="brand-bubble-circle"${cover ? ' style="padding:0"' : ''}>${inner}</div>
-        <div class="brand-bubble-name">${escapeHtml(brand.toUpperCase())}</div>
+        <div class="brand-bubble-name">${escapeHtml(_brandName(brand))}</div>
       </div>`;
     });
     scroll.innerHTML = html;
@@ -11217,25 +11291,48 @@
     }
     return `<div class="cat-section">${escapeHtml(title)}</div>${grid}${more}`;
   }
+  // Prateleira horizontal (arrasta pro lado) com título + "ver todos".
+  function _homeRailHTML(title, items, moreOnclick) {
+    if (!items.length) return '';
+    const more = moreOnclick ? `<button type="button" class="rail-more" onclick="${moreOnclick}">ver todos</button>` : '';
+    return `<div class="rail-hd"><div class="cat-section">${escapeHtml(title)}</div>${more}</div>
+      <div class="rail">${items.slice(0, 10).map(({ p, i }) => tileHTML(p, i)).join('')}</div>`;
+  }
   function renderGrid() {
     if (typeof updateHero === 'function') updateHero();
+    try { renderQuickChips(); } catch (e) {}
     const container = document.getElementById('home-cat-sections');
     if (!container) return;
     const filtered = products.map((p, i) => ({ p, i })).filter(({ p }) => matchFilter(p));
     const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
-    const searching = !!homeState.searchText || hasAdvancedFilters();
+    const searching = !!homeState.searchText || hasAdvancedFilters() || !!homeState.quick || !!homeState.selectedBrand;
     const selectedFiltro = homeState.filtroId || null;
     let html = '';
 
     if (searching || selectedFiltro) {
       // Busca ou categoria selecionada → um grid único do que casa.
       const items = filtered.slice().sort(_sortStockThenNew);
+      const qd = homeState.quick ? _quickDef(homeState.quick) : null;
       const title = selectedFiltro
         ? ((filtros.find(f => f.id === selectedFiltro) || {}).nome || 'categoria')
-        : 'resultados';
+        : (qd ? (qd.title || qd.label) : (homeState.selectedBrand && !homeState.searchText ? _brandName(homeState.selectedBrand) : 'Resultados'));
       html = items.length
         ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
         : '<div class="empty-mini" style="grid-column:1/-1;text-align:center">Não achei nada com essa busca ✦<br><button type="button" class="btn-secondary" style="margin-top:12px;width:auto;padding:10px 18px" onclick="resetAllFilters()">limpar busca e filtros</button></div>';
+    } else if (filtros.length <= 1 && filtered.length >= 6) {
+      // Vitrine de pod (1 categoria): prateleiras pelo que o cliente pergunta — sabor, puffs, preço.
+      const inStock = filtered.filter(({ p }) => !_soldOut(p));
+      const byQuick = k => { const q = _quickDef(k); return inStock.filter(({ p }) => q.test(p)).sort(_sortStockThenNew); };
+      const sold = inStock.filter(({ p }) => (p.total_sold || 0) > 0).sort((a, b) => (b.p.total_sold || 0) - (a.p.total_sold || 0));
+      if (sold.length >= 3) html += _homeRailHTML('Mais pedidos', sold, null);
+      else html += _homeRailHTML('Chegou agora', inStock.slice().sort((a, b) => (b.p.id || 0) - (a.p.id || 0)), null);
+      html += _homeRailHTML('Gelados', byQuick('gelado'), "setQuick('gelado')");
+      html += _homeRailHTML('Frutados', byQuick('frutado'), "setQuick('frutado')");
+      html += _homeRailHTML('Mentolados', byQuick('mentolado'), "setQuick('mentolado')");
+      html += _homeRailHTML('Duram mais · 30k+ puffs', byQuick('duram'), "setQuick('duram')");
+      html += _homeRailHTML('Até R$ 70', byQuick('ate70'), "setQuick('ate70')");
+      const all = filtered.slice().sort(_sortStockThenNew);
+      html += _homeSectionHTML(`Todos os pods (${all.length})`, all, { cap: 8, moreOnclick: 'openCatalog()' });
     } else if (filtros.length) {
       // Seções dinâmicas: uma por categoria da loja, na ordem que ela definiu.
       filtros.forEach(f => {
@@ -11288,6 +11385,8 @@
   function updateHero() {
     const wrap = document.getElementById('hero-carousel');
     if (!wrap) return;
+    // Redesign 27/09: o carrossel grande saiu — "Mais pedidos" virou a 1ª prateleira da vitrine.
+    if (!wrap.dataset.keep) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     const latest = _featuredList();
     if (!latest.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
@@ -12552,7 +12651,9 @@
     } else {
       emojiEl.textContent = p.emoji;
     }
-    document.getElementById('d-name').textContent = p.name;
+    const _pi = _podInfo(p);
+    // Pod: título = SABOR (o que o cliente pergunta 1º); marca/modelo/puffs viram etiquetas
+    document.getElementById('d-name').textContent = _pi.sabor || p.name;
     // Meta pills: marca, puffs, sabor — só renderiza pills com valores válidos.
     // OSSO-FIX-NULLPUFFS: antes, p.puffs null/undefined renderizava "null puffs"
     // porque p.puffs >= 1000 era false e caía em null + ' puffs' = "null puffs".
@@ -12579,13 +12680,20 @@
         const f = fl.find(x => x.id === p.filtro_id);
         if (f && f.nome) catNome = f.nome;
       } catch (e) {}
-      add(p.marca, 'marca', true);                       // marca (lime)
-      add(catNome, 'modelo', true);                      // CATEGORIA/filtro (violeta)
-      add(p.modelo, 'modelo', true);                     // modelo (pod) — pulado se == categoria/nome
-      if (typeof p.puffs === 'number' && p.puffs > 0) {
-        add(p.puffs >= 1000 ? (p.puffs / 1000) + 'k puffs' : p.puffs + ' puffs', 'puffs', false);
+      if (_pi.sabor) {
+        // ordem do cliente: puffs → marca/modelo → perfil (gelado/frutado…)
+        if (_pi.puffsTxt) add(_pi.puffsTxt, 'puffs', false);
+        add([_pi.marca, _pi.modelo].filter(Boolean).join(' '), 'marca', false);
+        const TAGN = { gelado: 'Gelado', frutado: 'Frutado', mentolado: 'Mentolado', doce: 'Doce' };
+        _pi.tags.forEach(t => add(TAGN[t] || t, 'perfil', false));
+      } else {
+        add(p.marca, 'marca', true);                       // marca (lime)
+        const nFiltros = (CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros.length : 0;
+        if (nFiltros > 1) add(catNome, 'modelo', true);    // categoria só se a loja tem mais de uma
+        add(p.modelo, 'modelo', true);                     // modelo (pod) — pulado se == categoria/nome
+        if (_pi.puffsTxt) add(_pi.puffsTxt, 'puffs', false);
+        add(p.sabor, 'sabor', false);                      // sabor/variação — pulado se redundante
       }
-      add(p.sabor, 'sabor', false);                      // sabor/variação — pulado se redundante
       metaEl.innerHTML = pills.join('');
       metaEl.style.display = pills.length ? 'flex' : 'none';
     }
