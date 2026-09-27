@@ -5326,7 +5326,7 @@
         <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Criar / trocar senha <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-push" onclick="ativarPushCliente()">Ativar notificações 🔔 <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="sejaParceiro()">Divulgar e ganhar ✦ <span class="arrow">›</span></div>
+        <!-- "Divulgar e ganhar" desligado (27/09/2026 — programa de divulgadores volta depois) -->
         <div class="profile-row" onclick="shareDrope()">Compartilhar app <span class="arrow">›</span></div>
         <div class="profile-row" onclick="openHelpWhats()">Ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
@@ -6577,6 +6577,7 @@
     } catch (e) { console.warn('[ref] capture err:', e.message); }
   }
   function getAmbassadorRef() {
+    if (!REFERRAL_ON) return null; // programa de divulgadores desligado (27/09) — liga aqui quando voltar
     try {
       const raw = localStorage.getItem(REF_STORAGE_KEY);
       if (!raw) return null;
@@ -6713,6 +6714,7 @@
   // do banco e a descrição "Pedido Drope #xxxx" → abre a página de pagamento. Ao pagar, a
   // InfinitePay volta pro app (?pay=ip&order_nsu&transaction_nsu&slug) e o servidor confere.
   const IP_PENDING_KEY = 'drope_ip_pending';
+  const REFERRAL_ON = false; // programa de divulgadores desligado (27/09/2026) — começar simples
   async function openInfinitePay() {
     if (!cart.length) return;
     if (!_requireLoginToBuy()) return;

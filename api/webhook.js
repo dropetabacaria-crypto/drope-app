@@ -18032,6 +18032,9 @@ async function handleMPConnectStatus(req, res) {
 
 // Cria pagamento Pix via API do Mercado Pago, retorna QR code + copia-e-cola
 // ===== INFINITEPAY (migrado de api/infinitepay-*.js em 08/05/2026) =====
+// Programa de divulgadores (embaixadores/indicação): DESLIGADO desde 27/09/2026 — o Andrade quer
+// começar simples e só ligar depois que as vendas rodarem. Código fica; liga com env REFERRAL_ON=1.
+const REFERRAL_ON = process.env.REFERRAL_ON === '1';
 // Conta InfinitePay da loja (InfiniteTag, sem $). Fica no SERVIDOR — o app do cliente não escolhe.
 const INFINITEPAY_HANDLE = process.env.INFINITEPAY_HANDLE || 'lucas-de-andrade-671';
 // Provedor de pagamento do app do cliente: 'infinitepay' (padrão, set/2026) ou 'mp' (Mercado Pago, desligado).
@@ -18235,7 +18238,7 @@ async function handleInfinitePayWebhook(req, res) {
     // 1) Resolve ambassador_id: prioridade ordem → query ref → null
     // 2) Cola customer ao ambassador (vitalício) se ainda não tem
     // 3) Cria registro de comissão (10% do amountCents) status=pending
-    try {
+    if (REFERRAL_ON) try {
       const effectiveRef = updatedAmbassadorRef || webhookRef || '';
       let effectiveAmbId = updatedAmbassadorId || null;
 
@@ -19048,7 +19051,7 @@ async function handleMPWebhook(req, res) {
     }
 
     // ===== PROGRAMA EMBAIXADOR ✦ comissão (10%) — igual ao InfinitePay, só na 1ª confirmação =====
-    if (mpTransitioned) {
+    if (mpTransitioned && REFERRAL_ON) {
       try {
         const H2 = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
         let effectiveAmbId = mpAmbassadorId || null;
