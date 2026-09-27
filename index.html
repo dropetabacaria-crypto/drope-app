@@ -63,6 +63,7 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    overflow-x: clip; /* clip não cria área de rolagem → a busca consegue grudar no topo (sticky) */
   }
 
   body {
@@ -201,6 +202,15 @@
   .home-quick::-webkit-scrollbar { display: none; }
   .hq-chip { flex: 0 0 auto; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); font: 600 13.5px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; transition: transform .12s, background .15s; }
   .hq-chip:active { transform: scale(.95); }
+  .hs-bar { position: sticky; top: 0; z-index: 30; display: flex; gap: 8px; padding: 8px 16px 10px; padding-top: max(8px, env(safe-area-inset-top)); background: var(--bg); }
+  .hs-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid var(--border); color: var(--text-dim); cursor: text; }
+  .hs-field:focus-within { border-color: rgba(212,255,46,0.55); }
+  .hs-field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--text); font: 500 15px 'Inter', sans-serif; -webkit-appearance: none; }
+  .hs-field input::placeholder { color: var(--text-dim); }
+  .hs-field input::-webkit-search-cancel-button { display: none; }
+  .hs-clear { background: none; border: 0; color: var(--text-dim); font-size: 15px; padding: 6px; cursor: pointer; }
+  .hs-filt { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 14px; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid var(--border); color: var(--text); font: 700 14px 'Inter', sans-serif; cursor: pointer; }
+  .hs-filt.on { background: var(--lime); color: #0A0A14; border-color: var(--lime); }
   .pf-bar { display: flex; gap: 8px; padding: 12px 16px 0; }
   .hq-filt { border-color: rgba(255,255,255,0.3); font-weight: 700; }
   .hq-chip.on { background: var(--lime); color: #0A0A14; border-color: var(--lime); font-weight: 700; }
@@ -4601,7 +4611,7 @@
       </div>
       <div class="greet" id="home-greet" style="display:none">Oi, <b id="home-greet-name">Lucas</b> ✦</div>
       <div style="flex:1"></div>
-      <div class="cart-btn" id="home-search-btn" onclick="openStoreSearch()" title="Buscar produtos" style="margin-right:8px">
+      <div class="cart-btn" id="home-search-btn" onclick="openStoreSearch()" title="Buscar produtos" style="margin-right:8px;display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
       <div class="cart-btn hfav" id="home-fav-btn" onclick="_homeToggleFav(this)" title="Favoritar loja">
@@ -4616,6 +4626,16 @@
 
     <!-- Barra da loja atual — toque pra trocar de tabacaria -->
     <div id="home-loja-bar" style="position:relative;margin:0 0 10px;overflow:hidden;background:var(--card)"></div>
+
+    <!-- Busca sempre à vista (padrão iFood/Zé): campo largo + Filtrar; gruda no topo ao rolar -->
+    <div class="hs-bar" id="hs-bar">
+      <label class="hs-field">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7.5"/><path d="M20.5 20.5 16.5 16.5"/></svg>
+        <input type="search" id="hs-input" placeholder="Sabor, marca ou puffs…" autocomplete="off" enterkeyhint="search" oninput="_hsInput(this.value)">
+        <button type="button" class="hs-clear" id="hs-clear" onclick="_hsClear()" aria-label="Limpar busca" style="display:none">✕</button>
+      </label>
+      <button type="button" class="hs-filt" id="hs-filt" onclick="openPodFilters()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span id="hs-filt-lbl">Filtrar</span></button>
+    </div>
 
     <!-- NÍVEL 1 — categorias/tipos da loja (Seda, Tabaco, Pods…) logo abaixo da loja -->
     <div id="loja-filtros-row" class="loja-filtros-row" style="display:none;margin-bottom:2px"></div>
@@ -10766,7 +10786,16 @@
   }
 
   // Busca da loja em overlay (lupa no header) — mesma barra/input/filtros, só que sob demanda.
+  function _hsInput(v) {
+    const c = document.getElementById('hs-clear'); if (c) c.style.display = v ? '' : 'none';
+    const old = document.getElementById('home-search'); if (old) old.value = v;
+    searchProducts(v);
+  }
+  function _hsClear() { const i = document.getElementById('hs-input'); if (i) { i.value = ''; i.focus(); } _hsInput(''); }
   function openStoreSearch() {
+    // Barra visível: foca nela em vez de abrir o overlay antigo
+    const hs = document.getElementById('hs-input');
+    if (hs && hs.offsetParent !== null) { try { hs.focus(); } catch (e) {} return; }
     const wrap = document.getElementById('home-search-wrap');
     if (!wrap) return;
     wrap.style.display = 'block';
@@ -11178,7 +11207,9 @@
     el.style.display = '';
     const nf = (typeof podFCount === 'function') ? podFCount() : 0;
     const filt = `<button type="button" class="hq-chip hq-filt${nf ? ' on' : ''}" onclick="openPodFilters()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="vertical-align:-3px;margin-right:5px"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar${nf ? ' · ' + nf : ''}</button>`;
-    el.innerHTML = filt + chips.map(c => `<button type="button" class="hq-chip${homeState.quick === c.key ? ' on' : ''}" onclick="setQuick('${c.key}')">${escapeHtml(c.label)}</button>`).join('');
+    const hl = document.getElementById('hs-filt-lbl'); if (hl) hl.textContent = nf ? 'Filtrar · ' + nf : 'Filtrar';
+    const hb = document.getElementById('hs-filt'); if (hb) hb.classList.toggle('on', !!nf);
+    el.innerHTML = chips.map(c => `<button type="button" class="hq-chip${homeState.quick === c.key ? ' on' : ''}" onclick="setQuick('${c.key}')">${escapeHtml(c.label)}</button>`).join('');
   }
   function setQuick(k) {
     homeState.quick = (homeState.quick === k) ? null : (k || null);
@@ -11210,6 +11241,7 @@
     try { const inp = document.getElementById('home-search'); if (inp) inp.value = ''; } catch (e) {}
     homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null; homeState.quick = null;
     try { podF = { sabores: [], puffs: '', preco: '', marca: '', modelo: '' }; } catch (e) {}
+    try { const hi = document.getElementById('hs-input'); if (hi) hi.value = ''; const hc = document.getElementById('hs-clear'); if (hc) hc.style.display = 'none'; } catch (e) {}
     filterState = { perfil: 'tudo', puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     try { const cb = document.getElementById('search-clear'); if (cb) cb.style.display = 'none'; } catch (e) {}
@@ -11441,7 +11473,7 @@
       const qd = homeState.quick ? _quickDef(homeState.quick) : null;
       const title = selectedFiltro
         ? ((filtros.find(f => f.id === selectedFiltro) || {}).nome || 'categoria')
-        : podFActive() ? podFTitle() : (qd ? (qd.title || qd.label) : (homeState.selectedBrand && !homeState.searchText ? _brandName(homeState.selectedBrand) : 'Resultados'));
+        : podFActive() ? podFTitle() : (qd ? (qd.title || qd.label) : (homeState.selectedBrand && !homeState.searchText ? _brandName(homeState.selectedBrand) : (homeState.searchText ? `“${homeState.searchText}” · ${items.length} pod${items.length === 1 ? '' : 's'}` : 'Resultados')));
       html = items.length
         ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
         : '<div class="empty-mini" style="grid-column:1/-1;text-align:center">Não achei nada com essa busca ✦<br><button type="button" class="btn-secondary" style="margin-top:12px;width:auto;padding:10px 18px" onclick="resetAllFilters()">limpar busca e filtros</button></div>';
