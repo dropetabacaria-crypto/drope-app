@@ -5401,7 +5401,9 @@ async function handleFilialOrderCancel(req, res) {
     // Estorno no Mercado Pago — SEMPRE que houver pagamento online (transaction_id).
     // (o cliente pagou → o cancelamento devolve o dinheiro dele.)
     let refunded = false;
-    const paidOnline = !!o.transaction_id;
+    // InfinitePay não tem estorno por API: a loja devolve pelo app da InfinitePay (avisamos os dois).
+    const paidInfinite = !!o.transaction_id && String(o.payment_method || '').startsWith('infinitepay');
+    const paidOnline = !!o.transaction_id && !paidInfinite;
     if (paidOnline) {
       try {
         const sellerToken = await _mpTokenForFilial(filial);
@@ -5421,10 +5423,12 @@ async function handleFilialOrderCancel(req, res) {
       const nsu = o.order_nsu || id;
       const msg = refunded
         ? `Seu pedido #${nsu} foi cancelado pela loja. O estorno já foi solicitado ✦`
-        : `Seu pedido #${nsu} foi cancelado pela loja.`;
+        : paidInfinite
+          ? `Seu pedido #${nsu} foi cancelado pela loja. A devolução do valor vai ser feita pela loja ✦`
+          : `Seu pedido #${nsu} foi cancelado pela loja.`;
       if (phone) _notify('customer', phone, 'order_status', 'Pedido cancelado', msg, null).catch(() => {});
     } catch (e) {}
-    return res.status(200).json({ ok: true, refunded });
+    return res.status(200).json({ ok: true, refunded, refund_manual: paidInfinite });
   } catch (e) { console.error('[filial_order_cancel] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
