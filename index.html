@@ -390,6 +390,13 @@
   .cat-page-btn[disabled] { opacity: 0.35; pointer-events: none; }
   .cat-page-ind { font-size: 13px; color: var(--text-dim); font-weight: 600; }
   @media (max-width: 380px) { .catalog-grid .tile .flavor { font-size: 13px; } }
+  /* "+" no card (UX R1): área de toque 44px, responde na hora */
+  .tile-add { position: absolute; right: 10px; bottom: 10px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--lime); color: #0a0a0a; font-size: 26px; font-weight: 800; line-height: 1; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 14px rgba(212,255,46,.35); z-index: 2; touch-action: manipulation; transition: transform .12s ease; font-family: inherit; }
+  .tile-add::after { content: ''; position: absolute; inset: -4px; } /* área de toque 46px */
+  .tile-add:active { transform: scale(.88); }
+  .tile:has(.tile-add) .price { padding-right: 44px; }
+  .tile-add.added { animation: tileAddPop .5s ease; }
+  @keyframes tileAddPop { 0% { transform: scale(.85); } 45% { transform: scale(1.18); } 100% { transform: scale(1); } }
   .tile {
     /* Card futurista: glow radial forte saindo do topo + borda neon + profundidade */
     background:
@@ -3142,6 +3149,7 @@
   .order-status.separating { background: rgba(255, 170, 45, 0.15); color: #ffc46b; border: 1px solid rgba(255, 170, 45, 0.4); }
   .order-status.ready { background: rgba(45, 200, 255, 0.15); color: #6bd3ff; border: 1px solid rgba(45, 200, 255, 0.4); }
   .order-status.cancelled { background: rgba(120, 120, 120, 0.2); color: #888; border: 1px solid rgba(120, 120, 120, 0.4); }
+  .order-status.paid { background: rgba(74, 222, 128, 0.15); color: #86efac; border: 1px solid rgba(74, 222, 128, 0.4); }
   .order-status.confirmed { background: rgba(147, 197, 253, 0.15); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.4); }
   .order-status.reserved { background: linear-gradient(135deg, rgba(255, 45, 111, 0.2), rgba(91, 33, 182, 0.25)); color: #ffb3d1; border: 1px solid rgba(255, 45, 111, 0.45); }
   .order-status.cancelled { background: rgba(160, 160, 160, 0.15); color: #9b96b5; border: 1px solid rgba(160, 160, 160, 0.3); }
@@ -4375,14 +4383,6 @@
           <div class="welcome-privacy">
             a gente usa seus dados só pra te avisar dos próximos drops e falar contigo pelo whats. <b>zero spam</b>, zero venda pra terceiros.
           </div>
-          <div class="welcome-gift">
-            <div class="wg-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="8" width="19" height="4.5" rx="1"/><path d="M20 12.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7.5"/><path d="M12 8v13"/><path d="M12 8S10.7 3 8.2 3a2.4 2.4 0 0 0 0 5Z"/><path d="M12 8s1.3-5 3.8-5a2.4 2.4 0 0 1 0 5Z"/></svg></div>
-            <div class="wg-body">
-              <div class="wg-title">seu cupom de estreia</div>
-              <div class="wg-code">DROPE10</div>
-              <div class="wg-sub">R$ 10 off no primeiro pedido ✦</div>
-            </div>
-          </div>
         </div>
         <div class="onboard-btns">
           <button class="btn-primary" id="welcome-btn" onclick="finishOnboard()" disabled style="opacity:0.4">dropar</button>
@@ -5148,8 +5148,14 @@
     <div class="success-wrap">
       <div class="check">✓</div>
       <div class="success-title display">Dropou ✦</div>
-      <div class="success-sub" id="success-sub">Pedido confirmado ✦ avisa a gente no whats pra liberar</div>
+      <div class="success-sub" id="success-sub">Pedido confirmado ✦ a loja já foi avisada</div>
       <div class="success-order" id="success-order">#dr-4291</div>
+      <!-- UX R6: pede pra avisar no celular na hora certa (logo depois da compra) -->
+      <div id="success-push" style="display:none;margin:18px auto 0;max-width:340px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:var(--card);text-align:left">
+        <div style="font-weight:700;font-size:15px">Quer saber quando sair pra entrega?</div>
+        <div style="font-size:13px;color:var(--text-dim);margin:4px 0 10px">A gente avisa no seu celular a cada etapa do pedido.</div>
+        <button class="btn-secondary" style="width:100%" onclick="ativarPushCliente().then(_renderSuccessPush)">Avisar no celular 🔔</button>
+      </div>
 
       <div class="success-btns">
         <button class="btn-primary" onclick="_trackedOrderNum=null; go('order-tracking')">Acompanhar pedido →</button>
@@ -5189,44 +5195,45 @@
   <!-- ============ ADDRESS FORM ============ -->
   <div class="screen no-nav" id="address-form">
     <div class="top-bar">
-      <div class="icon-btn" onclick="go('addresses')">
+      <div class="icon-btn" onclick="if (addrPickMode && !(addresses || []).length) { addrPickMode = false; go('checkout'); } else go('addresses')">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </div>
       <div class="brand-small" id="addr-form-title">Novo endereço</div>
       <div style="width: 42px"></div>
     </div>
     <div class="addr-form">
-      <div class="lab">apelido</div>
-      <input id="af-label" placeholder="casa, trampo, role...">
+      <!-- UX R1: só o essencial à vista (CEP, número, complemento). Rua/bairro/cidade vêm do CEP. -->
       <div class="lab">cep</div>
-      <input id="af-cep" placeholder="00000-000" maxlength="9" oninput="formatCep(this)">
+      <input id="af-cep" placeholder="00000-000" maxlength="9" inputmode="numeric" autocomplete="postal-code" oninput="formatCep(this)">
+      <div id="af-cep-help" style="font-size:12px;color:var(--text-dim);margin-top:6px">a gente completa rua, bairro e cidade ✦ <span style="color:var(--lime);cursor:pointer;text-decoration:underline" onclick="_afManual(true)">não sei o CEP</span></div>
+      <div id="af-auto" style="display:none;margin-top:10px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--card)">
+        <div id="af-auto-txt" style="font-size:14px;line-height:1.45"></div>
+        <span style="font-size:12px;color:var(--lime);cursor:pointer;text-decoration:underline" onclick="_afManual(true)">corrigir</span>
+      </div>
       <div id="af-quote" style="margin: 8px 0"></div>
-      <div class="lab">rua</div>
-      <input id="af-street" placeholder="rua do drope">
       <div class="row">
         <div style="flex: 1">
           <div class="lab">número</div>
-          <input id="af-num" placeholder="123">
+          <input id="af-num" placeholder="123" inputmode="numeric">
         </div>
         <div style="flex: 2">
-          <div class="lab">complemento</div>
+          <div class="lab">complemento <span style="opacity:.6;font-weight:400">(opcional)</span></div>
           <input id="af-comp" placeholder="apto 42, fundos...">
         </div>
       </div>
-      <div class="lab">bairro</div>
-      <input id="af-neigh" placeholder="vila feliz">
-      <div class="lab">referência</div>
-      <input id="af-ref" placeholder="perto do metrô, portão azul, ao lado do mercado...">
-      <div class="row">
-        <div style="flex: 2">
-          <div class="lab">cidade</div>
-          <input id="af-city" placeholder="são paulo">
-        </div>
-        <div style="flex: 1">
-          <div class="lab">uf</div>
-          <!-- OSSO-UF-SELECT: trocado input livre por select dos 27 estados.
-               Evita typo, força padronização e abre caminho pra validação por região. -->
-          <select id="af-uf" style="width:100%; padding:14px; background:var(--card); border:1px solid var(--border); border-radius:14px; color:var(--text); font-size:15px;">
+      <div id="af-manual" style="display:none">
+        <div class="lab">rua</div>
+        <input id="af-street" placeholder="rua do drope" autocomplete="address-line1">
+        <div class="lab">bairro</div>
+        <input id="af-neigh" placeholder="vila feliz">
+        <div class="row">
+          <div style="flex: 2">
+            <div class="lab">cidade</div>
+            <input id="af-city" placeholder="são paulo">
+          </div>
+          <div style="flex: 1">
+            <div class="lab">uf</div>
+            <select id="af-uf" style="width:100%; padding:14px; background:var(--card); border:1px solid var(--border); border-radius:14px; color:var(--text); font-size:15px;">
             <option value="">UF</option>
             <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
             <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
@@ -5238,8 +5245,16 @@
             <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
             <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
           </select>
+          </div>
         </div>
       </div>
+      <details id="af-more" style="margin-top:14px">
+        <summary style="font-size:13px;color:var(--text-dim);cursor:pointer">mais detalhes (opcional) — apelido e ponto de referência</summary>
+        <div class="lab">apelido</div>
+        <input id="af-label" placeholder="casa, trampo, role...">
+        <div class="lab">referência</div>
+        <input id="af-ref" placeholder="perto do metrô, portão azul, ao lado do mercado...">
+      </details>
     </div>
     <div class="sticky-cta">
       <button class="btn-primary" onclick="saveAddress()">salvar endereço ✦</button>
@@ -5796,7 +5811,7 @@
     <div style="padding: 20px">
       <div class="pe-card">
         <label class="card-lbl">código</label>
-        <input class="card-input" type="text" id="cp-code" placeholder="ex: DROPE10" maxlength="20" style="text-transform:uppercase">
+        <input class="card-input" type="text" id="cp-code" placeholder="ex: FRETEGRATIS" maxlength="20" style="text-transform:uppercase">
         <label class="card-lbl">desconto (r$)</label>
         <input class="card-input" type="number" id="cp-discount" placeholder="10">
         <label class="card-lbl">descrição</label>
@@ -6513,7 +6528,6 @@
   // ===== Cupons =====
   const COUPONS_KEY = 'drope_coupons_v1';
   let coupons = [
-    { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
     { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
     // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
     // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
@@ -6532,7 +6546,6 @@
     // FRICÇÃO #009 (04/06 Andrade): garante que built-in coupons sempre existem,
     // mesmo se o localStorage tem versão antiga sem eles.
     const BUILT_IN = [
-      { code: 'DROPE10', discount: 10, desc: 'R$ 10 off ✦ boas-vindas', active: true },
       { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
       { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
       { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
@@ -6540,6 +6553,8 @@
     BUILT_IN.forEach(bc => {
       if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
     });
+    // Cupom de boas-vindas DROPE10 aposentado (26/09 Andrade: mais simples, sem promessa).
+    coupons = coupons.filter(c => c.code !== 'DROPE10');
   }
   loadCoupons();
 
@@ -6687,136 +6702,126 @@
         toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); go('cart'); renderCart(); renderGrid(); return;
       }
       if (_handleFreteReject(saveResp.status, sd)) return;
+      if (_handleCartReject(saveResp.status, sd)) return;
     } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
     _cardCtx = { orderNsu, chargeCents, amount: chargeCents / 100, slug };
     go('card'); // o handler de 'card' chama renderCardScreen() → renderCardBrick()
   }
 
-  async function openInfinitePay(forceInfinite) {
-    // InfinitePay APOSENTADO (ago/2026): pagamento é 100% Mercado Pago — cada loja recebe
-    // na SUA conta conectada, com split. Se a loja tem MP → Pix do MP; senão, BLOQUEIA.
-    // NUNCA cai no InfinitePay (que ia 100% pro handle do Lucas, sem split — não fazia
-    // sentido com várias lojas na jogada).
-    if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected) {
-      return openMPPix();
-    }
-    toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
-    const _ipBtn = document.getElementById('infinitepay-btn'); if (_ipBtn) { _ipBtn.textContent = 'pagar agora ✦'; _ipBtn.disabled = false; }
-    return;
-    // ↓↓↓ código antigo do InfinitePay: INALCANÇÁVEL (mantido só pra não quebrar referências) ↓↓↓
+  // ============ PAGAMENTO INFINITEPAY (set/2026 — conta da loja, Pix ou cartão) ============
+  // Salva o pedido pendente (reserva estoque) → servidor gera o link na InfinitePay com o VALOR
+  // do banco e a descrição "Pedido Drope #xxxx" → abre a página de pagamento. Ao pagar, a
+  // InfinitePay volta pro app (?pay=ip&order_nsu&transaction_nsu&slug) e o servidor confere.
+  const IP_PENDING_KEY = 'drope_ip_pending';
+  async function openInfinitePay() {
+    if (!cart.length) return;
+    if (!_requireLoginToBuy()) return;
     const btn = document.getElementById('infinitepay-btn');
-    if (!btn) return;
-    btn.textContent = 'gerando link...';
-    btn.disabled = true;
-
+    const resetBtn = () => { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } };
+    if (btn) { btn.textContent = 'abrindo pagamento…'; btn.disabled = true; }
     try {
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       const discount = appliedCoupon ? appliedCoupon.discount : 0;
       const total = Math.max(0, subtotal - discount);
-      // description: o backend força 'Drope' no payload final pro InfinitePay.
-      // Andrade 07/06: trocado de 'Tabacaria Drope' pra 'Drope' — operadora de cartão
-      // (Mastercard/Visa) flagava 'Tabacaria' como MCC restrito e bloqueava o pagamento.
-      // Frontend agora também manda 'Drope' direto pra ficar consistente em logs.
-      const items = cart.map(i => ({
-        quantity: i.qty,
-        price: Math.round(i.price * 100), // centavos
-        description: 'Drope'
-      }));
+      const deliveryFeeReais = deliveryFee();
+      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
+      if (chargeCents <= 100) { toast('pedido mínimo de R$ 1,00 ✦'); resetBtn(); return; }
+      const orderNsu = `dr-${Date.now().toString(36)}`;
+      const addr = getSelectedAddress();
+      const saveResp = await fetch('/api/save-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_nsu: orderNsu, payment_method: 'infinitepay',
+          coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined,
+          subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+          items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
+          delivery_mode: deliveryMode,
+          address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
+          customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
+          scheduled: _scheduledInfo(),
+          ambassador_ref: getAmbassadorRef() || undefined,
+        }),
+      });
+      const sd = await saveResp.json().catch(() => ({}));
+      if (saveResp.status === 409 && sd.error === 'out_of_stock') {
+        toast('estoque acabou ✦ ' + (sd.item || 'item indisponível'));
+        resetBtn(); go('cart'); renderCart(); renderGrid(); return;
+      }
+      if (_handleCartReject(saveResp.status, sd)) { resetBtn(); return; }
+      if (_handleFreteReject(saveResp.status, sd)) { resetBtn(); return; }
+      if (!saveResp.ok) { toast('Não deu pra registrar o pedido ✦ tenta de novo'); resetBtn(); return; } // sem pedido salvo não cobra
 
-      // Manda dados do cliente pro checkout pré-preenchido
       const customer = {};
       if (profile.name) customer.name = profile.name;
       if (profile.email) customer.email = profile.email;
-      if (profile.phone) {
-        // BUGFIX: profile.phone já inclui o 55 nos dígitos → não prefixar '+55' de novo
-        // (gerava +55 duplicado → InfinitePay recusava "not a valid phone number").
-        const _d = profile.phone.replace(/[^0-9]/g, '');
-        customer.phone_number = '+' + (_d.startsWith('55') ? _d : '55' + _d);
-      }
-
-      // FIX 04/06 (Andrade #008): rota /api/infinitepay-checkout tava dando 404
-      // porque o vercel.json `routes` não rotava como esperado. Chamando direto
-      // /api/webhook?action=infinitepay_checkout que comprovadamente funciona.
-      // Anexa código do embaixador (se cliente veio via link /?ref=CACAU)
-      const ambassadorRef = getAmbassadorRef();
-
-      // order_nsu estável, usado NO save-order E no checkout. O webhook da InfinitePay
-      // confirma o pedido procurando por esse nsu (PATCH status='paid'). Sem isso, o
-      // pagamento cai mas nenhum pedido é registrado.
-      const orderNsu = `dr-${Date.now().toString(36)}`;
-
-      // Salva o pedido como PENDENTE antes de pagar (infinitepay → status 'created').
-      // Reserva estoque atômico; o cron de expiração libera se não for pago.
-      const addr = getSelectedAddress();
-      const deliveryFeeReais = deliveryFee(); // reais; já considera cupom frete grátis
-      // InfinitePay exige total > R$1,00. Com cupom de frete grátis num item barato
-      // (ex.: produto teste R$0,99) o total cai abaixo do mínimo e a API recusava com
-      // erro genérico. Aqui a gente avisa de forma clara e não tenta gerar o link.
-      const chargeCents = Math.round((total + deliveryFeeReais) * 100);
-      if (chargeCents <= 100) {
-        toast('pedido mínimo de R$ 1,00 pra pagar no Pix ✦');
-        btn.textContent = 'pagar agora ✦'; btn.disabled = false;
+      if (profile.phone) { const _d = profile.phone.replace(/[^0-9]/g, ''); customer.phone_number = '+' + (_d.startsWith('55') ? _d : '55' + _d); }
+      const res = await fetch('/api/webhook?action=infinitepay_checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderNsu, customer }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) { toast((data && data.message) || 'Não deu pra abrir o pagamento agora ✦ tenta de novo'); resetBtn(); return; }
+      try { localStorage.setItem(IP_PENDING_KEY, JSON.stringify({ nsu: orderNsu, at: Date.now() })); } catch (e) {}
+      window.location.href = data.url; // mesma aba: ao pagar, a InfinitePay volta direto pro app
+    } catch (e) {
+      console.error('[InfinitePay]', e && e.message);
+      toast('Não deu pra abrir o pagamento agora ✦ tenta de novo');
+      resetBtn();
+    }
+  }
+  // Pedido InfinitePay pendente: no Pix a InfinitePay NÃO volta sozinha pro app — quem confirma é
+  // o aviso automático dela (servidor). Quando o cliente volta pro app (reabre / troca de aba),
+  // o app olha o status do pedido e, se já foi pago, mostra a confirmação. Senão, acompanha.
+  let _ipPendPoll = null;
+  const _IP_PAID = ['paid', 'accepted', 'preparing', 'prepared', 'ready', 'dispatched', 'delivered', 'picked_up', 'completed'];
+  async function _ipCheckPending(loud) {
+    let pend = null; try { pend = JSON.parse(localStorage.getItem(IP_PENDING_KEY) || 'null'); } catch (e) {}
+    if (!pend || !pend.nsu) return;
+    if (Date.now() - (pend.at || 0) > 3 * 3600 * 1000) { try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {} return; } // >3h: esquece
+    try {
+      const r = await fetch('/api/get-order?nsu=' + encodeURIComponent(pend.nsu), { cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      const st = d && d.order && d.order.status;
+      if (st && _IP_PAID.includes(st)) {
+        if (_ipPendPoll) { clearInterval(_ipPendPoll); _ipPendPoll = null; }
+        try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {}
+        _finishPaidOrder('infinitepay', pend.nsu);
         return;
       }
+      if (st === 'cancelled' || r.status === 404) { try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {} return; }
+      // ainda 'created': acompanha por até ~3 min (o aviso da InfinitePay chega em segundos)
+      if (!_ipPendPoll) {
+        if (loud !== false) toast('confirmando teu pagamento… ✦');
+        let n = 0;
+        _ipPendPoll = setInterval(() => { n++; if (n > 45) { clearInterval(_ipPendPoll); _ipPendPoll = null; return; } _ipCheckPending(false); }, 4000);
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _ipCheckPending(); });
+  setTimeout(() => { try { _ipCheckPending(); } catch (e) {} }, 1800);
+
+  // Voltou da InfinitePay: pede pro servidor conferir o pagamento (ele pergunta pra InfinitePay).
+  // Tenta algumas vezes (o Pix pode levar uns segundos pra constar como pago).
+  async function _ipConfirmReturn(params) {
+    const waits = [0, 3000, 6000, 10000, 15000];
+    for (const w of waits) {
+      if (w) await new Promise(r => setTimeout(r, w));
       try {
-        const saveResp = await fetch('/api/save-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_nsu: orderNsu, coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined, 
-            payment_method: 'infinitepay',
-            subtotal: subtotal,
-            delivery_fee: deliveryFeeReais,
-            total: total + deliveryFeeReais,
-            items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
-            delivery_mode: deliveryMode,
-            address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
-            customer: { name: profile.name, phone: profile.phone, email: profile.email || '' },
-            scheduled: _scheduledInfo(),
-          }),
+        const r = await fetch('/api/webhook?action=infinitepay_webhook', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_nsu: params.nsu, transaction_nsu: params.tx, invoice_slug: params.slug, capture_method: params.method || '' }),
         });
-        const saveData = await saveResp.json().catch(() => ({}));
-        if (saveResp.status === 409 && saveData.error === 'out_of_stock') {
-          toast('estoque acabou ✦ ' + (saveData.item || 'item indisponível'));
-          btn.textContent = 'pagar agora ✦'; btn.disabled = false;
-          go('cart'); renderCart(); renderGrid();
-          return;
+        const d = await r.json().catch(() => ({}));
+        if (d && d.paid) {
+          try { localStorage.removeItem(IP_PENDING_KEY); } catch (e) {}
+          _finishPaidOrder('infinitepay', params.nsu);
+          return true;
         }
-      } catch (eSave) {
-        console.error('[save-order/infinitepay] erro:', eSave && eSave.message);
-        // não bloqueia a venda; segue pro checkout
-      }
-
-      const res = await fetch('/api/webhook?action=infinitepay_checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          handle: INFINITEPAY_HANDLE,
-          // Cobra o VALOR TOTAL do pedido numa linha só (subtotal - desconto + entrega),
-          // garantindo que o desconto do cupom E a taxa de entrega entrem na cobrança.
-          items: [{ quantity: 1, price: Math.round((total + deliveryFeeReais) * 100), description: 'Pedido Drope' }],
-          total: Math.round((total + deliveryFeeReais) * 100),
-          order_id: orderNsu,
-          customer,
-          ambassador_ref: ambassadorRef || undefined,
-        })
-      });
-
-      const data = await res.json();
-      if (data.url) {
-        // Abre o checkout InfinitePay (nova aba no mobile abre in-app browser)
-        window.open(data.url, '_blank');
-        btn.textContent = 'pagar agora ✦';
-        btn.disabled = false;
-      } else {
-        throw new Error(data.error || 'erro ao gerar link');
-      }
-    } catch(e) {
-      console.error('[InfinitePay]', e);
-      toast('erro ao gerar o Pix ✦ tenta de novo');
-      btn.textContent = 'pagar agora ✦';
-      btn.disabled = false;
+        if (d && (d.error === 'valor_divergente' || d.error === 'pedido_nao_encontrado')) break;
+      } catch (e) {}
     }
+    _ipCheckPending(); // acompanha pelo status (o aviso automático da InfinitePay confirma)
+    return false;
   }
 
   // ============ PIX MERCADO PAGO (split por loja) ============
@@ -6865,6 +6870,7 @@
           return;
         }
         if (_handleFreteReject(saveResp.status, sd)) { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } return; }
+        if (_handleCartReject(saveResp.status, sd)) { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } return; }
       } catch (eSave) { console.error('[save-order/mp]', eSave && eSave.message); }
 
       // cria o Pix com split
@@ -6912,9 +6918,9 @@
     if (!_mpPixCode) return;
     const done = () => { const b = document.getElementById('mppix-copy'); if (b) { b.textContent = 'copiado ✦'; setTimeout(() => b.textContent = 'copiar código Pix', 1500); } toast('código Pix copiado ✦'); };
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(_mpPixCode).then(done, () => toast('não deu pra copiar')); }
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(_mpPixCode).then(done, () => toast('Não consegui copiar ✦ segura o dedo no código pra copiar')); }
       else { const t = document.createElement('textarea'); t.value = _mpPixCode; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); done(); }
-    } catch (e) { toast('não deu pra copiar'); }
+    } catch (e) { toast('Não consegui copiar ✦ segura o dedo no código pra copiar'); }
   }
 
   function _startMPPixPoll(paymentId, slug) {
@@ -6960,8 +6966,8 @@
       orders.unshift({
         num: orderNum,
         nsu: nsu || null,
-        status: 'pagamento aprovado ✦ preparando',
-        statusCls: 'confirmed',
+        status: 'pago ✦ aguardando a loja confirmar',
+        statusCls: 'paid',
         summary: cart.map(i => `${i.qty}× ${i.name}`).join(' ✦ '),
         subtotal, total,
         delivery_fee_cents: Math.round(deliveryFeeReais * 100),
@@ -7103,18 +7109,8 @@
     el.value = out;
   }
 
-  function autoApplyWelcomeCoupon() {
-    if (appliedCoupon) return;
-    let code = null;
-    try { code = localStorage.getItem('drope_welcome_coupon'); } catch(e) {}
-    if (!code) return;
-    const c = coupons.find(x => x.code === code && x.active);
-    if (!c) return;
-    if (cartTotal() < c.discount) return;
-    appliedCoupon = { code: c.code, discount: c.discount };
-    try { localStorage.removeItem('drope_welcome_coupon'); } catch(e) {}
-    toast('cupom DROPE10 aplicado ✦ -R$ 10');
-  }
+  function autoApplyWelcomeCoupon() { /* DROPE10 aposentado (26/09) — não há mais cupom de boas-vindas */ }
+
 
   function finishOnboard() {
     const name = (document.getElementById('welcome-name')?.value || '').trim();
@@ -7134,9 +7130,7 @@
     profile.onboarded = true;
     persistProfile();
     updateProfileAvatar();
-    // Auto-aplica cupom de boas-vindas: marca flag pra mostrar no cart
-    try { localStorage.setItem('drope_welcome_coupon', 'DROPE10'); } catch(e) {}
-    toast('boas-vindas ✦ cupom DROPE10 na conta');
+    toast('Bem-vindo ✦ bora dropar');
     go('home');
   }
 
@@ -7173,7 +7167,7 @@
   let pendingAfterGate = null;
   function goCartSafe() {
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
-      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
+      toast('A loja está fora do ar agora ✦ tenta de novo em alguns minutos');
       return;
     }
     if (isGuest() && cart.length > 0) {
@@ -7236,8 +7230,7 @@
     persistProfile();
     updateProfileAvatar();
     closeGuestGate();
-    try { localStorage.setItem('drope_welcome_coupon', 'DROPE10'); } catch(e) {}
-    toast('cadastro feito ✦ cupom DROPE10 na conta');
+    toast('Cadastro feito ✦');
     // Vai pra tela que o cliente queria antes do gate
     if (pendingAfterGate === 'cart') {
       go('cart');
@@ -7434,15 +7427,26 @@
     // cai direto no acompanhamento do pedido e busca o status real (webhook confirma em segundos).
     try {
       const u = new URL(window.location.href);
-      const payReturn = u.searchParams.get('capture_method') || u.searchParams.get('transaction_nsu') || u.hash === '#success-pay';
+      // Dados podem vir na query OU depois do # (link antigo com #success-pay?…) → junta os dois.
+      const _hq = (u.hash.indexOf('?') >= 0) ? new URLSearchParams(u.hash.slice(u.hash.indexOf('?') + 1)) : new URLSearchParams('');
+      const _qp = (k) => u.searchParams.get(k) || _hq.get(k) || '';
+      const payReturn = u.searchParams.get('pay') === 'ip' || _qp('capture_method') || _qp('transaction_nsu') || u.hash.indexOf('#success-pay') === 0;
       if (payReturn) {
+        let pend = null; try { pend = JSON.parse(localStorage.getItem(IP_PENDING_KEY) || 'null'); } catch (e) {}
+        const params = {
+          nsu: _qp('order_nsu') || (pend && pend.nsu) || '',
+          tx: _qp('transaction_nsu'),
+          slug: _qp('slug') || _qp('invoice_slug'),
+          method: _qp('capture_method'),
+        };
         history.replaceState(null, '', u.origin + u.pathname);
-        go('order-tracking');
-        loadMyOrders();
-        // webhook pode levar alguns segundos pra confirmar → re-busca o status
-        setTimeout(loadMyOrders, 4000);
-        setTimeout(loadMyOrders, 12000);
-        toast('pagamento recebido ✦ acompanhe teu pedido');
+        if (SINGLE_STORE) { try { pickClientFilial(SINGLE_STORE_SLUG); } catch (e) {} } // catálogo/carrinho carregados
+        if (params.nsu && params.tx && params.slug) {
+          toast('confirmando teu pagamento… ✦');
+          _ipConfirmReturn(params);
+        } else {
+          _ipCheckPending(); // sem código no retorno: acompanha pelo status do pedido
+        }
         return;
       }
     } catch(e) {}
@@ -7494,10 +7498,11 @@
       });
     }
   } catch(e) {}
-  // Sequência: 0s revela camaleão (1.5s) → 1.5s nome "drope" → segura →
-  // 3.2s camufla tudo (1.1s) → 4.3s entra na home
-  let _vanishTimer = setTimeout(_startChameleon, 3200);
-  const _splashTimer = setTimeout(_splashSkip, PREVIEW_MODE ? 200 : 4300);
+  // UX (R5 "nunca espera"): quem já entrou antes (idade confirmada) passa direto (~0,5s).
+  // 1ª visita: animação curta (2,4s) — camaleão revela → camufla → entra. Toque pula.
+  const _splashReturning = (() => { try { return localStorage.getItem('drope_age_confirmed') === '1'; } catch (e) { return false; } })();
+  let _vanishTimer = setTimeout(_startChameleon, _splashReturning ? 100 : 1600);
+  const _splashTimer = setTimeout(_splashSkip, PREVIEW_MODE ? 200 : (_splashReturning ? 500 : 2400));
   // Click no splash pula direto
   document.addEventListener('DOMContentLoaded', () => {
     const sp = document.getElementById('splash');
@@ -7623,7 +7628,7 @@
     try {
       const r = await fetch('/api/webhook?action=admin_revenue&token=' + encodeURIComponent(t), { cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
-      if (!(r.ok && d.ok)) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); return; }
+      if (!(r.ok && d.ok)) { _revModal('<div style="color:var(--pink);text-align:center;padding:20px">' + (d.error || 'Não deu pra carregar agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_revModalClose()" style="color:var(--text-dim);cursor:pointer">Fechar</span></div>'); return; }
       const co = d.commission, pl = d.plans, sales = d.sales || [];
       // Lojas assinantes (planos pagos)
       let plHtml;
@@ -8681,7 +8686,7 @@
     const infoChips = [
       `<span class="lj-hd-chip"> ${escapeHtml(etaTxt)}</span>`,
       kmTxt ? `<span class="lj-hd-chip"> ${escapeHtml(kmTxt)}</span>` : '',
-      `<span class="lj-hd-chip"> frete a combinar</span>`,
+      (window._deliveryQuote && window._deliveryQuote.ok && !window._deliveryQuote.out_of_range) ? `<span class="lj-hd-chip"> entrega ${escapeHtml(window._deliveryQuote.fmt)}</span>` : `<span class="lj-hd-chip"> entrega calculada pelo seu CEP</span>`,
     ].filter(Boolean).join('');
     const cover = loja.cover_url
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
@@ -8699,7 +8704,7 @@
             ${SINGLE_STORE ? '' : `<span class="lj-hd-trocar" onclick="event.stopPropagation();trocarFilialCliente()">trocar ›</span>`}
           </div>
           ${bio ? `<div class="lj-hd-bio">${escapeHtml(bio)}</div>` : ''}
-          ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">Loja indisponível — ainda não ativou os recebimentos.</div>` : ''}
+          ${unavailable ? `<div class="lj-hd-bio" style="color:#ffb4c8">A loja está fora do ar agora ✦ volta em alguns minutos.</div>` : ''}
           <div class="lj-hd-chips">${statusChip}${unavailable ? '' : infoChips}</div>
         </div>
       </div>`;
@@ -8747,7 +8752,7 @@
           <button class="parc-card-btn" onclick="requestParceiro('${escapeHtml(f.slug)}','${escapeHtml((f.name || '').replace(/'/g, ''))}')">Quero ✦</button>
         </div>`;
       }).join('');
-    } catch (e) { list.innerHTML = '<div class="parc-empty">Erro ao carregar ✦ Tenta de novo</div>'; }
+    } catch (e) { list.innerHTML = '<div class="parc-empty">Não consegui carregar agora ✦ tenta de novo em instantes</div>'; }
   }
   async function requestParceiro(slug, name) {
     if (!slug) return;
@@ -9175,6 +9180,7 @@
       }
       products = apply99(data.products);
       allProducts = products;
+      try { _syncCartWithCatalog(true); } catch (e) {} // tira do carrinho o que saiu da loja + atualiza preço
       // Dados da loja (nome/foto/bio) pro cabeçalho estilo iFood
       const _prevLojaSlug = CLIENT_LOJA && CLIENT_LOJA.slug;
       CLIENT_LOJA = data.loja || null;
@@ -9400,7 +9406,13 @@
       _renderCustPushRow();
       toast('Notificações ativadas ✦ mandando um teste…');
       _custPushTest();
-    } catch (e) { toast(e.message || 'não deu pra ativar as notificações'); }
+    } catch (e) { toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro app'); }
+  }
+  // Tela de pedido confirmado: mostra o convite pra notificação só se ainda não ativou.
+  function _renderSuccessPush() {
+    const el = document.getElementById('success-push'); if (!el) return;
+    const can = ('Notification' in window) || /iPhone|iPad/.test(navigator.userAgent || '');
+    el.style.display = (!_custPushOn() && can && _isLoggedIn()) ? 'block' : 'none';
   }
   function _custPushTest() {
     fetch('/api/webhook?action=customer_push_subscribe', {
@@ -9508,7 +9520,7 @@
       if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
       else { msg.textContent = d.error || 'Não deu pra criar a conta'; }
-    } catch (e) { msg.textContent = 'Erro de rede'; }
+    } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'Criar conta ✦'; btn.disabled = false; }
   }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
@@ -9524,8 +9536,8 @@
       const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) { _otpPhone = phone; document.getElementById('clogin-phone-lbl').textContent = ''; document.getElementById('clogin-step1').style.display = 'none'; document.getElementById('clogin-step2').style.display = 'block'; document.getElementById('clogin-msg2').textContent = ''; const c = document.getElementById('clogin-code'); c.value = ''; c.focus(); }
-      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não consegui enviar o código agora ✦ tenta de novo em instantes'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = old; btn.style.pointerEvents = 'auto'; }
   }
   async function verifyOtp() {
@@ -9538,7 +9550,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { _applyCustomerLogin(d.token, _otpPhone, (d.customer && d.customer.name) || ''); }
       else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'código incorreto'; }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
   }
   // Aplica o estado de "logado" na UI (usado pelo OTP e pelo login por senha).
@@ -9555,13 +9567,14 @@
     try { updateProfileAvatar(); } catch (e) {}
     try { _syncLoginUI(); } catch (e) {}
     try { refreshMyStore(); } catch (e) {}
-    if (!profile.name) { toast('bem-vindo ✦ adicione seu nome em Editar perfil'); }
+    if (!profile.name) { toast('Bem-vindo ✦ você entrou na sua conta'); }
     else { toast('bem-vindo ✦ você tá logado'); }
     try { loadMyOrders(); } catch (e) {}
     try { loadFavoritesFromAccount(); } catch (e) {}
     try { loadAddressesFromAccount(); } catch (e) {}
     try { if (((document.querySelector('.screen.active') || {}).id) === 'home') renderPersonalizedHome(); } catch (e) {}
     // Retoma o fluxo que exigiu login (ex.: cliente ia pagar → volta pro checkout logado).
+    try { if (_resumePendingAdd()) { pendingAfterGate = null; return; } } catch (e) {}
     try {
       if (pendingAfterGate === 'checkout') { go('checkout'); }
       else if (pendingAfterGate === 'cart') { go('cart'); renderCart(); }
@@ -9582,7 +9595,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { document.getElementById('clogin-pw-pass').value = ''; _applyCustomerLogin(d.token, phone, (d.customer && d.customer.name) || ''); }
       else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'telefone ou senha incorretos'; }
-    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'erro de rede'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'entrar ✦'; btn.disabled = false; }
   }
   // Mostra/esconde itens do perfil conforme login
@@ -9608,7 +9621,7 @@
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) toast('senha salva ✦ agora dá pra entrar com telefone + senha');
       else toast(d.error || 'não deu pra salvar a senha');
-    } catch (e) { toast('erro de rede'); }
+    } catch (e) { toast('Sem conexão agora ✦ confere a internet e tenta de novo'); }
   }
   // Renderiza avatar (string emoji ou 'cham' = imagem do camaleão da marca)
   // Resolve o avatar pra uma URL de imagem: 'cham' (marca), 'av-*' (pré-criados),
@@ -9986,6 +9999,24 @@
     go('checkout');
   }
 
+  // Endereço: com CEP encontrado mostra só o resumo (rua · bairro · cidade); sem CEP/erro → campos.
+  function _afManual(on) {
+    const m = document.getElementById('af-manual'), au = document.getElementById('af-auto'), h = document.getElementById('af-cep-help');
+    if (m) m.style.display = on ? 'block' : 'none';
+    if (au) au.style.display = on ? 'none' : au.style.display;
+    if (on && h) h.style.display = 'none';
+    if (on) { try { document.getElementById('af-street').focus(); } catch (e) {} }
+  }
+  function _afShowAuto() {
+    const g = id => ((document.getElementById(id) || {}).value || '').trim();
+    const street = g('af-street'), neigh = g('af-neigh'), city = g('af-city'), uf = g('af-uf');
+    const au = document.getElementById('af-auto'), t = document.getElementById('af-auto-txt'), h = document.getElementById('af-cep-help');
+    if (!street || !city) { _afManual(true); return; } // CEP geral da cidade (sem rua) → digita a rua
+    if (t) t.innerHTML = `<b>${escapeHtml(street)}</b><br><span style="color:var(--text-dim)">${escapeHtml([neigh, city + (uf ? '/' + uf : '')].filter(Boolean).join(' · '))}</span>`;
+    if (au) au.style.display = 'block';
+    const m = document.getElementById('af-manual'); if (m) m.style.display = 'none';
+    if (h) h.style.display = 'none';
+  }
   function openAddressForm(id) {
     editingAddrId = id || null;
     const title = document.getElementById('addr-form-title');
@@ -10013,6 +10044,15 @@
         if (el) el.value = '';
       });
     }
+    // Estado visual: editando (com rua/cidade) → resumo; novo → só o CEP (manual se pedir)
+    try {
+      const md = document.getElementById('af-more'); if (md) md.open = false;
+      const au = document.getElementById('af-auto'); if (au) au.style.display = 'none';
+      const h = document.getElementById('af-cep-help'); if (h) h.style.display = '';
+      const m = document.getElementById('af-manual'); if (m) m.style.display = 'none';
+      const qd = document.getElementById('af-quote'); if (qd) qd.innerHTML = '';
+      if (id) _afShowAuto();
+    } catch (e) {}
     go('address-form');
   }
 
@@ -10030,7 +10070,8 @@
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const data = await res.json();
       if (data.erro) {
-        toast('CEP não encontrado — confira o número');
+        toast('Não achei esse CEP ✦ confere os números ou preenche a rua abaixo');
+        _afManual(true);
         return;
       }
       const street = document.getElementById('af-street');
@@ -10046,12 +10087,14 @@
       if (city && data.localidade) city.value = data.localidade;
       // UF é select agora — selecionar a option certa em vez de só setar value.
       if (uf && data.uf) uf.value = data.uf;
-      toast('endereço preenchido pelo CEP ✦');
+      _afShowAuto();
+      try { const n = document.getElementById('af-num'); if (n && !n.value) n.focus(); } catch (e) {}
       // Cota a entrega pelo trajeto (endereço do formulário; o número entra ao salvar)
       fetchDeliveryQuote({ cep, street: data.logradouro || '', neigh: data.bairro || '', city: data.localidade || '', uf: data.uf || '', num: ((document.getElementById('af-num') || {}).value || '').trim() });
     } catch(e) {
       console.warn('[ViaCEP]', e);
-      toast('falha ao buscar CEP — preencha manual');
+      toast('Não consegui buscar o CEP agora ✦ preenche a rua abaixo');
+      _afManual(true);
     }
   }
 
@@ -10142,10 +10185,8 @@
     const city = document.getElementById('af-city').value.trim();
     const uf = document.getElementById('af-uf').value.trim();
 
-    if (!street || !num || !city) {
-      toast('preenche rua, número e cidade ✦');
-      return;
-    }
+    if (!num) { toast('Falta o número da casa ✦'); try { document.getElementById('af-num').focus(); } catch (e) {} return; }
+    if (!street || !city) { toast('Coloca o CEP (ou a rua e a cidade) ✦'); _afManual(!document.getElementById('af-cep').value.trim()); return; }
 
     const payload = { label, cep, street, num, comp, neigh, ref, city, uf };
 
@@ -10155,13 +10196,15 @@
     } else {
       const newId = 'a_' + Date.now();
       addresses.push({ id: newId, ...payload });
-      if (!selectedAddressId) selectedAddressId = newId;
+      if (!selectedAddressId || addrPickMode) selectedAddressId = newId; // veio do checkout → já usa esse
     }
     saveAddresses();
     editingAddrId = null;
+    // Veio do checkout: salvou → volta direto pro checkout com esse endereço (sem tela a mais).
+    if (addrPickMode) { addrPickMode = false; toast('Endereço salvo ✦'); go('checkout'); return; }
     go('addresses');
     renderAddresses();
-    toast('endereço salvo ✦');
+    toast('Endereço salvo ✦');
   }
 
   function deleteAddress() {
@@ -10199,6 +10242,7 @@
 
   function pickAddressFromCheckout() {
     addrPickMode = true;
+    if (!addresses || !addresses.length) { openAddressForm(); return; } // 1º endereço: direto no formulário
     go('addresses');
     renderAddresses();
   }
@@ -10423,6 +10467,13 @@
   }
 
   // ===== Render grid =====
+  // Miniatura (UX R5): foto do Storage em WebP pequena via /api/webhook?action=img (cache CDN).
+  // Card ~130px → 320px de largura (retina). A original (1,5 MB PNG) só se a miniatura falhar.
+  function _thumb(url, w) {
+    const u = String(url || '');
+    if (!/\/storage\/v1\/object\/public\//.test(u)) return u;
+    return '/api/webhook?action=img&w=' + (w || 320) + '&u=' + encodeURIComponent(u);
+  }
   function tileHTML(p, idx) {
     const soldOut = typeof p.stock === 'number' && p.stock <= 0;
     const lowStock = !soldOut && typeof p.stock === 'number' && p.stock <= 3;
@@ -10432,13 +10483,15 @@
     // onerror: se a imagem 404 (arquivo não existe ou Storage URL quebrada), troca pelo
     // emoji do produto. Evita o "alt text feio" que apareceu quando 21-26 PNGs sumiram.
     const visual = p.img
-      ? `<img class="prod-img" src="${p.img}" alt="${p.name}" draggable="false" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
+      ? `<img class="prod-img" src="${_thumb(p.img, 320)}" alt="${p.name}" draggable="false" loading="lazy" decoding="async" onerror="this.outerHTML='<div class=\\'emoji\\'>${(p.emoji || '').replace(/'/g,'\\\'')}</div>'">`
       : `<div class="emoji">${p.emoji}</div>`;
     const labels = productLabels(p);
     // OSSO-FIX-PRECO-ZERO (parte 3 — tile): produto sem preço válido mostra
     // "preço a confirmar" em vez de "R$ 0" pro cliente.
     const hasValidPrice = typeof p.price === 'number' && p.price > 0;
     const priceLabel = hasValidPrice ? money(p.price) : 'preço a confirmar';
+    // UX R1: "+" direto no card — adiciona sem sair da vitrine.
+    const addBtn = (!soldOut && hasValidPrice) ? `<button type="button" class="tile-add" aria-label="adicionar ${escapeHtml(labels.hero)} ao carrinho" onclick="event.stopPropagation(); quickAdd(${idx}, this)">+</button>` : '';
     return `
       <div class="tile ${soldOut ? 'sold-out' : ''}" onclick="openProduct(${idx})">
         ${visual}
@@ -10446,6 +10499,7 @@
         ${labels.muted ? `<div class="brand">${escapeHtml(labels.muted)}</div>` : ''}
         <div class="price">${priceLabel}</div>
         ${stockBadge}
+        ${addBtn}
       </div>
     `;
   }
@@ -10949,6 +11003,17 @@
     }
   }
 
+  // Estado vazio da busca (UX R8): um toque volta a mostrar tudo.
+  function resetAllFilters() {
+    try { const inp = document.getElementById('home-search'); if (inp) inp.value = ''; } catch (e) {}
+    homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null;
+    filterState = { perfil: 'tudo', puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
+    draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
+    try { const cb = document.getElementById('search-clear'); if (cb) cb.style.display = 'none'; } catch (e) {}
+    try { renderLojaFiltros(); } catch (e) {}
+    try { renderBrandsCarousel(); } catch (e) {}
+    renderGrid();
+  }
   function clearSearch() {
     const inp = document.getElementById('home-search');
     if (inp) inp.value = '';
@@ -11105,7 +11170,7 @@
     const pageItems = list.slice(start, start + CATALOG_PAGE_SIZE);
     grid.innerHTML = pageItems.length
       ? pageItems.map(({ p, i }) => tileHTML(p, i)).join('')
-      : '<div class="empty-mini" style="grid-column:1/-1">Nenhum drop encontrado ✦</div>';
+      : '<div class="empty-mini" style="grid-column:1/-1;text-align:center">Não achei nada com essa busca ✦<br><button type="button" class="btn-secondary" style="margin-top:12px;width:auto;padding:10px 18px" onclick="resetAllFilters()">limpar busca e filtros</button></div>';
     if (countEl) countEl.textContent = total ? `${total} drop${total !== 1 ? 's' : ''}` : '';
     if (pager) {
       if (pages <= 1) { pager.innerHTML = ''; pager.style.display = 'none'; }
@@ -11166,7 +11231,7 @@
         : 'resultados';
       html = items.length
         ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
-        : '<div class="empty-mini">Nenhum produto bate com os filtros ✦</div>';
+        : '<div class="empty-mini" style="grid-column:1/-1;text-align:center">Não achei nada com essa busca ✦<br><button type="button" class="btn-secondary" style="margin-top:12px;width:auto;padding:10px 18px" onclick="resetAllFilters()">limpar busca e filtros</button></div>';
     } else if (filtros.length) {
       // Seções dinâmicas: uma por categoria da loja, na ordem que ela definiu.
       filtros.forEach(f => {
@@ -11231,7 +11296,7 @@
       const soldOut = _soldOut(p);
       const topBadge = (p.slug === topSlug) ? `<div class="hero-topseller"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M12 3c.4 2.4 2.4 3.9 3.4 5.4C16.4 9.9 17 11.4 17 13a5 5 0 0 1-10 0c0-1.3.4-2.4 1.2-3.4.3 1.4 1.3 1.9 1.8 1.4C11.4 9.8 10 8 12 3Z"/></svg> Mais pedido</div>` : '';
       const visual = p.img
-        ? `<img class="prod-img" src="${p.img}" alt="${escapeHtml(p.name)}" draggable="false" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
+        ? `<img class="prod-img" src="${_thumb(p.img, 240)}" alt="${escapeHtml(p.name)}" draggable="false" loading="lazy" decoding="async" style="width:120px;height:120px;border-radius:18px;object-fit:cover;margin:0 auto;display:block">`
         : `<div class="emoji">${p.emoji || ''}</div>`;
       const muted = labels.muted ? `<div class="hero-muted" style="font-size:13px;color:var(--text-dim);font-weight:500;margin-top:4px">${escapeHtml(labels.muted)}</div>` : '';
       const cta = soldOut
@@ -11356,6 +11421,7 @@
       renderAIChat();
     }
     if (screen === 'pix') renderPixScreen();
+    if (screen === 'success') { try { _renderSuccessPush(); } catch (e) {} }
     if (screen === 'checkout') {
       // Sempre entra no passo 1 (entrega). Pagamento é o passo 2.
       checkoutStep = 1; renderCheckoutStep();
@@ -11482,7 +11548,7 @@
     // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
     if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
     // Retirada só se a loja cadastrou endereço.
-    else if (m === 'pickup' && !_pickupAvailable()) { toast('essa loja não faz retirada (sem endereço cadastrado)'); m = 'delivery'; }
+    else if (m === 'pickup' && !_pickupAvailable()) { toast('Essa loja só faz entrega por enquanto ✦'); m = 'delivery'; }
     deliveryMode = m;
     const dEl = document.getElementById('co-mode-delivery');
     const pEl = document.getElementById('co-mode-pickup');
@@ -11706,7 +11772,7 @@
       }
     } catch (e) {}
     setTimeout(function () {
-      try { if (kind === 'card') openMPCheckout(); else openMPPix(); }
+      try { if (kind === 'ip') openInfinitePay(); else if (kind === 'card') openMPCheckout(); else openMPPix(); }
       catch (e) { if (el) el.classList.remove('loading'); }
     }, 30);
   }
@@ -11856,49 +11922,17 @@
         </div>
       `;
     } else {
-      // Caso 2: Pix antecipado (pickup pagar agora OU delivery sempre)
-      // Pix paga DIRETO (gera o QR do MP na hora) — sem tela intermediária que repetia
-      // as mesmas opções de pagamento (remove a redundância).
-      const blockClick = "openMPPix()";
-      // Cartão vai pro Checkout Pro do Mercado Pago (crédito/débito, COM split na conta
-      // da loja). InfinitePay aposentado. Só aparece pra não-pod (ver cardLiberado abaixo).
-      const blockCard = "openMPCheckout()";
-
+      // Caso 2: paga antes (pickup pagar agora OU delivery sempre) → InfinitePay (Pix ou cartão).
       html = `
-        <div class="co-method" onclick="_coPay(this,'pix')">
+        <div class="co-method" onclick="_coPay(this,'ip')">
           <div class="co-method-icon">${_ICON_PIX}</div>
           <div class="co-method-body">
-            <div class="co-method-title">Pix</div>
-            <div class="co-method-sub">aprovação automática ✦ sem comprovante</div>
+            <div class="co-method-title">Pix ou cartão</div>
+            <div class="co-method-sub">pagamento seguro InfinitePay ✦ cartão em até 12x</div>
           </div>
           <div class="co-method-arrow">→</div>
         </div>
       `;
-
-      // Cartão só pra não-pod (tabacaria). Pod é sempre só Pix, em qualquer loja.
-      const cardLiberado = kind === 'tabac';
-      if (cardLiberado) {
-        html += `
-          <div class="co-method" onclick="_coPay(this,'card')">
-            <div class="co-method-icon">${_ICON_CARD}</div>
-            <div class="co-method-body">
-              <div class="co-method-title">cartão</div>
-              <div class="co-method-sub">crédito ou débito ✦ até 3x sem juros</div>
-            </div>
-            <div class="co-method-arrow">→</div>
-          </div>
-        `;
-      } else {
-        html += `
-          <div class="co-method disabled">
-            <div class="co-method-icon">${_ICON_CARD}</div>
-            <div class="co-method-body">
-              <div class="co-method-title">cartão</div>
-              <div class="co-method-sub">indisponível pra drops</div>
-            </div>
-          </div>
-        `;
-      }
     }
 
     methods.innerHTML = html;
@@ -12485,7 +12519,7 @@
       emojiEl.innerHTML = `<video class="detail-video" src="${p.video}" autoplay loop muted playsinline poster="${p.img || ''}"></video>`;
     } else if (p.img) {
       // Fade-in só quando a imagem decodifica → não pisca o frame antigo/errado ao abrir.
-      emojiEl.innerHTML = `<img class="detail-img" src="${p.img}" alt="${p.name}" draggable="false" style="opacity:0;transition:opacity .18s ease" onload="this.style.opacity=1" onerror="this.style.opacity=1">`;
+      emojiEl.innerHTML = `<img class="detail-img" src="${_thumb(p.img, 640)}" alt="${p.name}" draggable="false" style="opacity:0;transition:opacity .18s ease" onload="this.style.opacity=1" onerror="this.style.opacity=1">`;
     } else {
       emojiEl.textContent = p.emoji;
     }
@@ -12588,7 +12622,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
+        if (!wDigits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! qual o preço do ${p.name}?`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -12604,7 +12638,7 @@
       addBtn.onclick = function(e) {
         if (e) e.preventDefault();
         const wDigits = String(store.whats || '').replace(/\D/g, '');
-        if (!wDigits) { toast('whatsapp da loja indisponível ✦ tenta mais tarde'); return; }
+        if (!wDigits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
         const num = wDigits.length <= 11 ? '55' + wDigits : wDigits;
         const msg = `oi! quero saber quando chega o ${p.name}`;
         window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -12725,14 +12759,17 @@
     wrap.innerHTML = html;
   }
 
+  // Etapas claras (UX R6): Recebido → Confirmado (pago/reservado) → Preparando → A caminho → Entregue.
   const ORDER_STEPS_DELIVERY = [
-    { key: 'waiting', lbl: 'pendente' },
+    { key: 'waiting', lbl: 'recebido' },
+    { key: 'paid', lbl: 'pago' },
     { key: 'confirmed', lbl: 'preparando' },
     { key: 'way', lbl: 'a caminho' },
     { key: 'done', lbl: 'entregue' },
   ];
   const ORDER_STEPS_PICKUP = [
-    { key: 'waiting', lbl: 'pendente' },
+    { key: 'waiting', lbl: 'recebido' },
+    { key: 'paid', lbl: 'confirmado' },
     { key: 'separating', lbl: 'separando' },
     { key: 'ready', lbl: 'pronto' },
     { key: 'done', lbl: 'retirado' },
@@ -12754,15 +12791,15 @@
       else if (st === 'ready' || st === 'ready_for_pickup') { statusCls = 'ready'; label = 'pronto pra retirar ✦'; }
       else if (st === 'preparing') { statusCls = 'separating'; label = 'separando teu pedido'; }
       // pago/reservado = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
-      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja'; }
-      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'waiting'; label = 'reservado ✦ pague na retirada'; }
+      else if (st === 'paid') { statusCls = 'paid'; label = 'pago ✦ aguardando a loja'; }
+      else if (st === 'pending_pickup' || st === 'reserved') { statusCls = 'paid'; label = 'reservado ✦ pague na retirada'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     } else {
       if (st === 'delivered') { statusCls = 'done'; label = 'entregue ✓'; }
       else if (st === 'out_for_delivery') { statusCls = 'way'; label = 'a caminho ✦ motoboy retirou na loja'; }
       else if (st === 'preparing') { statusCls = 'confirmed'; label = 'preparando teu pedido'; }
       // pago = pedido feito, mas a loja ainda NÃO aceitou → etapa "pendente".
-      else if (st === 'paid') { statusCls = 'waiting'; label = 'pago ✦ aguardando a loja confirmar'; }
+      else if (st === 'paid') { statusCls = 'paid'; label = 'pago ✦ aguardando a loja confirmar'; }
       else if (st === 'waiting_proof') { statusCls = 'waiting'; label = 'aguardando confirmação'; }
       else { statusCls = 'waiting'; label = (st === 'created') ? 'confirmando pagamento…' : 'aguardando'; }
     }
@@ -13038,7 +13075,7 @@
         const sel = !!p.brand_cover;
         return `<div onclick="setBrandCover('${b.replace(/'/g, "\\'")}', ${p.id}, [${ids.join(',')}])" style="flex:0 0 auto;width:66px;text-align:center;cursor:pointer">
           <div style="width:66px;height:66px;border-radius:12px;overflow:hidden;border:2px solid ${sel ? 'var(--lime)' : 'rgba(255,255,255,0.08)'};box-shadow:${sel ? '0 0 12px rgba(212,255,46,0.45)' : 'none'}">
-            <img src="${escapeHtml(p.img)}" alt="" style="width:100%;height:100%;object-fit:cover" draggable="false">
+            <img src="${escapeHtml(_thumb(p.img, 240))}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover" draggable="false">
           </div>
           ${sel ? '<div style="font-size:9px;color:var(--lime);margin-top:3px;font-weight:700">✓ capa</div>' : ''}
         </div>`;
@@ -13175,7 +13212,7 @@
   function renderOrders() {
     const wrap = document.getElementById('orders-wrap');
     if (!_isLoggedIn()) {
-      wrap.innerHTML = `<div class="empty"><div class="t">Entre pra ver seus pedidos</div><div class="s">um código no seu WhatsApp e pronto ✦</div><button class="btn-primary" onclick="openCustomerLogin()" style="max-width:220px;margin:0 auto">entrar</button></div>`;
+      wrap.innerHTML = `<div class="empty"><div class="t">Entre pra ver seus pedidos</div><div class="s">com seu telefone e senha ✦ leva 10 segundos</div><button class="btn-primary" onclick="openCustomerLogin()" style="max-width:220px;margin:0 auto">entrar</button></div>`;
       return;
     }
     if (orders.length === 0) {
@@ -13200,7 +13237,7 @@
             return `<div class="tl-step ${cls}"><div class="tl-dot">${check}</div><div class="tl-lbl">${s.lbl}</div></div>`;
           }).join('')}
         </div>`;
-      const repeatBtn = o.items ? `<div class="order-repeat" onclick="event.stopPropagation(); repeatOrder(${idx})">dropar de novo ✦</div>` : '';
+      const repeatBtn = o.items ? `<div class="order-repeat" onclick="event.stopPropagation(); repeatOrder('${o.num}')">dropar de novo ✦</div>` : '';
       const modeTag = o.mode === 'pickup' ? 'retirar na loja' : 'entrega';
       const codeCard = (o.mode !== 'pickup' && !doneAll && o.delivery_pin && o.statusCls === 'way')
         ? `<div style="margin-top:10px;text-align:center;background:rgba(198,255,0,.08);border:1px solid var(--store-accent,var(--lime));border-radius:12px;padding:10px"><div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">código de entrega</div><div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--store-accent,var(--lime));font-family:'Space Grotesk',sans-serif">${escapeHtml(String(o.delivery_pin))}</div><div style="font-size:11.5px;color:var(--text-dim)">mostre ao entregador ✦</div></div>`
@@ -13223,18 +13260,28 @@
     }).join('');
   }
 
-  function repeatOrder(idx) {
+  // "Dropar de novo" (UX R7/R9): refaz o carrinho do pedido pelo NÚMERO dele (antes usava a
+  // posição na lista e às vezes repetia o pedido errado), com preço e estoque de AGORA.
+  function repeatOrder(num) {
     if (!_requireLoginToAdd()) return;
-    const o = orders[idx];
-    if (!o || !o.items) return;
+    const o = (orders || []).find(x => String(x.num) === String(num));
+    if (!o || !o.items || !o.items.length) { toast('Não achei esse pedido ✦ monta o carrinho pela loja'); return; }
+    let added = 0; const faltou = [];
     o.items.forEach(src => {
-      const existing = cart.find(c => c.name === src.name);
-      if (existing) existing.qty += src.qty;
-      else cart.push({ ...src });
+      const cur = (products || []).find(p => (src.slug && p.slug === src.slug) || p.name === src.name);
+      if (!cur || (typeof cur.stock === 'number' && cur.stock <= 0)) { faltou.push(src.name); return; }
+      const existing = cart.find(c => c.name === cur.name);
+      const inCart = existing ? existing.qty : 0;
+      const qty = typeof cur.stock === 'number' ? Math.min(src.qty || 1, Math.max(0, cur.stock - inCart)) : (src.qty || 1);
+      if (qty <= 0) { faltou.push(src.name); return; }
+      if (existing) existing.qty += qty; else cart.push({ ...cur, qty }); // preço/estoque atuais
+      added += qty;
     });
+    try { saveCart(); } catch (e) {}
     updateCartBadge();
-    toast('adicionado no carrinho ✦');
-    go('cart');
+    if (!added) { toast('Os itens desse pedido esgotaram ✦ dá uma olhada nos outros sabores'); go('home'); return; }
+    toast(faltou.length ? `Adicionei o que tem ✦ ${faltou.length === 1 ? 'esgotou: ' + faltou[0] : faltou.length + ' itens esgotaram'}` : 'Pedido montado no carrinho ✦');
+    go('cart'); try { renderCart(); } catch (e) {}
   }
 
   // Pedido mais recente do cliente atual (exclui PDV do balcão)
@@ -13405,7 +13452,7 @@
     if (ev) ev.stopPropagation();
     if (!_requireLoginToAdd()) return;
     const data = __personalizedHomeCache;
-    if (!data || !data.last_order) { toast('último drop não encontrado ✦'); return; }
+    if (!data || !data.last_order) { toast('Não achei seu último pedido ✦ monta o carrinho pela loja'); return; }
     const lo = data.last_order;
     if (!lo.in_stock) { toast('esgotou — te aviso quando voltar'); return; }
     // Tenta achar o produto no catálogo local pra reusar o objeto completo
@@ -13639,7 +13686,7 @@
       : `#dr-${last.num} ✦ ${last.status}`;
     const cta = isDone ? 'dropar de novo' : 'ver status →';
     const action = isDone
-      ? `onclick="repeatOrder(0)"`
+      ? `onclick="repeatOrder('${last.num}')"`
       : `onclick="go('order-tracking')"`;
     wrap.innerHTML = `
       <div class="home-last-order" ${action}>
@@ -13698,7 +13745,7 @@
         ${canRoute ? `<button class="ot-maps" onclick="openStoreMaps()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> Como chegar — Maps ou Waze</button>` : ''}
       </div>
       <div class="ot-btns">
-        ${!isDone ? `<button class="btn-primary" onclick="shareOnWhats()">falar com a loja no whats</button>` : `<button class="btn-primary" onclick="repeatOrder(0)">dropar de novo ✦</button>`}
+        ${!isDone ? `<button class="btn-primary" onclick="shareOnWhats('${o.num}')">falar com a loja no whats</button>` : `<button class="btn-primary" onclick="repeatOrder('${o.num}')">dropar de novo ✦</button>`}
         <button class="btn-secondary" onclick="go('home')">voltar ao catálogo</button>
       </div>`;
   }
@@ -13735,42 +13782,97 @@
     document.getElementById('d-btnprice').textContent = money(p.price * currentQty);
   }
 
-  function addToCart() {
-    if (!_requireLoginToAdd()) return; // sem login, só navega — não adiciona
-    // Loja sem Mercado Pago conectado não vende (o dinheiro não teria pra onde ir).
+  // Carrinho guardado no celular × catálogo de AGORA: item que saiu da loja (apagado, escondido,
+  // de outra loja) sai do carrinho; preço/estoque atualizam. Evita cobrar item fantasma.
+  function _syncCartWithCatalog(loud) {
+    if (!Array.isArray(cart) || !cart.length || !Array.isArray(products) || !products.length) return;
+    const bySlug = {}; products.forEach(p => { if (p && p.slug) bySlug[p.slug] = p; });
+    const removed = [], changed = [];
+    cart = cart.filter(i => {
+      const p = i && i.slug && bySlug[i.slug];
+      if (!p) { removed.push(i && i.name); return false; }
+      if (typeof p.stock === 'number' && p.stock <= 0) { removed.push(p.name); return false; }
+      if (typeof p.price === 'number' && p.price !== i.price) changed.push(p.name);
+      Object.assign(i, { ...p, qty: typeof p.stock === 'number' ? Math.min(i.qty, p.stock) : i.qty });
+      return true;
+    });
+    try { saveCart(); } catch (e) {}
+    try { updateCartBadge(); } catch (e) {}
+    if (loud && removed.length) toast(removed.length === 1 ? `"${removed[0]}" não está mais à venda ✦ tiramos do carrinho` : `${removed.length} itens saíram da loja ✦ tiramos do carrinho`);
+    else if (loud && changed.length) toast('Atualizamos o preço de ' + (changed.length === 1 ? changed[0] : changed.length + ' itens') + ' no carrinho ✦');
+  }
+  // O servidor recusou um item do pedido (saiu da loja / mudou o preço): arruma o carrinho e avisa.
+  function _handleCartReject(status, data) {
+    if (status !== 409 || !data || !['item_indisponivel', 'preco_mudou'].includes(data.error)) return false;
+    if (data.slug) {
+      if (data.error === 'item_indisponivel') cart = cart.filter(i => i.slug !== data.slug);
+      else cart.forEach(i => { if (i.slug === data.slug && data.price_cents) i.price = data.price_cents / 100; });
+    } else {
+      cart = cart.filter(i => !!i.slug);
+    }
+    try { _syncCartWithCatalog(false); saveCart(); updateCartBadge(); } catch (e) {}
+    toast(data.message || 'Atualizamos seu carrinho ✦ confere e tenta de novo');
+    go('cart'); try { renderCart(); } catch (e) {}
+    return true;
+  }
+  // Adição que ficou esperando o login (UX R1: o item NÃO se perde ao entrar na conta).
+  let _pendingAdd = null; // { idx, qty, from: 'tile' | 'detail' }
+  // Coloca o produto no carrinho. Devolve true se entrou.
+  function _cartAdd(idx, qty) {
     if (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.mp_connected === false) {
-      toast('Loja indisponível no momento ✦ ainda não ativou os recebimentos');
-      return;
+      toast('A loja está fora do ar agora ✦ tenta de novo em alguns minutos');
+      return false;
     }
-    const p = products[currentProduct];
-    if (typeof p.stock === 'number' && p.stock <= 0) {
-      toast('esgotado ✦ volta depois');
-      return;
-    }
+    const p = products[idx];
+    if (!p) return false;
+    if (typeof p.stock === 'number' && p.stock <= 0) { toast('Esse acabou de esgotar ✦ dá uma olhada nos outros sabores'); return false; }
     const existing = cart.find(i => i.name === p.name);
     const currentInCart = existing ? existing.qty : 0;
-    if (typeof p.stock === 'number' && currentInCart + currentQty > p.stock) {
-      toast(`só tem ${p.stock} em estoque ✦`);
-      return;
+    if (typeof p.stock === 'number' && currentInCart + qty > p.stock) {
+      toast(currentInCart ? `Só tem ${p.stock} em estoque ✦ você já tem ${currentInCart} no carrinho` : `Só tem ${p.stock} em estoque ✦`);
+      return false;
     }
-    if (existing) existing.qty += currentQty;
-    else cart.push({ ...p, qty: currentQty });
+    if (existing) existing.qty += qty;
+    else cart.push({ ...p, qty });
+    try { saveCart(); } catch (e) {}
     updateCartBadge();
+    try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
+    return true;
+  }
+  function addToCart() {
+    if (!_isLoggedIn()) { _pendingAdd = { idx: currentProduct, qty: currentQty, from: 'detail', at: Date.now() }; _requireLoginToAdd(); return; }
+    if (!_cartAdd(currentProduct, currentQty)) return;
     // FRICÇÃO #006 (17/08 Rafael): "quero levar" leva direto pro carrinho/sacola
     // (igual iFood/Zé, que mostram a sacola ao adicionar). Lá tem "Continuar
     // comprando" que volta pra loja do produto. Substitui o toast que voltava pra home.
     go('cart');
     renderCart();
   }
+  // "+" do card: adiciona 1 sem sair da vitrine (resposta visual na hora).
+  function quickAdd(idx, btn) {
+    if (!_isLoggedIn()) { _pendingAdd = { idx, qty: 1, from: 'tile', at: Date.now() }; _requireLoginToAdd(); return; }
+    if (!_cartAdd(idx, 1)) return;
+    if (btn) { btn.classList.remove('added'); void btn.offsetWidth; btn.classList.add('added'); btn.textContent = '✓'; setTimeout(() => { try { btn.textContent = '+'; btn.classList.remove('added'); } catch (e) {} }, 900); }
+    try { showAddedToast(products[idx], { stay: true }); } catch (e) {}
+  }
+  // Depois do login: completa a adição que ficou pendente.
+  function _resumePendingAdd() {
+    const pa = _pendingAdd; _pendingAdd = null;
+    if (!pa || Date.now() - (pa.at || 0) > 10 * 60 * 1000) return false; // desistiu do login faz tempo → não adiciona de surpresa
+    if (!_cartAdd(pa.idx, pa.qty)) return false;
+    if (pa.from === 'detail') { go('cart'); renderCart(); }
+    else { try { showAddedToast(products[pa.idx], { stay: true }); } catch (e) {} }
+    return true;
+  }
 
-  function showAddedToast(p) {
+  function showAddedToast(p, opts) {
     const totalItems = cart.reduce((s, i) => s + i.qty, 0);
     const totalPrice = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const labels = productLabels(p);
     const t = document.getElementById('added-toast');
     if (!t) return;
     t.innerHTML = `
-      <div class="at-img">${p.img ? `<img src="${escapeHtml(p.img)}" alt="">` : `<span>${p.emoji || ''}</span>`}</div>
+      <div class="at-img">${p.img ? `<img src="${escapeHtml(_thumb(p.img, 160))}" alt="">` : `<span>${p.emoji || ''}</span>`}</div>
       <div class="at-info">
         <div class="at-name">${escapeHtml(labels.hero)}</div>
         <div class="at-sub">${totalItems} ${totalItems === 1 ? 'item' : 'itens'} ✦ ${money(totalPrice)}</div>
@@ -13781,6 +13883,7 @@
     clearTimeout(window._atTimeout);
     window._atTimeout = setTimeout(() => {
       t.classList.remove('show');
+      if (opts && opts.stay) return; // "+" do card: continua na vitrine
       // Volta auto pro home/catálogo (ou pra categoria, se veio de lá)
       if (detailOrigin === 'category' && _catFrom) openCategory(_catFrom.key, _catFrom.label);
       else if (detailOrigin && detailOrigin !== 'detail') go(detailOrigin);
@@ -13884,7 +13987,7 @@
       const lbl = productLabels(i);
       return `
       <div class="cart-item">
-        <div class="thumb">${i.img ? `<img class="prod-img" src="${i.img}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '').replace(/'/g,'')}'">` : (i.emoji || '')}</div>
+        <div class="thumb">${i.img ? `<img class="prod-img" src="${_thumb(i.img, 160)}" alt="" draggable="false" onerror="this.outerHTML='${(i.emoji || '').replace(/'/g,'')}'">` : (i.emoji || '')}</div>
         <div class="info">
           <div class="n">${escapeHtml(lbl.hero)}</div>
           ${lbl.muted ? `<div class="b">${escapeHtml(lbl.muted)}</div>` : ''}
@@ -13935,7 +14038,7 @@
     sc.innerHTML = sugg.map(p => {
       const idx = products.findIndex(x => x.slug === p.slug);
       const img = p.img
-        ? `<img src="${p.img}" alt="" draggable="false">`
+        ? `<img src="${_thumb(p.img, 160)}" alt="" loading="lazy" decoding="async" draggable="false">`
         : `<div style="width:100%;height:92px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg3)">${p.emoji || ''}</div>`;
       const nome = (productLabels(p).hero) || p.name || '';
       return `<div class="upsell-card" onclick="openProduct(${idx})">
@@ -14067,6 +14170,7 @@
           return;
         }
         if (_handleFreteReject(resp.status, data)) return;
+        if (_handleCartReject(resp.status, data)) return;
         if (resp.ok && data.ok) {
           _trackToken = data.track_token || null;
           _trackUrl = data.track_url || null;
@@ -14081,8 +14185,8 @@
 
     orders.unshift({
       num: orderNum,
-      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando comprovante',
-      statusCls: isPayLater ? 'reserved' : 'waiting',
+      status: isPayLater ? 'reservado ✦ pagar na retirada' : 'aguardando confirmação',
+      statusCls: isPayLater ? 'paid' : 'waiting',
       summary,
       subtotal,
       total,
@@ -14143,7 +14247,7 @@
       if (sWhats) sWhats.style.display = 'none';
     } else {
       if (sBanner) sBanner.style.display = 'none';
-      if (sSub) sSub.textContent = 'Pedido confirmado ✦ avisa a gente no whats pra liberar';
+      if (sSub) sSub.textContent = isPayLater ? 'Reserva feita ✦ é só vir buscar e pagar na loja' : 'Pedido confirmado ✦ a loja já foi avisada';
       if (sWhats) sWhats.style.display = '';
     }
     appliedCoupon = null;
@@ -14164,9 +14268,9 @@
     if (!l) l = (_lojasCache || []).find(x => x.slug === CLIENT_FILIAL) || null;
     return l || {};
   }
-  function shareOnWhats() {
-    const last = orders[0];
-    if (!last) { toast('nenhum pedido pra compartilhar'); return; }
+  function shareOnWhats(num) {
+    const last = (num != null ? (orders || []).find(x => String(x.num) === String(num)) : null) || getTrackedOrder();
+    if (!last) { toast('Não achei o pedido ✦ abre ele em Meus pedidos e toca de novo'); return; }
     const storeName = last.store_name || CLIENT_FILIAL_NAME || _currentStore().name || 'DROPE';
     const isPayLater = (last.mode === 'pickup' && last.payWhen === 'later');
     const headline = isPayLater
@@ -14186,7 +14290,7 @@
     }
     const closer = isPayLater
       ? 'to indo aí buscar ✦ pago na hora'
-      : 'segue o comprovante ✦';
+      : 'oi! queria falar sobre esse pedido ✦';
     const lines = [
       headline,
       '',
@@ -14194,7 +14298,7 @@
       '',
       last.discount ? `cupom ${last.coupon}: -R$ ${last.discount}` : '',
       `*${isPayLater ? 'total' : 'subtotal'}:* ${money(last.total)}`,
-      last.mode === 'delivery' && last.delivery_fee_cents ? `taxa de entrega: R$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : (last.mode === 'delivery' ? `_+ taxa de motoboy (cálculo após CEP)_` : ''),
+      last.mode === 'delivery' && last.delivery_fee_cents ? `taxa de entrega: R$ ${(last.delivery_fee_cents/100).toFixed(2).replace('.',',')} (~${last.delivery_km}km)` : '',
       isPayLater ? `_pagamento na retirada (dinheiro, cartão ou Pix presencial)_` : '',
       '',
       whereLine,
@@ -14253,7 +14357,7 @@
   }
   function openHelpWhats() {
     const digits = phoneDigits(_currentStore().whats || '');
-    if (!digits) { toast('a loja ainda não cadastrou whats ✦'); return; }
+    if (!digits) { toast('Não consegui abrir o WhatsApp da loja agora ✦ tenta de novo em instantes'); return; }
     const phone = digits.length <= 11 ? '55' + digits : digits;
     const msg = encodeURIComponent(`oi ✦ preciso de ajuda no Drope ✦ ${profile.name || ''}`);
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');

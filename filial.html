@@ -413,6 +413,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     <h2>Resolva agora</h2>
     <div id="resolva-agora"></div>
   </div>
+  <!-- Hoje (UX A1): números do dia × mesmo dia da semana passada até a mesma hora -->
+  <div class="section sec-hoje" id="sec-hoje" style="display:none">
+    <h2>Hoje <span id="hoje-vs" style="font-size:11px;font-weight:600;color:var(--fg-dim);text-transform:none;letter-spacing:0"></span></h2>
+    <div class="kpis" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="kpi lime"><div class="kpi-label">Vendas</div><div class="kpi-value" id="hoje-vendas" style="font-size:19px">R$ 0</div><div class="kpi-sub" id="hoje-vendas-d"></div></div>
+      <div class="kpi"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="hoje-pedidos" style="font-size:19px">0</div><div class="kpi-sub" id="hoje-pedidos-d"></div></div>
+      <div class="kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value" id="hoje-ticket" style="font-size:19px">—</div><div class="kpi-sub" id="hoje-ticket-d"></div></div>
+    </div>
+  </div>
 <div class="section sec-acoes">
     <h2>Ações rápidas</h2>
     <div class="qa-row">
@@ -472,8 +481,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   </div>
 
   <div class="section sec-hist">
-    <h2>Últimas vendas</h2>
+    <h2>Vendas</h2>
+    <!-- Busca de pedido (UX A7): número, nome ou telefone — qualquer data, inclusive cancelados -->
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="pf-input" id="ped-busca" type="search" placeholder="Buscar pedido: #dr-…, nome ou telefone" autocomplete="off" style="flex:1;margin-bottom:0" oninput="pedBuscaInput(this.value)">
+    </div>
+    <div id="ped-busca-info" style="font-size:12px;color:var(--fg-dim);margin:-2px 0 8px;min-height:14px"></div>
     <div id="historico-list"></div>
+    <button type="button" class="pf-btn sec full" id="ped-mais-btn" style="margin-top:6px" onclick="pedBusca('')">Ver pedidos mais antigos</button>
   </div>
 
     </div>
@@ -506,7 +521,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
           <span><span style="font-weight:800;font-size:15px">QR da loja</span><br><small style="color:var(--fg-dim);font-weight:400">Link e QR pra vitrine/balcão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('pagamento')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
-          <span><span style="font-weight:800;font-size:15px">Pagamentos</span><br><small style="color:var(--fg-dim);font-weight:400">Conectar o Mercado Pago pra receber</small></span><span style="color:var(--fg-dim)">›</span>
+          <span><span style="font-weight:800;font-size:15px">Pagamentos</span><br><small style="color:var(--fg-dim);font-weight:400">InfinitePay · Pix ou cartão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
         <button class="cfg-item" onclick="openCfg('funcionarios')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionários</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão por venda e operador da loja</small></span><span style="color:var(--fg-dim)">›</span>
@@ -656,19 +671,19 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
       </div>
 
-      <!-- SEÇÃO: Pagamentos (Mercado Pago) -->
+      <!-- SEÇÃO: Pagamentos (InfinitePay — set/2026; Mercado Pago desligado) -->
       <div class="cfg-sec" id="cfg-pagamento" style="display:none">
         <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
         <div class="section">
           <h2>Pagamentos<span class="help-q" onclick="helpShow('pagamento',true)" title="O que é isso?">?</span></h2>
           <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px">
-            <div id="mp-status" style="font-size:14px;color:var(--fg-dim);margin-bottom:12px">Verificando…</div>
-            <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 14px">
-              Conecte a conta <b style="color:var(--fg)">Mercado Pago</b> da sua loja. Assim o dinheiro dos pedidos
-              cai <b style="color:var(--fg)">direto na sua conta</b> e a comissão do DROPE é descontada
-              automaticamente na hora do pagamento (Pix).
+            <div style="font-size:14px;font-weight:800;color:var(--lime);margin-bottom:10px">✓ Recebendo pela InfinitePay</div>
+            <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.55;margin:0">
+              O cliente paga no app por <b style="color:var(--fg)">Pix ou cartão (até 12x)</b> na página segura da InfinitePay,
+              e o dinheiro cai <b style="color:var(--fg)">direto na sua conta InfinitePay</b>. O pedido confirma sozinho e o estoque baixa.<br><br>
+              Na tela de pagamento aparece só <b style="color:var(--fg)">"Pedido Drope #…"</b>.<br>
+              <b style="color:var(--fg)">Estorno:</b> faça pelo app da InfinitePay (aqui o pedido é cancelado e o estoque volta).
             </p>
-            <button id="mp-connect-btn" onclick="mpConnect()" style="width:100%;background:linear-gradient(135deg,#00b1ea,#009ee3);border:0;border-radius:12px;padding:14px;color:#fff;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">Conectar Mercado Pago</button>
           </div>
         </div>
       </div>
@@ -998,10 +1013,10 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <!-- Sabor novo? (a IA achou o mesmo modelo de um pod que a loja já tem) -->
         <div id="ap-samemodel" style="display:none;background:rgba(212,255,46,0.1);border:1px solid var(--lime);border-radius:12px;padding:11px 12px;margin-bottom:12px"></div>
         <label class="pf-lbl">Nome do produto</label>
-        <input class="pf-input" id="ap-name" placeholder="ex: Cigarro Marlboro Box" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
+        <input class="pf-input" id="ap-name" placeholder="ex: Ignite V400 Uva Sakura" maxlength="60" oninput="_apRenderDupWarn()" onblur="try{_apAutoCatPay(false)}catch(e){}">
         <!-- COMBO: escolher os produtos que formam o combo -->
         <div id="ap-combo-wrap" style="display:none">
-          <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: Tabaco + Seda + Piteira). Só produtos ativos e com estoque.</div>
+          <div class="pf-hint" style="margin-bottom:8px">Escolha os produtos que formam o combo (ex: 2 pods do mesmo sabor). Só produtos ativos e com estoque.</div>
           <div id="ap-combo-list" style="max-height:230px;overflow-y:auto;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:8px;margin-bottom:8px"></div>
           <div id="ap-combo-sum" style="font-size:12.5px;color:var(--fg-dim);margin-bottom:8px;min-height:16px"></div>
           <label class="pf-lbl">Desconto do combo <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
@@ -1012,7 +1027,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         </div>
         <div id="ap-base-note" style="display:none;background:rgba(212,255,46,0.1);border:0.5px solid var(--lime);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12.5px;color:var(--lime)">✦ Copiado de um produto seu — agora é só pôr o <b>sabor</b> e o estoque.</div>
         <div style="display:flex; gap:10px" id="ap-row-marca">
-          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Marlboro" maxlength="30" onblur="try{_apCheckBarcode()}catch(e){}"></div>
+          <div style="flex:1"><label class="pf-lbl">Marca</label><input class="pf-input" id="ap-marca" placeholder="ex: Ignite" maxlength="30" onblur="try{_apCheckBarcode()}catch(e){}"></div>
           <div style="flex:1"><label class="pf-lbl">Sabor / variação <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label><input class="pf-input" id="ap-sabor" placeholder="ex: mentol, tradicional" maxlength="40" oninput="_apOnSaborInput()"></div>
         </div>
         <div style="display:flex; gap:10px">
@@ -1035,7 +1050,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <label class="pf-lbl" style="margin-top:2px">Categoria <span style="color:var(--pink)">*</span></label>
         <select class="pf-input" id="ap-filtro" onchange="_apFiltroChange()"></select>
         <div id="ap-newcat-wrap" style="display:none;margin-top:6px">
-          <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Tabaco, Narguilé, Essências)" maxlength="30" style="margin-bottom:0">
+          <input class="pf-input" id="ap-newcat" placeholder="Nome da categoria (ex: Pods, Ignite, Gelados)" maxlength="30" style="margin-bottom:0">
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="apCriarCatArte()">Criar categoria com arte por IA ✦</button>
           <div id="ap-newcat-status" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
@@ -1224,8 +1239,8 @@ async function resetRequest(method) {
       document.getElementById('reset-step2').style.display = 'block';
       const via = d.method === 'whats' ? 'WhatsApp' : 'email';
       msg.style.color = 'var(--green)'; msg.textContent = 'código enviado por ' + via + ' ' + (d.sent_to || '') + ' ✦';
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
   [be, bw].forEach(b => { if (b) b.disabled = false; });
 }
 async function resetConfirm() {
@@ -1242,8 +1257,8 @@ async function resetConfirm() {
       showLoginView();
       const le = document.getElementById('login-email'); if (le) le.value = email;
       const ae = document.getElementById('auth-err'); if (ae) { ae.style.color = 'var(--green)'; ae.textContent = 'senha redefinida ✦ entre com a nova senha'; }
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 async function login() {
   const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
@@ -1267,10 +1282,11 @@ async function login() {
     } else {
       err.textContent = d.error || 'email ou senha incorretos';
     }
-  } catch (e) { err.textContent = 'Erro de rede'; }
+  } catch (e) { err.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
+function _painelCacheKey() { return 'drope_painel_cache_' + String(FILIAL_SLUG || '').toLowerCase(); }
 function logout() {
-  try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); } catch(_){}
+  try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(_painelCacheKey()); } catch(_){}
   location.reload();
 }
 function confirmLogout() {
@@ -1282,7 +1298,7 @@ try {
   if (_le) { const _el = document.getElementById('login-email'); if (_el && !_el.value) _el.value = _le; }
 } catch (_) {}
 
-async function loadData(showLoading) {
+async function loadData(showLoading, peek) {
   if (!ACCESS_CODE || !FILIAL_SLUG) return;
   if (showLoading) document.getElementById('last-update').textContent = 'Atualizando...';
   try {
@@ -1296,31 +1312,57 @@ async function loadData(showLoading) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'erro');
+    // Com cadastro/balanço/config abertos: NÃO redesenha (não atrapalha quem está editando),
+    // mas avisa pedido novo na hora — som + faixa clicável por cima de tudo (UX A2).
+    if (peek) { _peekNewOrders(data); return; }
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('painel').style.display = 'block';
     render(data);
+    // Guarda a última versão pra próxima abertura aparecer NA HORA (atualiza por trás).
+    try { localStorage.setItem(_painelCacheKey(), JSON.stringify({ at: Date.now(), data })); } catch (e) {}
     document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     try { loadNotifs(); } catch (e) {}
     try { _startPainelPoll(); } catch (e) {} // liga o auto-refresh (novas vendas aparecem sozinhas)
   } catch (e) {
     console.error('[load]', e);
-    document.getElementById('last-update').textContent = 'erro ✦ tentando de novo';
+    document.getElementById('last-update').textContent = 'sem conexão ✦ tentando de novo sozinho';
   }
 }
 
 // Auto-refresh do painel: vendas/pedidos novos aparecem sozinhos (~10s), sem clicar
-// em Atualizar. PAUSA quando há overlay aberto (Meus produtos, PDV, Config…) pra não
-// interromper uma edição, e quando a aba está em segundo plano.
+// em Atualizar. Com overlay aberto (Meus produtos, cadastro, balanço, Config…) só ESPIA
+// (não redesenha nada), mas toca e mostra a faixa de pedido novo. Pausa com a aba em 2º plano.
 let _painelPoll = null;
 function _startPainelPoll() {
   if (_painelPoll) return;
   _painelPoll = setInterval(function () {
     try {
       if (document.hidden) return;
-      if (document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open')) return;
-      loadData(false);
+      const busy = !!document.querySelector('.sheet-ov.open, .cfg-open, #config-wrap.cfg-open, #add-product-form.apf-open');
+      loadData(false, busy);
     } catch (e) {}
   }, 10000);
+}
+// Pedido novo chegou com a loja no meio de outra tela: som + faixa que abre o pedido.
+function _peekNewOrders(data) {
+  try {
+    const list = data.pedidos_pendentes || [];
+    const ids = list.map(p => String(p.id));
+    const novos = (_prevPendIds === null) ? [] : list.filter(p => !_prevPendIds.includes(String(p.id)));
+    _prevPendIds = ids;
+    if (!novos.length) return;
+    _pendentesAll = list; // o detalhe do pedido abre com os dados novos
+    _playPedidoSound();
+    try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {}
+    const p = novos[0];
+    let b = document.getElementById('novo-pedido-bar');
+    if (!b) { b = document.createElement('button'); b.id = 'novo-pedido-bar'; b.type = 'button'; document.body.appendChild(b); }
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:500;padding:14px 16px;border-radius:14px;border:0;background:var(--lime);color:#0a0a0a;font-family:inherit;font-size:15px;font-weight:800;text-align:left;box-shadow:0 12px 34px rgba(0,0,0,.55);cursor:pointer';
+    const nome = ((p.customer && p.customer.name) || 'cliente').split(' ')[0];
+    b.textContent = (novos.length > 1 ? novos.length + ' pedidos novos' : 'Pedido novo ' + _pedNum(p) + ' · ' + nome) + ' · toque pra ver →';
+    b.onclick = function () { b.remove(); openPedidoDetail(p.id); };
+    clearTimeout(window._npbT); window._npbT = setTimeout(function () { try { b.remove(); } catch (e) {} }, 20000);
+  } catch (e) {}
 }
 function _stopPainelPoll() { if (_painelPoll) { clearInterval(_painelPoll); _painelPoll = null; } }
 // Ao voltar pra aba, atualiza na hora (não espera o próximo ciclo do poll).
@@ -1389,14 +1431,15 @@ function render(d) {
 
   const historico = d.historico || [];
   const histList = document.getElementById('historico-list');
-  histList.innerHTML = historico.length
+  if (!window._pedBuscaRes) histList.innerHTML = historico.length
     ? historico.map(p => renderPedidoCard(p, true)).join('')
-    : '<div class="empty">Sem vendas ainda</div>';
+    : '<div class="empty">Nenhuma venda finalizada este mês ✦ as mais antigas aparecem em "Ver pedidos mais antigos"</div>';
 
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
   if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
   try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
+  try { renderHoje(d.dia); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -1458,8 +1501,8 @@ async function selectPlan(tier) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); }
-    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 
 // ===== Pagamento do plano: escolha Cartão (assinatura automática) OU Pix avulso (qualquer banco) =====
@@ -1486,7 +1529,7 @@ async function planPayCard(tier) {
     const r = await fetch('/api/webhook?action=filial_plan_subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.init_point) { window.location.href = d.init_point; }
-    else _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>');
+    else _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>');
   } catch (e) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">Erro de rede</div><div style="text-align:center"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); }
 }
 async function planPayPix(tier) {
@@ -1494,7 +1537,7 @@ async function planPayPix(tier) {
   try {
     const r = await fetch('/api/webhook?action=filial_plan_pix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, tier }) });
     const d = await r.json().catch(() => ({}));
-    if (!(r.ok && d.ok && d.qr_code)) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || ('erro ' + r.status)) + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); return; }
+    if (!(r.ok && d.ok && d.qr_code)) { _planModal('<div style="color:var(--pink);text-align:center;padding:12px">' + (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + '</div><div style="text-align:center;margin-top:10px"><span onclick="_planModalClose()" style="color:var(--fg-dim);cursor:pointer">Fechar</span></div>'); return; }
     const amount = (d.amount || 0).toFixed(2).replace('.', ',');
     _planModal(
       '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:800;font-size:18px;text-align:center">Pix da mensalidade</div>' +
@@ -1704,7 +1747,7 @@ async function _criarCategoriaInline(nome, opts) {
 async function apCriarCatArte() {
   const nome = (document.getElementById('ap-newcat').value || '').trim();
   const st = document.getElementById('ap-newcat-status');
-  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
   const novo = await _criarCategoriaInline(nome, { art: true });
   if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
@@ -1734,7 +1777,7 @@ function _epFiltroChange(id) {
 async function epCriarCatArte(id) {
   const nome = (document.getElementById('ep-newcat-' + id).value || '').trim();
   const st = document.getElementById('ep-newcat-status-' + id);
-  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+  if (nome.length < 2) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'criando categoria e gerando arte… (~15s)'; }
   const novo = await _criarCategoriaInline(nome, { art: true });
   if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu ✦ tenta de novo'; } return; }
@@ -1775,13 +1818,13 @@ function renderProdutos(list) {
   const cnt = document.getElementById('prod-count');
   const filtered = q || f !== 'todos';
   if (cnt) cnt.textContent = all.length ? `${items.length}${filtered ? ' de ' + all.length : ''} produto${all.length !== 1 ? 's' : ''}` : '';
-  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ adiciona o primeiro no "＋ Manual"</div>'; return; }
+  if (!all.length) { el.innerHTML = '<div class="empty">Nenhum produto ainda ✦ toque em <b>Cadastrar</b> e leia o código do primeiro pod</div>'; return; }
   if (!items.length) { el.innerHTML = '<div class="empty">Nada encontrado ✦ tenta outro filtro ou termo</div>'; return; }
   function _prodRowHtml(p) {
     const price = ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
     const thumb = p.image_url
-      ? `<img src="${esc(p.image_url)}" alt="" class="prod-thumb-img" draggable="false">`
+      ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" class="prod-thumb-img" draggable="false">`
       : `<div class="prod-thumb-ph">${gerando ? '' : ''}</div>`;
     const meta = [p.marca, p.sabor].filter(Boolean).join(' · ');
     const stock = p.stock || 0;
@@ -1830,7 +1873,7 @@ function renderProdutos(list) {
             </div></div>
         </div>
         <label class="pf-lbl" style="margin-top:10px">Preço de oferta (vazio = sem oferta)</label>
-        <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,90" style="margin-bottom:0">
+        <input class="pf-input" id="ep-offer-${p.id}" inputmode="decimal" value="${p.offer_cents ? ((p.offer_cents)/100).toFixed(2).replace('.', ',') : ''}" placeholder="ex: 79,99" style="margin-bottom:0">
         ${p.combo ? `
         <label class="pf-lbl" style="margin-top:10px">Produtos do combo</label>
         <div id="ep-combo-list-${p.id}" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:8px;max-height:230px;overflow-y:auto">
@@ -1856,7 +1899,7 @@ function renderProdutos(list) {
         <label class="pf-lbl" style="margin-top:10px">Categoria (filtro da loja)</label>
         <select class="pf-input" id="ep-filtro-${p.id}" style="margin-bottom:0" onchange="_epFiltroChange(${p.id})">${_epFiltroOptions(p.filtro_id)}</select>
         <div id="ep-newcat-wrap-${p.id}" style="display:none;margin-top:6px">
-          <input class="pf-input" id="ep-newcat-${p.id}" placeholder="Nome da categoria (ex: Tabaco, Narguilé)" maxlength="30" style="margin-bottom:0">
+          <input class="pf-input" id="ep-newcat-${p.id}" placeholder="Nome da categoria (ex: Pods, Gelados)" maxlength="30" style="margin-bottom:0">
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="epCriarCatArte(${p.id})">Criar categoria com arte por IA ✦</button>
           <div id="ep-newcat-status-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
@@ -1869,7 +1912,7 @@ function renderProdutos(list) {
         </select>
         <label class="pf-lbl" style="margin-top:10px">Foto do produto</label>
         <div id="ep-imgprev-${p.id}" style="margin-bottom:8px">${p.image_url
-          ? `<img src="${esc(p.image_url)}" alt="" style="width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:14px;border:0.5px solid var(--border);display:block">`
+          ? `<img src="${esc(_thumb(p.image_url, 480))}" alt="" style="width:100%;max-width:220px;aspect-ratio:1;object-fit:cover;border-radius:14px;border:0.5px solid var(--border);display:block">`
           : `<div style="font-size:12.5px;color:var(--fg-dim);background:var(--bg3);border:0.5px dashed var(--border);border-radius:12px;padding:14px;text-align:center">${gerando ? 'Gerando a imagem… ⏳' : 'Sem foto ainda — envie a sua ou gere com IA ✦'}</div>`}</div>
         ${p.image_url ? `<div style="margin:0 0 8px"><span class="mini-link" style="font-size:12px;color:var(--fg-dim)" onclick="epToggleFix(${p.id})">⚠️ Imagem errada? Reportar / corrigir</span></div>
         <div id="ep-fix-${p.id}" style="display:none;margin-bottom:8px;background:var(--bg3);border:0.5px solid var(--border);border-radius:12px;padding:10px">
@@ -1954,8 +1997,8 @@ async function applyBatchFiltro() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _batchSel.clear(); _updateBatchCount(); if (msg) { msg.style.color = 'var(--green)'; msg.textContent = `${d.updated} produto(s) atualizado(s) ✦`; } loadData(true); }
-    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; } }
+    else if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { if (msg) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 let _prodFilter = 'todos';
 let _prodSort = 'recentes';
@@ -1984,14 +2027,24 @@ function _stockSync(id) {
   if (inp) inp.value = p.stock;
   if (wrap) wrap.classList.toggle('zero', p.stock === 0);
 }
-function _stockPersist(id, immediate) {
+// Salva o estoque. A tela já mostra o número novo (resposta na hora); o "salvo" só aparece
+// depois que o servidor confirma, e se falhar a loja fica sabendo (antes o erro sumia calado).
+function _stockPersist(id, immediate, confirmMsg) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
   clearTimeout(_stockTimers[id]);
-  const doSave = () => {
-    fetch('/api/webhook?action=filial_product_save', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: p.stock, hidden: !!p.hidden }),
-    }).catch(() => {});
+  const doSave = async () => {
+    const val = p.stock;
+    try {
+      const r = await fetch('/api/webhook?action=filial_product_save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock: val, hidden: !!p.hidden }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!(r.ok && d.ok)) throw new Error('save');
+      if (confirmMsg) { try { _toast('Estoque salvo ✦ ' + val); } catch (e) {} }
+    } catch (e) {
+      try { _toast('Não salvou o estoque de ' + (p.name || 'um produto') + ' ✦ confere a internet e tenta de novo', 'err'); } catch (e2) {}
+    }
   };
   if (immediate) doSave(); else _stockTimers[id] = setTimeout(doSave, 700);
 }
@@ -2008,8 +2061,7 @@ function setStock(id, val) {
   if (isNaN(n) || n < 0) n = 0;
   p.stock = n;
   _stockSync(id);
-  _stockPersist(id, true); // salva imediato ao digitar
-  try { _toast('Estoque salvo ✦ ' + n); } catch (e) {}
+  _stockPersist(id, true, true); // salva imediato ao digitar; "salvo" só depois de confirmar
 }
 
 // Gera a arte do produto via IA (mesma pipeline do admin, autenticada pela loja).
@@ -2025,7 +2077,7 @@ async function deleteProduct(id) {
     if (r.ok && d.ok) {
       _lastProdutos = (_lastProdutos || []).filter(x => x.id !== id);
       renderProdutos(); loadData(false);
-    } else { alert(' ' + ((d && d.error) || 'não deu pra excluir')); }
+    } else { _toast((d && d.error) || 'Não consegui excluir agora ✦ tenta de novo', 'err'); }
   } catch (e) { alert(' Erro de rede ao excluir'); }
 }
 // ===== Overlay animado de geração de arte (spinner + mensagens de processo) =====
@@ -2137,7 +2189,7 @@ function toggleAddProduct() {
     const scg = document.getElementById('ap-catglobal'); if (scg) scg.innerHTML = _catGlobalOptions('');
     // Loja nova (sem categorias) → já abre no modo "criar categoria" com aviso.
     const hint = document.getElementById('ap-filtro-hint');
-    if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Tabaco) e cadastre o produto dentro dela ✦';
+    if (!(_filtros || []).length && hint) hint.textContent = 'Sua loja ainda não tem categorias. Crie a primeira (ex: Pods) e cadastre o produto dentro dela ✦';
     try { _apFiltroChange(); } catch (e) {}
     _apPhotoB64 = null; const afs = document.getElementById('ap-art-status'); if (afs) afs.textContent = '';
     try { _wizReset(); } catch (e) {} // sempre abre na etapa 1
@@ -2500,7 +2552,7 @@ async function apGerarArte(fix) {
       _apPhotoB64 = null; // arte tem prioridade sobre foto própria
       _apShowArtPreview(d.image_url, true);
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'arte gerada ✦ (ou gere outra / envie a sua)'; }
-    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ou conclui e gera depois'; } }
+    } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + ' — tenta de novo ou conclui e gera depois'; } }
   } catch (e) { if (epoch !== _apGenEpoch) return; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não deu pra gerar ✦ tenta de novo ou conclui e gera depois'; } }
   if (epoch !== _apGenEpoch) return; // não mexe no botão do próximo produto
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Gerar arte com IA ✦'; }
@@ -2599,7 +2651,7 @@ function apBaseSearch(q) {
   if (q) prods = prods.filter(p => (`${p.name || ''} ${p.marca || ''} ${p.sabor || ''}`).toLowerCase().includes(q));
   prods = prods.slice(0, 60);
   list.innerHTML = prods.length ? prods.map(p => {
-    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : `<div class="ph"></div>`;
     const price = 'R$ ' + ((p.price_cents || 0) / 100).toFixed(2).replace('.', ',');
     return `<div class="pdv-sr-item" onclick="apUseBase(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')} · ${price}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">usar ›</span></div>`;
   }).join('') : '<div class="empty" style="padding:30px;text-align:center;color:var(--fg-dim)">Nenhum produto pra copiar ainda</div>';
@@ -2955,8 +3007,8 @@ async function saveFrete() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _entrega = { base, km: (isFinite(km) && km > 0) ? km : 0 }; msg.style.color = 'var(--green)'; msg.textContent = 'tabela salva ✦'; }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function renderEntregadores() {
   const el = document.getElementById('ent-list'); if (!el) return;
@@ -2998,8 +3050,8 @@ async function linkEntregador() {
       _entregadoresFixos = d.entregadores_fixos || []; renderEntregadores();
       document.getElementById('ent-phone').value = '';
       msg.style.color = 'var(--green)'; msg.textContent = d.already ? 'esse entregador já é fixo ✦' : 'entregador vinculado ✦';
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 async function settleEntregador(id, amountCents) {
   if (!confirm('Confirmar pagamento de ' + fmtBRL(amountCents) + ' pras entregas desse entregador?\n\nIsso registra que você já acertou com ele.')) return;
@@ -3010,7 +3062,7 @@ async function settleEntregador(id, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('Erro de rede'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function unlinkEntregador(id) {
   if (!confirm('Desvincular esse entregador fixo?')) return;
@@ -3046,7 +3098,7 @@ async function setCommPeriod(period) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { loadData(true); } else { _commPeriod = prev; renderCommPeriod(); alert(d.error || 'erro ao salvar'); }
-  } catch (e) { _commPeriod = prev; renderCommPeriod(); alert('Erro de rede'); }
+  } catch (e) { _commPeriod = prev; renderCommPeriod(); _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 function _fmtDay(iso) { try { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); } catch (e) { return ''; } }
 // Bloco de comissão do mês (gerado / a pagar / pago) + botão "Marcar como pago".
@@ -3083,7 +3135,7 @@ async function markCommissionPaid(personId, amountCents) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro ao registrar');
-  } catch (e) { alert('Erro de rede'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function undoCommissionPay(personId) {
   if (!confirm('Desfazer o último pagamento registrado deste mês?')) return;
@@ -3093,8 +3145,8 @@ async function undoCommissionPay(personId) {
       body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'undo', person_id: personId }),
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) loadData(true); else alert(d.error || 'erro');
-  } catch (e) { alert('Erro de rede'); }
+    if (r.ok && d.ok) loadData(true); else _toast(d.error || 'Não deu certo agora ✦ tenta de novo em instantes', 'err');
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 let _fnEditId = null;
 function _fnTipoHint() {
@@ -3155,8 +3207,8 @@ async function saveFuncionario() {
       document.getElementById('fn-nome').value = ''; document.getElementById('fn-valor').value = '';
       document.getElementById('fn-operador').checked = false; msg.textContent = '';
       renderFuncionarios();
-    } else { msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.textContent = 'Erro de rede'; }
+    } else { msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function editFuncionario(id) {
   const f = (_funcionarios || []).find(x => x.id === id); if (!f) return;
@@ -3269,8 +3321,8 @@ async function _parceiroManage(payload) {
     const r = await fetch('/api/webhook?action=filial_parceiro_manage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...payload }) });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _parceiros = d.parceiros || []; renderParceiros(); _updateParcBadge(); }
-    else alert(d.error || ('erro ' + r.status));
-  } catch (e) { alert('Erro de rede'); }
+    else alert(d.error || 'Não deu certo agora ✦ tenta de novo em instantes');
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 
 // ===== Avisos (notificações in-app do lojista) =====
@@ -3345,8 +3397,8 @@ async function _saveProduct(payload, onOk) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { const _saved = { id: d.id, slug: d.slug }; _lastSavedProduct = _saved; onOk && onOk(_saved); loadData(true); return true; }
-    return d.error || ('erro ' + r.status);
-  } catch (e) { return 'Erro de rede'; }
+    return d.error || 'Não deu certo agora ✦ tenta de novo em instantes';
+  } catch (e) { return 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 
 // ===== Combo: montar um produto a partir de outros produtos da loja =====
@@ -3372,7 +3424,7 @@ function apSetMode(mode) {
   const rm = document.getElementById('ap-row-marca'); if (rm) rm.style.display = combo ? 'none' : 'flex';
   const sw = document.getElementById('ap-stock-wrap'); if (sw) sw.style.display = combo ? 'none' : 'block';
   const pl = document.getElementById('ap-price-lbl'); if (pl) pl.textContent = combo ? 'Preço do combo (R$)' : 'Preço de venda (R$)';
-  const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo do Fumante' : 'ex: Cigarro Marlboro Box';
+  const nm = document.getElementById('ap-name'); if (nm) nm.placeholder = combo ? 'ex: Combo 2 pods' : 'ex: Ignite V400 Uva Sakura';
   // Passo 3 (imagem): combo NÃO usa arte-IA — a imagem é a colagem das fotos reais dos itens.
   const artBtn = document.getElementById('ap-artgen-btn'); if (artBtn) artBtn.style.display = combo ? 'none' : '';
   const imgHint = document.getElementById('ap-img-hint'); if (imgHint) imgHint.style.display = combo ? 'none' : 'block';
@@ -3419,7 +3471,7 @@ async function apComboPreview(bump) {
     }
   } catch (e) {
     if (load) load.style.display = 'none';
-    if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; }
+    if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
   }
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
@@ -3498,7 +3550,7 @@ async function saveNewProduct() {
   if (_apMode !== 'combo') {
     if (filtro_id === '__new__' || (!filtro_id && !(_filtros || []).length)) {
       const novoNome = (document.getElementById('ap-newcat').value || '').trim();
-      if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'dá um nome pra categoria do produto (ex: Tabaco)'; return; }
+      if (novoNome.length < 2) { msg.style.color = 'var(--pink)'; msg.textContent = 'Dá um nome pra categoria do produto (ex: Pods)'; return; }
       msg.style.color = 'var(--fg-dim)'; msg.textContent = 'criando a categoria...';
       const okCat = await _saveFiltro({ nome: novoNome }, true);
       if (okCat !== true) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra criar a categoria ✦ tenta de novo'; return; }
@@ -3574,7 +3626,7 @@ async function saveEditProduct(id) {
       const st = document.getElementById('ep-newcat-status-' + id);
       const nome = (document.getElementById('ep-newcat-' + id) || {}).value || '';
       const novo = await _criarCategoriaInline(nome, {});
-      if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'dá um nome pra categoria (ex: Tabaco)'; } return; }
+      if (!novo) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Dá um nome pra categoria (ex: Pods)'; } return; }
       fval = novo.id;
     }
     payload.filtro_id = fval || null; // categoria/filtro da loja
@@ -3624,7 +3676,7 @@ async function openBarcodeScanner(ctx, targetId) {
       if (result) _onBarcode(result.getText());
     });
   } catch (e) {
-    hint.textContent = 'Não consegui abrir a câmera. Confira a permissão ou use "＋ Manual".';
+    hint.textContent = 'Não consegui abrir a câmera ✦ libere a câmera pro app nas configurações do celular, ou volte e digite o código.';
   }
 }
 function closeBarcodeScanner() {
@@ -3742,7 +3794,7 @@ function renderSemCodigo() {
   if (!prods.length) { el.innerHTML = '<div class="empty" style="text-align:center;color:var(--fg-dim);padding:44px 20px">Todos os produtos têm código e todos batem com a marca ✦</div>'; return; }
   el.innerHTML = prods.map(p => {
     const thumb = p.image_url
-      ? `<img src="${esc(p.image_url)}" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
+      ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false" style="width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`
       : `<div style="width:46px;height:46px;border-radius:10px;background:var(--bg3);flex:0 0 auto"></div>`;
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:10px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${thumb}<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">${esc(p.marca || '')}${p.sabor ? ' · ' + esc(p.sabor) : ''}</div></div></div>
@@ -3827,7 +3879,7 @@ function balFindCode(raw, inCam) {
   }
   _balHitId = p.id; _balFrame('ok');
   try { navigator.vibrate && navigator.vibrate(50); } catch (e) {}
-  const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : '<div class="ph"></div>';
+  const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : '<div class="ph"></div>';
   box.className = (_balInCam ? 'show' : '');
   box.innerHTML = `<div class="bal-hit ok">
     <div class="top">${img}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><span class="bal-badge" id="bal-hit-badge"></span></div></div>
@@ -3889,7 +3941,7 @@ function balLinkSearch(q) {
   else prods = prods.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); // sem busca: mais recentes primeiro
   prods = prods.slice(0, 12);
   box.innerHTML = prods.length ? prods.map(p => {
-    const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="" draggable="false">` : `<div class="ph"></div>`;
+    const img = p.image_url ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" draggable="false">` : `<div class="ph"></div>`;
     return `<div class="pdv-sr-item" onclick="balLinkPick(${p.id})">${img}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div><div style="font-size:11px;color:var(--fg-dim)">código atual: ${esc(p.barcode || 'nenhum')}</div></div><span style="color:var(--lime);font-weight:800;font-size:13px;flex:0 0 auto">é esse ›</span></div>`;
   }).join('') : '<div style="font-size:12px;color:var(--fg-dim);padding:10px 2px">Nada com esse nome</div>';
 }
@@ -4135,7 +4187,7 @@ async function usarFotoProduto(id, imageUrl) {
       if (st) { st.style.color = 'var(--green)'; st.textContent = 'imagem da categoria atualizada ✦'; }
       const pick = document.getElementById('fe-prodpick-' + id); if (pick) pick.style.display = 'none';
     } else { if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'não deu pra aplicar'; } }
-  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+  } catch (e) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
 }
 let _feRef = {}; // referência (dataURL) por filtro, pra IA usar como base (img2img)
 let _feVariant = {}; // incrementa a cada "Gerar outra" → backend rotaciona a referência
@@ -4181,9 +4233,9 @@ async function gerarFiltroIAEdit(id) {
       if (st) st.textContent = '';
     } else {
       if (load) load.style.display = 'none';
-      if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || ('erro ' + r.status); }
+      if (st) { st.style.color = 'var(--pink)'; st.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
     }
-  } catch (e) { if (load) load.style.display = 'none'; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'erro de rede'; } }
+  } catch (e) { if (load) load.style.display = 'none'; if (st) { st.style.color = 'var(--pink)'; st.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; } }
   if (again) { again.disabled = false; again.style.opacity = '1'; }
 }
 async function _saveFiltro(extra, silent) {
@@ -4195,8 +4247,8 @@ async function _saveFiltro(extra, silent) {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { renderFiltros(d.filtros); if (!silent) { msg.style.color = 'var(--green)'; msg.textContent = 'filtro salvo ✦'; document.getElementById('filtro-nome').value = ''; } return true; }
-    msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); return false;
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; return false; }
+    msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; return false;
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; return false; }
 }
 async function onFiltroFile(input) {
   const nome = (document.getElementById('filtro-nome').value || '').trim();
@@ -4239,7 +4291,7 @@ async function gerarFiltroIA() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok && d.image_url) { msg.textContent = ''; _showFiltroPreview({ nome: nome, image_url: d.image_url }); }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || ('erro ' + r.status)) + ' — tenta de novo ✦'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = (d.error || 'Não deu certo agora ✦ tenta de novo em instantes') + ' — tenta de novo ✦'; }
   } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'não deu pra gerar ✦ tenta de novo'; }
   _artOverlayHide();
   _setFiltroBusy(false);
@@ -4313,7 +4365,7 @@ function openCfg(name) {
     if (name === 'aparencia') renderLojaPreview();
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
     if (name === 'qr') renderQR();
-    if (name === 'pagamento') mpRefreshStatus();
+    // pagamento: InfinitePay (sem conexão a fazer; Mercado Pago desligado)
     if (name === 'funcionarios') { _fnTipoHint(); renderCommPeriod(); renderFuncionarios(); }
     if (name === 'entregadores') { renderEntregadores(); renderFrete(); }
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
@@ -4335,7 +4387,7 @@ const HELP = {
   filtros: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M3 7.2a2 2 0 0 1 2-2h3.6l2 2.4H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.2Z"/></svg>', title: 'Minhas categorias', body: 'Categorias são as seções da sua vitrine (Tabaco, Narguilé, Essências…).<br><br>Crie, dê uma imagem e use as setas <b>↑ ↓</b> pra definir a <b>ordem</b> que elas aparecem pro cliente. Todo produto entra numa categoria.' },
   qr: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20.5 14v0M14 20.5h0M17 20.5h4v-3"/></svg>', title: 'QR da minha loja', body: 'Esse QR code leva o cliente direto pra sua loja no DROPE. Imprima e cole no balcão ou compartilhe nas redes.' },
   func: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="12" cy="12" r="9"/><path d="M12 7.2V12l3 2"/></svg>', title: 'Funcionamento', body: 'Defina os dias e horários que sua loja fica aberta. Fora do horário, ela aparece como <b>fechada</b> e o pedido entra na fila pra ser preparado na próxima abertura.' },
-  pagamento: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg>', title: 'Pagamentos', body: 'Conecte sua conta do <b>Mercado Pago</b> pra receber as vendas direto na sua conta. A comissão do DROPE é descontada automaticamente na hora do pagamento.' },
+  pagamento: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/></svg>', title: 'Pagamentos', body: 'As vendas do app são pagas pela <b>InfinitePay</b> (Pix ou cartão) e o dinheiro cai direto na sua conta InfinitePay. O pedido confirma sozinho.' },
   entregadores: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg>', title: 'Entregadores fixos', body: 'O entregador se cadastra sozinho no app (<b>/entregador</b>) com telefone e senha. Aqui você <b>vincula pelo telefone</b> os que são fixos da sua loja.<br><br>Ao chamar uma entrega, você escolhe um fixo (o frete fica com você, que paga ele) OU abre <b>pra qualquer entregador da plataforma</b> pegar (avulso — o DROPE paga o entregador). O status do pedido e o aviso pro cliente andam sozinhos ✦' },
   funcionarios: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.4"/><path d="M17.5 14.6c2 .7 3.7 2.4 3.7 5.4"/></svg>', title: 'Funcionários', body: 'Cadastre quem vende na sua loja e defina a comissão: <b>% do lucro</b> ou <b>R$ fixo por venda</b> (nunca % da venda).<br><br>O sistema calcula quanto pagar pra cada um; o pagamento é feito por você.' },
   parceiros: { emoji: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="m11 16.5-2.6-2.6a1.5 1.5 0 0 1 0-2.1l3.5-3.5a2 2 0 0 1 1.4-.6H16"/><path d="m13 18.5-1.6-1.6M17 14.5l-2.4-2.4"/><path d="M3 8.5 7 7l3.2 3.2M21 8.5 17 7"/><path d="M3 8.5v4.5l3 2M21 8.5v4.5l-3 2"/></svg>', title: 'Parceiros / Indicadores', body: 'Pessoas que divulgam sua loja por um link e ganham comissão nas vendas que trouxerem.<br><br>O cliente pede pra ser parceiro, <b>você aprova</b> e define a comissão dele.' },
@@ -4666,8 +4718,8 @@ async function saveLojaProfile(msgId) {
       try { loadData(true); } catch (e) {}                 // atualiza o painel com os novos dados
       setTimeout(() => { try { cfgBack(); } catch (e) {} }, 650); // fecha e volta pra tela anterior
     }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function _fmtWhatsStr(d) {
   d = String(d || '').replace(/\D/g, '').slice(0, 11);
@@ -4747,8 +4799,8 @@ async function saveHorario() {
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { msg.style.color = 'var(--green)'; msg.textContent = 'horário salvo ✦'; }
-    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 function renderHorario(hours) {
   hours = hours || {};
@@ -4811,6 +4863,111 @@ function _waitLabel(ts) {
   } catch (e) { return ''; }
 }
 
+// Miniatura WebP das fotos do Storage (mesma do app do cliente): lista leve, original só se falhar.
+function _thumb(url, w) {
+  const u = String(url || '');
+  if (!/\/storage\/v1\/object\/public\//.test(u)) return u;
+  return '/api/webhook?action=img&w=' + (w || 160) + '&u=' + encodeURIComponent(u);
+}
+// Endereço do cliente em texto (chaves do app: street/num/comp/neigh/city/uf/cep).
+function _pedAddrTxt(a) {
+  a = a || {};
+  const l1 = [a.street || a.rua || '', a.num || a.numero || ''].filter(Boolean).join(', ');
+  return [l1, a.comp || '', a.neigh || a.bairro || '', [a.city || '', a.uf || ''].filter(Boolean).join('/'), a.ref ? 'ref: ' + a.ref : ''].filter(Boolean).join(' · ');
+}
+// Atalhos do pedido (UX A2/A3): abrir no mapa · WhatsApp do cliente (com o nº do pedido) · compartilhar resumo.
+function _pedTools(p, isDelivery) {
+  const cust = p.customer || {};
+  const btn = 'flex:1 1 0;min-width:0;margin:0;padding:10px 6px;font-size:12.5px';
+  const out = [];
+  if (isDelivery && p.address) {
+    const a = p.address, q = [a.street || a.rua || '', a.num || a.numero || '', a.neigh || a.bairro || '', a.city || 'São Paulo', a.uf || 'SP', a.cep || ''].filter(Boolean).join(', ');
+    out.push(`<a class="pf-btn sec" style="${btn};text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}">Abrir no mapa</a>`);
+  }
+  const d = String(cust.phone || '').replace(/\D/g, '');
+  if (d.length >= 10) {
+    const nome = String(cust.name || '').split(' ')[0];
+    const txt = `Oi${nome ? ' ' + nome : ''}! Aqui é da Drope, sobre o seu pedido ${_pedNum(p)} ✦`;
+    out.push(`<a class="pf-btn sec" style="${btn};text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${d.startsWith('55') ? d : '55' + d}?text=${encodeURIComponent(txt)}">WhatsApp</a>`);
+  }
+  out.push(`<button type="button" class="pf-btn sec" style="${btn}" onclick="_pedShare(${p.id})">Resumo</button>`);
+  return `<div style="display:flex;gap:6px;margin-top:10px">${out.join('')}</div>`;
+}
+// Resumo do pedido pra mandar pro entregador/equipe (menu de compartilhar do celular ou copia).
+async function _pedShare(id) {
+  const p = [...(_pendentesAll || []), ...(((_painelData || {}).historico) || []), ...(window._pedBuscaRes || [])].find(x => String(x.id) === String(id));
+  if (!p) return;
+  const cust = p.customer || {}, isDel = (p.delivery_mode || 'delivery') === 'delivery';
+  const txt = [
+    `Pedido ${_pedNum(p)} · ${isDel ? 'ENTREGA' : 'RETIRADA'}`,
+    ...(p.items || []).map(it => `• ${parseInt(it.qty || it.quantity || 1, 10) || 1}× ${it.name}`),
+    `Total: ${fmtBRL(p.total_cents)}`,
+    `Cliente: ${cust.name || '—'}${cust.phone ? ' · ' + cust.phone : ''}`,
+    isDel && p.address ? `Endereço: ${_pedAddrTxt(p.address)}` : '',
+  ].filter(Boolean).join('\n');
+  try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(txt); _toast('Resumo copiado ✦ é só colar no WhatsApp'); }
+  catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
+}
+// Bloco "Hoje": vendas/pedidos/ticket de hoje até agora × mesmo dia da semana passada até a mesma hora.
+function renderHoje(dia) {
+  const sec = document.getElementById('sec-hoje'); if (!sec) return;
+  if (!dia || !dia.hoje) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const h = dia.hoje, w = dia.semana_passada || {};
+  const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const vs = document.getElementById('hoje-vs'); if (vs) vs.textContent = '· comparando com ' + (new Date().getDay() === 0 || new Date().getDay() === 6 ? 'o ' : 'a ') + dias[new Date().getDay()] + ' passad' + (new Date().getDay() === 0 || new Date().getDay() === 6 ? 'o' : 'a') + ' até esta hora';
+  const delta = (a, b) => {
+    if (!b && !a) return '<span>igual</span>';
+    if (!b) return '<span style="color:var(--green)">▲ novo</span>';
+    const pct = Math.round((a - b) / b * 100);
+    if (pct === 0) return '<span>igual</span>';
+    return pct > 0 ? `<span style="color:var(--green)">▲ ${pct}%</span>` : `<span style="color:var(--pink)">▼ ${Math.abs(pct)}%</span>`;
+  };
+  const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+  set('hoje-vendas', fmtBRL(h.vendas_cents || 0));
+  set('hoje-pedidos', String(h.pedidos || 0));
+  set('hoje-ticket', h.pedidos ? fmtBRL(h.ticket_cents || 0) : '—');
+  set('hoje-vendas-d', delta(h.vendas_cents || 0, w.vendas_cents || 0) + ` <span style="opacity:.7">(${fmtBRL(w.vendas_cents || 0)})</span>`);
+  set('hoje-pedidos-d', delta(h.pedidos || 0, w.pedidos || 0) + ` <span style="opacity:.7">(${w.pedidos || 0})</span>`);
+  set('hoje-ticket-d', (h.pedidos && w.pedidos) ? delta(h.ticket_cents, w.ticket_cents) : '<span style="opacity:.7">—</span>');
+}
+// ===== Busca de pedido (A7) =====
+let _pedBuscaT = null, _pedBuscaSeq = 0;
+function pedBuscaInput(v) { clearTimeout(_pedBuscaT); _pedBuscaT = setTimeout(() => pedBusca(v), 350); }
+async function pedBusca(q) {
+  q = String(q || '').trim();
+  const list = document.getElementById('historico-list'), info = document.getElementById('ped-busca-info'), mais = document.getElementById('ped-mais-btn');
+  if (!list) return;
+  const seq = ++_pedBuscaSeq;
+  if (info) info.textContent = q ? 'buscando…' : 'carregando pedidos antigos…';
+  try {
+    const r = await fetch(`/api/webhook?action=filial_pedidos_busca&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}&q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (seq !== _pedBuscaSeq) return; // chegou resposta de uma busca antiga
+    if (!(r.ok && d.ok)) throw new Error('busca');
+    const peds = d.pedidos || [];
+    window._pedBuscaRes = peds;
+    list.innerHTML = peds.length
+      ? peds.map(p => renderPedidoCard(p, ['delivered', 'picked_up', 'completed', 'cancelled'].includes(p.status))).join('')
+      : `<div class="empty">${q ? 'Nenhum pedido com "' + esc(q) + '" ✦ confere o número ou tenta pelo nome ou telefone' : 'Nenhum pedido ainda'}</div>`;
+    if (info) info.innerHTML = q ? `${peds.length} ${peds.length === 1 ? 'pedido' : 'pedidos'} · <span style="color:var(--lime);cursor:pointer;text-decoration:underline" onclick="pedBuscaLimpar()">limpar busca</span>` : `últimos ${peds.length} pedidos (todas as datas) · <span style="color:var(--lime);cursor:pointer;text-decoration:underline" onclick="pedBuscaLimpar()">voltar pro mês</span>`;
+    if (mais) mais.style.display = 'none';
+  } catch (e) {
+    if (seq !== _pedBuscaSeq) return;
+    if (info) info.textContent = 'Não consegui buscar agora ✦ confere a internet e tenta de novo';
+  }
+}
+function pedBuscaLimpar() {
+  _pedBuscaSeq++;
+  const inp = document.getElementById('ped-busca'); if (inp) inp.value = '';
+  const info = document.getElementById('ped-busca-info'); if (info) info.textContent = '';
+  const mais = document.getElementById('ped-mais-btn'); if (mais) mais.style.display = '';
+  window._pedBuscaRes = null;
+  try { const h = ((_painelData || {}).historico) || []; document.getElementById('historico-list').innerHTML = h.length ? h.map(p => renderPedidoCard(p, true)).join('') : '<div class="empty">Nenhuma venda finalizada este mês ✦ as mais antigas aparecem em "Ver pedidos mais antigos"</div>'; } catch (e) {}
+}
+// Número do pedido como o CLIENTE vê (#dr-xxxx) — pra loja e cliente falarem do mesmo pedido.
+function _pedNum(p) { const n = String((p && p.order_nsu) || '').trim(); return n ? '#' + n : '#' + ((p && p.id) || ''); }
 function renderPedidoTile(p) {
   const isDelivery = (p.delivery_mode || 'delivery') === 'delivery';
   const stage = _orderStage(p.status);
@@ -4825,6 +4982,7 @@ function renderPedidoTile(p) {
   return `<button class="otile" onclick="openPedidoDetail(${p.id})">
     <span class="ost" style="color:${meta.c}"><span class="dotc" style="background:${meta.c}"></span>${meta.t}</span>
     <span class="onm">${esc(first)}</span>
+    <span class="omt" style="font-weight:700;color:var(--fg)">${esc(_pedNum(p))}</span>
     <span class="omt">${nItems} ${nItems === 1 ? 'item' : 'itens'} · ${isDelivery ? 'entrega' : 'retirada'}</span>
     <span class="obot"><span class="otot">${fmtBRL(p.total_cents)}</span><span class="owt">${_waitLabel(p.created_at)}</span></span>
   </button>`;
@@ -5055,7 +5213,7 @@ async function ativarPush() {
     _renderPushBtn();
     _toast('Notificações ativadas ✦ mandando um teste…', 'ok');
     _pushTest();
-  } catch (e) { _toast(e.message || 'não deu pra ativar as notificações', 'err'); }
+  } catch (e) { _toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro painel', 'err'); }
 }
 function _pushTest() {
   fetch('/api/webhook?action=filial_push_subscribe', {
@@ -5094,10 +5252,12 @@ function renderPedidoCard(p, isEntregue) {
     preparing: '<span class="status-badge status-novo">em separação</span>',
     ready: '<span class="status-badge status-novo">pronto p/ retirada</span>',
     dispatched: '<span class="status-badge status-novo">a caminho</span>',
-    done: `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
+    done: p.status === 'cancelled'
+      ? '<span class="status-badge" style="background:rgba(255,77,143,.14);color:var(--pink)">cancelado</span>'
+      : `<span class="status-badge status-entregue">✓ ${isDelivery ? 'entregue' : 'retirado'}</span>`,
   };
   const modeChip = `<span style="font-size:11px;font-weight:700;color:var(--fg-dim);background:var(--bg3);border-radius:999px;padding:2px 8px;margin-left:6px">${isDelivery ? '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> entrega' : '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4.5 9.5h15L18 5H6L4.5 9.5Z"/><path d="M5.5 9.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/><path d="M9.5 20v-4.5h5V20"/></svg> retirada'}</span>`;
-  const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> ${esc((p.address.street || '') + (p.address.num ? ', ' + p.address.num : '') + (p.address.bairro ? ' · ' + p.address.bairro : ''))}</div>` : '';
+  const addrBlock = (isDelivery && p.address) ? `<div style="margin-top:8px;font-size:12px;color:var(--fg-dim)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M19 10.5c0 5.2-7 11-7 11s-7-5.8-7-11a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10.5" r="2.5"/></svg> ${esc(_pedAddrTxt(p.address))}</div>` : '';
   const corr = p.corrida ? `<div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--fg-dim)">${_corridaLabel(p.corrida)}</div>` : '';
   // Ações por etapa
   let actions = '';
@@ -5138,9 +5298,10 @@ function renderPedidoCard(p, isEntregue) {
         ${badges[stage] || badges.new}
       </div>
       ${schedBadge}
-      <div class="cliente-info">${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
+      <div class="cliente-info"><b style="color:var(--fg)">Pedido ${esc(_pedNum(p))}</b> · ${esc(cust.phone) || ''} ${cust.phone ? '✦' : ''} ${fmtDate(p.created_at)} ${fmtTime(p.created_at)}</div>
       <div class="items">${items}</div>
       ${addrBlock}
+      ${_pedTools(p, isDelivery)}
       ${pickupBlock}
       ${p.retirada_pendente ? `<button class="pf-btn" style="margin-top:8px;width:100%;background:var(--lime);color:#0A0A14;font-weight:800" onclick="confirmarRetiradaLoja(${p.id})">Confirmar retirada do entregador ✓</button>` : ''}
       <div class="total">
@@ -5162,7 +5323,7 @@ async function confirmarRetiradaLoja(orderId) {
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) { _toast('Retirada confirmada ✦ entregador a caminho do cliente', 'ok'); loadData(true); }
     else _toast(d.error || 'Não deu pra confirmar a retirada', 'err');
-  } catch (e) { _toast('Erro de rede', 'err'); }
+  } catch (e) { _toast('Sem conexão agora ✦ confere a internet e tenta de novo', 'err'); }
 }
 async function cancelOrder(id) {
   if (!confirm('Cancelar este pedido?\n\nSe já foi pago online, o valor é estornado ao cliente e o estoque volta pro catálogo.')) return;
@@ -5178,11 +5339,11 @@ async function cancelOrder(id) {
     });
     const d = await r.json().catch(() => ({}));
     if (!(r.ok && d.ok)) throw new Error((d && d.error) || 'não deu pra cancelar');
-    _toast(d.refunded ? 'Pedido cancelado ✦ estorno solicitado ao cliente' : 'Pedido cancelado ✦', 'ok');
+    _toast(d.refunded ? 'Pedido cancelado ✦ estorno solicitado ao cliente' : (d.refund_manual ? 'Pedido cancelado ✦ agora devolva o valor pelo app da InfinitePay' : 'Pedido cancelado ✦'), 'ok');
     loadData(false); // reconcilia em segundo plano (sem "carregando")
   } catch (e) {
     if (removed) { _pendentesAll.splice(Math.min(idx, _pendentesAll.length), 0, removed); _renderPendentes(); } // desfaz
-    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    _toast((e && e.message && !/fetch|network|Failed/i.test(e.message)) ? e.message : 'Sem conexão agora ✦ confere a internet e tenta de novo', 'err');
     loadData(false);
   }
 }
@@ -5210,7 +5371,7 @@ async function advanceOrder(id, status) {
     if (terminal && removedObj) { _pendentesAll.splice(Math.min(removedIdx, _pendentesAll.length), 0, removedObj); }
     else if (p && prev != null) { p.status = prev; }
     _renderPendentes();
-    _toast(e.message || 'erro de rede — tenta de novo', 'err');
+    _toast((e && e.message && !/fetch|network|Failed/i.test(e.message)) ? e.message : 'Sem conexão agora ✦ confere a internet e tenta de novo', 'err');
     loadData(false);
   }
 }
@@ -5231,7 +5392,8 @@ function openChamarEntregador(orderId) {
   const sel = document.getElementById('chamar-ent');
   sel.innerHTML = '<option value="">Abrir pra todos os entregadores</option>' + fixos.map(e => `<option value="${e.id}">Fixo: ${esc(e.nome)}</option>`).join('');
   document.getElementById('chamar-msg').textContent = '';
-  document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido #' + orderId;
+  const _po = (_painelData && Array.isArray(_painelData.pedidos_pendentes) ? _painelData.pedidos_pendentes : []).find(x => x.id === orderId);
+  document.getElementById('chamar-title').textContent = 'Chamar entregador · Pedido ' + (_po ? _pedNum(_po) : '#' + orderId);
   document.getElementById('chamar-ov').classList.add('open');
 }
 function closeChamar() { document.getElementById('chamar-ov').classList.remove('open'); }
@@ -5249,8 +5411,8 @@ async function confirmChamar() {
       const v = d.corrida && d.corrida.valor_motoboy_cents;
       _toast('Corrida criada ✦' + (v ? (' frete R$ ' + (v / 100).toFixed(2).replace('.', ',')) : ''), 'ok');
       closeChamar(); loadData(true);
-    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || ('erro ' + r.status); }
-  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Erro de rede'; }
+    } else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
+  } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
 }
 
 // Boot: se há sessão salva (slug + token), entra DIRETO no painel — sem flash da
@@ -5259,6 +5421,14 @@ async function confirmChamar() {
 // só sai quando o lojista clica em "Sair".
 if (ACCESS_CODE && FILIAL_SLUG) {
   try { document.getElementById('auth-overlay').style.display = 'none'; document.getElementById('painel').style.display = 'block'; } catch (e) {}
+  // Abre NA HORA com a última versão guardada (até 24h) e atualiza por trás (UX R5/A8).
+  try {
+    const c = JSON.parse(localStorage.getItem(_painelCacheKey()) || 'null');
+    if (c && c.data && c.data.ok && Date.now() - (c.at || 0) < 864e5) {
+      render(c.data);
+      const lu = document.getElementById('last-update'); if (lu) lu.textContent = 'atualizando…';
+    }
+  } catch (e) {}
   loadData(true);
 }
 function switchPanelTab(tab){

@@ -4688,6 +4688,76 @@ async function handleDeliveryQuote(req, res) {
   }
 }
 
+// ===================== MINIATURAS (UX R5) =====================
+// GET action=img&w=320&u=<url da foto no Supabase> → a mesma foto em WebP pequena (~20 KB em vez
+// de ~1,5 MB PNG). Gera na 1ª vez e fica no cache da Vercel (CDN) — não grava nada no banco.
+// Só aceita fotos do nosso Storage (não vira proxy aberto). Se falhar, redireciona pra original.
+const _IMG_WIDTHS = [96, 160, 240, 320, 480, 640];
+async function handleImgThumb(req, res) {
+  let src = '';
+  try {
+    const u = new URL(req.url, 'http://x');
+    src = String(u.searchParams.get('u') || '');
+    const wReq = parseInt(u.searchParams.get('w') || '320', 10) || 320;
+    const w = _IMG_WIDTHS.reduce((best, x) => (Math.abs(x - wReq) < Math.abs(best - wReq) ? x : best), 320);
+    let host = ''; try { host = new URL(src).host; } catch (e) {}
+    const okHost = !!host && (host === new URL(SUPABASE_URL).host) && /\/storage\/v1\/object\/public\//.test(src);
+    if (!okHost) return res.status(400).json({ error: 'imagem inválida' });
+    let sharp; try { sharp = require('sharp'); } catch (e) { sharp = null; }
+    if (!sharp) { res.setHeader('Location', src); return res.status(302).end(); }
+    const r = await fetch(src, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) { res.setHeader('Location', src); return res.status(302).end(); }
+    const buf = Buffer.from(await r.arrayBuffer());
+    const out = await sharp(buf).rotate().resize(w, w, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(200).send(out);
+  } catch (e) {
+    console.warn('[img] falhou:', e.message);
+    if (src) { res.setHeader('Location', src); res.setHeader('Cache-Control', 'no-store'); return res.status(302).end(); }
+    return res.status(500).json({ error: 'falhou' });
+  }
+}
+
+// GET action=filial_pedidos_busca&filial&token&q= — busca de pedido (UX A7): número (#dr-…),
+// nome ou telefone do cliente, em QUALQUER data e status (inclui cancelados). Sem q → últimos 50.
+async function handleFilialPedidosBusca(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const u = new URL(req.url, 'http://x');
+    const filial = await _filialAuthBySlug(String(u.searchParams.get('filial') || '').toLowerCase().trim(), String(u.searchParams.get('token') || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    let q = String(u.searchParams.get('q') || '').trim().replace(/^#/, '').slice(0, 60);
+    const safe = q.replace(/[^\p{L}\p{N} .@_-]/gu, '').trim(); // sem vírgula/parênteses (quebram o filtro)
+    let filter = `filial_id=eq.${filial.id}&status=neq.created`;
+    if (safe) {
+      const digits = safe.replace(/\D/g, '');
+      const parts = [`order_nsu.ilike.*${encodeURIComponent(safe)}*`, `customer_snapshot->>name.ilike.*${encodeURIComponent(safe)}*`];
+      if (digits.length >= 4) parts.push(`customer_snapshot->>phone.ilike.*${digits}*`);
+      filter += `&or=(${parts.join(',')})`;
+    }
+    const rows = await sbGet('drope_orders', `${filter}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=50`);
+    const pct = (_planFor(filial).commission_pct) || 10;
+    const pedidos = (Array.isArray(rows) ? rows : []).map(o => {
+      const t = Number(o.total_cents || 0);
+      return {
+        id: o.id, order_nsu: o.order_nsu, status: o.status, total_cents: t, ganho_cents: t - Math.round(t * pct / 100),
+        items: Array.isArray(o.items) ? o.items.map(it => ({ qty: it.qty || it.quantity || 1, name: it.name || 'item' })) : [],
+        customer: o.customer_snapshot || {}, address: o.address || null,
+        delivery_mode: o.delivery_mode || (o.address ? 'delivery' : 'pickup'),
+        created_at: o.created_at, delivered_at: o.delivered_at || o.picked_up_at,
+      };
+    });
+    return res.status(200).json({ ok: true, pedidos });
+  } catch (e) {
+    console.error('[filial_pedidos_busca] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: 'não consegui buscar agora' });
+  }
+}
+
 async function handleFilialPainel(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
@@ -4722,12 +4792,17 @@ async function handleFilialPainel(req, res) {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    // PERF: as consultas independentes saem JUNTAS (antes eram ~7 em fila, a cada 10s por painel aberto).
+    const _pOrders = sbGet('drope_orders',
+      `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`).catch(() => []);
+    const _pProds = sbGet('drope_products',
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`).catch(() => []);
+    const _pSettle = sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`).catch(() => []);
 
     // Pedidos ATIVOS da filial no mês (inclui pending_pickup = pagar na retirada, e
     // preparing/ready = em separação/pronto). 'created'/'waiting_proof' ficam de fora
     // (checkout não concluído). Finalizados (delivered/picked_up/completed) vão pro histórico.
-    const orders = await sbGet('drope_orders',
-      `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`);
+    const orders = await _pOrders;
 
     // Calcular ganho da fundadora como (price - cost) / 2 por item
     // Pega cost_cents dos produtos envolvidos pra calcular dinâmico
@@ -4789,8 +4864,7 @@ async function handleFilialPainel(req, res) {
     const saldoPendenteCents = pedidos.reduce((s, p) => s + (p.ganho_cents || 0), 0);
 
     // Produtos da loja (pro lojista gerenciar estoque/preço)
-    const prods = await sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`);
+    const prods = await _pProds;
     const produtos = (Array.isArray(prods) ? prods : []).map(p => ({
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
       stock: p.qty_available, hidden: !!p.hidden,
@@ -4869,15 +4943,28 @@ async function handleFilialPainel(req, res) {
     const fixos = Array.isArray((filial.metadata || {}).entregadores_fixos) ? (filial.metadata || {}).entregadores_fixos : [];
     let entregadoresFixos = fixos;
     try {
-      const settleRows = await sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`);
+      const settleRows = await _pSettle;
       const owe = {};
       (settleRows || []).forEach(c => { const k = c.entregador_id; if (!k) return; owe[k] = owe[k] || { cents: 0, n: 0 }; owe[k].cents += Number(c.valor_motoboy_cents) || 0; owe[k].n++; });
       entregadoresFixos = fixos.map(e => ({ ...e, a_pagar_cents: (owe[e.id] || {}).cents || 0, entregas_a_pagar: (owe[e.id] || {}).n || 0 }));
     } catch (e) { console.warn('[painel entregadores settle]', e.message); }
 
+    // ===== Números do dia (UX A1): hoje até agora × mesmo dia da semana passada até a MESMA hora =====
+    let dia = null;
+    try {
+      const BRT = 3 * 3600e3, nowMs = Date.now();
+      const b = new Date(nowMs - BRT); // "agora" no relógio de SP
+      const todayStart = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate()) + BRT;
+      const lwStart = todayStart - 7 * 864e5, lwNow = nowMs - 7 * 864e5;
+      const rows = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${new Date(lwStart).toISOString()}&select=created_at,total_cents&limit=2000`);
+      const sum = (from, to) => { let n = 0, c = 0; (rows || []).forEach(o => { const t = Date.parse(o.created_at); if (t >= from && t < to) { n++; c += Number(o.total_cents) || 0; } }); return { pedidos: n, vendas_cents: c, ticket_cents: n ? Math.round(c / n) : 0 }; };
+      dia = { hoje: sum(todayStart, nowMs + 1), semana_passada: sum(lwStart, lwNow + 1), semana_passada_dia_todo: sum(lwStart, lwStart + 864e5) };
+    } catch (e) { console.warn('[painel dia]', e.message); }
+
     return res.status(200).json({
       ok: true,
       comissoes,
+      dia,
       filial: {
         id: filial.id,
         slug: filial.slug,
@@ -5343,7 +5430,9 @@ async function handleFilialOrderCancel(req, res) {
     // Estorno no Mercado Pago — SEMPRE que houver pagamento online (transaction_id).
     // (o cliente pagou → o cancelamento devolve o dinheiro dele.)
     let refunded = false;
-    const paidOnline = !!o.transaction_id;
+    // InfinitePay não tem estorno por API: a loja devolve pelo app da InfinitePay (avisamos os dois).
+    const paidInfinite = !!o.transaction_id && String(o.payment_method || '').startsWith('infinitepay');
+    const paidOnline = !!o.transaction_id && !paidInfinite;
     if (paidOnline) {
       try {
         const sellerToken = await _mpTokenForFilial(filial);
@@ -5363,10 +5452,12 @@ async function handleFilialOrderCancel(req, res) {
       const nsu = o.order_nsu || id;
       const msg = refunded
         ? `Seu pedido #${nsu} foi cancelado pela loja. O estorno já foi solicitado ✦`
-        : `Seu pedido #${nsu} foi cancelado pela loja.`;
+        : paidInfinite
+          ? `Seu pedido #${nsu} foi cancelado pela loja. A devolução do valor vai ser feita pela loja ✦`
+          : `Seu pedido #${nsu} foi cancelado pela loja.`;
       if (phone) _notify('customer', phone, 'order_status', 'Pedido cancelado', msg, null).catch(() => {});
     } catch (e) {}
-    return res.status(200).json({ ok: true, refunded });
+    return res.status(200).json({ ok: true, refunded, refund_manual: paidInfinite });
   } catch (e) { console.error('[filial_order_cancel] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
@@ -15919,7 +16010,8 @@ async function handleCatalog(req, res) {
       // Coordenadas só quando são geocode real (não o backfill de centro de cidade).
       const realGeo = (geo.source && geo.source !== 'city_backfill');
       lojaInfo = { slug: filialSlug, name: fr[0].name || null, city: fr[0].city || null, photo_url: prof.photo_url || null, cover_url: prof.cover_url || null, bio: prof.bio || null, theme: prof.theme || 'dark', accent: prof.accent || null, hours: prof.hours || null, open_now: _storeOpenNow(prof.hours), whats: prof.whats || null, featured_mode: ((fr[0].metadata || {}).featured_mode) || 'auto',
-        mp_connected: !!((((fr[0].metadata || {}).payment) || {}).access_token),
+        mp_connected: PAY_PROVIDER === 'infinitepay' ? true : !!((((fr[0].metadata || {}).payment) || {}).access_token), // = "pode receber"
+        pay_provider: PAY_PROVIDER,
         mp_public_key: ((((fr[0].metadata || {}).payment) || {}).public_key) || null, // pro formulário de cartão in-app (tokenização)
         endereco: endStr,
         lat: (hasRealAddr && realGeo && typeof geo.lat === 'number') ? geo.lat : null,
@@ -17940,93 +18032,89 @@ async function handleMPConnectStatus(req, res) {
 
 // Cria pagamento Pix via API do Mercado Pago, retorna QR code + copia-e-cola
 // ===== INFINITEPAY (migrado de api/infinitepay-*.js em 08/05/2026) =====
+// Conta InfinitePay da loja (InfiniteTag, sem $). Fica no SERVIDOR — o app do cliente não escolhe.
+const INFINITEPAY_HANDLE = process.env.INFINITEPAY_HANDLE || 'lucas-de-andrade-671';
+// Provedor de pagamento do app do cliente: 'infinitepay' (padrão, set/2026) ou 'mp' (Mercado Pago, desligado).
+const PAY_PROVIDER = (process.env.PAY_PROVIDER || 'infinitepay').toLowerCase();
+
+// Confere na InfinitePay se o pedido foi pago de verdade (o aviso dela não tem assinatura:
+// sem isso, qualquer um que descobrisse o endereço marcaria pedido como pago).
+async function _ipPaymentCheck(orderNsu, transactionNsu, slug) {
+  try {
+    const r = await fetch('https://api.checkout.infinitepay.io/payment_check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle: INFINITEPAY_HANDLE, order_nsu: orderNsu, transaction_nsu: transactionNsu, slug }),
+    });
+    const d = await r.json().catch(() => ({}));
+    return (r.ok && d) ? d : null;
+  } catch (e) { console.warn('[InfinitePay] payment_check err:', e.message); return null; }
+}
+
+// POST action=infinitepay_checkout { order_id (order_nsu), customer? } → { url }
+// O VALOR vem do pedido salvo no banco (conferido contra o preço real dos produtos), nunca
+// do celular. Na tela da InfinitePay aparece só "Pedido Drope #xxxx" (sem nome de produto).
 async function handleInfinitePayCheckout(req, res) {
   const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
-  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
-
   try {
-    const { handle, items, total, order_id, customer, ambassador_ref } = req.body || {};
-    if (!handle || !items || !items.length) return res.status(400).json({ error: 'missing handle or items' });
+    const { order_id, customer } = req.body || {};
+    const orderNsu = String(order_id || '').trim();
+    if (!/^[a-zA-Z0-9_-]{4,64}$/.test(orderNsu)) return res.status(400).json({ error: 'missing order_id' });
+    const rows = await sbGet('drope_orders', `order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,order_nsu,status,total_cents,subtotal_cents,delivery_fee_cents,items&limit=1`);
+    const order = Array.isArray(rows) && rows[0];
+    if (!order) return res.status(404).json({ error: 'pedido_nao_encontrado', message: 'Pedido não encontrado ✦ tenta de novo' });
+    if (order.status !== 'created') return res.status(409).json({ error: 'pedido_ja_processado', message: 'Esse pedido já foi pago ou cancelado.' });
+    // Confere preço: soma dos produtos pelo preço REAL do banco. Celular adulterado não paga menos.
+    const items = Array.isArray(order.items) ? order.items : [];
+    const slugs = [...new Set(items.map(i => i && i.slug).filter(Boolean))];
+    if (slugs.length) {
+      const prods = await sbGet('drope_products', `slug=in.(${slugs.map(x => encodeURIComponent(x)).join(',')})&select=slug,price_cents`);
+      const price = {}; (Array.isArray(prods) ? prods : []).forEach(p => { price[p.slug] = p.price_cents || 0; });
+      const realSub = items.reduce((acc, i) => acc + ((i && i.slug && price[i.slug]) || 0) * (Number(i && i.qty) || 0), 0);
+      // item que não existe mais no catálogo → não cobra (o save-order já barra, isso é a 2ª trava)
+      if (items.some(i => !i || !i.slug || price[i.slug] == null)) {
+        return res.status(409).json({ error: 'item_indisponivel', message: 'Tem um item que não está mais à venda no pedido ✦ volta no carrinho e tenta de novo' });
+      }
+      if (realSub > 0 && (order.subtotal_cents || 0) + 1 < realSub) {
+        console.warn('[InfinitePay] subtotal abaixo do preço real', orderNsu, order.subtotal_cents, '<', realSub);
+        return res.status(409).json({ error: 'preco_alterado', message: 'Os preços mudaram ✦ atualiza o carrinho e tenta de novo' });
+      }
+      // desconto (cupom) máximo aceito: 50% dos produtos
+      const discount = (order.subtotal_cents || 0) + (order.delivery_fee_cents || 0) - (order.total_cents || 0);
+      if (discount > Math.round(realSub * 0.5) + 1) {
+        console.warn('[InfinitePay] desconto acima do limite', orderNsu, discount);
+        return res.status(409).json({ error: 'desconto_invalido', message: 'Não deu pra aplicar esse desconto ✦ tenta de novo' });
+      }
+    }
+    const totalCents = Math.round(order.total_cents || 0);
+    if (totalCents <= 100) return res.status(400).json({ error: 'valor_minimo', message: 'Pedido mínimo de R$ 1,00 ✦' });
 
     const protocol = (req.headers['x-forwarded-proto'] || 'https');
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'drope-app.vercel.app';
-    const redirectUrl = `${protocol}://${host}/#success-pay`;
-    // ambassador_ref vai como query no webhook_url pra ser persistido junto à confirmação
-    const refQS = ambassador_ref ? `&ref=${encodeURIComponent(ambassador_ref)}` : '';
-    const webhookUrl = `${protocol}://${host}/api/webhook?action=infinitepay_webhook${refQS}`;
-
-    const orderNsu = order_id || `drope-${Date.now()}`;
-
-    // Pré-grava o ambassador_ref no pedido (Supabase) pra não depender só da query do webhook
-    if (ambassador_ref && SUPABASE_URL && SUPABASE_KEY) {
-      try {
-        // Tenta achar a ambassador
-        const ambRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/drope_ambassadors?ref_code=eq.${encodeURIComponent(String(ambassador_ref).toUpperCase())}&status=eq.active&select=id`,
-          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-        );
-        const ambRows = await ambRes.json();
-        const ambId = Array.isArray(ambRows) && ambRows[0]?.id;
-        if (ambId) {
-          // Upsert pré-pedido em drope_orders com ambassador
-          await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {
-            method: 'POST',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=ignore-duplicates',
-            },
-            body: JSON.stringify({
-              order_nsu: orderNsu,
-              status: 'pending_payment',
-              ambassador_ref: String(ambassador_ref).toUpperCase(),
-              ambassador_id: ambId,
-              created_at: new Date().toISOString(),
-            }),
-          });
-          console.log('[InfinitePay] pre-grav ambassador ref', ambassador_ref, '→ amb_id', ambId);
-        }
-      } catch (eAmb) {
-        console.warn('[InfinitePay] pre-grav ambassador err:', eAmb.message);
-      }
-    }
-
     const payload = {
-      handle,
+      handle: INFINITEPAY_HANDLE,
       order_nsu: orderNsu,
-      redirect_url: redirectUrl,
-      webhook_url: webhookUrl,
-      items: items.map(i => ({ quantity: i.quantity, price: i.price, description: 'Atendimento' })),
+      redirect_url: `${protocol}://${host}/?pay=ip`, // sem #: a InfinitePay anexa ?order_nsu&transaction_nsu&slug — com # os dados iam parar depois do # e se perdiam
+      webhook_url: `${protocol}://${host}/api/webhook?action=infinitepay_webhook`,
+      items: [{ quantity: 1, price: totalCents, description: `Pedido Drope #${orderNsu.replace(/^dr-/, '')}` }],
     };
     if (customer && (customer.name || customer.email || customer.phone_number)) {
       payload.customer = {};
-      if (customer.name) payload.customer.name = customer.name;
-      if (customer.email) payload.customer.email = customer.email;
-      if (customer.phone_number) payload.customer.phone_number = customer.phone_number;
+      if (customer.name) payload.customer.name = String(customer.name).slice(0, 100);
+      if (customer.email) payload.customer.email = String(customer.email).slice(0, 100);
+      if (customer.phone_number) payload.customer.phone_number = String(customer.phone_number).slice(0, 20);
     }
-
-    console.log('[InfinitePay] payload:', JSON.stringify(payload).substring(0, 400));
-    const response = await fetch('https://api.infinitepay.io/invoices/public/checkout/links', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const response = await fetch('https://api.checkout.infinitepay.io/links', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
-    const data = await response.json();
-    console.log('[InfinitePay] status:', response.status, 'data:', JSON.stringify(data).substring(0, 300));
-
-    if (response.ok && data.url) {
-      return res.status(200).json({ url: data.url, id: data.id || data.invoice_slug });
-    }
-    // Sem fallback quebrado: a URL antiga (infinitepay.io/handle?amount=) dava 404.
-    // Se a API nao retornou url, devolve erro claro — o frontend mostra "tenta de novo".
-    console.error('[InfinitePay] API sem url:', response.status, JSON.stringify(data).substring(0, 200));
-    return res.status(502).json({ error: 'infinitepay_no_url', details: data });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && data.url) return res.status(200).json({ url: data.url });
+    console.error('[InfinitePay] link sem url:', response.status, JSON.stringify(data).substring(0, 300));
+    return res.status(502).json({ error: 'infinitepay_no_url', message: 'Não deu pra abrir o pagamento agora ✦ tenta de novo' });
   } catch (err) {
     console.error('[InfinitePay] ERROR:', err.message);
     return res.status(500).json({ error: err.message });
@@ -18040,29 +18128,40 @@ async function handleInfinitePayWebhook(req, res) {
   const STORE_WHATS_NUMBER = process.env.STORE_WHATS_NUMBER || "5511924810126";
 
   try {
-    if (INFINITEPAY_WEBHOOK_SECRET) {
-      const provided = req.headers['x-webhook-secret'] || req.headers['x-infinitepay-signature'];
-      if (provided !== INFINITEPAY_WEBHOOK_SECRET) {
-        console.warn('[InfinitePay Webhook] invalid secret');
-        return res.status(401).json({ error: 'unauthorized' });
-      }
-    }
+    // Sem checagem de "secret": o aviso real da InfinitePay NÃO manda cabeçalho de senha (a
+    // checagem antiga recusava TODO aviso verdadeiro). A segurança é a conferência abaixo:
+    // o servidor pergunta pra própria InfinitePay (payment_check) se foi pago e quanto.
+    void INFINITEPAY_WEBHOOK_SECRET;
 
     const body = req.body || {};
     console.log('[InfinitePay Webhook] payload:', JSON.stringify(body).substring(0, 400));
 
-    const event = body.event || body.type || 'unknown';
-    const transactionId = body.transaction_id || body.transactionId || body.id;
-    const orderNsu = body.order_nsu || body.orderNsu || body.nsu || '';
-    const amountCents = body.amount || body.total || 0;
-    const paymentMethod = body.payment_method || body.paymentMethod || 'pix';
+    // Payload real da InfinitePay: { invoice_slug, amount, paid_amount, installments,
+    // capture_method, transaction_nsu, order_nsu, receipt_url, items } (sem campo "event").
+    // O app do cliente também chama aqui ao voltar do pagamento (redirect traz os mesmos dados).
+    const orderNsu = String(body.order_nsu || '').trim();
+    const transactionId = String(body.transaction_nsu || '').trim();
+    const invoiceSlug = String(body.invoice_slug || body.slug || '').trim();
     const customer = body.customer || {};
-
-    const approvedEvents = ['payment.approved', 'payment.confirmed', 'transaction.approved', 'approved'];
-    if (!approvedEvents.includes(String(event).toLowerCase())) {
-      console.log('[InfinitePay Webhook] evento ignorado:', event);
-      return res.status(200).json({ ok: true, ignored: true, event });
+    if (!orderNsu || !transactionId || !invoiceSlug) {
+      return res.status(200).json({ ok: false, error: 'dados_incompletos' });
     }
+    // Nunca confia no aviso: pergunta pra InfinitePay se foi pago e quanto.
+    const chk = await _ipPaymentCheck(orderNsu, transactionId, invoiceSlug);
+    if (!chk || !chk.paid) {
+      console.log('[InfinitePay Webhook] ainda não pago/sem confirmação:', orderNsu, JSON.stringify(chk || {}).substring(0, 200));
+      return res.status(400).json({ ok: false, paid: false, error: 'nao_confirmado' }); // 400 → a InfinitePay tenta de novo
+    }
+    const _ordRows = await sbGet('drope_orders', `order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,status,total_cents&limit=1`);
+    const _ord = Array.isArray(_ordRows) && _ordRows[0];
+    if (!_ord) return res.status(200).json({ ok: false, error: 'pedido_nao_encontrado' });
+    const _chkAmount = Math.max(Number(chk.amount) || 0, Number(chk.paid_amount) || 0);
+    if (_chkAmount + 1 < (_ord.total_cents || 0)) {
+      console.error('[InfinitePay Webhook] VALOR PAGO MENOR que o pedido', orderNsu, _chkAmount, '<', _ord.total_cents);
+      return res.status(200).json({ ok: false, error: 'valor_divergente' });
+    }
+    const amountCents = Number(chk.paid_amount) || Number(chk.amount) || (_ord.total_cents || 0);
+    const paymentMethod = chk.capture_method || body.capture_method || 'pix';
 
     // Lê ?ref= da URL do webhook (foi setado pelo handleInfinitePayCheckout)
     let webhookRef = '';
@@ -18094,6 +18193,7 @@ async function handleInfinitePayWebhook(req, res) {
               payment_confirmed_at: new Date().toISOString(),
               transaction_id: transactionId,
               amount_paid_cents: amountCents,
+              payment_method: 'infinitepay_' + (String(paymentMethod).includes('credit') ? 'card' : 'pix'),
             }),
           }
         );
@@ -18128,6 +18228,8 @@ async function handleInfinitePayWebhook(req, res) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
       }
     }
+    // Já estava pago (2º aviso, ou o app confirmou antes): não repete comissão/avisos.
+    if (!updatedOrderId) return res.status(200).json({ ok: true, paid: true, already: true, orderNsu });
 
     // ===== PROGRAMA EMBAIXADOR ✦ comissão =====
     // 1) Resolve ambassador_id: prioridade ordem → query ref → null
@@ -18333,7 +18435,7 @@ async function handleInfinitePayWebhook(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true, processed: true, orderNsu, transactionId });
+    return res.status(200).json({ ok: true, paid: true, processed: true, orderNsu, transactionId });
   } catch (err) {
     console.error('[InfinitePay Webhook] ERROR:', err.message);
     return res.status(200).json({ ok: false, error: err.message });
@@ -19174,6 +19276,11 @@ async function handleTestClaude(req, res) {
 // ============ HANDLER PRINCIPAL ============
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
+
+  // action=img — miniatura WebP de foto do Storage (cache na CDN)
+  if (req.url && /[?&]action=img(&|$)/.test(req.url)) {
+    return await handleImgThumb(req, res);
+  }
 
   // ===== ROTA: ESTEIRA (08/05/2026) — TELA ÚNICA: sem-sabor + pendentes + gallery =====
   // GET /api/webhook?action=esteira&token=ADMIN_TOKEN → HTML com 3 fases numa só tela
@@ -21877,6 +21984,9 @@ async function generateAll(){
     return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && req.url.indexOf('action=filial_pedidos_busca') >= 0) {
+    return await handleFilialPedidosBusca(req, res);
+  }
   if (req.url && req.url.indexOf('action=filial_painel') >= 0) {
     return await handleFilialPainel(req, res);
   }

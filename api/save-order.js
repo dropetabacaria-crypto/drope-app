@@ -49,14 +49,14 @@ module.exports = async function handler(req, res) {
       customer = {}
     } = body;
 
-    // Status inicial inteligente baseado no método de pagamento
-    // (cliente pode override mandando status no body, mas default é por método)
+    // Status inicial SEMPRE decidido aqui pelo método de pagamento. O status do celular é
+    // ignorado (antes aceitava → dava pra criar pedido já "pago" sem pagar).
     const defaultStatus =
       payment_method === 'infinitepay'   ? 'created' :        // será atualizado pra 'paid' pelo webhook
       payment_method === 'pix_manual'    ? 'waiting_proof' :  // espera comprovante via whats
       payment_method === 'pickup_later'  ? 'pending_pickup' : // pagar na retirada
       'created';
-    const status = body.status || defaultStatus;
+    const status = defaultStatus;
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
 
@@ -155,6 +155,36 @@ module.exports = async function handler(req, res) {
     // (catálogo hardcoded antigo) — pula stock check pra não quebrar.
     const stockReleases = []; // pra rollback se algo der errado depois
     const itemsWithSlug = items.filter(i => i.slug && typeof i.slug === 'string');
+
+    // 🔒 Só vende o que ESTÁ no catálogo agora: todo item precisa existir, estar visível e com o
+    // preço de hoje. (Antes um item velho guardado no celular — produto apagado/de outra loja —
+    // passava e era cobrado pelo preço que o celular mandasse.)
+    if (itemsWithSlug.length !== items.length) {
+      return res.status(409).json({ error: 'item_indisponivel', item: (items.find(i => !i.slug) || {}).name || 'item', message: 'Tem um item que não está mais à venda no seu carrinho ✦ tiramos ele, confere e tenta de novo' });
+    }
+    try {
+      const slugs = [...new Set(itemsWithSlug.map(i => i.slug))];
+      const pr = await fetch(`${SUPABASE_URL}/rest/v1/drope_products?slug=in.(${slugs.map(x => encodeURIComponent(x)).join(',')})&select=slug,name,price_cents,hidden,filial_id`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      });
+      if (pr.ok) {
+        const rows = await pr.json();
+        const bySlug = {}; (Array.isArray(rows) ? rows : []).forEach(p => { bySlug[p.slug] = p; });
+        const lojas = new Set((Array.isArray(rows) ? rows : []).map(p => p.filial_id));
+        for (const it of itemsWithSlug) {
+          const p = bySlug[it.slug];
+          if (!p || p.hidden) {
+            return res.status(409).json({ error: 'item_indisponivel', item: it.name, slug: it.slug, message: `"${it.name}" não está mais à venda ✦ tiramos do carrinho, confere e tenta de novo` });
+          }
+          if (Math.abs(Math.round(Number(it.price) * 100) - (p.price_cents || 0)) > 1) {
+            return res.status(409).json({ error: 'preco_mudou', item: it.name, slug: it.slug, price_cents: p.price_cents, message: `O preço de "${p.name}" mudou pra R$ ${((p.price_cents || 0) / 100).toFixed(2).replace('.', ',')} ✦ atualizamos o carrinho, confere e tenta de novo` });
+          }
+        }
+        if (lojas.size > 1) {
+          return res.status(409).json({ error: 'item_indisponivel', message: 'Seu carrinho tem itens de outra loja ✦ tiramos, confere e tenta de novo' });
+        }
+      }
+    } catch (e) { console.error('[save-order] catalog validate err:', e.message); }
 
     // 🔒 CONTROLE DE ESTOQUE PRECISO — a baixa só acontece quando o pedido é REALMENTE pago.
     //
