@@ -18042,6 +18042,10 @@ async function handleInfinitePayCheckout(req, res) {
       const prods = await sbGet('drope_products', `slug=in.(${slugs.map(x => encodeURIComponent(x)).join(',')})&select=slug,price_cents`);
       const price = {}; (Array.isArray(prods) ? prods : []).forEach(p => { price[p.slug] = p.price_cents || 0; });
       const realSub = items.reduce((acc, i) => acc + ((i && i.slug && price[i.slug]) || 0) * (Number(i && i.qty) || 0), 0);
+      // item que não existe mais no catálogo → não cobra (o save-order já barra, isso é a 2ª trava)
+      if (items.some(i => !i || !i.slug || price[i.slug] == null)) {
+        return res.status(409).json({ error: 'item_indisponivel', message: 'Tem um item que não está mais à venda no pedido ✦ volta no carrinho e tenta de novo' });
+      }
       if (realSub > 0 && (order.subtotal_cents || 0) + 1 < realSub) {
         console.warn('[InfinitePay] subtotal abaixo do preço real', orderNsu, order.subtotal_cents, '<', realSub);
         return res.status(409).json({ error: 'preco_alterado', message: 'Os preços mudaram ✦ atualiza o carrinho e tenta de novo' });

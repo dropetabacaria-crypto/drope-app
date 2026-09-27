@@ -6701,6 +6701,7 @@
       if (saveResp.status === 409 && sd.error === 'out_of_stock') {
         toast('estoque acabou ✦ ' + (sd.item || 'item indisponível')); go('cart'); renderCart(); renderGrid(); return;
       }
+      if (_handleCartReject(saveResp.status, sd)) return;
     } catch (eSave) { console.error('[save-order/card]', eSave && eSave.message); }
     _cardCtx = { orderNsu, chargeCents, amount: chargeCents / 100, slug };
     go('card'); // o handler de 'card' chama renderCardScreen() → renderCardBrick()
@@ -6744,6 +6745,7 @@
         toast('estoque acabou ✦ ' + (sd.item || 'item indisponível'));
         resetBtn(); go('cart'); renderCart(); renderGrid(); return;
       }
+      if (_handleCartReject(saveResp.status, sd)) { resetBtn(); return; }
       if (!saveResp.ok) { toast('Não deu pra registrar o pedido ✦ tenta de novo'); resetBtn(); return; } // sem pedido salvo não cobra
 
       const customer = {};
@@ -6864,6 +6866,7 @@
           go('cart'); renderCart(); renderGrid();
           return;
         }
+        if (_handleCartReject(saveResp.status, sd)) { if (btn) { btn.textContent = 'pagar agora ✦'; btn.disabled = false; } return; }
       } catch (eSave) { console.error('[save-order/mp]', eSave && eSave.message); }
 
       // cria o Pix com split
@@ -9173,6 +9176,7 @@
       }
       products = apply99(data.products);
       allProducts = products;
+      try { _syncCartWithCatalog(true); } catch (e) {} // tira do carrinho o que saiu da loja + atualiza preço
       // Dados da loja (nome/foto/bio) pro cabeçalho estilo iFood
       const _prevLojaSlug = CLIENT_LOJA && CLIENT_LOJA.slug;
       CLIENT_LOJA = data.loja || null;
@@ -13830,6 +13834,39 @@
     document.getElementById('d-btnprice').textContent = money(p.price * currentQty);
   }
 
+  // Carrinho guardado no celular × catálogo de AGORA: item que saiu da loja (apagado, escondido,
+  // de outra loja) sai do carrinho; preço/estoque atualizam. Evita cobrar item fantasma.
+  function _syncCartWithCatalog(loud) {
+    if (!Array.isArray(cart) || !cart.length || !Array.isArray(products) || !products.length) return;
+    const bySlug = {}; products.forEach(p => { if (p && p.slug) bySlug[p.slug] = p; });
+    const removed = [], changed = [];
+    cart = cart.filter(i => {
+      const p = i && i.slug && bySlug[i.slug];
+      if (!p) { removed.push(i && i.name); return false; }
+      if (typeof p.stock === 'number' && p.stock <= 0) { removed.push(p.name); return false; }
+      if (typeof p.price === 'number' && p.price !== i.price) changed.push(p.name);
+      Object.assign(i, { ...p, qty: typeof p.stock === 'number' ? Math.min(i.qty, p.stock) : i.qty });
+      return true;
+    });
+    try { saveCart(); } catch (e) {}
+    try { updateCartBadge(); } catch (e) {}
+    if (loud && removed.length) toast(removed.length === 1 ? `"${removed[0]}" não está mais à venda ✦ tiramos do carrinho` : `${removed.length} itens saíram da loja ✦ tiramos do carrinho`);
+    else if (loud && changed.length) toast('Atualizamos o preço de ' + (changed.length === 1 ? changed[0] : changed.length + ' itens') + ' no carrinho ✦');
+  }
+  // O servidor recusou um item do pedido (saiu da loja / mudou o preço): arruma o carrinho e avisa.
+  function _handleCartReject(status, data) {
+    if (status !== 409 || !data || !['item_indisponivel', 'preco_mudou'].includes(data.error)) return false;
+    if (data.slug) {
+      if (data.error === 'item_indisponivel') cart = cart.filter(i => i.slug !== data.slug);
+      else cart.forEach(i => { if (i.slug === data.slug && data.price_cents) i.price = data.price_cents / 100; });
+    } else {
+      cart = cart.filter(i => !!i.slug);
+    }
+    try { _syncCartWithCatalog(false); saveCart(); updateCartBadge(); } catch (e) {}
+    toast(data.message || 'Atualizamos seu carrinho ✦ confere e tenta de novo');
+    go('cart'); try { renderCart(); } catch (e) {}
+    return true;
+  }
   // Adição que ficou esperando o login (UX R1: o item NÃO se perde ao entrar na conta).
   let _pendingAdd = null; // { idx, qty, from: 'tile' | 'detail' }
   // Coloca o produto no carrinho. Devolve true se entrou.
@@ -14184,6 +14221,7 @@
           go('cart'); renderCart(); renderGrid();
           return;
         }
+        if (_handleCartReject(resp.status, data)) return;
         if (resp.ok && data.ok) {
           _trackToken = data.track_token || null;
           _trackUrl = data.track_url || null;
