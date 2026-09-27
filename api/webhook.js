@@ -18091,13 +18091,10 @@ async function handleInfinitePayWebhook(req, res) {
   const STORE_WHATS_NUMBER = process.env.STORE_WHATS_NUMBER || "5511924810126";
 
   try {
-    if (INFINITEPAY_WEBHOOK_SECRET) {
-      const provided = req.headers['x-webhook-secret'] || req.headers['x-infinitepay-signature'];
-      if (provided !== INFINITEPAY_WEBHOOK_SECRET) {
-        console.warn('[InfinitePay Webhook] invalid secret');
-        return res.status(401).json({ error: 'unauthorized' });
-      }
-    }
+    // Sem checagem de "secret": o aviso real da InfinitePay NÃO manda cabeçalho de senha (a
+    // checagem antiga recusava TODO aviso verdadeiro). A segurança é a conferência abaixo:
+    // o servidor pergunta pra própria InfinitePay (payment_check) se foi pago e quanto.
+    void INFINITEPAY_WEBHOOK_SECRET;
 
     const body = req.body || {};
     console.log('[InfinitePay Webhook] payload:', JSON.stringify(body).substring(0, 400));
