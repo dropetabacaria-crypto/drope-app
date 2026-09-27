@@ -48,14 +48,14 @@ module.exports = async function handler(req, res) {
       customer = {}
     } = body;
 
-    // Status inicial inteligente baseado no método de pagamento
-    // (cliente pode override mandando status no body, mas default é por método)
+    // Status inicial SEMPRE decidido aqui pelo método de pagamento. O status do celular é
+    // ignorado (antes aceitava → dava pra criar pedido já "pago" sem pagar).
     const defaultStatus =
       payment_method === 'infinitepay'   ? 'created' :        // será atualizado pra 'paid' pelo webhook
       payment_method === 'pix_manual'    ? 'waiting_proof' :  // espera comprovante via whats
       payment_method === 'pickup_later'  ? 'pending_pickup' : // pagar na retirada
       'created';
-    const status = body.status || defaultStatus;
+    const status = defaultStatus;
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
 
