@@ -2630,11 +2630,8 @@ async function _flcEnrichProduct(productId, brand, model, flavor) {
 // Base: R$ 5 + R$ 1.50/km, mínimo R$ 7. Sem dist informada, default 4km (média Vila Prudente).
 // Frete do motoboy — alinhado ao iFood (reajuste out/2025): base R$6 + R$1,50/km,
 // mínimo R$7,50 (moto). Cálculo automático; a loja NÃO escolhe o valor.
-function _motoboyCalcValorCents(distKm) {
-  const km = (typeof distKm === 'number' && distKm > 0) ? distKm : 4;
-  const valor = Math.max(7.5, Math.round((6 + 1.5 * km) * 100) / 100);
-  return Math.round(valor * 100); // cents
-}
+// Motoboy: R$ 10 + R$ 2/km do trajeto (regra de 27/09/2026 — lib/frete.js motoboyPayCents).
+function _motoboyCalcValorCents(distKm) { return _motoboyPayCents(distKm); }
 // Monta o endereço COMPLETO cadastrado (pro Waze/Maps do motoboy). Tolerante às
 // chaves do cliente (street/num/neigh/city/uf) E do lojista (rua/numero/bairro).
 // SEMPRE inclui cidade + UF + CEP (sem cidade o Waze acha a rua na cidade errada).
@@ -4660,7 +4657,7 @@ function _commissionWindow(md, now) {
 // Auth simples por código de acesso (gera-se com nome + telefone — bom o suficiente
 // pra começar). Cliente vê pedidos da filial dela e ganho por venda.
 // Frete pela ROTA (Google) → lib/frete.js (compartilhado com o save-order).
-const { freteQuote: _freteQuote, freteFilialBySlug: _freteFilialBySlug } = require('../lib/frete');
+const { freteQuote: _freteQuote, freteFilialBySlug: _freteFilialBySlug, motoboyPayCents: _motoboyPayCents } = require('../lib/frete');
 
 // GET ?cep=XXXXXXXX (legado) | POST { filial, address:{cep,street,num,neigh,city,uf} }
 async function handleDeliveryQuote(req, res) {
@@ -4669,10 +4666,10 @@ async function handleDeliveryQuote(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
   try {
-    let slug = 'sp', addr = null;
+    let slug = 'sp', addr = null, pods = 0;
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-      slug = String(body.filial || 'sp').toLowerCase().trim(); addr = body.address || null;
+      slug = String(body.filial || 'sp').toLowerCase().trim(); addr = body.address || null; pods = parseInt(body.pods || 0, 10) || 0;
     } else {
       const u = new URL(req.url, 'http://x');
       slug = String(u.searchParams.get('filial') || 'sp').toLowerCase().trim();
@@ -4680,7 +4677,7 @@ async function handleDeliveryQuote(req, res) {
     }
     const filial = await _freteFilialBySlug(slug);
     if (!filial) return res.status(404).json({ ok: false, error: 'loja não encontrada' });
-    const q = await _freteQuote(filial, addr);
+    const q = await _freteQuote(filial, addr, { pods });
     return res.status(200).json(q);
   } catch (e) {
     console.error('[delivery_quote] ERROR:', e.message);
@@ -7794,11 +7791,9 @@ async function handleFilialCorridaCreate(req, res) {
     if (distKm == null && storeGeo.lat && storeGeo.lng && custGeo.lat && custGeo.lng) {
       distKm = Math.round(_haversineKmSrv(storeGeo, custGeo) * 1.35 * 10) / 10; // ×1.35 = fator de rua
     }
-    // Repasse ao motoboy = 94% do FRETE que o cliente pagou (DROPE fica com 6%).
-    // Fallback (pedido sem frete registrado): 94% da tabela base+km.
-    const freteCents = Number(order.delivery_fee_cents) || 0;
-    const baseCents = freteCents > 0 ? freteCents : _motoboyCalcValorCents(distKm);
-    const valorCents = Math.round(baseCents * 0.94);
+    // Motoboy recebe R$ 10 + R$ 2/km do trajeto (27/09/2026). Não depende mais do frete que o
+    // cliente pagou (frete grátis/faixa barata não pode reduzir o pagamento dele).
+    const valorCents = _motoboyCalcValorCents(distKm);
     const inserted = await sbInsert('drope_corridas', {
       order_id: order.id, filial_id: filial.id, status: 'aberta',
       assigned_to: assignedTo, valor_motoboy_cents: valorCents, distancia_km: distKm,

@@ -89,7 +89,8 @@ module.exports = async function handler(req, res) {
     if (delivery_mode === 'delivery' && address && typeof address === 'object') {
       try {
         const filialQ = await freteFilialBySlug(body.filial_slug || 'sp');
-        const q = filialQ ? await freteQuote(filialQ, address) : null;
+        const podsQtd = (Array.isArray(items) ? items : []).reduce((t, i) => t + (Number(i && i.qty) || 0), 0);
+        const q = filialQ ? await freteQuote(filialQ, address, { pods: podsQtd }) : null; // 2+ pods até 6 km → grátis
         if (q && q.ok && q.out_of_range) {
           return res.status(409).json({ error: 'fora_da_area', message: q.message, km: q.km });
         }

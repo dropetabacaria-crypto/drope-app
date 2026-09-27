@@ -4899,6 +4899,7 @@
       <div class="lbl">total</div>
       <div class="val" id="cart-total-val">R$ 0</div>
     </div>
+    <div id="cart-frete" style="margin:8px 20px 0;font-size:13px;color:var(--text-dim);line-height:1.5"></div>
 
     <div style="height: 100px"></div>
 
@@ -10109,7 +10110,7 @@
     return { cep: String(a.cep || '').replace(/\D/g, ''), street: a.street || '', num: a.num || '', neigh: a.neigh || '', city: a.city || '', uf: a.uf || '' };
   }
   function _quoteKeyOf(a) { a = _quoteAddr(a) || {}; return [a.cep, a.street, a.num, a.city].map(x => String(x || '').trim().toLowerCase()).join('|'); }
-  function _quoteCacheKey(k) { return 'drope_q2_' + k; } // q2: cache novo (o antigo era por CEP/linha reta)
+  function _quoteCacheKey(k) { return 'drope_q3_' + k; } // q3: regra por faixa (27/09) — descarta cotações antigas // q2: cache novo (o antigo era por CEP/linha reta)
   function _loadQuoteCache(k) {
     try { const d = JSON.parse(localStorage.getItem(_quoteCacheKey(k)) || 'null'); if (!d || Date.now() - (d.cachedAt || 0) > 6 * 3600 * 1000) return null; return d; } catch (_) { return null; }
   }
@@ -10172,7 +10173,7 @@
     if (data.out_of_range) {
       el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>${data.message}</b></div>`;
     } else {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ${String(data.km).replace('.', ',')} km de trajeto</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.zone_fmt || data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ${String(data.km).replace('.', ',')} km de trajeto${data.km <= (data.free_km || 6) ? ' · grátis com 2 pods' : ''}</span></div>`;
     }
   }
 
@@ -11478,7 +11479,32 @@
     if (appliedCoupon && appliedCoupon.freeShipping) return 0; // cupom FRETEGRATIS zera o frete
     const q = window._deliveryQuote;
     if (!q || !q.ok || q.out_of_range) return 0;
-    return (q.fee_cents || 0) / 100;
+    if (_freteGratisPods(q)) return 0; // 2+ pods até 6 km → grátis (mesma regra do servidor)
+    return ((q.zone_fee_cents != null ? q.zone_fee_cents : q.fee_cents) || 0) / 100;
+  }
+  // Regra aprovada 27/09: pedido com 2+ pods até 6 km sai com entrega grátis.
+  function _cartPods() { return (cart || []).reduce((t, i) => t + (Number(i && i.qty) || 0), 0); }
+  function _freteGratisPods(q) {
+    q = q || window._deliveryQuote;
+    const minPods = (q && q.free_pods) || 2, maxKm = (q && q.free_km) || 6;
+    return !!(q && q.ok && !q.out_of_range && typeof q.km === 'number' && q.km <= maxKm && _cartPods() >= minPods);
+  }
+  // Carrinho (UX R2): mostra a entrega ANTES do checkout + empurrão pro frete grátis.
+  function _renderCartFrete() {
+    const el = document.getElementById('cart-frete'); if (!el) return;
+    if (!cart || !cart.length) { el.innerHTML = ''; return; }
+    const q = window._deliveryQuote, pods = _cartPods();
+    const lime = 'color:var(--lime);font-weight:700';
+    let html;
+    if (q && q.ok && q.out_of_range) html = `<span style="color:var(--pink)">${escapeHtml(q.message || 'Esse endereço fica fora da área de entrega ✦ dá pra retirar na loja')}</span>`;
+    else if (q && q.ok) {
+      const km = String(q.km).replace('.', ',');
+      const zf = q.zone_fmt || q.fmt;
+      if (_freteGratisPods(q)) html = `<span style="${lime}">✓ entrega grátis</span> · ${km} km · pedido com ${pods} pods`;
+      else if (q.km <= ((q.free_km) || 6)) html = `entrega <b>${escapeHtml(zf)}</b> · ${km} km<br><span style="${lime}">leve mais ${Math.max(1, ((q.free_pods) || 2) - pods)} pod e a entrega sai grátis ✦</span>`;
+      else html = `entrega <b>${escapeHtml(zf)}</b> · ${km} km de trajeto`;
+    } else html = `entrega a partir de <b>R$ 7,99</b> · <span style="${lime}">grátis com 2 pods (até 6 km)</span>`;
+    el.innerHTML = html;
   }
   function finalTotal() {
     const raw = cartTotal();
@@ -11626,8 +11652,8 @@
         info.innerHTML = `
           <div class="dfn-icon"></div>
           <div class="dfn-body">
-            <div class="dfn-title" style="color: var(--lime)">taxa de entrega ✦ ${q.fmt}</div>
-            <div class="dfn-sub">${String(q.km).replace('.', ',')} km de trajeto até você · R$ 2 por km</div>
+            <div class="dfn-title" style="color: var(--lime)">${_freteGratisPods(q) ? 'entrega grátis ✦ ' + _cartPods() + ' pods' : 'taxa de entrega ✦ ' + escapeHtml(q.zone_fmt || q.fmt)}</div>
+            <div class="dfn-sub">${String(q.km).replace('.', ',')} km de trajeto até você${(!_freteGratisPods(q) && q.km <= (q.free_km || 6)) ? ' · com 2 pods sai grátis' : ''}</div>
           </div>`;
       } else if (q && q.out_of_range) {
         info.innerHTML = `
@@ -11858,7 +11884,7 @@
       } else {
         const q = window._deliveryQuote;
         if (q && q.ok && !q.out_of_range) {
-          bits.push(`entrega ${q.fmt} (${String(q.km).replace('.', ',')} km)`);
+          bits.push(_freteGratisPods(q) ? `entrega grátis ✦ ${_cartPods()} pods (${String(q.km).replace('.', ',')} km)` : `entrega ${q.zone_fmt || q.fmt} (${String(q.km).replace('.', ',')} km)`);
         } else if (q && q.out_of_range) {
           bits.push(`fora da área de entrega`);
         } else {
@@ -14017,6 +14043,12 @@
     } else {
       document.getElementById('cart-total-val').textContent = money(sum);
     }
+    // Entrega já no carrinho (UX R2) — cota pelo endereço salvo se ainda não cotou
+    try {
+      _renderCartFrete();
+      const _a = getSelectedAddress(), _q = window._deliveryQuote;
+      if (_a && (!_q || _q.key !== _quoteKeyOf(_a))) fetchDeliveryQuote(_a).then(() => { try { _renderCartFrete(); } catch (e) {} });
+    } catch (e) {}
     // Sync cupom visual no carrinho
     const cartCouponArea = document.getElementById('cart-coupon-area');
     if (cartCouponArea) cartCouponArea.style.display = cart.length > 0 ? 'block' : 'none';
