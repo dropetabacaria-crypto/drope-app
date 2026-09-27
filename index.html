@@ -201,6 +201,8 @@
   .home-quick::-webkit-scrollbar { display: none; }
   .hq-chip { flex: 0 0 auto; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); font: 600 13.5px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; transition: transform .12s, background .15s; }
   .hq-chip:active { transform: scale(.95); }
+  .pf-bar { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .hq-filt { border-color: rgba(255,255,255,0.3); font-weight: 700; }
   .hq-chip.on { background: var(--lime); color: #0A0A14; border-color: var(--lime); font-weight: 700; }
   .rail-hd { display: flex; align-items: baseline; justify-content: space-between; padding-right: 16px; }
   .rail-hd .cat-section { padding-left: 16px; }
@@ -208,7 +210,8 @@
   .rail { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .rail::-webkit-scrollbar { display: none; }
   .rail .tile { flex: 0 0 42%; min-width: 0; max-width: 176px; scroll-snap-align: start; padding: 12px; }
-  #home .grid { padding: 0 16px; }
+  #home .grid { padding: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid .tile { min-width: 0; padding: 12px; }
   .tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; min-height: 36px; }
   .tile-foot .price { margin-top: 0 !important; padding-right: 0 !important; }
   .tile-foot .tile-add { position: relative; right: auto; bottom: auto; width: 36px; height: 36px; flex: 0 0 auto; font-size: 24px; }
@@ -6130,39 +6133,28 @@
     </div>
 
     <div class="sheet-body">
-      <!-- DROPE FILTROS v2 (04/06/2026) — Chips dinâmicos, populados de products[] em openFilters() -->
+      <!-- Filtro de pod (27/09): sabor exato → puffs → marca/modelo, com contagem cruzada -->
       <div class="sheet-group">
-        <div class="sheet-lbl">marca</div>
-        <div class="sheet-chips" id="sheet-marca"></div>
+        <div class="sheet-lbl">Sabor <span style="font-weight:500">· pode marcar mais de um</span></div>
+        <div class="sheet-chips" id="pf-sabor"></div>
       </div>
-
-      <div class="sheet-group" id="sheet-modelo-group" style="display:none">
-        <div class="sheet-lbl">modelo</div>
-        <div class="sheet-chips" id="sheet-modelo"></div>
-      </div>
-
       <div class="sheet-group">
-        <div class="sheet-lbl">puffs</div>
-        <div class="sheet-chips" id="sheet-puffs"></div>
+        <div class="sheet-lbl">Quanto dura</div>
+        <div class="sheet-chips" id="pf-puffs"></div>
       </div>
-
       <div class="sheet-group">
-        <div class="sheet-lbl">sabor</div>
-        <div class="sheet-chips" id="sheet-sabor"></div>
+        <div class="sheet-lbl">Marca</div>
+        <div class="sheet-chips" id="pf-marca"></div>
       </div>
-
-      <div class="sheet-group">
-        <div class="sheet-lbl">preço <span id="price-val" style="color:var(--pink);font-weight:600">todos</span></div>
-        <div class="price-slider-wrap">
-          <input type="range" id="price-slider" class="price-slider" min="0" max="7" step="1" value="7">
-          <div class="price-steps" id="price-steps"></div>
-        </div>
+      <div class="sheet-group" id="pf-modelo-group" style="display:none">
+        <div class="sheet-lbl">Modelo</div>
+        <div class="sheet-chips" id="pf-modelo"></div>
       </div>
     </div>
 
     <div class="sheet-cta">
-      <button class="btn-secondary" onclick="clearFilters()">limpar</button>
-      <button class="btn-primary" onclick="applyFilters()">aplicar</button>
+      <button class="btn-secondary" style="flex:0 0 34%" onclick="pfClear()">limpar</button>
+      <button class="btn-primary" id="pf-cta" onclick="pfApply()">ver pods</button>
     </div>
   </div>
 </div>
@@ -10591,6 +10583,7 @@
       // Nível 2 — filtro/categoria da loja (o TIPO: Seda, Tabaco…) — Nível 1 na UI
       if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
       if (homeState.quick) { const q = _quickDef(homeState.quick); if (q && !q.test(p)) return false; }
+      if (typeof podF !== 'undefined' && podFActive() && !_pfMatch(p, podF)) return false;
     }
     return true;
   }
@@ -10769,7 +10762,103 @@
     const inp = document.getElementById('home-search'); if (inp) { try { inp.blur(); } catch (e) {} }
   }
 
+  // ===== Filtro de pod (27/09): sabor exato → puffs → marca/modelo =====
+  const PF_SABORES = [
+    ['Morango', /morango|strawberry/], ['Uva', /\buva|grape(?!fruit)/], ['Menta', /menta|mint|hortel|mentol|menthol/],
+    ['Melancia', /melancia|watermelon/], ['Melão', /mel[aã]o\b|\bmelon/], ['Banana', /banana/], ['Kiwi', /kiwi/],
+    ['Maçã', /ma[cç][aã]|(?<!pine)apple/], ['Pêssego', /p[eê]ssego|peach/], ['Abacaxi', /abacaxi|pineapple/],
+    ['Cereja', /cereja|cherry/], ['Manga', /manga|mango/], ['Maracujá', /maracuj|passion/], ['Mirtilo', /mirtilo|blueberry/],
+    ['Frutas vermelhas', /frutas? vermelhas?|(?<!straw)(?<!blue)(?<!rasp)berr|framboesa|raspberry/], ['Limão', /lim[aã]o|lemon|limonada/],
+    ['Laranja', /laranja|orange/], ['Goiaba', /goiaba|guava/], ['Coco', /\bcoco|coconut/], ['Toranja', /toranja|grapefruit/],
+    ['Romã', /rom[aã]|pomegranate/], ['Cola', /\bcola\b/], ['Tutti Frutti', /tutti/], ['Caramelo', /caramelo|taffy|toffee/],
+  ];
+  const PF_PUFFS = [
+    { k: 'p10', l: 'até 10k', t: n => n > 0 && n <= 10000 },
+    { k: 'p20', l: '10k a 20k', t: n => n > 10000 && n <= 20000 },
+    { k: 'p40', l: '20k a 40k', t: n => n > 20000 && n < 40000 },
+    { k: 'p40m', l: '40k ou mais', t: n => n >= 40000 },
+  ];
+  let _pfAllSab = false;
+  let podF = { sabores: [], puffs: '', marca: '', modelo: '' };   // aplicado
+  let podFDraft = { sabores: [], puffs: '', marca: '', modelo: '' }; // na folha
+  function _pfSabores(p) {
+    const i = _podInfo(p);
+    const txt = `${i.sabor || ''} ${p.flavor_en || ''}`.toLowerCase() || String(p.name || '').toLowerCase();
+    return PF_SABORES.filter(([, re]) => re.test(txt)).map(([l]) => l);
+  }
+  function _pfMatch(p, f, skip) {
+    const i = _podInfo(p);
+    if (skip !== 'sabores' && f.sabores.length) { const ss = _pfSabores(p); if (!f.sabores.some(x => ss.includes(x))) return false; }
+    if (skip !== 'puffs' && f.puffs) { const d = PF_PUFFS.find(x => x.k === f.puffs); if (d && !d.t(i.puffs || 0)) return false; }
+    if (skip !== 'marca' && f.marca && i.marca !== f.marca) return false;
+    if (skip !== 'modelo' && f.modelo && (i.modelo || '') !== f.modelo) return false;
+    return true;
+  }
+  function podFActive() { return !!(podF.sabores.length || podF.puffs || podF.marca || podF.modelo); }
+  function podFCount() { return podF.sabores.length + (podF.puffs ? 1 : 0) + (podF.marca ? 1 : 0) + (podF.modelo ? 1 : 0); }
+  function podFTitle() {
+    const d = PF_PUFFS.find(x => x.k === podF.puffs);
+    return [podF.sabores.join(' ou '), d ? d.l + ' puffs' : '', [podF.marca, podF.modelo].filter(Boolean).join(' ')].filter(Boolean).join(' · ') || 'Resultados';
+  }
+  function openPodFilters() {
+    podFDraft = JSON.parse(JSON.stringify(podF));
+    _pfAllSab = false;
+    pfRender();
+    document.getElementById('sheet-bd').classList.add('open');
+    document.getElementById('filter-sheet').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function pfRender() {
+    const vis = products.filter(p => !p.hidden);
+    const chip = (on, label, n, onclick) => `<button type="button" class="s-chip${on ? ' active' : ''}" onclick="${onclick}">${escapeHtml(label)} <span>${n}</span></button>`;
+    // Sabor (contagem cruzada com os outros grupos; some quando dá 0)
+    const baseS = vis.filter(p => _pfMatch(p, podFDraft, 'sabores'));
+    const cntS = {}; baseS.forEach(p => _pfSabores(p).forEach(x => { cntS[x] = (cntS[x] || 0) + 1; }));
+    const sabs = PF_SABORES.map(([l]) => l)
+      .filter(l => cntS[l] || podFDraft.sabores.includes(l))
+      .sort((a, b) => (cntS[b] || 0) - (cntS[a] || 0));
+    // Mostra os 9 mais comuns; o resto fica atrás de "+ sabores" (folha não vira parede de botões)
+    const shown = _pfAllSab ? sabs : sabs.filter((l, i) => i < 9 || podFDraft.sabores.includes(l));
+    document.getElementById('pf-sabor').innerHTML = shown
+      .map(l => chip(podFDraft.sabores.includes(l), l, cntS[l] || 0, `pfToggle('sabores','${l}')`)).join('')
+      + (sabs.length > shown.length ? `<button type="button" class="s-chip" style="border-style:dashed" onclick="_pfAllSab=true;pfRender()">+ ${sabs.length - shown.length} sabores</button>` : '');
+    const baseP = vis.filter(p => _pfMatch(p, podFDraft, 'puffs'));
+    document.getElementById('pf-puffs').innerHTML = PF_PUFFS.map(d => ({ d, n: baseP.filter(p => d.t(_podInfo(p).puffs || 0)).length }))
+      .filter(x => x.n || podFDraft.puffs === x.d.k).map(x => chip(podFDraft.puffs === x.d.k, x.d.l, x.n, `pfToggle('puffs','${x.d.k}')`)).join('');
+    const baseM = vis.filter(p => _pfMatch(p, podFDraft, 'marca'));
+    const cntM = {}; baseM.forEach(p => { const m = _podInfo(p).marca; if (m) cntM[m] = (cntM[m] || 0) + 1; });
+    document.getElementById('pf-marca').innerHTML = Object.keys(cntM).concat(podFDraft.marca && !cntM[podFDraft.marca] ? [podFDraft.marca] : [])
+      .sort((a, b) => (cntM[b] || 0) - (cntM[a] || 0)).map(m => chip(podFDraft.marca === m, m, cntM[m] || 0, `pfToggle('marca','${m.replace(/'/g, '')}')`)).join('');
+    const mg = document.getElementById('pf-modelo-group');
+    if (podFDraft.marca) {
+      const baseMo = vis.filter(p => _pfMatch(p, podFDraft, 'modelo'));
+      const cntMo = {}; baseMo.forEach(p => { const m = _podInfo(p).modelo; if (m) cntMo[m] = (cntMo[m] || 0) + 1; });
+      const mods = Object.keys(cntMo);
+      mg.style.display = mods.length > 1 || podFDraft.modelo ? '' : 'none';
+      document.getElementById('pf-modelo').innerHTML = mods.sort((a, b) => cntMo[b] - cntMo[a]).map(m => chip(podFDraft.modelo === m, m, cntMo[m], `pfToggle('modelo','${m.replace(/'/g, '')}')`)).join('');
+    } else { mg.style.display = 'none'; }
+    const n = vis.filter(p => _pfMatch(p, podFDraft)).length;
+    const cta = document.getElementById('pf-cta');
+    cta.textContent = n ? `ver ${n} pod${n > 1 ? 's' : ''}` : 'nenhum pod com isso';
+    cta.disabled = !n; cta.style.opacity = n ? '' : '0.45';
+  }
+  function pfToggle(g, v) {
+    if (g === 'sabores') { const i = podFDraft.sabores.indexOf(v); if (i >= 0) podFDraft.sabores.splice(i, 1); else podFDraft.sabores.push(v); }
+    else { podFDraft[g] = podFDraft[g] === v ? '' : v; if (g === 'marca') podFDraft.modelo = ''; }
+    pfRender();
+  }
+  function pfClear() { podFDraft = { sabores: [], puffs: '', marca: '', modelo: '' }; pfRender(); }
+  function pfApply() {
+    podF = JSON.parse(JSON.stringify(podFDraft));
+    closeFilters();
+    renderGrid();
+    try { const t = document.getElementById('home-cat-sections'); if (t && podFActive()) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 70, behavior: 'smooth' }); } catch (e) {}
+    try { const cs = document.getElementById('catalog'); if (cs && cs.classList.contains('active') && typeof renderCatalog === 'function') renderCatalog(); } catch (e) {}
+  }
+  function pfReset() { podF = { sabores: [], puffs: '', marca: '', modelo: '' }; renderGrid(); }
+
   function openFilters() {
+    return openPodFilters();
     draftFilter = { puffs: filterState.puffs, sabor: filterState.sabor, marca: filterState.marca, modelo: filterState.modelo, priceMax: filterState.priceMax };
     // DROPE FILTROS v2 (04/06): popula chips dinamicamente do catálogo real
     populateFilterChips();
@@ -11053,7 +11142,9 @@
     const chips = QUICK_CHIPS.filter(c => vis.some(c.test));
     if (!chips.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.display = '';
-    el.innerHTML = chips.map(c => `<button type="button" class="hq-chip${homeState.quick === c.key ? ' on' : ''}" onclick="setQuick('${c.key}')">${escapeHtml(c.label)}</button>`).join('');
+    const nf = (typeof podFCount === 'function') ? podFCount() : 0;
+    const filt = `<button type="button" class="hq-chip hq-filt${nf ? ' on' : ''}" onclick="openPodFilters()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="vertical-align:-3px;margin-right:5px"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtrar${nf ? ' · ' + nf : ''}</button>`;
+    el.innerHTML = filt + chips.map(c => `<button type="button" class="hq-chip${homeState.quick === c.key ? ' on' : ''}" onclick="setQuick('${c.key}')">${escapeHtml(c.label)}</button>`).join('');
   }
   function setQuick(k) {
     homeState.quick = (homeState.quick === k) ? null : (k || null);
@@ -11084,6 +11175,7 @@
   function resetAllFilters() {
     try { const inp = document.getElementById('home-search'); if (inp) inp.value = ''; } catch (e) {}
     homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null; homeState.quick = null;
+    try { podF = { sabores: [], puffs: '', marca: '', modelo: '' }; } catch (e) {}
     filterState = { perfil: 'tudo', puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     draftFilter = { puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
     try { const cb = document.getElementById('search-clear'); if (cb) cb.style.display = 'none'; } catch (e) {}
@@ -11305,7 +11397,7 @@
     if (!container) return;
     const filtered = products.map((p, i) => ({ p, i })).filter(({ p }) => matchFilter(p));
     const filtros = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && Array.isArray(CLIENT_LOJA.filtros)) ? CLIENT_LOJA.filtros : [];
-    const searching = !!homeState.searchText || hasAdvancedFilters() || !!homeState.quick || !!homeState.selectedBrand;
+    const searching = !!homeState.searchText || hasAdvancedFilters() || !!homeState.quick || !!homeState.selectedBrand || podFActive();
     const selectedFiltro = homeState.filtroId || null;
     let html = '';
 
@@ -11315,10 +11407,12 @@
       const qd = homeState.quick ? _quickDef(homeState.quick) : null;
       const title = selectedFiltro
         ? ((filtros.find(f => f.id === selectedFiltro) || {}).nome || 'categoria')
-        : (qd ? (qd.title || qd.label) : (homeState.selectedBrand && !homeState.searchText ? _brandName(homeState.selectedBrand) : 'Resultados'));
+        : podFActive() ? podFTitle() : (qd ? (qd.title || qd.label) : (homeState.selectedBrand && !homeState.searchText ? _brandName(homeState.selectedBrand) : 'Resultados'));
       html = items.length
         ? _homeSectionHTML(title, items, { cap: 12, moreOnclick: 'openCatalog()' })
         : '<div class="empty-mini" style="grid-column:1/-1;text-align:center">Não achei nada com essa busca ✦<br><button type="button" class="btn-secondary" style="margin-top:12px;width:auto;padding:10px 18px" onclick="resetAllFilters()">limpar busca e filtros</button></div>';
+      // Filtro ativo: 2 toques pra ajustar ou limpar, sem caçar o botão lá em cima
+      if (podFActive()) html = `<div class="pf-bar"><button type="button" class="hq-chip" onclick="openPodFilters()">ajustar filtro</button><button type="button" class="hq-chip" onclick="pfReset()">limpar ✕</button></div>` + html;
     } else if (filtros.length <= 1 && filtered.length >= 6) {
       // Vitrine de pod (1 categoria): prateleiras pelo que o cliente pergunta — sabor, puffs, preço.
       const inStock = filtered.filter(({ p }) => !_soldOut(p));
