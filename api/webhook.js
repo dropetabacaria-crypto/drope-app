@@ -15751,12 +15751,15 @@ async function _countPedidosAbertos(filialId) {
 // badge: número (bolinha no ícone) OU 'auto' (conta os pedidos em aberto na hora).
 async function _sendStorePush(filialId, title, body, url, badge) {
   const wp = _webpushInit();
-  if (!wp || !filialId) return;
+  const stats = { subs: 0, sent: 0, dead: 0, errors: [] };
+  if (!wp) { stats.errors.push('web-push não configurado'); return stats; }
+  if (!filialId) return stats;
   try {
     const rows = await sbGet('drope_filiais', `id=eq.${encodeURIComponent(filialId)}&select=metadata&limit=1`);
     const md = (rows && rows[0] && rows[0].metadata) || {};
     const subs = Array.isArray(md.push_subs) ? md.push_subs : [];
-    if (!subs.length) return;
+    stats.subs = subs.length;
+    if (!subs.length) return stats;
     let badgeCount = (typeof badge === 'number') ? badge : null;
     if (badge === 'auto') badgeCount = await _countPedidosAbertos(filialId);
     const payloadObj = { title: String(title || 'DROPE'), body: String(body || ''), url: url || '/filial' };
@@ -15764,14 +15767,19 @@ async function _sendStorePush(filialId, title, body, url, badge) {
     const payload = JSON.stringify(payloadObj);
     const dead = [];
     await Promise.all(subs.map(async (s) => {
-      try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); }
-      catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+      const kind = /fcm\.googleapis/.test(s.endpoint || '') ? 'android/chrome' : (/apple/.test(s.endpoint || '') ? 'apple' : 'outro');
+      try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); stats.sent++; }
+      catch (e) {
+        if (e && (e.statusCode === 404 || e.statusCode === 410)) { dead.push(s.endpoint); stats.dead++; }
+        else { stats.errors.push(`${kind}: ${e && e.statusCode || ''} ${String((e && (e.body || e.message)) || '').slice(0, 120)}`); console.error('[sendStorePush]', kind, e && e.statusCode, e && (e.body || e.message)); }
+      }
     }));
     if (dead.length) {
       md.push_subs = subs.filter(s => !dead.includes(s.endpoint));
       await sbUpdate('drope_filiais', `id=eq.${encodeURIComponent(filialId)}`, { metadata: md });
     }
-  } catch (e) { console.error('[sendStorePush]', e.message); }
+  } catch (e) { console.error('[sendStorePush]', e.message); stats.errors.push(e.message); }
+  return stats;
 }
 // Envia push pra TODOS os aparelhos inscritos do CLIENTE (e limpa assinaturas mortas).
 async function _sendCustomerPush(phone, title, body, url, badge) {
@@ -15822,8 +15830,8 @@ async function handleFilialPushSubscribe(req, res) {
     const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
     if (!filial) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     if (body.action_type === 'test') { // teste: dispara um push pro próprio aparelho
-      await _sendStorePush(filial.id, 'Notificações ativas ✦', 'Vou te avisar aqui quando entrar um pedido 🔔', '/filial');
-      return res.status(200).json({ ok: true, tested: true });
+      const st = await _sendStorePush(filial.id, 'Notificações ativas ✦', 'Vou te avisar aqui quando entrar um pedido 🔔', '/filial');
+      return res.status(200).json({ ok: true, tested: true, ...st });
     }
     const sub = body.subscription;
     if (!sub || !sub.endpoint) return res.status(400).json({ ok: false, error: 'subscription inválida' });

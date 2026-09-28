@@ -5372,11 +5372,19 @@ async function ativarPush() {
     _pushTest();
   } catch (e) { _toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro painel', 'err'); }
 }
-function _pushTest() {
-  fetch('/api/webhook?action=filial_push_subscribe', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, action_type: 'test' }),
-  }).catch(() => {});
+// Teste de aviso: agora mostra o resultado (antes dizia "ok" mesmo quando o envio falhava)
+async function _pushTest() {
+  try {
+    const r = await fetch('/api/webhook?action=filial_push_subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, action_type: 'test' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    window._lastPushTest = d;
+    if (d && d.sent > 0 && !(d.errors || []).length) _toast(`Aviso de teste enviado pra ${d.sent} aparelho${d.sent > 1 ? 's' : ''} ✦ deve chegar em segundos`, 'ok');
+    else if (d && d.sent > 0) _toast(`Enviado pra ${d.sent} aparelho(s); ${d.errors.length} falhou: ${d.errors[0]}`, 'err');
+    else _toast('O aviso não saiu: ' + ((d && d.errors && d.errors[0]) || 'nenhum aparelho registrado — toque em "Ativar no cel" de novo'), 'err');
+  } catch (e) { _toast('Sem conexão pra testar o aviso agora', 'err'); }
 }
 function _refreshPedidoSurfaces() {
   try { const ov = document.getElementById('pedidos-ov'); if (ov && ov.classList.contains('open')) _renderAllPedidos(); } catch (e) {}
