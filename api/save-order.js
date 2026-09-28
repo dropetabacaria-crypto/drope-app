@@ -22,7 +22,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
 const { freteQuote, freteFilialBySlug } = require('../lib/frete');
-const { checkCoupon } = require('../lib/cupons');
+const { checkCoupon, referralCredit } = require('../lib/cupons');
 
 
 module.exports = async function handler(req, res) {
@@ -194,14 +194,34 @@ module.exports = async function handler(req, res) {
     if (Math.abs(Math.round(subtotal * 100) - itemsSubCents) > 2) {
       return res.status(409).json({ error: 'total_invalido', message: 'O valor do pedido não bate ✦ atualizamos, confere e tenta de novo' });
     }
-    let discountCents = 0, couponApplied = null;
+    let discountCents = 0, couponApplied = null, refCustomerId = null, creditUsedCents = 0;
+    const sbFetch = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }).then(r => r.ok ? r.json() : []);
     if (body.coupon_code) {
-      const sbFetch = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }).then(r => r.ok ? r.json() : []);
       const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents }, sbFetch);
       if (!cr.ok) return res.status(409).json({ error: cr.error || 'cupom_invalido', coupon: String(body.coupon_code).toUpperCase(), message: cr.message + ' ✦ tiramos o cupom, confere o valor e tenta de novo' });
-      discountCents = cr.discount_cents; couponApplied = cr.code;
+      discountCents = cr.discount_cents; couponApplied = cr.code; refCustomerId = cr.ref_customer_id || null;
     }
-    const expectedTotalCents = itemsSubCents + Math.round(delivery_fee * 100) - discountCents;
+    // Crédito de indicação (R$ 5 por amigo que comprou) — o servidor calcula quanto tem
+    if (body.use_credit && customerId) {
+      // Só o DONO usa o crédito: confere a sessão logada (token do app) contra o cadastro
+      let sessOk = false;
+      try {
+        const ph = String((customer && customer.phone) || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+        const th = require('crypto').createHash('sha256').update(String(body.customer_token || '')).digest('hex');
+        const cr2 = body.customer_token ? await sbFetch(`drope_customers?phone=eq.${encodeURIComponent(ph)}&select=id,session_hash,session_exp,sessions&limit=1`) : [];
+        const cc = Array.isArray(cr2) && cr2[0];
+        if (cc && cc.id === customerId && !(cc.session_exp && Date.parse(cc.session_exp) < Date.now())) {
+          sessOk = (cc.session_hash === th) || (Array.isArray(cc.sessions) && cc.sessions.some(x => x && x.h === th));
+        }
+      } catch (e) { sessOk = false; }
+      if (!sessOk) return res.status(409).json({ error: 'credito_login', message: 'Entre de novo na sua conta pra usar o crédito ✦' });
+      try {
+        const rc = await referralCredit(customerId, sbFetch);
+        const room = itemsSubCents + Math.round(delivery_fee * 100) - discountCents - 100; // total nunca abaixo de R$ 1
+        creditUsedCents = Math.max(0, Math.min(rc.credit_cents, room));
+      } catch (e) { creditUsedCents = 0; }
+    }
+    const expectedTotalCents = itemsSubCents + Math.round(delivery_fee * 100) - discountCents - creditUsedCents;
     if (Math.abs(Math.round(total * 100) - expectedTotalCents) > 2) {
       return res.status(409).json({ error: 'total_invalido', expected_cents: expectedTotalCents, message: 'O valor do pedido não bate ✦ atualizamos, confere e tenta de novo' });
     }
@@ -354,7 +374,8 @@ module.exports = async function handler(req, res) {
     }
     // Atribui a venda ao operador padrão (comissão de funcionário).
     if (employeeId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: employeeId };
-    if (couponApplied) orderRow.metadata = { ...(orderRow.metadata || {}), coupon_code: couponApplied, discount_cents: discountCents };
+    if (couponApplied) orderRow.metadata = { ...(orderRow.metadata || {}), coupon_code: couponApplied, discount_cents: discountCents, ...(refCustomerId ? { ref_customer_id: String(refCustomerId) } : {}) };
+    if (creditUsedCents > 0) orderRow.metadata = { ...(orderRow.metadata || {}), credit_used_cents: creditUsedCents };
     if (deliveryKm != null) orderRow.metadata = { ...(orderRow.metadata || {}), delivery_km: deliveryKm, delivery_km_source: deliverySource }; // km da ROTA (repasse do motoboy)
 
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {

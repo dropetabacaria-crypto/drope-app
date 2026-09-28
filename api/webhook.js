@@ -19402,6 +19402,22 @@ module.exports = async function handler(req, res) {
     } catch (e) { return res.status(200).json({ ok: false, message: 'não consegui conferir o cupom agora' }); }
   }
 
+  // action=customer_referral — POST {phone, token}: código pessoal "Indique e ganhe" + crédito disponível
+  if (req.url && /[?&]action=customer_referral(&|$)/.test(req.url)) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      if (!(await _customerSessionOk(body.phone, String(body.token || '')))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+      const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(_normPhone(body.phone))}&select=id,name&limit=1`);
+      const c = rows && rows[0];
+      if (!c) return res.status(404).json({ ok: false });
+      const { referralCode, referralCredit } = require('../lib/cupons');
+      const code = referralCode(c);
+      const cred = await referralCredit(c.id, (path) => sbGet(path.split('?')[0], path.split('?').slice(1).join('?')));
+      return res.status(200).json({ ok: true, code, link: `https://drope-app.vercel.app/?c=${code}`, credit_cents: cred.credit_cents, earned_count: cred.earned_count });
+    } catch (e) { console.error('[customer_referral]', e.message); return res.status(500).json({ ok: false }); }
+  }
+
   // action=version — id do deploy no ar. O app compara com o dele e se atualiza sozinho.
   if (req.url && /[?&]action=version(&|$)/.test(req.url)) {
     res.setHeader('Cache-Control', 'no-store');

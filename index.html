@@ -3575,6 +3575,7 @@
   .inst-t small { display: block; color: var(--text-dim); font-size: 12px; }
   #inst-actions { display: flex; flex-direction: column; gap: 8px; }
   #inst-actions .btn-secondary { margin-top: 0; }
+  .ref-code { align-self: center; font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 28px; letter-spacing: 0.06em; color: var(--lime); border: 1.5px dashed rgba(212,255,46,0.5); border-radius: 14px; padding: 10px 22px; margin: 6px 0; }
   .ios-tip {
     position: fixed; inset: 0;
     z-index: 9998;
@@ -4378,6 +4379,21 @@
     <div class="inst-sub" id="inst-sub">Abre igual um app e você pede de novo em 2 toques.</div>
     <div class="inst-steps" id="inst-steps"></div>
     <div id="inst-actions"></div>
+  </div>
+</div>
+
+<!-- Indique e ganhe: código pessoal + link pra mandar no WhatsApp -->
+<div id="ref-ov" class="inst-ov" onclick="if(event.target===this)closeReferral()">
+  <div class="inst-card">
+    <button class="iot-close" onclick="closeReferral()" aria-label="fechar">×</button>
+    <div class="inst-title">Indique e ganhe</div>
+    <div class="inst-sub">Seu amigo ganha <b style="color:var(--text)">R$ 10</b> na 1ª compra. Quando ele comprar, você ganha <b style="color:var(--text)">R$ 5</b> de crédito no próximo pedido.</div>
+    <div class="ref-code" id="ref-code">…</div>
+    <div class="inst-sub" id="ref-credit" style="margin:0"></div>
+    <div id="ref-actions" style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn-primary" onclick="refShareWhats()" style="background:#25D366;color:#04210f;box-shadow:none">Mandar no WhatsApp</button>
+      <button class="btn-secondary" style="margin-top:0" onclick="refShare()">Outras formas de enviar</button>
+    </div>
   </div>
 </div>
 
@@ -5229,6 +5245,11 @@
         <button class="btn-secondary" style="width:100%" onclick="ativarPushCliente().then(_renderSuccessPush)">Avisar no celular 🔔</button>
       </div>
 
+      <div id="success-ref" style="margin:18px auto 0;max-width:340px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:var(--card);text-align:left">
+        <div style="font-weight:700;font-size:15px">Indique um amigo e ganhe R$ 5</div>
+        <div style="font-size:13px;color:var(--text-dim);margin:4px 0 10px">Ele ganha R$ 10 na 1ª compra. Quando ele comprar, você ganha R$ 5 no próximo pedido.</div>
+        <button class="btn-secondary" style="width:100%" onclick="openReferral()">Indicar amigo</button>
+      </div>
       <!-- Momento certo pra instalar: acabou de comprar e já confia no app -->
       <div id="success-install" style="display:none;margin:18px auto 0;max-width:340px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:var(--card);text-align:left">
         <div style="font-weight:700;font-size:15px">Salve o DROPE na sua tela</div>
@@ -5406,6 +5427,7 @@
         <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
         <div class="profile-row" onclick="go('addresses')">Endereços <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Meus dados <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-ref" onclick="openReferral()" style="color:var(--lime)">Indique e ganhe R$ 5 <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-install" onclick="openInstallGuide()" style="display:none">Instalar o app na tela <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-push" onclick="ativarPushCliente()">Avisos do pedido no celular <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Senha <span class="arrow">›</span></div>
@@ -6794,7 +6816,8 @@
         body: JSON.stringify({
           order_nsu: orderNsu, payment_method: 'infinitepay',
           coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined,
-          subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais,
+          subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais - _creditFor(total + deliveryFeeReais),
+          use_credit: _creditFor(total + deliveryFeeReais) > 0 || undefined, customer_token: _creditFor(total + deliveryFeeReais) > 0 ? _custToken() : undefined,
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
           delivery_mode: deliveryMode,
           address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
@@ -7717,6 +7740,52 @@
     stepsEl.innerHTML = steps.join('');
     act.innerHTML = actions;
     ov.classList.add('show');
+  }
+  // ===== Indique e ganhe =====
+  async function openReferral() {
+    if (!_isLoggedIn()) { try { openCustomerLogin(); } catch (e) {} return; }
+    const ov = document.getElementById('ref-ov'); if (!ov) return;
+    ov.classList.add('show');
+    document.getElementById('ref-code').textContent = (_refInfo && _refInfo.code) || '…';
+    const info = await _loadReferral();
+    const cd = document.getElementById('ref-code'), cr = document.getElementById('ref-credit');
+    if (!info) { cd.textContent = '—'; cr.textContent = 'Não consegui carregar seu código agora. Tenta de novo em instantes.'; return; }
+    cd.textContent = info.code;
+    cr.innerHTML = info.credit_cents > 0
+      ? `Você tem <b style="color:var(--lime)">${money(info.credit_cents / 100)}</b> de crédito ✦ entra sozinho no próximo pedido`
+      : (info.earned_count ? `${info.earned_count} amigo${info.earned_count > 1 ? 's' : ''} já comprou com seu código` : 'Ainda nenhum amigo comprou com seu código');
+  }
+  function closeReferral() { const ov = document.getElementById('ref-ov'); if (ov) ov.classList.remove('show'); }
+  function _refText() {
+    const i = _refInfo || {};
+    return `Pede seu pod no DROPE e ganha R$ 10 na primeira compra 🦎 Chega em minutos, e com 2 pods a entrega é grátis. Entra por aqui que o desconto já vem: ${i.link || 'https://drope-app.vercel.app'} (código ${i.code || ''})`;
+  }
+  function refShareWhats() { window.open('https://wa.me/?text=' + encodeURIComponent(_refText()), '_blank'); }
+  function refShare() {
+    const t = _refText();
+    if (navigator.share) { navigator.share({ text: t }).catch(() => {}); return; }
+    try { navigator.clipboard.writeText(t).then(() => toast('mensagem copiada ✦ cola no WhatsApp'), () => prompt('Copie:', t)); } catch (e) { prompt('Copie:', t); }
+  }
+  // Link de indicação (?c=LUCAS27): guarda o código e aplica sozinho no carrinho
+  (function _captureRefLink() {
+    try {
+      const c = new URLSearchParams(location.search).get('c');
+      if (c && /^[A-Za-z]{2,8}\d{1,7}$/.test(c)) {
+        localStorage.setItem('drope_pending_coupon', c.toUpperCase());
+        setTimeout(() => { try { toast('Código ' + c.toUpperCase() + ' guardado ✦ R$ 10 na sua 1ª compra'); } catch (e) {} }, 2500);
+      }
+    } catch (e) {}
+  })();
+  let _pendingTried = false;
+  function _tryPendingCoupon() {
+    if (_pendingTried || appliedCoupon || !_isLoggedIn() || !cart.length) return;
+    let code = null; try { code = localStorage.getItem('drope_pending_coupon'); } catch (e) {}
+    if (!code) return;
+    _pendingTried = true;
+    _applyCouponCode(code, 'cart-coupon-msg', () => {
+      try { localStorage.removeItem('drope_pending_coupon'); if (appliedCoupon) { const w = document.getElementById('cart-coupon-wrap'); if (w) w.style.display = 'block'; } } catch (e) {}
+      renderCart();
+    });
   }
   function closeInstallGuide() { const ov = document.getElementById('inst-ov'); if (ov) ov.classList.remove('show'); }
   function _instCopy(u) {
@@ -11843,6 +11912,9 @@
     if (screen === 'pix') renderPixScreen();
     if (screen === 'success') { try { _renderSuccessPush(); } catch (e) {} try { _renderInstallSpots(); } catch (e) {} }
     if (screen === 'profile') { try { _renderInstallSpots(); } catch (e) {} }
+    if (screen === 'cart' || screen === 'checkout') {
+      try { _loadReferral().then(() => { try { if (screen === 'cart') { _tryPendingCoupon(); renderCart(); } else renderCheckout(); } catch (e) {} }); } catch (e) {}
+    }
     if (screen === 'checkout') {
       // Sempre entra no passo 1 (entrega). Pagamento é o passo 2.
       checkoutStep = 1; renderCheckoutStep();
@@ -11928,7 +12000,26 @@
     const raw = cartTotal();
     const fee = deliveryFee();
     const withFee = raw + fee;
-    return appliedCoupon ? Math.max(0, withFee - appliedCoupon.discount) : withFee;
+    const afterCoupon = appliedCoupon ? Math.max(0, withFee - appliedCoupon.discount) : withFee;
+    return afterCoupon - _creditFor(afterCoupon);
+  }
+  // Crédito de indicação (R$ 5 por amigo que comprou) — vem do servidor; total nunca abaixo de R$ 1
+  window._refCreditCents = 0;
+  function _creditFor(totalReais) {
+    const c = (window._refCreditCents || 0) / 100;
+    if (c <= 0) return 0;
+    return Math.round(Math.max(0, Math.min(c, totalReais - 1)) * 100) / 100;
+  }
+  let _refInfo = null;
+  async function _loadReferral() {
+    if (!_isLoggedIn() || PREVIEW_MODE) { window._refCreditCents = 0; return null; }
+    try {
+      const r = await fetch('/api/webhook?action=customer_referral', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: profile.phone, token: _custToken() }) });
+      const d = await r.json().catch(() => null);
+      if (d && d.ok) { _refInfo = d; window._refCreditCents = d.credit_cents || 0; }
+    } catch (e) {}
+    return _refInfo;
   }
   function belowMinimum() { return false; }
 
@@ -12219,6 +12310,7 @@
       <div class="cs-row"><span>Subtotal</span><span>${money(subtotal)}</span></div>
       ${discount ? `<div class="cs-row"><span>Cupom ${escapeHtml(appliedCoupon.code || '')}</span><span class="free">-${money(discount)}</span></div>` : ''}
       ${feeRow}
+      ${_creditFor(Math.max(0, subtotal - discount + (deliveryMode === 'delivery' ? deliveryFee() : 0))) > 0 ? `<div class="cs-row"><span>Crédito de indicação</span><span class="free">-${money(_creditFor(Math.max(0, subtotal - discount + (deliveryMode === 'delivery' ? deliveryFee() : 0))))}</span></div>` : ''}
       <div class="cs-sep"></div>
       <div class="cs-total"><span>Total</span><span>${money(finalTotal())}</span></div>`;
     const btn = document.getElementById('co-to-pay'), note = document.getElementById('co-paynote');
@@ -14304,8 +14396,9 @@
   }
   // O servidor recusou um item do pedido (saiu da loja / mudou o preço): arruma o carrinho e avisa.
   function _handleCartReject(status, data) {
-    if (status === 409 && data && /^cupom_|^total_invalido$/.test(String(data.error || ''))) {
+    if (status === 409 && data && /^cupom_|^credito_|^total_invalido$/.test(String(data.error || ''))) {
       if (String(data.error).startsWith('cupom_')) appliedCoupon = null;
+      if (String(data.error).startsWith('credito_') || data.error === 'total_invalido') { try { _loadReferral(); } catch (e) {} }
       try { renderCart(); } catch (e) {}
       toast(data.message || 'Conferimos o valor ✦ confere e tenta de novo');
       go('cart'); try { renderCart(); } catch (e) {}
@@ -14678,7 +14771,9 @@
             payment_method: paymentMethod,
             subtotal: subtotal,
             delivery_fee: deliveryFeeReais,
-            total: Math.max(0, subtotal - discount) + deliveryFeeReais,
+            total: Math.max(0, subtotal - discount) + deliveryFeeReais - _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais),
+            use_credit: _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais) > 0 || undefined,
+            customer_token: _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais) > 0 ? _custToken() : undefined,
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
             address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
