@@ -198,12 +198,12 @@ module.exports = async function handler(req, res) {
     if (Math.abs(Math.round(subtotal * 100) - itemsSubCents) > 2) {
       return res.status(409).json({ error: 'total_invalido', message: 'O valor do pedido não bate ✦ atualizamos, confere e tenta de novo' });
     }
-    let discountCents = 0, couponApplied = null, refCustomerId = null, creditUsedCents = 0;
+    let discountCents = 0, couponApplied = null, refCustomerId = null, creditUsedCents = 0, couponEmployeeId = null;
     const sbFetch = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }).then(r => r.ok ? r.json() : []);
     if (body.coupon_code) {
-      const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents }, sbFetch);
+      const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents, filialSlug: body.filial_slug || 'sp' }, sbFetch);
       if (!cr.ok) return res.status(409).json({ error: cr.error || 'cupom_invalido', coupon: String(body.coupon_code).toUpperCase(), message: cr.message + ' ✦ tiramos o cupom, confere o valor e tenta de novo' });
-      discountCents = cr.discount_cents; couponApplied = cr.code; refCustomerId = cr.ref_customer_id || null;
+      discountCents = cr.discount_cents; couponApplied = cr.code; refCustomerId = cr.ref_customer_id || null; couponEmployeeId = cr.employee_id || null;
     }
     // Crédito de indicação (R$ 5 por amigo que comprou) — o servidor calcula quanto tem
     if (body.use_credit && customerId) {
@@ -334,7 +334,7 @@ module.exports = async function handler(req, res) {
         }
       } catch (e) { console.error('[save-order] colaborador:', e.message); }
     }
-    const employeeId = refEmployeeId || operadorId; // link tem prioridade sobre operador padrão
+    const employeeId = couponEmployeeId || refEmployeeId || operadorId; // código do atendente > link > operador padrão
 
     // Embaixador GLOBAL: só se o ref não bateu com colaborador da loja.
     let ambassadorRef = null, ambassadorId = null;

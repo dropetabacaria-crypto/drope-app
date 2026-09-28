@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>DROPE QR para imprimir</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+  /* Paleta oficial do app (index.html :root) */
+  @page { size: A4; margin: 10mm; }
+  :root { --bg: #0A0A14; --card: #1A1625; --card-hi: #241b33; --uv: #5B21B6; --pink: #FF2D6F; --lime: #D4FF2E; --text: #F5F3FF; --dim: #9B96B5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #d9d6e2; color: var(--text); font-family: Inter, system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .help { max-width: 190mm; margin: 16px auto; padding-inline: 16px; font-size: 14px; color: #3b3650; line-height: 1.5; }
+  .help b { color: #0A0A14; }
+  .sheet { width: 190mm; margin: 0 auto 24px; display: grid; gap: 6mm; }
+  @media print { body { background: #fff; } .help { display: none; } .sheet { margin: 0; } .page-break { break-before: page; } }
+
+  /* Display de balcão 90×130 mm */
+  .displays { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .disp { height: 130mm; border-radius: 5mm; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center;
+    background: radial-gradient(120% 70% at 50% 0%, rgba(91,33,182,0.55), transparent 60%), radial-gradient(90% 50% at 50% 100%, rgba(255,45,111,0.28), transparent 70%), var(--bg); padding: 7mm 6mm 5mm; gap: 3mm; }
+  .logo-row { display: flex; align-items: center; gap: 2.5mm; }
+  .logo-row img { width: 15mm; height: 15mm; border-radius: 50%; }
+  .brand { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10mm; letter-spacing: 0.02em; color: var(--lime); text-shadow: 0 0 3mm rgba(212,255,46,0.55); line-height: 1; }
+  .disp-h { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 6.2mm; line-height: 1.1; color: var(--text); text-wrap: balance; }
+  .qr-tile { background: var(--text); border-radius: 4mm; padding: 3.5mm; box-shadow: 0 0 0 0.6mm var(--lime), 0 0 5mm rgba(212,255,46,0.35); }
+  .qr-tile svg { width: 44mm; height: 44mm; display: block; }
+  .offer { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 6.6mm; color: var(--lime); }
+  .steps { font-size: 3.1mm; color: var(--dim); line-height: 1.45; }
+  .steps b { color: var(--pink); }
+  .disp-bot { margin-top: auto; width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 2.8mm; color: var(--dim); }
+  .age { font-weight: 700; color: var(--text); border: 0.3mm solid var(--dim); border-radius: 1mm; padding: 0.4mm 1.4mm; }
+
+  /* Adesivos redondos 50 mm */
+  .stickers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm 4mm; justify-items: center; background: #fff; padding: 4mm 0; }
+  .stk { width: 50mm; height: 50mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8mm;
+    background: radial-gradient(80% 60% at 50% 0%, rgba(91,33,182,0.6), transparent 70%), var(--bg); box-shadow: inset 0 0 0 0.6mm var(--pink); }
+  .stk-top { display: flex; align-items: center; gap: 1.2mm; }
+  .stk-top img { width: 6mm; height: 6mm; border-radius: 50%; }
+  .stk-t { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 3.8mm; color: var(--lime); line-height: 1; }
+  .stk .qr-tile { padding: 1.4mm; border-radius: 2mm; box-shadow: none; }
+  .stk .qr-tile svg { width: 21mm; height: 21mm; }
+  .stk-o { font-family: 'Space Grotesk', sans-serif; font-size: 2.8mm; font-weight: 700; color: var(--text); }
+  .stk-a { font-size: 1.9mm; color: var(--dim); }
+  .cut { font-size: 3mm; color: #3b3650; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="help">
+    <b>Como imprimir:</b> aperte <b>⌘ + P</b> no Safari, escolha <b>A4</b> e <b>Escala 100%</b>, e deixe marcado <b>“Imprimir fundos”</b>.
+    Página 1: 2 displays de balcão (cabem em acrílico 10×15 cm). Página 2: 12 adesivos redondos de 5 cm pra sacola.
+    <b>Antes de imprimir tudo, escaneie um QR com o celular pra conferir.</b>
+    <div id="who" style="margin-top:8px"></div>
+  </div>
+
+  <div class="sheet">
+    <div class="displays" id="displays"></div>
+    <div class="cut">Venda proibida para menores de 18 anos.</div>
+  </div>
+
+  <div class="sheet page-break">
+    <div class="stickers" id="stickers"></div>
+    <div class="cut">Adesivo 5 cm · cole na sacola ou na embalagem</div>
+  </div>
+
+<script>
+  var LOGO = '/icons/icon-512.png';
+  // /qr.html?c=NATALIA23&n=Natália → QR do atendente (a venda fica no nome dele). Sem c = BEMVINDO10.
+  var P = new URLSearchParams(location.search);
+  var CODE = (P.get('c') || 'BEMVINDO10').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) || 'BEMVINDO10';
+  var NOME = (P.get('n') || '').replace(/[<>&"]/g, '').slice(0, 30);
+  var URL_QR = 'https://drope-app.vercel.app/?c=' + CODE;
+  document.title = NOME ? ('QR ' + NOME + ' · DROPE') : 'DROPE QR para imprimir';
+  if (NOME) document.getElementById('who').innerHTML = 'QR de <b>' + NOME + '</b> · código <b>' + CODE + '</b> · cada cliente novo que comprar por aqui conta pra ' + NOME + '.';
+  var q = qrcode(0, 'M'); q.addData(URL_QR); q.make();
+  var svg = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace(/fill="#000000"/g, 'fill="#0A0A14"');
+  var disp = '<div class="disp"><div class="logo-row"><img src="' + LOGO + '" alt=""><div class="brand">DROPE</div></div>'
+    + '<div class="disp-h">Seu pod chega em casa em minutos</div>'
+    + '<div class="qr-tile">' + svg + '</div>'
+    + '<div class="offer">R$ 10 na 1ª compra</div>'
+    + '<div class="steps">Aponte a câmera do celular pro código<br><b>2 pods = entrega grátis</b> (até 6 km)</div>'
+    + '<div class="disp-bot"><span>' + (CODE === 'BEMVINDO10' ? 'drope-app.vercel.app' : 'código ' + CODE) + '</span><span class="age">18+</span></div></div>';
+  document.getElementById('displays').innerHTML = disp + disp;
+  var stk = '<div class="stk"><div class="stk-top"><img src="' + LOGO + '" alt=""><div class="stk-t">DROPE</div></div><div class="qr-tile">' + svg + '</div><div class="stk-o">R$ 10 na 1ª compra</div><div class="stk-a">18+ · entrega em minutos</div></div>';
+  var h = ''; for (var i = 0; i < 12; i++) h += stk;
+  document.getElementById('stickers').innerHTML = h;
+</script>
+</body>
+</html>

@@ -3183,7 +3183,7 @@ function _fnTipoHint() {
   const t = ((document.getElementById('fn-tipo') || {}).value) || 'pct_lucro';
   const h = document.getElementById('fn-hint');
   if (h) h.textContent = t === 'fixo'
-    ? 'Ex.: R$ 2,00 por venda dele, independente do valor.'
+    ? 'Ex.: R$ 3,00 por cliente novo que comprar com o código/QR dele.'
     : 'Ex.: 20% do lucro (preço − custo) de cada venda dele. Precisa do preço de custo cadastrado no produto.';
 }
 function renderFuncionarios() {
@@ -3196,10 +3196,12 @@ function renderFuncionarios() {
       : (String(f.valor || 0).replace('.', ',') + '% do lucro');
     const c = (_comissoes || []).find(x => x.id === f.id);
     const comLine = _comissaoBlock(c);
+    // Código do atendente: cliente novo ganha R$ 10 na 1ª compra e a venda conta pra ele
     const linkLine = f.ref_code
-      ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-           <span>link de indicação:</span>
-           <span class="mini-link" onclick="copyFuncLink('${f.ref_code}')">copiar link ✦</span>
+      ? `<div style="font-size:11.5px;color:var(--fg-dim);margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+           <span>código <b style="color:var(--lime);letter-spacing:.04em">${esc(f.ref_code)}</b></span>
+           <a class="mini-link" href="/qr.html?c=${encodeURIComponent(f.ref_code)}&n=${encodeURIComponent(f.nome || '')}" target="_blank" style="text-decoration:none">QR pra imprimir ›</a>
+           <span class="mini-link" onclick="copyFuncLink('${f.ref_code}')">copiar link</span>
          </div>`
       : '';
     return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
@@ -3251,7 +3253,7 @@ function editFuncionario(id) {
   const msg = document.getElementById('fn-msg'); if (msg) msg.textContent = 'editando ' + (f.nome || '') + '…';
 }
 function copyFuncLink(code) {
-  const link = location.origin + '/?loja=' + encodeURIComponent(FILIAL_SLUG) + '&ref=' + encodeURIComponent(code);
+  const link = location.origin + '/?c=' + encodeURIComponent(code); // abre a loja com o código do atendente já aplicado
   const done = () => alert('Link copiado! ✦ Compartilha com quem vai indicar:\n\n' + link);
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('Copie o link:', link));

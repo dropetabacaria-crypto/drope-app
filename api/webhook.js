@@ -19435,7 +19435,7 @@ module.exports = async function handler(req, res) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const { checkCoupon } = require('../lib/cupons');
-      const r = await checkCoupon({ code: body.code, phone: body.phone, subtotalCents: body.subtotal_cents }, (path) => sbGet(path.split('?')[0], path.split('?')[1] || ''));
+      const r = await checkCoupon({ code: body.code, phone: body.phone, subtotalCents: body.subtotal_cents, filialSlug: body.filial || 'sp' }, (path) => sbGet(path.split('?')[0], path.split('?')[1] || ''));
       return res.status(200).json(r);
     } catch (e) { return res.status(200).json({ ok: false, message: 'não consegui conferir o cupom agora' }); }
   }
