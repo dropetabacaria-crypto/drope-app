@@ -220,6 +220,7 @@
   .rail { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .rail::-webkit-scrollbar { display: none; }
   .rail .tile { flex: 0 0 42%; min-width: 0; max-width: 176px; scroll-snap-align: start; padding: 12px; }
+  .mp-grid { padding: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #home .grid { padding: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid .tile { min-width: 0; padding: 12px; }
   .tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; min-height: 36px; }
@@ -4597,10 +4598,10 @@
   <!-- ============ OFERTAS ============ -->
   <div class="screen" id="ofertas">
     <div style="padding: 22px 20px 6px">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Ofertas</div>
-      <div style="color:var(--text-dim);font-size:13px;margin-top:2px">Produtos em promoção nas lojas</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Mais pedidos</div>
+      <div id="ofertas-sub" style="color:var(--text-dim);font-size:13px;margin-top:2px">Os pods que a galera mais leva</div>
     </div>
-    <div id="ofertas-list" style="padding: 14px 20px 24px"></div>
+    <div id="ofertas-list" style="padding: 14px 0 110px"></div>
   </div>
 
   <style>
@@ -6112,8 +6113,8 @@
       <span class="nav-lbl">Início</span>
     </button>
     <button class="nav-btn" data-screen="ofertas" onclick="go('ofertas')">
-      <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none"/></svg>
-      <span class="nav-lbl">Ofertas</span>
+      <svg viewBox="0 0 24 24"><path d="M12 3c.4 2.4 2.4 3.9 3.4 5.4C16.4 9.9 17 11.4 17 13a5 5 0 0 1-10 0c0-1.3.4-2.4 1.2-3.4.3 1.4 1.3 1.9 1.8 1.4C11.4 9.8 10 8 12 3Z"/></svg>
+      <span class="nav-lbl">Mais pedidos</span>
     </button>
     <button class="nav-btn" data-screen="orders" onclick="go('orders')">
       <svg viewBox="0 0 24 24"><path d="M6 2l1.5 2h9L18 2M4 4h16l-1.5 16.5a2 2 0 01-2 1.5H7.5a2 2 0 01-2-1.5z"/><path d="M9 10h6"/></svg>
@@ -9158,7 +9159,24 @@
     const vazio = _inicioSeg === 'adega' ? 'nenhuma adega encontrada ✦' : _inicioSeg === 'tabacaria' ? 'nenhuma tabacaria encontrada ✦' : 'nenhuma loja encontrada ✦';
     list.innerHTML = arr.length ? arr.map(_lojaCardHtml).join('') : `<div class="empty-mini">${vazio}</div>`;
   }
-  async function renderOfertas() {
+  // Aba "Mais pedidos" (27/09, antes "Ofertas" vazia): ranking de vendas da loja;
+  // sem vendas ainda → os que chegaram por último. Esgotados vão pro fim.
+  function renderOfertas() {
+    const list = document.getElementById('ofertas-list');
+    if (!list) return;
+    const sub = document.getElementById('ofertas-sub');
+    const vis = products.map((p, i) => ({ p, i })).filter(({ p }) => !p.hidden && typeof p.price === 'number' && p.price > 0);
+    const anySold = vis.some(({ p }) => (p.total_sold || 0) > 0);
+    vis.sort((a, b) => {
+      const sa = _soldOut(a.p) ? 1 : 0, sb = _soldOut(b.p) ? 1 : 0; if (sa !== sb) return sa - sb;
+      if (anySold) { const d = (b.p.total_sold || 0) - (a.p.total_sold || 0); if (d) return d; }
+      return (b.p.id || 0) - (a.p.id || 0);
+    });
+    if (sub) sub.textContent = anySold ? 'Os pods que a galera mais leva' : 'Ainda sem ranking de vendas · aqui estão os que chegaram por último';
+    if (!vis.length) { list.innerHTML = '<div class="empty-mini" style="text-align:center">A loja ainda não tem pods ✦</div>'; return; }
+    list.innerHTML = `<div class="grid mp-grid">${vis.slice(0, 30).map(({ p, i }) => tileHTML(p, i)).join('')}</div>`;
+  }
+  async function _renderOfertasOld() {
     const list = document.getElementById('ofertas-list');
     if (!list) return;
     const emptyHtml = `<div style="text-align:center;padding:44px 20px;color:var(--text-dim)">
