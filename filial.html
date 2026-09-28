@@ -178,13 +178,14 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .pf-btn:disabled { opacity: 0.6; cursor: default; }
 .pf-btn.full { width: 100%; }
 /* Ações rápidas (tiles) */
-.qa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.qa-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; border: 1px solid var(--border); border-radius: 16px; padding: 15px; cursor: pointer; text-align: left; color: var(--fg); font-family: inherit; background: var(--bg2); box-shadow: var(--card-shadow); transition: border-color .15s, transform .1s; }
+.qa-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.qa-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; border: 1px solid var(--border); border-radius: 16px; padding: 12px; min-width: 0; cursor: pointer; text-align: left; color: var(--fg); font-family: inherit; background: var(--bg2); box-shadow: var(--card-shadow); transition: border-color .15s, transform .1s; }
 .qa-tile:hover { border-color: rgba(255,255,255,0.16); }
 .qa-tile:active { transform: scale(0.98); }
 .qa-emoji { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .qa-tile.sell .qa-emoji { background: rgba(74,222,128,0.14); color: var(--green); }     /* cadastrar */
 .qa-tile.stock .qa-emoji { background: rgba(140,80,255,0.16); color: #B79CFF; }          /* balanço = utilitário */
+.qa-tile:not(.sell):not(.stock) .qa-emoji { background: rgba(255,255,255,0.08); color: var(--fg); } /* produtos */
 .qa-tt { font-size: 15px; font-weight: 800; color: var(--fg); }
 .qa-ts { font-size: 11.5px; color: var(--fg-dim); }
 /* Overlays (balanço etc.) */
@@ -408,6 +409,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
 
   <!-- ABA: Início -->
   <div id="tab-inicio">
+  <!-- Ordem (28/09, UX A-foco): 1º o que precisa sair agora, depois pendências, números do dia e atalhos -->
+  <div class="section sec-pend">
+    <h2>Pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
+    <div id="pendentes-list"></div>
+  </div>
+
   <!-- Resolva agora: pendências proativas (estoque, foto, código, pedido parado) -->
   <div class="section sec-resolva" id="sec-resolva" style="display:none">
     <h2>Resolva agora</h2>
@@ -423,30 +430,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
     </div>
   </div>
 <div class="section sec-acoes">
-    <h2>Ações rápidas</h2>
+    <h2>Atalhos</h2>
     <div class="qa-row">
       <button class="qa-tile sell" onclick="openProdutos();switchProdTab('cadastrar')"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 8v8M11 8v8M14 8v8M17 8v8"/></svg></span><span class="qa-tt">Cadastrar</span><span class="qa-ts">Novo pod pelo código</span></button>
       <button class="qa-tile stock" onclick="openBalanco()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".6"/><path d="M8.5 13h0M12 13h0M15.5 13h0M8.5 16.5h0M12 16.5h0M15.5 16.5h0"/></svg></span><span class="qa-tt">Balanço</span><span class="qa-ts">Contagem de estoque</span></button>
+      <button class="qa-tile" onclick="openProdutos()"><span class="qa-emoji"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span><span class="qa-tt">Produtos</span><span class="qa-ts" id="prod-count-badge">Preço e estoque</span></button>
     </div>
   </div>
 
-  <div class="section sec-pend">
-    <h2>Pra entregar agora <span id="pendentes-count" style="background:var(--yellow);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px;display:none">0</span></h2>
-    <div id="pendentes-list"></div>
-  </div>
 
-  <div class="section sec-prod">
-    <h2>Meus produtos<span class="help-q" onclick="helpShow('produtos',true)" title="O que é isso?">?</span></h2>
-    <button onclick="openProdutos()" style="width:100%;display:flex;align-items:center;gap:12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:15px 16px;color:var(--fg);font-family:inherit;cursor:pointer;text-align:left">
-      <span style="font-size:22px;flex:0 0 auto"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></span>
-      <span style="flex:1;min-width:0">
-        <span style="display:block;font-size:15px;font-weight:800">Gerenciar produtos</span>
-        <span style="display:block;font-size:12px;color:var(--fg-dim);margin-top:1px">Cadastrar por foto, preço, estoque, imagens</span>
-      </span>
-      <span id="prod-count-badge" style="font-size:13px;font-weight:800;color:var(--fg-dim);flex:0 0 auto"></span>
-      <span style="color:var(--fg-dim);font-size:18px;flex:0 0 auto">›</span>
-    </button>
-  </div>
 
     </div>
 
@@ -1438,7 +1430,7 @@ function render(d) {
 
   renderProdutos(d.produtos || []);
   const pcb = document.getElementById('prod-count-badge');
-  if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : ''; }
+  if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} no catálogo` : 'Preço e estoque'; }
   try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
   try { renderHoje(d.dia); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
@@ -5022,7 +5014,7 @@ function _renderPendentes() {
       const tiles = pendentes.slice(0, 6).map(renderPedidoTile).join('');
       const verTodos = pendentes.length > 6 ? `<button class="ver-todos" onclick="openAllPedidos()">Ver todos os <b>${pendentes.length} pedidos</b> ›</button>` : '';
       pendList.innerHTML = `<div class="ped-grid">${tiles}</div>${verTodos}`;
-    } else { pendList.innerHTML = '<div class="empty">Sem pedidos pendentes</div>'; }
+    } else { pendList.innerHTML = '<div class="empty">Nenhum pedido pra entregar agora ✓</div>'; }
   }
   const pendCount = document.getElementById('pendentes-count');
   if (pendCount) { pendCount.style.display = pendentes.length ? 'inline' : 'none'; pendCount.textContent = pendentes.length; }
