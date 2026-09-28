@@ -5365,7 +5365,7 @@ function _renderPushBtn() {
   b.innerHTML = ic + (on ? 'Notif. on' : 'Ativar no cel');
 }
 async function ativarPush() {
-  if (_pushOn()) { _toast('Notificações já estão ativas neste aparelho ✦ mandando um teste…', 'ok'); _pushTest(); return; }
+  // Sempre (re)registra o aparelho antes do teste — idempotente. Evita "diz que está ativo mas o servidor não tem o aparelho".
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       _toast('No iPhone: adicione o app à Tela de Início (Compartilhar → Adicionar) e abra por lá pra ativar.', 'err'); return;
@@ -5384,7 +5384,7 @@ async function ativarPush() {
     if (!(r.ok && d.ok)) throw new Error(d.error || 'falha ao registrar');
     try { localStorage.setItem('drope_push_on_v2', '1'); localStorage.removeItem('drope_push_on'); } catch (e) {}
     _renderPushBtn();
-    _toast('Notificações ativadas ✦ mandando um teste…', 'ok');
+    _toast('Aparelho registrado ✦ mandando um teste…', 'ok');
     _pushTest();
   } catch (e) { _toast('Não deu pra ativar os avisos: ' + ((e && e.message) || 'erro') + ' — confere se o celular permite notificações', 'err'); }
 }
