@@ -15644,6 +15644,7 @@ async function handleCustomerRegister(req, res) {
     if (name) patch.name = name;
     if (email) patch.email = email;
     if (birthdate) patch.birthdate = birthdate;
+    if (body.whats_optin === true) patch.whats_optin_at = new Date().toISOString(); // marcou "quero ofertas no WhatsApp"
     if (existing) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
     else await sbInsert('drope_customers', { phone, source: 'app', created_at: new Date().toISOString(), ...patch });
     return res.status(200).json({ ok: true, token, customer: { name: name || '', phone } });
@@ -19440,6 +19441,30 @@ module.exports = async function handler(req, res) {
     } catch (e) { return res.status(200).json({ ok: false, message: 'não consegui conferir o cupom agora' }); }
   }
 
+  // action=customer_whats_optin — POST {phone, token, on?}: liga/desliga ofertas no WhatsApp (sem "on" = só consulta)
+  if (req.url && /[?&]action=customer_whats_optin(&|$)/.test(req.url)) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      if (!(await _customerSessionOk(body.phone, String(body.token || '')))) return res.status(401).json({ ok: false, error: 'unauthorized' });
+      const ph = _normPhone(body.phone);
+      if (typeof body.on === 'boolean') await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(ph)}`, { whats_optin_at: body.on ? new Date().toISOString() : null });
+      const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(ph)}&select=whats_optin_at&limit=1`);
+      return res.status(200).json({ ok: true, on: !!(rows && rows[0] && rows[0].whats_optin_at) });
+    } catch (e) { return res.status(500).json({ ok: false }); }
+  }
+  // action=filial_whats_list — GET: clientes que ACEITARAM receber ofertas no WhatsApp (painel)
+  if (req.url && /[?&]action=filial_whats_list(&|$)/.test(req.url)) {
+    res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cache-Control', 'no-store');
+    try {
+      const u = new URL(req.url, 'http://x');
+      const filial = await _filialAuthBySlug(String(u.searchParams.get('filial') || '').toLowerCase().trim(), String(u.searchParams.get('token') || '').trim());
+      if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+      const rows = await sbGet('drope_customers', `whats_optin_at=not.is.null&select=id,name,phone,whats_optin_at,last_order_date,total_orders&order=whats_optin_at.desc&limit=1000`);
+      const lista = (Array.isArray(rows) ? rows : []).map(c => ({ id: c.id, nome: String(c.name || '').trim() || 'cliente', phone: String(c.phone || '').replace(/\D/g, ''), desde: c.whats_optin_at, ultimo_pedido: c.last_order_date || null, pedidos: c.total_orders || 0 })).filter(c => c.phone.length >= 10);
+      return res.status(200).json({ ok: true, lista });
+    } catch (e) { console.error('[filial_whats_list]', e.message); return res.status(500).json({ ok: false }); }
+  }
   // action=customer_referral — POST {phone, token}: código pessoal "Indique e ganhe" + crédito disponível
   if (req.url && /[?&]action=customer_referral(&|$)/.test(req.url)) {
     res.setHeader('Cache-Control', 'no-store');

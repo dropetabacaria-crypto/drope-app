@@ -541,6 +541,9 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <button class="cfg-item" onclick="openCfg('pagamento')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Pagamentos</span><br><small style="color:var(--fg-dim);font-weight:400">InfinitePay · Pix ou cartão</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
+        <button class="cfg-item" onclick="openCfg('whats')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
+          <span><span style="font-weight:800;font-size:15px">Lista do WhatsApp</span><br><small style="color:var(--fg-dim);font-weight:400">Clientes que aceitaram receber ofertas</small></span><span style="color:var(--fg-dim)">›</span>
+        </button>
         <button class="cfg-item" onclick="openCfg('funcionarios')" style="display:flex;align-items:center;justify-content:space-between;text-align:left;width:100%;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;color:var(--fg);font-family:inherit;cursor:pointer">
           <span><span style="font-weight:800;font-size:15px">Funcionários</span><br><small style="color:var(--fg-dim);font-weight:400">Comissão por venda e operador da loja</small></span><span style="color:var(--fg-dim)">›</span>
         </button>
@@ -740,6 +743,22 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <button class="pf-btn" onclick="saveFuncionario()">Adicionar funcionário ✦</button>
             <div id="fn-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: Lista do WhatsApp (só quem ACEITOU no cadastro ou no Perfil — LGPD) -->
+      <div class="cfg-sec" id="cfg-whats" style="display:none">
+        <button class="cfg-back" onclick="closeCfg()" style="background:none;border:none;color:var(--lime);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 0;margin-bottom:4px">‹ Voltar</button>
+        <div class="section">
+          <h2>Lista do WhatsApp <span id="wl-count" style="background:var(--lime);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px">0</span></h2>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.5;margin:0 0 12px">Só aparece quem marcou <b style="color:var(--fg)">"quero receber ofertas"</b>. Mande no máximo <b style="color:var(--fg)">2 mensagens por semana</b> e use um número separado do seu pessoal: o WhatsApp pode bloquear números que mandam oferta de vape.</p>
+          <label class="pf-lbl">Mensagem</label>
+          <textarea class="pf-input" id="wl-msg" rows="4" style="resize:vertical;font-family:inherit;line-height:1.4">Oi, {nome}! Aqui é da DROPE 🦎 Essa semana: 2 pods = entrega grátis (até 6 km). Pede por aqui: https://drope-app.vercel.app</textarea>
+          <div class="pf-hint" style="margin:4px 0 12px">{nome} vira o primeiro nome do cliente.</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button class="pf-btn sec" style="flex:1;margin:0" onclick="wlCopyNumbers()">Copiar todos os números</button>
+          </div>
+          <div id="wl-list"></div>
         </div>
       </div>
 
@@ -4356,7 +4375,7 @@ async function delFiltro(id) {
 
 // ===== Configuração da loja (bloco recolhível) =====
 // Configuração = OVERLAY de tela cheia (estilo Ajustes): menu → seção → voltar.
-const CFG_TITLES = { loja: 'Minha loja', aparencia: 'Aparência da página', filtros: 'Meus filtros', func: 'Funcionamento', qr: 'QR da loja', pagamento: 'Pagamentos', funcionarios: 'Funcionários', entregadores: 'Entregadores', parceiros: 'Parceiros / Indicadores', plano: 'Meu plano' };
+const CFG_TITLES = { whats: 'Lista do WhatsApp', loja: 'Minha loja', aparencia: 'Aparência da página', filtros: 'Meus filtros', func: 'Funcionamento', qr: 'QR da loja', pagamento: 'Pagamentos', funcionarios: 'Funcionários', entregadores: 'Entregadores', parceiros: 'Parceiros / Indicadores', plano: 'Meu plano' };
 function openConfigOverlay() {
   const w = document.getElementById('config-wrap'), c = document.getElementById('config-chev');
   if (!w) return;
@@ -4398,6 +4417,7 @@ function openCfg(name) {
     if (name === 'filtros') { renderFiltroSugestoes(); renderFiltros(_filtros); }
     if (name === 'qr') renderQR();
     // pagamento: InfinitePay (sem conexão a fazer; Mercado Pago desligado)
+    if (name === 'whats') loadWhatsList();
     if (name === 'funcionarios') { _fnTipoHint(); renderCommPeriod(); renderFuncionarios(); }
     if (name === 'entregadores') { renderEntregadores(); renderFrete(); }
     if (name === 'parceiros') { renderAcceptPartners(); renderParceiros(); }
@@ -4942,6 +4962,46 @@ async function _pedShare(id) {
   catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
 }
 // Bloco "Hoje": vendas/pedidos/ticket de hoje até agora × mesmo dia da semana passada até a mesma hora.
+// ===== Lista do WhatsApp =====
+let _wl = [];
+const _WL_SENT = 'drope_wl_sent_' + new Date().toISOString().slice(0, 10); // marca "mandei hoje" neste aparelho
+function _wlSent() { try { return JSON.parse(localStorage.getItem(_WL_SENT) || '[]'); } catch (e) { return []; } }
+async function loadWhatsList() {
+  const el = document.getElementById('wl-list'); if (el) el.innerHTML = '<div class="empty">carregando…</div>';
+  try {
+    const r = await fetch(`/api/webhook?action=filial_whats_list&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    _wl = (d && d.ok && Array.isArray(d.lista)) ? d.lista : [];
+  } catch (e) { _wl = []; }
+  renderWhatsList();
+}
+function renderWhatsList() {
+  const el = document.getElementById('wl-list'), cnt = document.getElementById('wl-count');
+  if (cnt) cnt.textContent = _wl.length;
+  if (!el) return;
+  if (!_wl.length) { el.innerHTML = '<div class="empty">Ninguém aceitou ainda ✦ a caixinha "quero receber ofertas" aparece no cadastro do app e no Perfil do cliente</div>'; return; }
+  const sent = _wlSent();
+  el.innerHTML = _wl.map(c => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:11px 12px;margin-bottom:8px">
+      <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px">${esc(c.nome)}</div>
+        <div style="font-size:11.5px;color:var(--fg-dim)">${c.pedidos ? c.pedidos + ' pedido' + (c.pedidos > 1 ? 's' : '') : 'ainda não comprou'}</div></div>
+      ${sent.includes(c.id) ? '<span style="font-size:12px;color:var(--green);font-weight:700">mandado ✓</span>' : ''}
+      <button onclick="wlSend(${c.id})" style="flex:0 0 auto;background:#25D366;color:#04210f;border:0;border-radius:10px;padding:9px 12px;font-family:inherit;font-weight:800;font-size:12.5px;cursor:pointer">WhatsApp</button>
+    </div>`).join('');
+}
+function wlSend(id) {
+  const c = _wl.find(x => x.id === id); if (!c) return;
+  const txt = (document.getElementById('wl-msg').value || '').replace(/\{nome\}/g, String(c.nome).split(' ')[0]);
+  const ph = c.phone.length <= 11 ? '55' + c.phone : c.phone;
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(txt)}`, '_blank');
+  try { const s = _wlSent(); if (!s.includes(id)) { s.push(id); localStorage.setItem(_WL_SENT, JSON.stringify(s)); } } catch (e) {}
+  renderWhatsList();
+}
+function wlCopyNumbers() {
+  const nums = _wl.map(c => '+55 ' + c.phone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')).join('\n');
+  if (!nums) { _toast('Lista vazia ainda', 'err'); return; }
+  try { navigator.clipboard.writeText(nums).then(() => _toast('Números copiados ✦ cole numa lista de transmissão do WhatsApp', 'ok'), () => prompt('Copie:', nums)); } catch (e) { prompt('Copie:', nums); }
+}
+
 // ===== Meta da semana =====
 let _metaAt = 0;
 async function loadMeta() {

@@ -5430,6 +5430,7 @@
         <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Meus dados <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-ref" onclick="openReferral()" style="color:var(--lime)">Indique e ganhe R$ 5 <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-install" onclick="openInstallGuide()" style="display:none">Instalar o app na tela <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-whats" onclick="toggleWhatsOptin()" style="display:none">Ofertas no WhatsApp <span id="pr-whats-st" style="margin-left:auto;margin-right:8px;font-size:12px;color:var(--text-dim)">desligadas</span><span class="arrow">›</span></div>
         <div class="profile-row" id="pr-push" onclick="ativarPushCliente()">Avisos do pedido no celular <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Senha <span class="arrow">›</span></div>
         <!-- "Divulgar e ganhar" desligado (27/09/2026 — programa de divulgadores volta depois) -->
@@ -5518,6 +5519,11 @@
           <input id="creg-pass" class="card-input" type="password" placeholder="Crie uma senha (mín. 6)" style="width:100%;font-size:16px;padding:15px;padding-right:74px" onkeydown="if(event.key==='Enter')registerAccount()">
           <span onclick="togglePw('creg-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:600;user-select:none">mostrar</span>
         </div>
+        <!-- LGPD: autorização explícita, desmarcada por padrão -->
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;cursor:pointer;font-size:13px;color:var(--text-dim);line-height:1.4">
+          <input type="checkbox" id="creg-whats" style="width:18px;height:18px;margin-top:1px;accent-color:var(--lime);flex:0 0 auto">
+          <span>Quero receber ofertas da DROPE no WhatsApp <span style="opacity:.8">(no máximo 2 por semana · dá pra sair quando quiser no Perfil)</span></span>
+        </label>
         <button class="btn-primary" id="creg-btn" onclick="registerAccount()" style="width:100%;margin-top:16px">Criar conta ✦</button>
         <div style="text-align:center;margin-top:12px"><span onclick="showPwLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Já tenho conta ›</span></div>
         <div id="clogin-msg-create" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
@@ -7742,6 +7748,30 @@
     act.innerHTML = actions;
     ov.classList.add('show');
   }
+  // ===== Ofertas no WhatsApp (opt-in) =====
+  let _whatsOn = false;
+  function _renderWhatsRow() {
+    const row = document.getElementById('pr-whats'), st = document.getElementById('pr-whats-st');
+    if (!row) return;
+    row.style.display = _isLoggedIn() ? 'flex' : 'none';
+    if (st) { st.textContent = _whatsOn ? 'ligadas ✓' : 'desligadas'; st.style.color = _whatsOn ? 'var(--lime)' : 'var(--text-dim)'; }
+  }
+  async function _loadWhatsOptin(on) {
+    if (!_isLoggedIn() || PREVIEW_MODE) { _renderWhatsRow(); return; }
+    try {
+      const r = await fetch('/api/webhook?action=customer_whats_optin', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: profile.phone, token: _custToken(), ...(typeof on === 'boolean' ? { on } : {}) }) });
+      const d = await r.json().catch(() => null);
+      if (d && d.ok) _whatsOn = !!d.on;
+    } catch (e) {}
+    _renderWhatsRow();
+  }
+  async function toggleWhatsOptin() {
+    const next = !_whatsOn;
+    await _loadWhatsOptin(next);
+    toast(_whatsOn ? 'Pronto ✦ você vai receber ofertas no WhatsApp (no máximo 2 por semana)' : 'Pronto ✦ você não vai mais receber ofertas no WhatsApp');
+  }
+
   // ===== Indique e ganhe =====
   async function openReferral() {
     if (!_isLoggedIn()) { try { openCustomerLogin(); } catch (e) {} return; }
@@ -9779,7 +9809,7 @@
     if (pass.length < 6) { msg.textContent = 'Crie uma senha de pelo menos 6 caracteres'; return; }
     const btn = document.getElementById('creg-btn'); btn.textContent = 'Criando...'; btn.disabled = true;
     try {
-      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass }) });
+      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass, whats_optin: !!((document.getElementById('creg-whats') || {}).checked) }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
@@ -11912,7 +11942,7 @@
     }
     if (screen === 'pix') renderPixScreen();
     if (screen === 'success') { try { _renderSuccessPush(); } catch (e) {} try { _renderInstallSpots(); } catch (e) {} }
-    if (screen === 'profile') { try { _renderInstallSpots(); } catch (e) {} }
+    if (screen === 'profile') { try { _renderInstallSpots(); } catch (e) {} try { _loadWhatsOptin(); } catch (e) {} }
     if (screen === 'cart' || screen === 'checkout') {
       try { _loadReferral().then(() => { try { if (screen === 'cart') { _tryPendingCoupon(); renderCart(); } else renderCheckout(); } catch (e) {} }); } catch (e) {}
     }
