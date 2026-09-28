@@ -434,6 +434,12 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value" id="hoje-ticket" style="font-size:19px">—</div><div class="kpi-sub" id="hoje-ticket-d"></div></div>
     </div>
   </div>
+  <!-- VOLTA5: quem comprou 1 vez e não voltou — a loja manda o cupom pelo WhatsApp -->
+  <div class="section sec-volta" id="sec-volta" style="display:none">
+    <h2>Chamar de volta <span id="volta-count" style="background:var(--lime);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px">0</span></h2>
+    <div style="font-size:12px;color:var(--fg-dim);margin:-4px 0 10px">Compraram 1 vez há 2+ dias. Manda o cupom <b style="color:var(--fg)">VOLTA5</b> (R$ 5 no 2º pedido).</div>
+    <div id="volta-list"></div>
+  </div>
 <div class="section sec-acoes">
     <h2>Atalhos</h2>
     <div class="qa-row">
@@ -1438,6 +1444,7 @@ function render(d) {
   if (pcb) { const n = (d.produtos || []).length; pcb.textContent = n ? `${n} no catálogo` : 'Preço e estoque'; }
   try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
   try { renderHoje(d.dia); } catch (e) {}
+  try { loadVolta5(); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -4917,6 +4924,54 @@ async function _pedShare(id) {
   catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
 }
 // Bloco "Hoje": vendas/pedidos/ticket de hoje até agora × mesmo dia da semana passada até a mesma hora.
+// ===== VOLTA5 — chamar de volta pelo WhatsApp =====
+let _volta5 = [], _volta5At = 0;
+async function loadVolta5(force) {
+  if (!force && Date.now() - _volta5At < 5 * 60000) { renderVolta5(); return; } // não pesa o painel a cada atualização
+  _volta5At = Date.now();
+  try {
+    const r = await fetch(`/api/webhook?action=filial_volta5_list&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    _volta5 = (d && d.ok && Array.isArray(d.lista)) ? d.lista : [];
+  } catch (e) { _volta5 = []; }
+  renderVolta5();
+}
+function renderVolta5() {
+  const sec = document.getElementById('sec-volta'), el = document.getElementById('volta-list'), cnt = document.getElementById('volta-count');
+  if (!sec || !el) return;
+  if (!_volta5.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  if (cnt) cnt.textContent = _volta5.length;
+  const dias = (iso) => { const n = Math.floor((Date.now() - Date.parse(iso)) / 86400000); return n <= 1 ? 'ontem' : `há ${n} dias`; };
+  el.innerHTML = _volta5.slice(0, 8).map(c => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:12px;margin-bottom:8px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">${esc(c.nome)}</div>
+        <div style="font-size:11.5px;color:var(--fg-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.pod || 'pedido')} · ${dias(c.quando)}</div>
+      </div>
+      <button onclick="volta5Skip(${c.id})" style="background:none;border:0;color:var(--fg-dim);font-family:inherit;font-size:12px;cursor:pointer;padding:6px">pular</button>
+      <button onclick="volta5Send(${c.id})" style="flex:0 0 auto;background:#25D366;color:#04210f;border:0;border-radius:10px;padding:10px 12px;font-family:inherit;font-weight:800;font-size:12.5px;cursor:pointer">WhatsApp</button>
+    </div>`).join('') + (_volta5.length > 8 ? `<div style="font-size:12px;color:var(--fg-dim);text-align:center">+ ${_volta5.length - 8} depois desses</div>` : '');
+}
+function _volta5Msg(c) {
+  const pod = c.pod ? ` do ${c.pod.replace(/\s+\d+(,\d)?K$/i, '')}` : '';
+  return `Oi, ${c.nome}! Aqui é da DROPE 🦎 Valeu pela compra${pod}! Pro seu próximo pedido, usa o cupom VOLTA5 e ganha R$ 5 de desconto: https://drope-app.vercel.app`;
+}
+async function _volta5Mark(id, skip) {
+  _volta5 = _volta5.filter(x => x.id !== id); renderVolta5();
+  try {
+    await fetch('/api/webhook?action=filial_volta5_mark', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, skip: !!skip }) });
+  } catch (e) {}
+}
+function volta5Send(id) {
+  const c = _volta5.find(x => x.id === id); if (!c) return;
+  const ph = c.phone.length <= 11 ? '55' + c.phone : c.phone;
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(_volta5Msg(c))}`, '_blank');
+  _volta5Mark(id, false);
+  try { _toast('Mandou ✦ ' + c.nome + ' saiu da lista', 'ok'); } catch (e) {}
+}
+function volta5Skip(id) { _volta5Mark(id, true); }
+
 function renderHoje(dia) {
   const sec = document.getElementById('sec-hoje'); if (!sec) return;
   if (!dia || !dia.hoje) { sec.style.display = 'none'; return; }

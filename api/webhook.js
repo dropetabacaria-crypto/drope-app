@@ -4756,6 +4756,58 @@ async function handleFilialPedidosBusca(req, res) {
   }
 }
 
+// VOLTA5 (28/09): quem comprou 1 vez, recebeu há 2+ dias (até 30) e não voltou → a loja manda o
+// cupom pelo WhatsApp. GET action=filial_volta5_list; POST action=filial_volta5_mark {id} marca enviado.
+async function handleFilialVolta5(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const u = new URL(req.url, 'http://x');
+    const body = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})) : {};
+    const slug = String(body.filial || u.searchParams.get('filial') || '').toLowerCase().trim();
+    const token = String(body.token || u.searchParams.get('token') || '').trim();
+    const filial = await _filialAuthBySlug(slug, token);
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    if (req.method === 'POST') {
+      const id = Number(body.id);
+      const ex = await sbGet('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}&select=id,metadata&limit=1`);
+      if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
+      await sbUpdate('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}`, { metadata: { ...(ex[0].metadata || {}), volta5_sent_at: new Date().toISOString(), volta5_skip: !!body.skip } });
+      return res.status(200).json({ ok: true });
+    }
+    const now = Date.now();
+    const d2 = new Date(now - 2 * 86400000).toISOString(), d30 = new Date(now - 30 * 86400000).toISOString();
+    const done = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=in.(delivered,picked_up,completed)&customer_id=not.is.null&select=id,order_nsu,customer_id,customer_snapshot,items,delivered_at,picked_up_at,created_at,metadata&order=created_at.desc&limit=300`);
+    const cand = (Array.isArray(done) ? done : []).filter(o => {
+      const at = o.delivered_at || o.picked_up_at || o.created_at;
+      return at && at <= d2 && at >= d30 && !(o.metadata && o.metadata.volta5_sent_at);
+    });
+    const ids = [...new Set(cand.map(o => o.customer_id))];
+    let counts = {};
+    if (ids.length) {
+      const all = await sbGet('drope_orders', `customer_id=in.(${ids.join(',')})&status=not.in.(created,cancelled)&select=customer_id&limit=2000`);
+      (Array.isArray(all) ? all : []).forEach(o => { counts[o.customer_id] = (counts[o.customer_id] || 0) + 1; });
+    }
+    const seen = new Set();
+    const lista = [];
+    for (const o of cand) {
+      if (counts[o.customer_id] !== 1 || seen.has(o.customer_id)) continue;
+      seen.add(o.customer_id);
+      const c = o.customer_snapshot || {};
+      const ph = String(c.phone || '').replace(/\D/g, '');
+      if (ph.length < 10) continue;
+      const it = Array.isArray(o.items) && o.items[0] ? o.items[0] : {};
+      lista.push({ id: o.id, order_nsu: o.order_nsu, nome: String(c.name || '').split(' ')[0] || 'cliente', phone: ph, pod: it.name || '', quando: o.delivered_at || o.picked_up_at || o.created_at });
+    }
+    return res.status(200).json({ ok: true, lista, cupom: 'VOLTA5', valor: 'R$ 5' });
+  } catch (e) {
+    console.error('[filial_volta5] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: 'não consegui montar a lista agora' });
+  }
+}
+
 async function handleFilialPainel(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
@@ -22063,6 +22115,9 @@ async function generateAll(){
     return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && /[?&]action=filial_volta5_(list|mark)(&|$)/.test(req.url)) {
+    return await handleFilialVolta5(req, res);
+  }
   if (req.url && req.url.indexOf('action=filial_pedidos_busca') >= 0) {
     return await handleFilialPedidosBusca(req, res);
   }
