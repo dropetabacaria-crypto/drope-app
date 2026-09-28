@@ -5341,7 +5341,22 @@ function _urlB64ToUint8(base64) {
   for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
   return arr;
 }
-function _pushOn() { try { return localStorage.getItem('drope_push_on') === '1'; } catch (e) { return false; } }
+// v2 (28/09): avisos pelo SW próprio do painel (sw-loja.js, escopo /filial) — quem ativou antes ativa de novo
+function _pushOn() { try { return localStorage.getItem('drope_push_on_v2') === '1'; } catch (e) { return false; } }
+// SW do painel: registra na abertura (escopo /filial) e devolve a registration dele
+function _lojaSW() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  return navigator.serviceWorker.register('/sw-loja.js', { scope: '/filial' })
+    .then((reg) => new Promise((ok) => {
+      if (reg.active) return ok(reg);
+      const w = reg.installing || reg.waiting;
+      if (!w) return ok(reg);
+      w.addEventListener('statechange', () => { if (w.state === 'activated') ok(reg); });
+      setTimeout(() => ok(reg), 4000);
+    }))
+    .catch(() => null);
+}
+try { _lojaSW(); } catch (e) {}
 function _renderPushBtn() {
   const b = document.getElementById('hd-push'); if (!b) return;
   const on = _pushOn();
@@ -5357,7 +5372,8 @@ async function ativarPush() {
     }
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { _toast('Permissão de notificação negada', 'err'); return; }
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await _lojaSW(); // SW do PAINEL (não o do app dos clientes)
+    if (!reg || !reg.pushManager) { _toast('Esse navegador não deixou ativar os avisos — abra pelo Chrome', 'err'); return; }
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _urlB64ToUint8(_VAPID_PUBLIC) });
     const r = await fetch('/api/webhook?action=filial_push_subscribe', {
@@ -5366,11 +5382,11 @@ async function ativarPush() {
     });
     const d = await r.json().catch(() => ({}));
     if (!(r.ok && d.ok)) throw new Error(d.error || 'falha ao registrar');
-    try { localStorage.setItem('drope_push_on', '1'); } catch (e) {}
+    try { localStorage.setItem('drope_push_on_v2', '1'); localStorage.removeItem('drope_push_on'); } catch (e) {}
     _renderPushBtn();
     _toast('Notificações ativadas ✦ mandando um teste…', 'ok');
     _pushTest();
-  } catch (e) { _toast('Não deu pra ativar as notificações ✦ confere se o celular permite notificações pro painel', 'err'); }
+  } catch (e) { _toast('Não deu pra ativar os avisos: ' + ((e && e.message) || 'erro') + ' — confere se o celular permite notificações', 'err'); }
 }
 // Teste de aviso: agora mostra o resultado (antes dizia "ok" mesmo quando o envio falhava)
 async function _pushTest() {
