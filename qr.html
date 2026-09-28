@@ -66,7 +66,7 @@
 
 <script>
   var LOGO = '/icons/icon-512.png';
-  // /qr.html?c=NATALIA23&n=Natália → QR do atendente (a venda fica no nome dele). Sem c = BEMVINDO10.
+  // /qr.html?c=YASMIM23&n=Yasmim → QR do atendente (a venda fica no nome dele). Sem c = BEMVINDO10.
   var P = new URLSearchParams(location.search);
   var CODE = (P.get('c') || 'BEMVINDO10').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) || 'BEMVINDO10';
   var NOME = (P.get('n') || '').replace(/[<>&"]/g, '').slice(0, 30);
