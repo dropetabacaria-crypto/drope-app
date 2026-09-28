@@ -137,8 +137,13 @@ header { padding: 18px 16px 16px; background: linear-gradient(135deg, rgba(255,7
 .prod-row.hidden-prod { opacity: 0.5; }
 .prod-line { display: flex; align-items: center; gap: 11px; }
 .prod-info { flex: 1; min-width: 0; }
-.prod-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prod-sub { font-size: 11.5px; color: var(--fg-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prod-name { font-size: 13.5px; font-weight: 700; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.prod-lucro { font-weight: 800; color: var(--green); }
+.prod-lucro.neg { color: var(--pink); }
+.prod-more { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
+.prod-more.open { display: flex; }
+.prod-more button { text-align: left; background: var(--bg3); border: 0.5px solid var(--border); color: var(--fg); border-radius: 10px; padding: 11px 12px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.prod-sub { font-size: 12px; color: var(--fg-dim); margin-top: 3px; line-height: 1.35; }
 .prod-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 .icon-btn2 { width: 34px; height: 34px; border-radius: 9px; border: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; flex: 0 0 auto; }
 .icon-btn2.art { background: var(--lime); color: #000; }
@@ -1110,14 +1115,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <button class="fchip" data-f="ofertas" onclick="setProdFilter('ofertas',this)">Ofertas</button>
       <button class="fchip" data-f="ocultos" onclick="setProdFilter('ocultos',this)">Ocultos</button>
     </div>
-    <div id="destaque-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:10px;box-shadow:var(--card-shadow)">
-      <div style="font-size:13px;font-weight:800;flex:0 0 auto">Destaque da vitrine</div>
-      <div style="display:flex;gap:6px;margin-left:auto;flex:0 0 auto">
-        <button id="dest-auto" onclick="setFeaturedMode('auto')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Automático</button>
-        <button id="dest-manual" onclick="setFeaturedMode('manual')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Manual</button>
-      </div>
-      <div id="destaque-hint" style="flex:1 1 100%;font-size:11px;color:var(--fg-dim)"></div>
-    </div>
     <div id="batch-bar" style="display:none;position:sticky;top:0;z-index:5;background:var(--bg2);border:1px solid var(--lime);border-radius:12px;padding:10px 12px;margin-bottom:10px">
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:8px"><b id="batch-count" style="color:var(--fg)">0</b> selecionado(s) — escolha a categoria e aplique</div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -1140,6 +1137,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       </select>
     </div>
     <div id="produtos-list"></div>
+    <div id="destaque-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:16px 0 10px;box-shadow:var(--card-shadow)">
+      <div style="font-size:13px;font-weight:800;flex:0 0 auto">Destaque da vitrine</div>
+      <div style="display:flex;gap:6px;margin-left:auto;flex:0 0 auto">
+        <button id="dest-auto" onclick="setFeaturedMode('auto')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Automático</button>
+        <button id="dest-manual" onclick="setFeaturedMode('manual')" style="padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--fg-dim);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Manual</button>
+      </div>
+      <div id="destaque-hint" style="flex:1 1 100%;font-size:11px;color:var(--fg-dim)"></div>
+    </div>
     </div><!-- /prodtab-produtos -->
     <div id="prodtab-categorias" style="display:none">
       <div style="font-size:12px;color:var(--fg-dim);margin-bottom:14px">Categorias são as seções da sua vitrine — o cliente navega por elas no app. Crie, ordene com ↑↓, oculte ou apague. Todo produto entra numa categoria.</div>
@@ -1818,7 +1823,7 @@ function renderProdutos(list) {
     const gerando = p.image_status === 'pending_art' || _artBusy[p.id];
     const thumb = p.image_url
       ? `<img src="${esc(_thumb(p.image_url, 160))}" loading="lazy" decoding="async" alt="" class="prod-thumb-img" draggable="false">`
-      : `<div class="prod-thumb-ph">${gerando ? '' : ''}</div>`;
+      : `<div class="prod-thumb-ph" ${gerando ? '' : `onclick="generateProductArt(${p.id})"`} style="display:flex;align-items:center;justify-content:center;text-align:center;font-size:9.5px;font-weight:800;line-height:1.15;color:var(--lime);cursor:pointer">${gerando ? 'gerando…' : 'gerar<br>foto'}</div>`;
     const meta = [p.marca, p.sabor].filter(Boolean).join(' · ');
     const stock = p.stock || 0;
     const priceHtml = p.offer_cents
@@ -1827,6 +1832,10 @@ function renderProdutos(list) {
     const artBtn = gerando
       ? `<button class="icon-btn2 art" disabled title="gerando imagem…">⏳</button>`
       : `<button class="icon-btn2 art ${p.image_url ? 'has' : ''}" onclick="generateProductArt(${p.id})" title="${p.image_url ? 'refazer imagem com IA' : 'gerar imagem com IA'}"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg></button>`;
+    // Lucro por pod (preço de venda − quanto pagou; sem taxas). Só com custo cadastrado.
+    const vendaC = p.offer_cents || p.price_cents || 0;
+    const lucroC = p.cost_cents ? vendaC - p.cost_cents : null;
+    const lucroHtml = lucroC == null ? '' : ` · <span class="prod-lucro${lucroC <= 0 ? ' neg' : ''}">lucro R$ ${(lucroC / 100).toFixed(2).replace('.', ',')}</span>`;
     const cb = _batchMode ? `<input type="checkbox" class="batch-cb" ${_batchSel.has(p.id) ? 'checked' : ''} onclick="toggleBatchItem(${p.id})" style="width:20px;height:20px;flex:0 0 auto;margin-right:6px;accent-color:var(--lime)">` : '';
     return `<div class="prod-row ${p.hidden ? 'hidden-prod' : ''}">
       <div class="prod-line">
@@ -1834,9 +1843,12 @@ function renderProdutos(list) {
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
           <div class="prod-name">${p.featured ? '<span style="color:var(--yellow)">★</span> ' : ''}${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
-          <div class="prod-sub">${priceHtml}${meta ? ' · ' + esc(meta) : ''}${(p.total_sold || 0) > 0 ? ' · ' + p.total_sold + ' vendido' + (p.total_sold > 1 ? 's' : '') : ''}</div>
+          <div class="prod-sub">${priceHtml}${lucroHtml}${(p.total_sold || 0) > 0 ? ' · ' + p.total_sold + ' vendido' + (p.total_sold > 1 ? 's' : '') : ''}</div>
         </div>
-        <div class="stepper">
+      </div>
+      <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:8px">
+        <div style="margin-right:auto">
+          <div class="stepper">
           <button onclick="bumpStock(${p.id},-1)" title="menos">−</button>
           <span class="sv-wrap ${stock === 0 ? 'zero' : ''}" id="svw-${p.id}">
             <input class="sv-input" id="sv-${p.id}" inputmode="numeric" value="${stock}" onfocus="this.select()" onchange="setStock(${p.id}, this.value)" onkeydown="if(event.key==='Enter'){this.blur();}">
@@ -1844,11 +1856,13 @@ function renderProdutos(list) {
           </span>
           <button onclick="bumpStock(${p.id},1)" title="mais">+</button>
         </div>
+        </div>
+        <button class="icon-btn2" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')" title="Editar produto" aria-label="Editar" style="background:var(--bg3);color:var(--fg);width:auto;padding:0 12px;gap:6px;font-family:inherit;font-size:12.5px;font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M4 20h16"/><path d="M14.5 5.5l4 4-9 9H5.5v-4l9-9Z"/></svg>Editar</button>
+        <button class="icon-btn2" onclick="document.getElementById('more-${p.id}').classList.toggle('open')" title="Mais opções" aria-label="Mais opções" style="background:var(--bg3);color:var(--fg);font-size:18px;font-weight:800">⋯</button>
       </div>
-      <div class="prod-line" style="margin-top:8px;justify-content:flex-end;gap:10px">
-        ${_featuredMode === 'manual' ? `<span class="mini-link" onclick="toggleFeatured(${p.id})" style="margin-right:auto;color:${p.featured ? 'var(--yellow)' : 'var(--fg-dim)'}">${p.featured ? '★ Destaque' : '☆ Destacar'}</span>` : ''}
-        ${artBtn}
-        <button class="icon-btn2" onclick="document.getElementById('edit-${p.id}').classList.toggle('open')" title="Editar produto" aria-label="Editar" style="background:var(--bg3);color:var(--fg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 20h16"/><path d="M14.5 5.5l4 4-9 9H5.5v-4l9-9Z"/></svg></button>
+      <div class="prod-more" id="more-${p.id}">
+        ${gerando ? '' : `<button onclick="generateProductArt(${p.id})">${p.image_url ? 'Refazer imagem com IA' : 'Gerar imagem com IA'}</button>`}
+        ${_featuredMode === 'manual' ? `<button onclick="toggleFeatured(${p.id})">${p.featured ? '★ Tirar do destaque' : '☆ Colocar em destaque'}</button>` : ''}
       </div>
       <div class="prod-edit" id="edit-${p.id}">
         <label class="pf-lbl" style="margin-top:12px">Nome do produto</label>
