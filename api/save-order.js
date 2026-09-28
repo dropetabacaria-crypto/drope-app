@@ -441,18 +441,8 @@ module.exports = async function handler(req, res) {
         console.error('[save-order] customer enrich err:', e.message);
       }
 
-      // Incrementa total_sold de cada produto (fire-and-forget).
-      for (const it of itemsWithSlug) {
-        fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_increment_total_sold`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
-        }).catch(e => console.error('[save-order] total_sold rpc err:', e.message));
-      }
+      // total_sold NÃO sobe aqui (28/09): pedido salvo ainda não é venda. Conta no webhook
+      // de pagamento confirmado ou quando a loja marca "retirado" (api/webhook.js _bumpTotalSold).
     }
 
     // Retorna inclusive o `customer_track_token` (gerado pelo default da coluna)

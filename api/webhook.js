@@ -5346,6 +5346,26 @@ async function handleFilialProductDelete(req, res) {
   } catch (e) { console.error('[filial_product_delete] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// "Mais pedidos" conta VENDA de verdade (28/09): +qty quando o pagamento é confirmado
+// (webhook InfinitePay/MP) ou quando um pedido "pagar na retirada" é marcado retirado;
+// −qty se um pedido já contado for cancelado. Antes contava todo checkout iniciado.
+async function _bumpTotalSold(items, sign) {
+  for (const it of (Array.isArray(items) ? items : [])) {
+    if (!it || !it.slug || !it.qty) continue;
+    try {
+      if (sign > 0) {
+        await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_increment_total_sold`, {
+          method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
+        });
+      } else {
+        const r = await sbGet('drope_products', `slug=eq.${encodeURIComponent(it.slug)}&select=id,total_sold&limit=1`);
+        if (r && r[0]) await sbUpdate('drope_products', `id=eq.${r[0].id}`, { total_sold: Math.max(0, (r[0].total_sold || 0) - it.qty) });
+      }
+    } catch (e) { console.error('[total_sold]', e.message); }
+  }
+}
+
 // POST action=filial_order_status — lojista avança o status de UM pedido dele.
 // Fluxo: novo → preparing (em separação) → [pickup] ready (pronto p/ retirada) →
 // picked_up (retirado) | [delivery] dispatched (a caminho) → delivered (entregue).
@@ -5364,10 +5384,16 @@ async function handleFilialOrderStatus(req, res) {
     const next = String(body.status || '').trim();
     const ALLOWED = ['preparing', 'ready', 'dispatched', 'picked_up', 'delivered'];
     if (!id || !ALLOWED.includes(next)) return res.status(400).json({ ok: false, error: 'status inválido' });
-    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu&limit=1`);
+    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,items,payment_confirmed_at,metadata&limit=1`);
     if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
     const now = new Date().toISOString();
     const upd = { status: next };
+    // Pagou na loja (sem pagamento online) → a venda conta quando sai da loja
+    const _md = ex[0].metadata || {};
+    if ((next === 'picked_up' || next === 'delivered') && !ex[0].payment_confirmed_at && !_md.sold_counted) {
+      await _bumpTotalSold(ex[0].items, 1);
+      upd.metadata = { ..._md, sold_counted: now };
+    }
     if (next === 'preparing') upd.prepared_at = now;
     if (next === 'dispatched') upd.dispatched_at = now;
     if (next === 'delivered') upd.delivered_at = now;
@@ -5408,7 +5434,7 @@ async function handleFilialOrderCancel(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     const id = body.id;
     if (!id) return res.status(400).json({ ok: false, error: 'id faltando' });
-    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,items,transaction_id,delivery_mode,payment_method&limit=1`);
+    const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,items,transaction_id,delivery_mode,payment_method,payment_confirmed_at,metadata&limit=1`);
     if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
     const o = ex[0];
     if (['cancelled', 'delivered', 'picked_up', 'completed'].includes(o.status)) {
@@ -5435,6 +5461,8 @@ async function handleFilialOrderCancel(req, res) {
         }
       }
     }
+    // Já tinha contado como venda (pago online ou marcado retirado) → desconta do ranking
+    if (o.payment_confirmed_at || (o.metadata && o.metadata.sold_counted)) { try { await _bumpTotalSold(o.items, -1); } catch (e) {} }
     // Estorno no Mercado Pago — SEMPRE que houver pagamento online (transaction_id).
     // (o cliente pagou → o cancelamento devolve o dinheiro dele.)
     let refunded = false;
@@ -18255,6 +18283,7 @@ async function handleInfinitePayWebhook(req, res) {
               } catch (eStock) { console.error('[InfinitePay Webhook] stock consume err:', eStock.message); }
             }
           }
+          await _bumpTotalSold(_its, 1); // venda confirmada conta no "Mais pedidos"
         }
       } catch (e) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
@@ -19071,6 +19100,7 @@ async function handleMPWebhook(req, res) {
               } catch (eStock) { console.error('[MP Webhook] stock consume err:', eStock.message); }
             }
           }
+          await _bumpTotalSold(_mpits, 1); // venda confirmada conta no "Mais pedidos"
         } else {
           console.log('[MP Webhook] order já estava paga (idempotente):', orderNsu);
         }
