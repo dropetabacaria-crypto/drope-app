@@ -1723,7 +1723,7 @@
   }
   .cart-item .info { flex: 1; min-width: 0; }
   /* OSSO 25 — sabor hero + brand muted, lowercase */
-  .cart-item .info .n { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cart-item .info .n { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .cart-item .info .b { font-size: 11px; color: var(--text-dim); letter-spacing: 0.02em; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cart-item .info .p { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
   .cart-item .qty { font-size: 14px; font-weight: 600; color: var(--pink); }
@@ -1738,8 +1738,8 @@
   }
   .cart-item .qty-ctrl button {
     /* QUICK WIN (04/06 Andrade): área de toque maior (44→48px) pra acerto + fácil em mobile */
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     border: none;
     background: rgba(255, 255, 255, 0.08);
@@ -1754,7 +1754,9 @@
   }
   .cart-item .qty-ctrl button:hover { background: rgba(255, 45, 111, 0.25); }
   .cart-item .qty-ctrl button:active { transform: scale(0.92); }
-  .cart-item .qty-ctrl .qv { font-size: 16px; font-weight: 700; color: var(--pink); min-width: 20px; text-align: center; }
+  .cart-item .qty-ctrl .qv { font-size: 16px; font-weight: 700; color: var(--text); min-width: 18px; text-align: center; }
+  .cart-item { gap: 10px; padding: 12px; }
+  .cart-item .qty-ctrl { gap: 4px; padding: 3px; background: rgba(255,255,255,0.05); border-color: var(--border); }
   .cart-item .rm-btn {
     background: none;
     border: none;
@@ -1779,7 +1781,7 @@
     margin-top: 16px;
   }
   .cart-total .lbl { color: var(--text-dim); font-size: 14px; }
-  .cart-total .val { color: var(--pink); font-size: 32px; font-weight: 700; font-family: 'Space Grotesk'; letter-spacing: -0.02em; }
+  .cart-total .val { color: var(--text); font-size: 26px; font-weight: 700; font-family: 'Space Grotesk'; letter-spacing: -0.02em; }
 
   .cart-empty {
     padding: 80px 20px;
@@ -2197,10 +2199,23 @@
     gap: 6px;
   }
   .co-mode-opt.active {
-    background: var(--pink);
-    color: #fff;
-    box-shadow: 0 4px 18px rgba(255, 45, 111, 0.35);
+    background: #fff;
+    color: #0A0A14;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   }
+  #checkout .step-indicator { display: none; }
+  #checkout .co-address .ic:empty, #checkout .co-contact-mini .ic:empty { display: none; }
+  .co-summary { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 14px 16px; }
+  .cs-item { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; color: var(--text); }
+  .cs-item .n { min-width: 0; }
+  .cs-item .n small { display: block; color: var(--text-dim); font-size: 12px; font-weight: 500; }
+  .cs-item .v { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  .cs-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .cs-row .free { color: var(--green, #4ADE80); font-weight: 700; }
+  .cs-sep { height: 1px; background: var(--border); margin: 10px 0; }
+  .cs-total { display: flex; justify-content: space-between; align-items: baseline; font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .cs-total span:first-child { font-size: 16px; }
+  .co-paynote { text-align: center; color: var(--text-dim); font-size: 12px; margin-top: 10px; }
   .co-warning-box {
     background: rgba(255, 45, 111, 0.08);
     border: 1px solid rgba(255, 45, 111, 0.3);
@@ -4900,7 +4915,7 @@
 
     <!-- Peça também (sugestões da loja, estilo iFood) -->
     <div id="cart-upsell" style="display:none">
-      <div class="section-title display" style="margin:18px 20px 10px">Peça também</div>
+      <div class="cat-section" style="padding:18px 20px 10px;font-size:17px">Leve junto</div>
       <div class="upsell-scroll" id="cart-upsell-scroll"></div>
     </div>
 
@@ -4926,16 +4941,16 @@
     </div>
 
     <div class="cart-total" id="cart-total">
-      <div class="lbl">total</div>
+      <div class="lbl">subtotal dos pods</div>
       <div class="val" id="cart-total-val">R$ 0</div>
     </div>
 
-    <div style="height: 100px"></div>
+    <div style="height: 190px"></div>
 
     <div class="sticky-cta" id="cart-cta">
       <!-- entrega sempre à vista no carrinho (UX R2), junto do botão -->
       <div id="cart-frete" style="text-align:center;font-size:13px;color:var(--text-dim);line-height:1.45;margin-bottom:8px"></div>
-      <button class="btn-primary" onclick="goCheckout()">Ir para pagamento ✦</button>
+      <button class="btn-primary" onclick="goCheckout()">Continuar</button>
       <div style="text-align:center;margin-top:10px"><span onclick="continuarComprando()" style="color:var(--text-dim);font-size:13.5px;cursor:pointer;font-weight:600">← Continuar comprando na loja</span></div>
     </div>
   </div>
@@ -4986,28 +5001,13 @@
           <div class="chv">editar ›</div>
         </div>
 
-        <div class="co-divider"></div>
-
-        <div class="co-section-lbl">total</div>
-        <div class="co-total">
-          <div class="co-total-lbl">seu pedido</div>
-          <div class="co-total-val display" id="co-total">R$ 0</div>
-        </div>
-
-        <button class="btn-primary" id="co-to-pay" onclick="checkoutGoPay()" style="margin-top:20px">Ir para pagamento ✦</button>
-      </div>
-
-      <!-- PASSO 2 — Pagamento (os métodos aparecem só aqui) -->
-      <div id="co-step-pagamento" style="display:none">
-        <div id="co-warning" style="display:none"></div>
-
         <div class="pay-when-wrap" id="pay-when-wrap" style="display:none">
           <div class="pw-title">quando você quer pagar?</div>
           <div class="pw-toggle">
             <button class="pw-opt active" id="pw-now" onclick="setPayWhen('now')">
               <div class="pw-emoji"></div>
               <div class="pw-lbl">pagar agora</div>
-              <div class="pw-sub">Pix antes de buscar</div>
+              <div class="pw-sub">Pix ou cartão pelo app</div>
             </button>
             <button class="pw-opt" id="pw-later" onclick="setPayWhen('later')">
               <div class="pw-emoji"></div>
@@ -5016,6 +5016,19 @@
             </button>
           </div>
         </div>
+
+        <!-- Checkout numa tela só (27/09): resumo com TOTAL + 1 botão que já abre o pagamento -->
+        <div class="co-section-lbl">resumo</div>
+        <div class="co-summary" id="co-summary"></div>
+        <div id="co-total" style="display:none"></div>
+
+        <button class="btn-primary" id="co-to-pay" onclick="checkoutPrimary(this)" style="margin-top:18px">Pagar</button>
+        <div class="co-paynote" id="co-paynote">Pix ou cartão em até 12x · pagamento seguro InfinitePay</div>
+      </div>
+
+      <!-- PASSO 2 — Pagamento (os métodos aparecem só aqui) -->
+      <div id="co-step-pagamento" style="display:none">
+        <div id="co-warning" style="display:none"></div>
 
         <div class="co-section-lbl">como quer pagar</div>
         <div class="co-methods" id="co-methods"></div>
@@ -11854,7 +11867,7 @@
 
   function renderDelivery() {
     const custEl = document.getElementById('co-customer');
-    if (custEl) custEl.textContent = `${profile.name} ✦ ${profile.phone}`;
+    if (custEl) custEl.textContent = `${profile.name} · ${profile.phone}`;
     const addrWrap = document.getElementById('co-address-wrap');
     if (addrWrap) {
       if (deliveryMode === 'pickup') {
@@ -11879,7 +11892,7 @@
               <div class="ic"></div>
               <div class="info">
                 <div class="lbl">entrega em</div>
-                <div class="val">${a.label} ✦ ${a.street}, ${a.num}</div>
+                <div class="val">${a.street}, ${a.num}${a.label ? ` · ${a.label}` : ''}</div>
               </div>
               <div class="chv">›</div>
             </div>`;
@@ -11909,12 +11922,15 @@
       const info = document.createElement('div');
       info.className = 'delivery-fee-note';
       if (q && q.ok && !q.out_of_range) {
-        info.innerHTML = `
+        // Valor da entrega já aparece no resumo; aqui só a dica que faz a entrega sair grátis
+        const faltam = Math.max(0, (q.free_pods || 2) - _cartPods());
+        const dica = (!_freteGratisPods(q) && q.km <= (q.free_km || 6) && faltam > 0);
+        info.innerHTML = dica ? `
           <div class="dfn-icon"></div>
           <div class="dfn-body">
-            <div class="dfn-title" style="color: var(--lime)">${_freteGratisPods(q) ? 'entrega grátis ✦ ' + _cartPods() + ' pods' : 'taxa de entrega ✦ ' + escapeHtml(q.zone_fmt || q.fmt)}</div>
-            <div class="dfn-sub">${String(q.km).replace('.', ',')} km de trajeto até você${(!_freteGratisPods(q) && q.km <= (q.free_km || 6)) ? ' · com 2 pods sai grátis' : ''}</div>
-          </div>`;
+            <div class="dfn-title" style="color: var(--lime)">Leve mais ${faltam} pod${faltam > 1 ? 's' : ''} e a entrega sai grátis</div>
+          </div>` : '';
+        if (!dica) info.style.display = 'none';
       } else if (q && q.out_of_range) {
         info.innerHTML = `
           <div class="dfn-icon"></div>
@@ -12032,6 +12048,58 @@
     renderCheckoutStep();
     renderCheckout();
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+  }
+  // Checkout numa tela só: resumo (itens, entrega, TOTAL) + rótulo do botão principal.
+  function _renderCoSummary() {
+    const el = document.getElementById('co-summary'); if (!el) return;
+    const subtotal = cartTotal();
+    const discount = (appliedCoupon && !appliedCoupon.isTest) ? (appliedCoupon.discount || 0) : 0;
+    const q = window._deliveryQuote;
+    let feeRow = '';
+    if (deliveryMode === 'pickup') feeRow = `<div class="cs-row"><span>Retirada na loja</span><span class="free">grátis</span></div>`;
+    else if (appliedCoupon && appliedCoupon.freeShipping) feeRow = `<div class="cs-row"><span>Entrega</span><span class="free">grátis · cupom</span></div>`;
+    else if (!getSelectedAddress()) feeRow = `<div class="cs-row"><span>Entrega</span><span>escolha o endereço</span></div>`;
+    else if (q && q.out_of_range) feeRow = `<div class="cs-row"><span>Entrega</span><span style="color:var(--pink)">fora da área · só retirada</span></div>`;
+    else if (q && q.ok) {
+      const km = q.km != null ? ` · ${String(q.km).replace('.', ',')} km` : '';
+      feeRow = _freteGratisPods(q)
+        ? `<div class="cs-row"><span>Entrega${km}</span><span class="free">grátis (2+ pods)</span></div>`
+        : `<div class="cs-row"><span>Entrega${km}</span><span>${money(deliveryFee())}</span></div>`;
+    } else feeRow = `<div class="cs-row"><span>Entrega</span><span>calculando…</span></div>`;
+    const items = cart.map(i => {
+      const lb = productLabels(i);
+      return `<div class="cs-item"><div class="n">${i.qty}× ${escapeHtml(lb.hero)}${lb.muted ? `<small>${escapeHtml(lb.muted)}</small>` : ''}</div><div class="v">${money(i.price * i.qty)}</div></div>`;
+    }).join('');
+    el.innerHTML = `${items}<div class="cs-sep"></div>
+      <div class="cs-row"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+      ${discount ? `<div class="cs-row"><span>Cupom ${escapeHtml(appliedCoupon.code || '')}</span><span class="free">-${money(discount)}</span></div>` : ''}
+      ${feeRow}
+      <div class="cs-sep"></div>
+      <div class="cs-total"><span>Total</span><span>${money(finalTotal())}</span></div>`;
+    const btn = document.getElementById('co-to-pay'), note = document.getElementById('co-paynote');
+    if (!btn || btn.classList.contains('loading')) return;
+    if (deliveryMode === 'pickup' && payWhen === 'later') { btn.textContent = 'Reservar e pagar na loja'; if (note) note.textContent = 'Separamos pra você · busque em até 2h'; }
+    else if (deliveryMode === 'delivery' && !getSelectedAddress()) { btn.textContent = 'Escolher endereço de entrega'; if (note) note.textContent = ''; }
+    else { btn.textContent = 'Pagar ' + money(finalTotal()); if (note) note.textContent = 'Pix ou cartão em até 12x · pagamento seguro InfinitePay'; }
+  }
+  async function checkoutPrimary(btn) {
+    if (!_requireLoginToBuy()) return;
+    if (deliveryMode === 'delivery') {
+      const addr = getSelectedAddress();
+      if (!addr) { try { pickAddressFromCheckout(); } catch (e) { toast('cadastra o endereço de entrega ✦'); } return; }
+      const q = window._deliveryQuote;
+      if (q && q.out_of_range) { toast('esse endereço fica fora da área de entrega — dá pra retirar na loja'); return; }
+      if (!q || !q.ok) { toast('calculando a entrega… tenta de novo em 1 segundo'); try { fetchDeliveryQuote(addr).then(() => renderCheckout()); } catch (e) {} return; }
+      const proceed = await _confirmDeliveryLocation(addr); if (!proceed) return;
+    }
+    if (deliveryMode === 'pickup' && payWhen === 'later') { reserveOrderPickup(); return; }
+    const provider = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.pay_provider) || 'infinitepay';
+    if (provider !== 'infinitepay') { checkoutStep = 2; renderCheckoutStep(); renderCheckout(); return; } // outro meio: fluxo antigo de 2 passos
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; btn.textContent = 'abrindo pagamento…'; }
+    const unlock = () => { if (btn) { btn.classList.remove('loading'); btn.disabled = false; } try { _renderCoSummary(); } catch (e) {} };
+    const safety = setTimeout(unlock, 15000);
+    try { await openInfinitePay(); } catch (e) { toast('não consegui abrir o pagamento — tenta de novo'); }
+    clearTimeout(safety); setTimeout(unlock, 1500);
   }
   function checkoutBackToEntrega() {
     checkoutStep = 1;
@@ -12224,6 +12292,7 @@
     }
 
     methods.innerHTML = html;
+    try { _renderCoSummary(); } catch (e) {}
 
     // recap rodapé — resume entrega + contato
     const recap = document.getElementById('co-recap');
@@ -14280,8 +14349,10 @@
     const notice = document.getElementById('cart-notice');
     if (hasPod && hasTabac) {
       notice.innerHTML = `<div class="mix-warn">seu carrinho mistura <b>só Pix</b> com <b>aceita cartão</b> ✦ vamos fechar tudo no Pix dessa vez pra não complicar</div>`;
-    } else if (hasPod) {
+    } else if (hasPod && !((typeof CLIENT_LOJA === 'undefined' || !CLIENT_LOJA || (CLIENT_LOJA.pay_provider || 'infinitepay') === 'infinitepay'))) {
       notice.innerHTML = `<div class="mix-warn" style="background: rgba(91,33,182,0.12); border-color: rgba(91,33,182,0.4)">Esse pedido é <b>só no Pix</b></div>`;
+    } else if (hasPod) {
+      notice.innerHTML = ''; // InfinitePay: Pix ou cartão — o aviso "só no Pix" era falso
     } else if (hasTabac) {
       notice.innerHTML = `<div class="mix-warn" style="background: rgba(212,255,46,0.08); border-color: rgba(212,255,46,0.35); color: var(--text)">tabacaria <b style="color: var(--lime)">aceita Pix ou cartão</b> ✦ você escolhe no checkout</div>`;
     } else {
