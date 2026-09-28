@@ -6604,34 +6604,16 @@
 
   // ===== Cupons =====
   const COUPONS_KEY = 'drope_coupons_v1';
-  let coupons = [
-    { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
-    // FRICÇÃO #009 (04/06/2026 Andrade): modo teste — cupom mágico que zera total
-    // pra simular fluxo completo sem queimar dinheiro. discount alto = total vira 0.
-    { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
-    { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
-  ];
+  // Cupons agora existem SÓ no servidor (lib/cupons.js) — 28/09. Nada de lista no celular.
+  let coupons = [];
   let appliedCoupon = null;
   function saveCoupons() {
     try { localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons)); } catch(e) {}
   }
   function loadCoupons() {
-    try {
-      const s = localStorage.getItem(COUPONS_KEY);
-      if (s) coupons = JSON.parse(s) || coupons;
-    } catch(e) {}
-    // FRICÇÃO #009 (04/06 Andrade): garante que built-in coupons sempre existem,
-    // mesmo se o localStorage tem versão antiga sem eles.
-    const BUILT_IN = [
-      { code: 'HYPE20', discount: 20, desc: 'R$ 20 off ✦ pedido de honra', active: true },
-      { code: 'TESTE100OFF', discount: 99999, desc: 'modo teste — zera total, NÃO compra de verdade', active: true, isTest: true },
-      { code: 'FRETEGRATIS', discount: 0, freeShipping: true, desc: 'frete grátis ✦ entrega por nossa conta', active: true },
-    ];
-    BUILT_IN.forEach(bc => {
-      if (!coupons.find(c => c.code === bc.code)) coupons.push(bc);
-    });
-    // Cupom de boas-vindas DROPE10 aposentado (26/09 Andrade: mais simples, sem promessa).
-    coupons = coupons.filter(c => c.code !== 'DROPE10');
+    // Antes restaurava HYPE20/TESTE100OFF/FRETEGRATIS do celular (o servidor aceitava). Desligado.
+    coupons = [];
+    try { localStorage.removeItem(COUPONS_KEY); } catch (e) {}
   }
   loadCoupons();
 
@@ -7097,19 +7079,32 @@
     toast('cupom removido ✦');
   }
 
+  // Aplica cupom perguntando ao SERVIDOR (ele sabe se existe e se vale pra esse cliente).
+  async function _applyCouponCode(code, msgId, after) {
+    const msg = document.getElementById(msgId);
+    code = String(code || '').trim().toUpperCase();
+    if (!code) { if (msg) { msg.className = 'co-coupon-msg err'; msg.textContent = 'digita um código ✦'; } return; }
+    if (!_isLoggedIn()) { if (msg) { msg.className = 'co-coupon-msg err'; msg.textContent = 'entre na sua conta pra usar cupom'; } return; }
+    if (msg) { msg.className = 'co-coupon-msg'; msg.textContent = 'conferindo…'; }
+    let d = null;
+    try {
+      const r = await fetch('/api/webhook?action=coupon_check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, phone: profile.phone, subtotal_cents: Math.round(cartTotal() * 100) }) });
+      d = await r.json().catch(() => null);
+    } catch (e) { d = null; }
+    if (!d || !d.ok) {
+      appliedCoupon = null;
+      if (msg) { msg.className = 'co-coupon-msg err'; msg.textContent = (d && d.message) || 'não consegui conferir o cupom agora — tenta de novo'; }
+      after && after(); return;
+    }
+    appliedCoupon = { code: d.code, discount: (d.discount_cents || 0) / 100, isTest: false, freeShipping: false, label: d.label || '' };
+    _syncCouponMsg(msgId);
+    toast('cupom aplicado ✦ -' + money(appliedCoupon.discount));
+    after && after();
+  }
   function applyCoupon() {
     const inp = document.getElementById('co-coupon-input');
-    const msg = document.getElementById('co-coupon-msg');
-    const code = (inp.value || '').trim().toUpperCase();
-    if (!code) { msg.className = 'co-coupon-msg err'; msg.textContent = 'digita um código ✦'; return; }
-    const c = coupons.find(c => c.code === code && c.active);
-    if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCheckout(); return; }
-    // FRICÇÃO #009 (Andrade): cupom isTest bypassa validação de pedido mínimo
-    if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest, freeShipping: !!c.freeShipping };
-    _syncCouponMsg('co-coupon-msg');
-    renderCheckout();
-    toast('cupom aplicado ✦');
+    return _applyCouponCode(inp && inp.value, 'co-coupon-msg', () => renderCheckout());
   }
 
   function enterApp() {
@@ -12308,17 +12303,7 @@
   }
   function applyCartCoupon() {
     const inp = document.getElementById('cart-coupon-input');
-    const msg = document.getElementById('cart-coupon-msg');
-    const code = (inp.value || '').trim().toUpperCase();
-    if (!code) { msg.className = 'co-coupon-msg err'; msg.textContent = 'digita um código ✦'; return; }
-    const c = coupons.find(c => c.code === code && c.active);
-    if (!c) { msg.className = 'co-coupon-msg err'; msg.textContent = 'cupom inválido ou expirado'; appliedCoupon = null; renderCart(); return; }
-    // FRICÇÃO #009: cupom isTest bypassa validação de pedido mínimo
-    if (!c.isTest && cartTotal() < c.discount) { msg.className = 'co-coupon-msg err'; msg.textContent = 'pedido menor que o desconto'; return; }
-    appliedCoupon = { code: c.code, discount: c.discount, isTest: !!c.isTest, freeShipping: !!c.freeShipping };
-    _syncCouponMsg('cart-coupon-msg');
-    toast(c.isTest ? 'modo teste ativo' : 'cupom aplicado ✦');
-    renderCart();
+    return _applyCouponCode(inp && inp.value, 'cart-coupon-msg', () => renderCart());
   }
 
   function renderCheckout() {
@@ -14319,6 +14304,13 @@
   }
   // O servidor recusou um item do pedido (saiu da loja / mudou o preço): arruma o carrinho e avisa.
   function _handleCartReject(status, data) {
+    if (status === 409 && data && /^cupom_|^total_invalido$/.test(String(data.error || ''))) {
+      if (String(data.error).startsWith('cupom_')) appliedCoupon = null;
+      try { renderCart(); } catch (e) {}
+      toast(data.message || 'Conferimos o valor ✦ confere e tenta de novo');
+      go('cart'); try { renderCart(); } catch (e) {}
+      return true;
+    }
     if (status !== 409 || !data || !['item_indisponivel', 'preco_mudou'].includes(data.error)) return false;
     if (data.slug) {
       if (data.error === 'item_indisponivel') cart = cart.filter(i => i.slug !== data.slug);

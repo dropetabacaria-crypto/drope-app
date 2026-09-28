@@ -22,6 +22,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || "";
 const { freteQuote, freteFilialBySlug } = require('../lib/frete');
+const { checkCoupon } = require('../lib/cupons');
 
 
 module.exports = async function handler(req, res) {
@@ -95,7 +96,7 @@ module.exports = async function handler(req, res) {
           return res.status(409).json({ error: 'fora_da_area', message: q.message, km: q.km });
         }
         if (q && q.ok) {
-          const freeShip = String(body.coupon_code || '').toUpperCase() === 'FRETEGRATIS';
+          const freeShip = false; // FRETEGRATIS desativado (28/09): cupom agora só existe no servidor (lib/cupons.js)
           const clientFeeCents = Math.round((Number(delivery_fee) || 0) * 100);
           if (!freeShip && clientFeeCents + 50 < q.fee_cents) {
             return res.status(409).json({ error: 'frete_mudou', fee_cents: q.fee_cents, fmt: q.fmt, km: q.km, message: `A taxa de entrega pra esse endereço é ${q.fmt} ✦ atualizamos, confere e toca em pagar de novo` });
@@ -186,6 +187,24 @@ module.exports = async function handler(req, res) {
         }
       }
     } catch (e) { console.error('[save-order] catalog validate err:', e.message); }
+
+    // 🔒 Cupom e TOTAL conferidos no servidor (28/09). O celular não escolhe desconto:
+    // o cupom tem que existir em lib/cupons.js e passar nas regras (ex.: 1ª compra).
+    const itemsSubCents = items.reduce((t, i) => t + Math.round(Number(i.price) * 100) * (Number(i.qty) || 0), 0);
+    if (Math.abs(Math.round(subtotal * 100) - itemsSubCents) > 2) {
+      return res.status(409).json({ error: 'total_invalido', message: 'O valor do pedido não bate ✦ atualizamos, confere e tenta de novo' });
+    }
+    let discountCents = 0, couponApplied = null;
+    if (body.coupon_code) {
+      const sbFetch = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }).then(r => r.ok ? r.json() : []);
+      const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents }, sbFetch);
+      if (!cr.ok) return res.status(409).json({ error: cr.error || 'cupom_invalido', coupon: String(body.coupon_code).toUpperCase(), message: cr.message + ' ✦ tiramos o cupom, confere o valor e tenta de novo' });
+      discountCents = cr.discount_cents; couponApplied = cr.code;
+    }
+    const expectedTotalCents = itemsSubCents + Math.round(delivery_fee * 100) - discountCents;
+    if (Math.abs(Math.round(total * 100) - expectedTotalCents) > 2) {
+      return res.status(409).json({ error: 'total_invalido', expected_cents: expectedTotalCents, message: 'O valor do pedido não bate ✦ atualizamos, confere e tenta de novo' });
+    }
 
     // 🔒 CONTROLE DE ESTOQUE PRECISO — a baixa só acontece quando o pedido é REALMENTE pago.
     //
@@ -335,6 +354,7 @@ module.exports = async function handler(req, res) {
     }
     // Atribui a venda ao operador padrão (comissão de funcionário).
     if (employeeId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: employeeId };
+    if (couponApplied) orderRow.metadata = { ...(orderRow.metadata || {}), coupon_code: couponApplied, discount_cents: discountCents };
     if (deliveryKm != null) orderRow.metadata = { ...(orderRow.metadata || {}), delivery_km: deliveryKm, delivery_km_source: deliverySource }; // km da ROTA (repasse do motoboy)
 
     const orderRes = await fetch(`${SUPABASE_URL}/rest/v1/drope_orders`, {

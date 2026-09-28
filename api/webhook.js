@@ -19339,6 +19339,17 @@ async function handleTestClaude(req, res) {
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
 
+  // action=coupon_check — o app pergunta se o cupom vale pra esse cliente (regra no servidor)
+  if (req.url && /[?&]action=coupon_check(&|$)/.test(req.url)) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      const { checkCoupon } = require('../lib/cupons');
+      const r = await checkCoupon({ code: body.code, phone: body.phone, subtotalCents: body.subtotal_cents }, (path) => sbGet(path.split('?')[0], path.split('?')[1] || ''));
+      return res.status(200).json(r);
+    } catch (e) { return res.status(200).json({ ok: false, message: 'não consegui conferir o cupom agora' }); }
+  }
+
   // action=version — id do deploy no ar. O app compara com o dele e se atualiza sozinho.
   if (req.url && /[?&]action=version(&|$)/.test(req.url)) {
     res.setHeader('Cache-Control', 'no-store');
