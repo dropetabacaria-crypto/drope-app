@@ -434,6 +434,21 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value" id="hoje-ticket" style="font-size:19px">—</div><div class="kpi-sub" id="hoje-ticket-d"></div></div>
     </div>
   </div>
+  <!-- Meta da semana: vendas × meta, clientes novos (cupom) e quantos voltaram -->
+  <div class="section sec-meta" id="sec-meta" style="display:none">
+    <h2>Meta da semana</h2>
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;padding:14px 16px;box-shadow:var(--card-shadow)">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+        <div style="font-size:13px;color:var(--fg-dim)">Vendas desde segunda</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:22px"><span id="meta-v">0</span><span style="color:var(--fg-dim);font-size:15px"> / <span id="meta-t">10</span></span></div>
+      </div>
+      <div style="height:8px;border-radius:99px;background:var(--bg3);margin:8px 0 12px;overflow:hidden"><div id="meta-bar" style="height:100%;width:0;background:var(--lime);border-radius:99px;transition:width .4s"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:var(--bg3);border-radius:12px;padding:10px 12px"><div style="font-size:11px;color:var(--fg-dim)">Clientes novos</div><div style="font-weight:800;font-size:18px" id="meta-n">0</div><div style="font-size:11px;color:var(--fg-dim)" id="meta-nc"></div></div>
+        <div style="background:var(--bg3);border-radius:12px;padding:10px 12px"><div style="font-size:11px;color:var(--fg-dim)">Voltaram (2º pedido)</div><div style="font-weight:800;font-size:18px" id="meta-r">0</div><div style="font-size:11px;color:var(--fg-dim)" id="meta-rp"></div></div>
+      </div>
+    </div>
+  </div>
   <!-- VOLTA5: quem comprou 1 vez e não voltou — a loja manda o cupom pelo WhatsApp -->
   <div class="section sec-volta" id="sec-volta" style="display:none">
     <h2>Chamar de volta <span id="volta-count" style="background:var(--lime);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px">0</span></h2>
@@ -1445,6 +1460,7 @@ function render(d) {
   try { renderResolvaAgora(); } catch (e) {} // agora com _lastProdutos já carregado
   try { renderHoje(d.dia); } catch (e) {}
   try { loadVolta5(); } catch (e) {}
+  try { loadMeta(); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -4924,6 +4940,23 @@ async function _pedShare(id) {
   catch (e) { _toast('Não consegui copiar ✦ segura o dedo no texto do pedido pra copiar', 'err'); }
 }
 // Bloco "Hoje": vendas/pedidos/ticket de hoje até agora × mesmo dia da semana passada até a mesma hora.
+// ===== Meta da semana =====
+let _metaAt = 0;
+async function loadMeta() {
+  if (Date.now() - _metaAt < 60000) return; // no máximo 1x por minuto
+  _metaAt = Date.now();
+  let d = null;
+  try { const r = await fetch(`/api/webhook?action=filial_meta&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' }); d = await r.json(); } catch (e) {}
+  const sec = document.getElementById('sec-meta'); if (!sec) return;
+  if (!d || !d.ok) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('meta-v', d.vendas); set('meta-t', d.meta);
+  const bar = document.getElementById('meta-bar'); if (bar) { bar.style.width = Math.min(100, Math.round(d.vendas / d.meta * 100)) + '%'; bar.style.background = d.vendas >= d.meta ? 'var(--green)' : 'var(--lime)'; }
+  set('meta-n', d.novos); set('meta-nc', d.novos ? `${d.novos_cupom} vieram com cupom` : 'nenhum ainda');
+  set('meta-r', d.voltaram); set('meta-rp', d.novos ? `${Math.round(d.voltaram / d.novos * 100)}% dos novos` : '—');
+}
+
 // ===== VOLTA5 — chamar de volta pelo WhatsApp =====
 let _volta5 = [], _volta5At = 0;
 async function loadVolta5(force) {

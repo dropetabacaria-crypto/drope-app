@@ -4756,6 +4756,44 @@ async function handleFilialPedidosBusca(req, res) {
   }
 }
 
+// Meta da semana (28/09): vendas da semana × meta, clientes novos (e quantos vieram por cupom),
+// e quantos voltaram pro 2º pedido. Semana = segunda 00:00 (horário de Brasília). Conta só
+// pedido que valeu (pago, reservado ou entregue — não conta abandonado nem cancelado).
+async function handleFilialMeta(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    const u = new URL(req.url, 'http://x');
+    const filial = await _filialAuthBySlug(String(u.searchParams.get('filial') || '').toLowerCase().trim(), String(u.searchParams.get('token') || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const META = Math.max(1, parseInt(((filial.metadata || {}).meta_semana) || '10', 10) || 10);
+    const br = new Date(Date.now() - 3 * 3600000); // relógio de Brasília
+    const dow = (br.getUTCDay() + 6) % 7; // 0 = segunda
+    const monBr = Date.UTC(br.getUTCFullYear(), br.getUTCMonth(), br.getUTCDate() - dow);
+    const weekStart = new Date(monBr + 3 * 3600000).toISOString(); // segunda 00:00 BRT em UTC
+    const since60 = new Date(Date.now() - 60 * 86400000).toISOString();
+    const rows = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=not.in.(created,cancelled)&created_at=gte.${since60}&select=id,customer_id,created_at,metadata&order=created_at.asc&limit=2000`);
+    const list = Array.isArray(rows) ? rows : [];
+    const week = list.filter(o => o.created_at >= weekStart);
+    // 1º pedido de cada cliente (olhando o histórico todo dele, não só 60 dias)
+    const ids = [...new Set(week.map(o => o.customer_id).filter(Boolean))];
+    const firstAt = {}, count = {};
+    if (ids.length) {
+      const all = await sbGet('drope_orders', `customer_id=in.(${ids.join(',')})&status=not.in.(created,cancelled)&select=customer_id,created_at&order=created_at.asc&limit=5000`);
+      (Array.isArray(all) ? all : []).forEach(o => { if (!firstAt[o.customer_id]) firstAt[o.customer_id] = o.created_at; count[o.customer_id] = (count[o.customer_id] || 0) + 1; });
+    }
+    const novos = ids.filter(id => firstAt[id] && firstAt[id] >= weekStart);
+    const isCupom1 = (o) => { const c = String((o.metadata || {}).coupon_code || ''); return c === 'BEMVINDO10' || /^[A-Z]{2,8}\d{1,7}$/.test(c) && c !== 'VOLTA5' && !!(o.metadata || {}).ref_customer_id; };
+    const novosCupom = novos.filter(id => week.some(o => o.customer_id === id && isCupom1(o))).length;
+    const voltaram = novos.filter(id => (count[id] || 0) >= 2).length;
+    return res.status(200).json({ ok: true, meta: META, vendas: week.length, novos: novos.length, novos_cupom: novosCupom, voltaram, desde: weekStart });
+  } catch (e) {
+    console.error('[filial_meta] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: 'não consegui calcular agora' });
+  }
+}
+
 // VOLTA5 (28/09): quem comprou 1 vez, recebeu há 2+ dias (até 30) e não voltou → a loja manda o
 // cupom pelo WhatsApp. GET action=filial_volta5_list; POST action=filial_volta5_mark {id} marca enviado.
 async function handleFilialVolta5(req, res) {
@@ -22131,6 +22169,9 @@ async function generateAll(){
     return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && /[?&]action=filial_meta(&|$)/.test(req.url)) {
+    return await handleFilialMeta(req, res);
+  }
   if (req.url && /[?&]action=filial_volta5_(list|mark)(&|$)/.test(req.url)) {
     return await handleFilialVolta5(req, res);
   }
