@@ -5,14 +5,14 @@
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#5B21B6">
-<meta name="description" content="Drope ✦ drops em minutos. Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
+<meta name="description" content="Drope ✦ drops em minutos. Os drops que dropam rápido. Pix ou cartão, entrega em minutos. Só 18+.">
 <title>DROPE ✦ drops em minutos</title>
 
 <!-- Open Graph (whats, facebook, linkedin, imessage) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Drope">
 <meta property="og:title" content="Drope ✦ drops em minutos">
-<meta property="og:description" content="Os drops que dropam rápido. Paga com Pix, entrega ou retirada. Só 18+.">
+<meta property="og:description" content="Os drops que dropam rápido. Pix ou cartão, entrega em minutos. Só 18+.">
 <meta property="og:image" content="og/og-image.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -5028,8 +5028,9 @@
     <div class="co-wrap">
       <!-- PASSO 1 — Entrega / endereço (sem pagamento aqui) -->
       <div id="co-step-entrega">
-        <div class="co-section-lbl">como quer receber</div>
-        <div class="co-mode" id="co-mode">
+        <div class="co-section-lbl">entrega</div>
+        <!-- Retirada na loja DESLIGADA (28/09, Lucas): só entrega -->
+        <div class="co-mode" id="co-mode" style="display:none">
           <div class="co-mode-opt active" id="co-mode-delivery" onclick="setDeliveryMode('delivery')">Entrega</div>
           <div class="co-mode-opt" id="co-mode-pickup" onclick="setDeliveryMode('pickup')">Retirar na loja</div>
         </div>
@@ -11986,7 +11987,7 @@
     const q = window._deliveryQuote, pods = _cartPods();
     const lime = 'color:var(--lime);font-weight:700';
     let html;
-    if (q && q.ok && q.out_of_range) html = `<span style="color:var(--pink)">${escapeHtml(q.message || 'Esse endereço fica fora da área de entrega ✦ dá pra retirar na loja')}</span>`;
+    if (q && q.ok && q.out_of_range) html = `<span style="color:var(--pink)">${escapeHtml(q.message || 'Esse endereço fica fora da área de entrega ✦ entregamos até 10 km da loja')}</span>`;
     else if (q && q.ok) {
       const km = String(q.km).replace('.', ',');
       const zf = q.zone_fmt || q.fmt;
@@ -12041,7 +12042,9 @@
   let payWhen = 'now'; // 'now' | 'later' — só relevante quando deliveryMode === 'pickup'
   // Retirada só é possível se a loja cadastrou endereço (pickup_ok do backend).
   // Santos é caso legado (combina a retirada pelo WhatsApp) → sempre permitido.
+  const RETIRADA_ON = false; // 28/09: o Lucas tirou a retirada na loja — só entrega
   function _pickupAvailable() {
+    if (!RETIRADA_ON) return false;
     if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') return true;
     const loja = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA) || {};
     return !!loja.pickup_ok;
@@ -12083,7 +12086,8 @@
   }
   function setDeliveryMode(m) {
     // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
-    if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
+    if (RETIRADA_ON && typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
+    if (!RETIRADA_ON) m = 'delivery';
     // Retirada só se a loja cadastrou endereço.
     else if (m === 'pickup' && !_pickupAvailable()) { toast('Essa loja só faz entrega por enquanto ✦'); m = 'delivery'; }
     deliveryMode = m;
@@ -12146,7 +12150,7 @@
       }
     }
     const _qx = window._deliveryQuote;
-    const canPay = deliveryMode === 'pickup' || (!!getSelectedAddress() && !(_qx && _qx.out_of_range)); // fora da área: só retirada
+    const canPay = (RETIRADA_ON && deliveryMode === 'pickup') || (!!getSelectedAddress() && !(_qx && _qx.out_of_range)); // fora da área: não vende
     // Bloqueio de métodos de pagamento fica dentro do renderCheckout (unificado)
     window.__canPayNow = canPay;
     // info de taxa a combinar
@@ -12172,7 +12176,7 @@
           <div class="dfn-icon"></div>
           <div class="dfn-body">
             <div class="dfn-title" style="color: var(--pink)">fora da área de entrega</div>
-            <div class="dfn-sub">${q.message || 'esse endereço fica longe ✦ dá pra retirar na loja'}</div>
+            <div class="dfn-sub">${q.message || 'esse endereço fica longe ✦ entregamos até 10 km da loja'}</div>
           </div>`;
       } else if (!addrCep || addrCep.length !== 8) {
         info.innerHTML = `
@@ -12295,7 +12299,7 @@
     if (deliveryMode === 'pickup') feeRow = `<div class="cs-row"><span>Retirada na loja</span><span class="free">grátis</span></div>`;
     else if (appliedCoupon && appliedCoupon.freeShipping) feeRow = `<div class="cs-row"><span>Entrega</span><span class="free">grátis · cupom</span></div>`;
     else if (!getSelectedAddress()) feeRow = `<div class="cs-row"><span>Entrega</span><span>escolha o endereço</span></div>`;
-    else if (q && q.out_of_range) feeRow = `<div class="cs-row"><span>Entrega</span><span style="color:var(--pink)">fora da área · só retirada</span></div>`;
+    else if (q && q.out_of_range) feeRow = `<div class="cs-row"><span>Entrega</span><span style="color:var(--pink)">fora da área de entrega</span></div>`;
     else if (q && q.ok) {
       const km = q.km != null ? ` · ${String(q.km).replace('.', ',')} km` : '';
       feeRow = _freteGratisPods(q)
@@ -12325,7 +12329,7 @@
       const addr = getSelectedAddress();
       if (!addr) { try { pickAddressFromCheckout(); } catch (e) { toast('cadastra o endereço de entrega ✦'); } return; }
       const q = window._deliveryQuote;
-      if (q && q.out_of_range) { toast('esse endereço fica fora da área de entrega — dá pra retirar na loja'); return; }
+      if (q && q.out_of_range) { toast('esse endereço fica fora da área de entrega — entregamos até 10 km da loja'); return; }
       if (!q || !q.ok) { toast('calculando a entrega… tenta de novo em 1 segundo'); try { fetchDeliveryQuote(addr).then(() => renderCheckout()); } catch (e) {} return; }
       const proceed = await _confirmDeliveryLocation(addr); if (!proceed) return;
     }
@@ -14396,6 +14400,11 @@
   }
   // O servidor recusou um item do pedido (saiu da loja / mudou o preço): arruma o carrinho e avisa.
   function _handleCartReject(status, data) {
+    if (status === 409 && data && data.error === 'so_entrega') {
+      try { setDeliveryMode('delivery'); } catch (e) {}
+      toast(data.message); go('checkout'); try { renderCheckout(); } catch (e) {}
+      return true;
+    }
     if (status === 409 && data && /^cupom_|^credito_|^total_invalido$/.test(String(data.error || ''))) {
       if (String(data.error).startsWith('cupom_')) appliedCoupon = null;
       if (String(data.error).startsWith('credito_') || data.error === 'total_invalido') { try { _loadReferral(); } catch (e) {} }

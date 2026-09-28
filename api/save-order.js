@@ -60,6 +60,10 @@ module.exports = async function handler(req, res) {
     const status = defaultStatus;
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
+    // Retirada na loja DESLIGADA (28/09, Lucas): só entrega. Recusa pickup e "pagar na retirada".
+    if (delivery_mode !== 'delivery' || payment_method === 'pickup_later') {
+      return res.status(409).json({ error: 'so_entrega', message: 'A DROPE agora trabalha só com entrega ✦ escolha o endereço e finalize de novo' });
+    }
 
     // 🔒 Validação de payload — bloqueia atacantes inflando DB com pedidos fake
     if (typeof order_nsu !== 'string' || order_nsu.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(order_nsu)) {
