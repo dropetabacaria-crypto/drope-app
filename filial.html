@@ -5498,5 +5498,27 @@ function switchPanelTab(tab){
 })();
 </script>
 
+<script>
+// Auto-atualização (28/09): quando o app volta do segundo plano e tem versão nova no ar,
+// recarrega sozinho — só se a pessoa não estiver no meio de algo (digitando, pagando,
+// com janela/câmera aberta). Carrinho e tela atual ficam salvos, então não perde nada.
+(function () {
+  var v0 = null, hiddenAt = 0;
+  function getV() { return fetch('/api/webhook?action=version', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) { return d && d.v; }).catch(function () { return null; }); }
+  getV().then(function (v) { v0 = v; });
+  function busy() {
+    var a = document.activeElement;
+    if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return true;
+    if (document.body && document.body.style.overflow === 'hidden') return true; // folha/overlay aberto
+    var s = (document.querySelector('.screen.active') || {}).id || '';
+    return ['checkout', 'pix', 'processing', 'card'].indexOf(s) > -1;
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (!v0 || Date.now() - hiddenAt < 30000) return;
+    getV().then(function (v) { if (v && v !== v0 && !busy()) location.reload(); });
+  });
+})();
+</script>
 </body>
 </html>

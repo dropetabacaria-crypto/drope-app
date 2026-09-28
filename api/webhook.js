@@ -19339,6 +19339,12 @@ async function handleTestClaude(req, res) {
 module.exports = async function handler(req, res) {
   console.log("METHOD:", req.method);
 
+  // action=version — id do deploy no ar. O app compara com o dele e se atualiza sozinho.
+  if (req.url && /[?&]action=version(&|$)/.test(req.url)) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ v: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || 'dev' });
+  }
+
   // action=img — miniatura WebP de foto do Storage (cache na CDN)
   if (req.url && /[?&]action=img(&|$)/.test(req.url)) {
     return await handleImgThumb(req, res);
