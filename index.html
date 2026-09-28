@@ -5369,19 +5369,23 @@
         <div class="profile-row" id="pr-painel" onclick="goMeuPainel()" style="color: var(--lime); display:none">Meu painel da loja <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-create" onclick="openAccountCreate()" style="color: var(--lime); display:none">Criar minha conta ✦ <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-login" onclick="openCustomerLogin()" style="color: var(--lime); display:none">Entrar / criar conta <span class="arrow">›</span></div>
-        <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Criar / trocar senha <span class="arrow">›</span></div>
-        <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Editar perfil <span class="arrow">›</span></div>
-        <div class="profile-row" id="pr-push" onclick="ativarPushCliente()">Ativar notificações 🔔 <span class="arrow">›</span></div>
+        <!-- Ordem (27/09): o que o cliente mais usa primeiro; senha lá embaixo -->
+        <div class="profile-row" onclick="go('orders')">Meus pedidos <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="go('addresses')">Endereços <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-edit" onclick="go('profile-edit')">Meus dados <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-push" onclick="ativarPushCliente()">Avisos do pedido no celular <span class="arrow">›</span></div>
+        <div class="profile-row" id="pr-setpw" onclick="openSetPassword()" style="display:none">Senha <span class="arrow">›</span></div>
         <!-- "Divulgar e ganhar" desligado (27/09/2026 — programa de divulgadores volta depois) -->
-        <div class="profile-row" onclick="shareDrope()">Compartilhar app <span class="arrow">›</span></div>
-        <div class="profile-row" onclick="openHelpWhats()">Ajuda ✦ falar no WhatsApp <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="openHelpWhats()">Ajuda no WhatsApp <span class="arrow">›</span></div>
+        <div class="profile-row" onclick="shareDrope()">Compartilhar o app <span class="arrow">›</span></div>
         <div class="profile-row" id="pr-logout" onclick="logoutAccount()" style="color: var(--pink)">Sair da conta <span class="arrow">›</span></div>
       </div>
       <!-- CTA lojista: vira texto (não botão) embaixo do menu -->
-      <div id="profile-lojista-cta" style="text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
+      <div id="profile-lojista-cta" style="display:none;text-align:center; margin-top:22px; font-size:13px; color: var(--text-dim); line-height:1.6">
         Tem tabacaria?<br>
         <span onclick="go('lojista-signup')" style="color: var(--lime); font-weight:800; cursor:pointer">Cadastrar minha loja ✦</span>
       </div>
+      <div style="height:110px"></div>
     </div>
   </div>
 
@@ -9451,7 +9455,7 @@
   function _custPushOn() { try { return localStorage.getItem('drope_cust_push_on') === '1'; } catch (e) { return false; } }
   function _renderCustPushRow() {
     const el = document.getElementById('pr-push'); if (!el) return;
-    el.innerHTML = (_custPushOn() ? 'Notificações ativas ✓' : 'Ativar notificações 🔔') + ' <span class="arrow">›</span>';
+    el.innerHTML = (_custPushOn() ? 'Avisos do pedido: ligados ✓' : 'Avisos do pedido no celular') + ' <span class="arrow">›</span>';
   }
   async function ativarPushCliente() {
     if (!_isLoggedIn()) { toast('Entra na sua conta pra ativar as notificações ✦'); try { openCustomerLogin(); } catch (e) {} return; }
@@ -9781,9 +9785,10 @@
         : `Oi, <b id="home-greet-name">${escapeHtml(profile.name)}</b> ✦`;
     }
     const pn = document.getElementById('prof-name');
-    if (pn) pn.textContent = guest ? 'Convidado' : (profile.name || 'Você');
+    if (pn) pn.textContent = guest ? 'Convidado' : (profile.name || 'Qual é o seu nome?');
+    if (pn) { pn.style.cursor = (!guest && !profile.name) ? 'pointer' : ''; pn.onclick = (!guest && !profile.name) ? () => go('profile-edit') : null; }
     const pp = document.getElementById('prof-phone');
-    if (pp) pp.textContent = guest ? 'Crie sua conta pra pedir ✦' : (profile.phone || '');
+    if (pp) pp.textContent = guest ? 'Crie sua conta pra pedir' : (profile.phone || '');
   }
   function pickAvatar(em) { pickedAvatar = em; renderProfileAvatarPicker(); }
   function loadProfile() {
