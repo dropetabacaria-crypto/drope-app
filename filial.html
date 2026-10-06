@@ -5397,9 +5397,11 @@ async function _pushTest() {
     });
     const d = await r.json().catch(() => ({}));
     window._lastPushTest = d;
-    if (d && d.sent > 0 && !(d.errors || []).length) _toast(`Aviso de teste enviado pra ${d.sent} aparelho${d.sent > 1 ? 's' : ''} ✦ deve chegar em segundos`, 'ok');
-    else if (d && d.sent > 0) _toast(`Enviado pra ${d.sent} aparelho(s); ${d.errors.length} falhou: ${d.errors[0]}`, 'err');
-    else _toast('O aviso não saiu: ' + ((d && d.errors && d.errors[0]) || 'nenhum aparelho registrado — toque em "Ativar no cel" de novo'), 'err');
+    const w = (d && d.whats) || {};
+    const wTxt = w.tried ? (w.sent ? ' · WhatsApp ✓' : ' · WhatsApp falhou: ' + (w.errors[0] || 'erro')) : '';
+    if (d && d.sent > 0 && !(d.errors || []).length) _toast(`Aviso de teste enviado pra ${d.sent} aparelho${d.sent > 1 ? 's' : ''}${wTxt}`, w.tried && !w.sent ? 'err' : 'ok');
+    else if (d && d.sent > 0) _toast(`Enviado pra ${d.sent} aparelho(s); ${d.errors.length} falhou: ${d.errors[0]}${wTxt}`, 'err');
+    else _toast('O aviso do celular não saiu: ' + ((d && d.errors && d.errors[0]) || 'nenhum aparelho registrado — toque em "Ativar no cel" de novo') + wTxt, 'err');
   } catch (e) { _toast('Sem conexão pra testar o aviso agora', 'err'); }
 }
 function _refreshPedidoSurfaces() {

@@ -9073,6 +9073,33 @@ async function sendWhatsAppTemplate(phone, templateName, lang, bodyParams = []) 
 
 // Envio de texto — roteia pelo provedor configurado. NUNCA lança: se o WhatsApp
 // estiver desligado/fora do ar, retorna um "skip" e o app segue normal.
+// Aviso de PEDIDO NOVO no WhatsApp do dono (06/10). Sai pela UazAPI mesmo com WHATSAPP_PROVIDER=off
+// (o resto do robô continua desligado). Números em drope_filiais.metadata.alert_whats (ex.: ['5511962443565']).
+async function _ownerWhatsAlert(filialId, text) {
+  const out = { tried: 0, sent: 0, errors: [] };
+  try {
+    if (!UAZAPI_TOKEN) { out.errors.push('UazAPI sem token'); return out; }
+    const rows = await sbGet('drope_filiais', `id=eq.${encodeURIComponent(filialId)}&select=metadata&limit=1`);
+    const md = (rows && rows[0] && rows[0].metadata) || {};
+    const nums = (Array.isArray(md.alert_whats) ? md.alert_whats : []).map(n => String(n).replace(/\D/g, '')).filter(n => n.length >= 12);
+    for (const n of nums) {
+      out.tried++;
+      try {
+        const r = await sendText(n, text, { provider: 'uazapi' });
+        if (r && r.ok) out.sent++;
+        else { let t = ''; try { t = r && r.text ? (await r.text()).slice(0, 160) : ''; } catch (e) {} out.errors.push(`HTTP ${r && r.status}${t ? ' ' + t : ''}`); }
+      } catch (e) { out.errors.push(e.message); }
+    }
+  } catch (e) { out.errors.push(e.message); }
+  return out;
+}
+function _orderAlertText(o, amountCents) {
+  const c = o.customer_snapshot || {};
+  const its = (Array.isArray(o.items) ? o.items : []).map(i => `${i.qty || 1}× ${String(i.name || 'item').replace(/\s+\d+(,\d)?K$/i, '')}`).join(', ');
+  const nome = String(c.name || 'cliente').split(' ')[0];
+  return `🦎 *Pedido novo na DROPE!*\n#${o.order_nsu || o.id} · R$ ${((amountCents || o.total_cents || 0) / 100).toFixed(2).replace('.', ',')} · ${nome}\n${its}\nAbra o painel: https://drope-app.vercel.app/filial`;
+}
+
 async function sendText(phone, text, body = {}) {
   try {
     const provider = (body.provider || WHATSAPP_PROVIDER);
@@ -15874,7 +15901,8 @@ async function handleFilialPushSubscribe(req, res) {
     if (!filial) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
     if (body.action_type === 'test') { // teste: dispara um push pro próprio aparelho
       const st = await _sendStorePush(filial.id, 'Notificações ativas ✦', 'Vou te avisar aqui quando entrar um pedido 🔔', '/filial');
-      return res.status(200).json({ ok: true, tested: true, ...st });
+      const wa = await _ownerWhatsAlert(filial.id, '🦎 *Teste do DROPE* — é assim que vai chegar o aviso de pedido novo aqui no WhatsApp ✦');
+      return res.status(200).json({ ok: true, tested: true, ...st, whats: wa });
     }
     const sub = body.subscription;
     if (!sub || !sub.endpoint) return res.status(400).json({ ok: false, error: 'subscription inválida' });
@@ -18410,6 +18438,7 @@ async function handleInfinitePayWebhook(req, res) {
           if (updated[0].filial_id) {
             const _cn2 = String((updated[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
             _notify('filial', updated[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn2} · toque pra ver`, null, { badge: 'auto' }).catch(() => {});
+            await _ownerWhatsAlert(updated[0].filial_id, _orderAlertText(updated[0], amountCents)).catch(() => {});
           }
           const _cph2 = (updated[0].customer_snapshot || {}).phone;
           if (_cph2) _notify('customer', _cph2, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
@@ -19226,6 +19255,7 @@ async function handleMPWebhook(req, res) {
           if (upd[0].filial_id) {
             const _cn = String((upd[0].customer_snapshot || {}).name || 'cliente').split(' ')[0];
             _notify('filial', upd[0].filial_id, 'order_new', '💰 Venda no DROPE!', `R$ ${(amountCents / 100).toFixed(2).replace('.', ',')} · ${_cn} · toque pra ver`, null, { badge: 'auto' }).catch(() => {});
+            await _ownerWhatsAlert(upd[0].filial_id, _orderAlertText(upd[0], amountCents)).catch(() => {});
           }
           const _cph = (upd[0].customer_snapshot || {}).phone;
           if (_cph) _notify('customer', _cph, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
