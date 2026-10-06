@@ -334,7 +334,16 @@ module.exports = async function handler(req, res) {
         }
       } catch (e) { console.error('[save-order] colaborador:', e.message); }
     }
-    const employeeId = couponEmployeeId || refEmployeeId || operadorId; // código do atendente > link > operador padrão
+    // Comissão VITALÍCIA (06/10): cliente que entrou pelo QR de um atendente fica dele pra sempre.
+    // Sem código neste pedido → herda o atendente do 1º pedido que veio com código.
+    let lifetimeEmployeeId = null;
+    if (!couponEmployeeId && customerId) {
+      try {
+        const prev = await sbFetch(`drope_orders?customer_id=eq.${encodeURIComponent(customerId)}&metadata->>attendant_id=not.is.null&select=metadata&order=created_at.asc&limit=1`);
+        lifetimeEmployeeId = (Array.isArray(prev) && prev[0] && prev[0].metadata && prev[0].metadata.attendant_id) || null;
+      } catch (e) { lifetimeEmployeeId = null; }
+    }
+    const employeeId = couponEmployeeId || lifetimeEmployeeId || refEmployeeId || operadorId; // atendente (código/vitalício) > link > operador
 
     // Embaixador GLOBAL: só se o ref não bateu com colaborador da loja.
     let ambassadorRef = null, ambassadorId = null;
@@ -378,6 +387,8 @@ module.exports = async function handler(req, res) {
     }
     // Atribui a venda ao operador padrão (comissão de funcionário).
     if (employeeId) orderRow.metadata = { ...(orderRow.metadata || {}), employee_id: employeeId };
+    const attendantId = couponEmployeeId || lifetimeEmployeeId;
+    if (attendantId) orderRow.metadata = { ...(orderRow.metadata || {}), attendant_id: attendantId }; // vínculo vitalício cliente → atendente
     if (couponApplied) orderRow.metadata = { ...(orderRow.metadata || {}), coupon_code: couponApplied, discount_cents: discountCents, ...(refCustomerId ? { ref_customer_id: String(refCustomerId) } : {}) };
     if (creditUsedCents > 0) orderRow.metadata = { ...(orderRow.metadata || {}), credit_used_cents: creditUsedCents };
     if (deliveryKm != null) orderRow.metadata = { ...(orderRow.metadata || {}), delivery_km: deliveryKm, delivery_km_source: deliverySource }; // km da ROTA (repasse do motoboy)

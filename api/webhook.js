@@ -4643,11 +4643,12 @@ async function handleAnalyzePricePhoto(req, res) {
 function _commissionWindow(md, now) {
   const mode = ((md || {}).commission_period === 'week') ? 'week' : 'month';
   if (mode === 'week') {
-    const d = new Date(now);
-    const dow = (d.getDay() + 6) % 7; // segunda = 0
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - dow);
-    return { mode, startISO: d.toISOString(), key: 'W' + d.toISOString().slice(0, 10), label: 'semana' };
+    // Semana de comissão = segunda 00:00 → domingo 23:59 no horário de Brasília (paga no domingo)
+    const br = new Date(new Date(now).getTime() - 3 * 3600000);
+    const dow = (br.getUTCDay() + 6) % 7; // segunda = 0
+    const monBr = Date.UTC(br.getUTCFullYear(), br.getUTCMonth(), br.getUTCDate() - dow);
+    const start = new Date(monBr + 3 * 3600000);
+    return { mode, startISO: start.toISOString(), key: 'W' + new Date(monBr).toISOString().slice(0, 10), label: 'semana' };
   }
   const d = new Date(now.getFullYear(), now.getMonth(), 1);
   return { mode, startISO: d.toISOString(), key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, label: 'mês' };
@@ -4773,7 +4774,7 @@ async function handleFilialMeta(req, res) {
     const monBr = Date.UTC(br.getUTCFullYear(), br.getUTCMonth(), br.getUTCDate() - dow);
     const weekStart = new Date(monBr + 3 * 3600000).toISOString(); // segunda 00:00 BRT em UTC
     const since60 = new Date(Date.now() - 60 * 86400000).toISOString();
-    const rows = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=not.in.(created,cancelled)&created_at=gte.${since60}&select=id,customer_id,created_at,metadata&order=created_at.asc&limit=2000`);
+    const rows = await sbGet('drope_orders', `filial_id=eq.${filial.id}&status=not.in.(created,cancelled)&created_at=gte.${since60}&select=id,customer_id,created_at,metadata,delivery_fee_cents&order=created_at.asc&limit=2000`);
     const list = Array.isArray(rows) ? rows : [];
     const week = list.filter(o => o.created_at >= weekStart);
     // 1º pedido de cada cliente (olhando o histórico todo dele, não só 60 dias)
@@ -4787,7 +4788,11 @@ async function handleFilialMeta(req, res) {
     const isCupom1 = (o) => { const c = String((o.metadata || {}).coupon_code || ''); return c === 'BEMVINDO10' || /^[A-Z]{2,8}\d{1,7}$/.test(c) && c !== 'VOLTA5' && !!(o.metadata || {}).ref_customer_id; };
     const novosCupom = novos.filter(id => week.some(o => o.customer_id === id && isCupom1(o))).length;
     const voltaram = novos.filter(id => (count[id] || 0) >= 2).length;
-    return res.status(200).json({ ok: true, meta: META, vendas: week.length, novos: novos.length, novos_cupom: novosCupom, voltaram, desde: weekStart });
+    // Entrega da semana: o que o cliente pagou × o que a loja pagou na corrida (só corridas com custo informado)
+    const comCusto = week.filter(o => o.metadata && o.metadata.despacho && o.metadata.despacho.custo_cents);
+    const entrega = { corridas: comCusto.length, sem_custo: week.filter(o => o.metadata && o.metadata.despacho && !o.metadata.despacho.custo_cents).length,
+      cobrado_cents: comCusto.reduce((t, o) => t + (o.delivery_fee_cents || 0), 0), pago_cents: comCusto.reduce((t, o) => t + o.metadata.despacho.custo_cents, 0) };
+    return res.status(200).json({ ok: true, meta: META, vendas: week.length, novos: novos.length, novos_cupom: novosCupom, voltaram, desde: weekStart, entrega });
   } catch (e) {
     console.error('[filial_meta] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: 'não consegui calcular agora' });
@@ -5000,7 +5005,10 @@ async function handleFilialPainel(req, res) {
         return m.employee_id === f.id || (f.ref_code && m.parceiro_ref === f.ref_code);
       });
       let comissaoCents = 0;
-      if (f.tipo === 'fixo') {
+      const podsQtd = myOrders.reduce((t, o) => t + (Array.isArray(o.items) ? o.items : []).reduce((a, it) => a + (parseInt(it.qty || it.quantity) || 1), 0), 0);
+      if (f.tipo === 'pod') {
+        comissaoCents = podsQtd * Math.round((Number(f.valor) || 0) * 100); // R$ por pod vendido pros clientes dele (vitalício)
+      } else if (f.tipo === 'fixo') {
         comissaoCents = myOrders.length * Math.round((Number(f.valor) || 0) * 100); // R$ fixo por venda
       } else if (f.tipo === 'pct_venda') {
         for (const o of myOrders) comissaoCents += Math.round(Number(o.total_cents || 0) * (Number(f.valor) || 0) / 100); // % da venda
@@ -5018,8 +5026,8 @@ async function handleFilialPainel(req, res) {
       const myPayments = _payments.filter(p => p && p.person_id === f.id && p.period === periodKey);
       const pagoCents = myPayments.reduce((s, p) => s + (Number(p.amount_cents) || 0), 0);
       return {
-        id: f.id, nome: f.nome, tipo: f.tipo, valor: f.valor, operador: !!f.operador,
-        vendas: myOrders.length,
+        id: f.id, nome: f.nome, tipo: f.tipo, valor: f.valor, operador: !!f.operador, pix: f.pix || '',
+        vendas: myOrders.length, pods: podsQtd,
         total_vendido_cents: myOrders.reduce((s, o) => s + Number(o.total_cents || 0), 0),
         comissao_cents: comissaoCents,
         pago_cents: pagoCents,
@@ -5473,15 +5481,23 @@ async function handleFilialOrderDispatch(req, res) {
     const ex = await sbGet('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,metadata&limit=1`);
     if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
     const o = ex[0];
-    if (['cancelled', 'delivered', 'picked_up', 'completed'].includes(o.status)) return res.status(400).json({ ok: false, error: 'pedido já finalizado' });
+    if (!body.only_custo && ['cancelled', 'delivered', 'picked_up', 'completed'].includes(o.status)) return res.status(400).json({ ok: false, error: 'pedido já finalizado' });
+    if (body.only_custo) { // informar o custo da corrida depois
+      const md0 = { ...(o.metadata || {}) };
+      const c0 = Math.max(0, Math.min(30000, Math.round((Number(String(body.custo || '').replace(',', '.')) || 0) * 100)));
+      md0.despacho = { ...(md0.despacho || {}), custo_cents: c0 || null };
+      await sbUpdate('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}`, { metadata: md0 });
+      return res.status(200).json({ ok: true, despacho: md0.despacho });
+    }
     const via = DESPACHO_VIAS[String(body.via || '')] ? String(body.via) : 'outro';
     const code = String(body.code || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 12);
     let link = String(body.link || '').trim().slice(0, 400);
     if (link && !/^https:\/\//i.test(link)) link = '';
     const eta = Math.max(0, Math.min(180, parseInt(body.eta, 10) || 0));
+    const custoCents = Math.max(0, Math.min(30000, Math.round((Number(String(body.custo || '').replace(',', '.')) || 0) * 100))); // quanto a loja pagou na corrida
     const now = new Date().toISOString();
     const md = { ...(o.metadata || {}) };
-    md.despacho = { via, via_nome: DESPACHO_VIAS[via], code: code || null, link: link || null, eta_min: eta || null, at: now };
+    md.despacho = { via, via_nome: DESPACHO_VIAS[via], code: code || null, link: link || null, eta_min: eta || null, custo_cents: custoCents || null, at: now };
     if (code) md.delivery_pin = code; // o app do cliente já mostra o "código de entrega"
     const hist = Array.isArray(o.status_history) ? o.status_history : [];
     hist.push({ status: 'dispatched', at: now, via });
@@ -7851,12 +7867,13 @@ async function handleFilialFuncionarioSave(req, res) {
     } else {
       const nome = String(body.nome || '').trim().slice(0, 40);
       if (!nome) return res.status(400).json({ ok: false, error: 'nome do funcionário vazio' });
-      const tipo = (body.tipo === 'fixo') ? 'fixo' : 'pct_lucro';
+      const tipo = ['fixo', 'pod'].includes(body.tipo) ? body.tipo : 'pct_lucro';
       let valor = Number(body.valor); if (!isFinite(valor) || valor < 0) valor = 0;
       const operador = !!body.operador;
       let f = funcs.find(x => x.id === body.id);
       if (!f) { f = { id: 'fn-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000) }; funcs.push(f); }
       f.nome = nome; f.tipo = tipo; f.valor = valor; f.operador = operador;
+      if (typeof body.pix === 'string') f.pix = body.pix.trim().slice(0, 80); // chave Pix pro pagamento de domingo
       // Código de indicação (link) do colaborador — quem comprar pelo link conta
       // a comissão pra ele. Gera 1x, único dentro da loja.
       if (!f.ref_code) {

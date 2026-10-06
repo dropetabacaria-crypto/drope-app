@@ -447,7 +447,13 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
         <div style="background:var(--bg3);border-radius:12px;padding:10px 12px"><div style="font-size:11px;color:var(--fg-dim)">Clientes novos</div><div style="font-weight:800;font-size:18px" id="meta-n">0</div><div style="font-size:11px;color:var(--fg-dim)" id="meta-nc"></div></div>
         <div style="background:var(--bg3);border-radius:12px;padding:10px 12px"><div style="font-size:11px;color:var(--fg-dim)">Voltaram (2º pedido)</div><div style="font-weight:800;font-size:18px" id="meta-r">0</div><div style="font-size:11px;color:var(--fg-dim)" id="meta-rp"></div></div>
       </div>
+      <div id="meta-ent" style="margin-top:10px;font-size:12.5px;color:var(--fg-dim)"></div>
     </div>
+  </div>
+  <!-- Pagamento de domingo: comissão de cada atendente na semana (seg→dom), com Pix e "paguei" -->
+  <div class="section sec-paga" id="sec-paga" style="display:none">
+    <h2>Pagamento de domingo</h2>
+    <div id="paga-list"></div>
   </div>
   <!-- VOLTA5: quem comprou 1 vez e não voltou — a loja manda o cupom pelo WhatsApp -->
   <div class="section sec-volta" id="sec-volta" style="display:none">
@@ -733,11 +739,14 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
             <label class="pf-lbl" style="margin-top:8px">Comissão</label>
             <div style="display:flex;gap:8px">
               <select class="pf-input" id="fn-tipo" style="flex:1;margin-bottom:0" onchange="_fnTipoHint()">
+                <option value="pod">R$ por pod (pra sempre, clientes dele)</option>
                 <option value="pct_lucro">% do lucro</option>
                 <option value="fixo">R$ fixo por venda</option>
               </select>
               <input class="pf-input" id="fn-valor" inputmode="decimal" placeholder="20" style="width:90px;margin-bottom:0">
             </div>
+            <label class="pf-lbl" style="margin-top:8px">Chave Pix <span style="color:var(--fg-dim);font-weight:400">(pro pagamento de domingo)</span></label>
+            <input class="pf-input" id="fn-pix" placeholder="CPF, celular, e-mail ou chave aleatória" maxlength="80" style="margin-bottom:0">
             <div id="fn-hint" class="pf-hint" style="margin-top:4px">Ex.: 20% do lucro de cada venda dele (precisa do preço de custo cadastrado).</div>
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-dim);margin:12px 0"><input type="checkbox" id="fn-operador"> É o operador da loja (pega as vendas do app / balcão sem escolha)</label>
             <button class="pf-btn" onclick="saveFuncionario()">Adicionar funcionário ✦</button>
@@ -1480,6 +1489,7 @@ function render(d) {
   try { renderHoje(d.dia); } catch (e) {}
   try { loadVolta5(); } catch (e) {}
   try { loadMeta(); } catch (e) {}
+  try { renderPagaDomingo(); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -3201,8 +3211,10 @@ let _fnEditId = null;
 function _fnTipoHint() {
   const t = ((document.getElementById('fn-tipo') || {}).value) || 'pct_lucro';
   const h = document.getElementById('fn-hint');
-  if (h) h.textContent = t === 'fixo'
-    ? 'Ex.: R$ 3,00 por cliente novo que comprar com o código/QR dele.'
+  if (h) h.textContent = t === 'pod'
+    ? 'Ex.: R$ 3,00 por pod. O cliente que entrou pelo QR/código dele fica dele pra sempre — todo pod que esse cliente comprar conta.'
+    : t === 'fixo'
+    ? 'Ex.: R$ 3,00 por venda com o código/QR dele.'
     : 'Ex.: 20% do lucro (preço − custo) de cada venda dele. Precisa do preço de custo cadastrado no produto.';
 }
 function renderFuncionarios() {
@@ -3210,7 +3222,9 @@ function renderFuncionarios() {
   const fs = _funcionarios || [];
   if (!fs.length) { list.innerHTML = '<div style="font-size:13px;color:var(--fg-dim);padding:8px 0">Nenhum funcionário cadastrado ainda.</div>'; return; }
   list.innerHTML = fs.map(f => {
-    const regra = f.tipo === 'fixo'
+    const regra = f.tipo === 'pod'
+      ? ('R$ ' + Number(f.valor || 0).toFixed(2).replace('.', ',') + ' por pod · clientes dele pra sempre')
+      : f.tipo === 'fixo'
       ? ('R$ ' + Number(f.valor || 0).toFixed(2).replace('.', ',') + ' por venda')
       : (String(f.valor || 0).replace('.', ',') + '% do lucro');
     const c = (_comissoes || []).find(x => x.id === f.id);
@@ -3242,6 +3256,7 @@ async function saveFuncionario() {
   const tipo = (document.getElementById('fn-tipo').value || 'pct_lucro');
   const valor = _num(document.getElementById('fn-valor').value);
   const operador = document.getElementById('fn-operador').checked;
+  const pix = ((document.getElementById('fn-pix') || {}).value || '').trim();
   const msg = document.getElementById('fn-msg');
   if (nome.length < 2) { msg.textContent = 'põe o nome do funcionário'; return; }
   if (!isFinite(valor) || valor < 0) { msg.textContent = 'valor da comissão inválido'; return; }
@@ -3249,7 +3264,7 @@ async function saveFuncionario() {
   try {
     const r = await fetch('/api/webhook?action=filial_funcionario_save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'save', id: _fnEditId || undefined, nome, tipo, valor, operador }),
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, op: 'save', id: _fnEditId || undefined, nome, tipo, valor, operador, pix }),
     });
     const d = await r.json().catch(() => ({}));
     if (r.ok && d.ok) {
@@ -3257,6 +3272,7 @@ async function saveFuncionario() {
       _fnEditId = null;
       document.getElementById('fn-nome').value = ''; document.getElementById('fn-valor').value = '';
       document.getElementById('fn-operador').checked = false; msg.textContent = '';
+      try { document.getElementById('fn-pix').value = ''; } catch (e) {}
       renderFuncionarios();
     } else { msg.textContent = d.error || 'Não deu certo agora ✦ tenta de novo em instantes'; }
   } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
@@ -3268,6 +3284,7 @@ function editFuncionario(id) {
   document.getElementById('fn-tipo').value = f.tipo || 'pct_lucro';
   document.getElementById('fn-valor').value = (f.valor != null ? String(f.valor).replace('.', ',') : '');
   document.getElementById('fn-operador').checked = !!f.operador;
+  try { document.getElementById('fn-pix').value = f.pix || ''; } catch (e) {}
   _fnTipoHint();
   const msg = document.getElementById('fn-msg'); if (msg) msg.textContent = 'editando ' + (f.nome || '') + '…';
 }
@@ -5002,6 +5019,38 @@ function wlCopyNumbers() {
   try { navigator.clipboard.writeText(nums).then(() => _toast('Números copiados ✦ cole numa lista de transmissão do WhatsApp', 'ok'), () => prompt('Copie:', nums)); } catch (e) { prompt('Copie:', nums); }
 }
 
+// ===== Pagamento de domingo =====
+function renderPagaDomingo() {
+  const sec = document.getElementById('sec-paga'), el = document.getElementById('paga-list'); if (!sec || !el) return;
+  const cs = (_comissoes || []).filter(c => (_funcionarios || []).some(f => f.id === c.id));
+  if (!cs.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const total = cs.reduce((t, c) => t + (c.a_pagar_cents || 0), 0);
+  const semana = _commPeriod === 'week';
+  el.innerHTML = `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;padding:14px 16px;box-shadow:var(--card-shadow)">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+      <div style="font-size:13px;color:var(--fg-dim)">${semana ? 'A pagar nesta semana (seg → dom)' : 'A pagar neste mês'}</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:22px;color:var(--lime);white-space:nowrap">${fmtBRL(total)}</div>
+    </div>
+    ${semana ? '' : `<div style="font-size:11.5px;color:var(--pink);margin-top:4px">Pra pagar todo domingo, ative <b>Semanal</b> em Configurações → Funcionários.</div>`}
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+    ${cs.map(c => `<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:12px;padding:10px 12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">${esc(c.nome)}</div>
+        <div style="font-size:11.5px;color:var(--fg-dim)">${c.pods || 0} pod${(c.pods || 0) === 1 ? '' : 's'} · ${c.vendas || 0} pedido${(c.vendas || 0) === 1 ? '' : 's'}${c.pix ? ` · Pix <span class="mini-link" onclick="copyPix('${_jsStr(c.pix)}')">${esc(c.pix)}</span>` : ' · <span style="color:var(--pink)">sem chave Pix</span>'}</div>
+      </div>
+      <div style="text-align:right;flex:0 0 auto">
+        <div style="font-weight:800;font-size:15px">${fmtBRL(c.a_pagar_cents || 0)}</div>
+        ${(c.a_pagar_cents || 0) > 0 ? `<button class="pf-btn sec" style="padding:5px 10px;font-size:12px;margin:4px 0 0" onclick="markCommissionPaid('${c.id}',${c.a_pagar_cents})">Paguei</button>` : `<div style="font-size:11px;color:var(--green)">${(c.pago_cents || 0) > 0 ? 'pago ✓' : '—'}</div>`}
+      </div>
+    </div>`).join('')}
+    </div>
+  </div>`;
+}
+function copyPix(k) {
+  try { navigator.clipboard.writeText(k).then(() => _toast('Chave Pix copiada ✦ cole no app do banco', 'ok'), () => prompt('Copie a chave Pix:', k)); } catch (e) { prompt('Copie a chave Pix:', k); }
+}
+
 // ===== Meta da semana =====
 let _metaAt = 0;
 async function loadMeta() {
@@ -5017,6 +5066,13 @@ async function loadMeta() {
   const bar = document.getElementById('meta-bar'); if (bar) { bar.style.width = Math.min(100, Math.round(d.vendas / d.meta * 100)) + '%'; bar.style.background = d.vendas >= d.meta ? 'var(--green)' : 'var(--lime)'; }
   set('meta-n', d.novos); set('meta-nc', d.novos ? `${d.novos_cupom} vieram com cupom` : 'nenhum ainda');
   set('meta-r', d.voltaram); set('meta-rp', d.novos ? `${Math.round(d.voltaram / d.novos * 100)}% dos novos` : '—');
+  const e = d.entrega || {}, me = document.getElementById('meta-ent');
+  if (me) {
+    if (e.corridas) {
+      const dif = (e.cobrado_cents || 0) - (e.pago_cents || 0);
+      me.innerHTML = `Entregas (${e.corridas}): cliente pagou <b style="color:var(--fg)">${fmtBRL(e.cobrado_cents)}</b> · você pagou <b style="color:var(--fg)">${fmtBRL(e.pago_cents)}</b> · <b style="color:${dif >= 0 ? 'var(--green)' : 'var(--pink)'}">${dif >= 0 ? 'sobrou' : 'faltou'} ${fmtBRL(Math.abs(dif))}</b>${e.sem_custo ? ` · ${e.sem_custo} sem custo informado` : ''}`;
+    } else me.textContent = e.sem_custo ? `${e.sem_custo} entrega(s) sem custo da corrida informado — informe no pedido pra conferir a taxa` : '';
+  }
 }
 
 // ===== VOLTA5 — chamar de volta pelo WhatsApp =====
@@ -5467,6 +5523,7 @@ function renderPedidoCard(p, isEntregue) {
     const dp = p.despacho;
     const dpInfo = dp ? `<div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12.5px;color:var(--fg-dim)">
         Saiu pela <b style="color:var(--fg)">${esc(dp.via_nome || 'entrega')}</b>${dp.eta_min ? ` · ~${dp.eta_min} min` : ''}${dp.code ? ` · código <b style="color:var(--lime);letter-spacing:2px;font-size:15px">${esc(dp.code)}</b>` : ''}
+        <div style="margin-top:4px">${dp.custo_cents ? `corrida: <b style="color:var(--fg)">${fmtBRL(dp.custo_cents)}</b>` : `<span class="mini-link" onclick="despCusto(${p.id})">informar custo da corrida</span>`}</div>
         <div style="margin-top:6px"><span class="mini-link" onclick="despWhats(${p.id})">mandar de novo no WhatsApp ›</span></div></div>` : '';
     actions = p.corrida ? corr : (dpInfo + b('delivered', 'Entregue ✓'));
   }
@@ -5689,6 +5746,8 @@ function switchPanelTab(tab){
     <input class="pf-input" id="desp-code" inputmode="numeric" maxlength="12" placeholder="ex: 6756" style="font-size:20px;letter-spacing:4px;font-weight:800">
     <label class="pf-lbl" for="desp-link" style="margin-top:10px">Link de acompanhamento <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
     <input class="pf-input" id="desp-link" inputmode="url" placeholder="cole o link da 99/Uber/Lalamove">
+    <label class="pf-lbl" for="desp-custo" style="margin-top:10px">Quanto custou a corrida? <span style="color:var(--fg-dim);font-weight:400">(R$ — pra conferir a taxa de entrega)</span></label>
+    <input class="pf-input" id="desp-custo" inputmode="decimal" placeholder="ex: 16,00">
     <div class="pf-lbl" style="margin-top:10px">Chega em quanto tempo?</div>
     <div id="desp-eta" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
     <button class="pf-btn" id="desp-ok" style="width:100%" onclick="despConfirm()">Avisar o cliente no WhatsApp</button>
@@ -5709,7 +5768,7 @@ function openDespacho(id) {
   const p = _despOrder(id); if (!p) { _toast('Não achei esse pedido — atualize o painel', 'err'); return; }
   let last = '99'; try { last = localStorage.getItem('drope_desp_via') || '99'; } catch (e) {}
   _desp = { id, via: last, eta: 15 };
-  document.getElementById('desp-code').value = ''; document.getElementById('desp-link').value = '';
+  document.getElementById('desp-code').value = ''; document.getElementById('desp-link').value = ''; document.getElementById('desp-custo').value = '';
   document.getElementById('desp-who').textContent = `Pedido ${_pedNum(p)} · ${((p.customer || {}).name || 'cliente')}`;
   _despChips();
   document.getElementById('desp-ov').style.display = 'flex';
@@ -5733,7 +5792,7 @@ async function despConfirm() {
   const p = _despOrder(_desp.id); if (!p) return;
   const btn = document.getElementById('desp-ok'); btn.disabled = true; btn.textContent = 'avisando…';
   const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, id: _desp.id, via: _desp.via, eta: _desp.eta,
-    code: document.getElementById('desp-code').value.trim(), link: document.getElementById('desp-link').value.trim() };
+    code: document.getElementById('desp-code').value.trim(), link: document.getElementById('desp-link').value.trim(), custo: document.getElementById('desp-custo').value.trim() };
   try { localStorage.setItem('drope_desp_via', _desp.via); } catch (e) {}
   // Abre o WhatsApp já (no clique), antes da rede — celular bloqueia janela aberta depois de esperar
   const dpLocal = { via: body.via, eta_min: body.eta, code: body.code.replace(/[^0-9A-Za-z]/g, '') || null, link: /^https:\/\//i.test(body.link) ? body.link : null };
@@ -5745,6 +5804,16 @@ async function despConfirm() {
     else _toast(d.error || 'Não deu pra marcar como saiu', 'err');
   } catch (e) { _toast('Sem conexão — o WhatsApp abriu, mas o pedido não mudou no app', 'err'); }
   btn.disabled = false; btn.textContent = 'Avisar o cliente no WhatsApp';
+}
+async function despCusto(id) {
+  const v = prompt('Quanto custou a corrida desse pedido? (R$)', '');
+  if (v == null || !String(v).trim()) return;
+  try {
+    const r = await fetch('/api/webhook?action=filial_order_dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, only_custo: true, custo: String(v).trim() }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _toast('Custo da corrida salvo ✦', 'ok'); try { loadData(true); _metaAt = 0; loadMeta(); } catch (e) {} } else _toast(d.error || 'Não deu pra salvar', 'err');
+  } catch (e) { _toast('Sem conexão agora', 'err'); }
 }
 function despWhats(id) { const p = _despOrder(id); if (p && p.despacho) _despOpenWhats(p, p.despacho); }
 </script>
