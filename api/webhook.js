@@ -16257,6 +16257,7 @@ async function handleCatalog(req, res) {
         lat: (hasRealAddr && realGeo && typeof geo.lat === 'number') ? geo.lat : null,
         lng: (hasRealAddr && realGeo && typeof geo.lng === 'number') ? geo.lng : null,
         pickup_ok: hasRealAddr, // só dá pra retirar se a loja cadastrou endereço de rua
+        modo: (fr[0].metadata || {}).modo || 'entrega', // 'retirada' = só retirada (Drope Baixada)
         filtros: flist.filter(f => !f.hidden).map(f => ({ id: f.id, nome: f.nome, image_url: f.image_url || null, ordem: f.ordem || 0, shape: f.shape || 'rect' })).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)) };
     }
   } catch (e) { console.warn('[catalog] filial lookup:', e.message); }

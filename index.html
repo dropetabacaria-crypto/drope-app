@@ -8854,7 +8854,17 @@
   // LOJA ÚNICA (Drope SP) — set/2026: o cliente entra direto na loja; sem home
   // multi-loja e sem escolher loja. Reverter pra false quando voltar o SaaS multi-loja.
   const SINGLE_STORE = true;
-  const SINGLE_STORE_SLUG = 'sp';
+  // 06/10: "Drope Baixada" (slug santos) — quem entra pelo link ?loja=baixada fica nela (o app lembra).
+  const _STORE_ALIAS = { sp: 'sp', baixada: 'santos', santos: 'santos' };
+  const SINGLE_STORE_SLUG = (function () {
+    try {
+      const q = (new URLSearchParams(location.search).get('loja') || '').toLowerCase().trim();
+      if (_STORE_ALIAS[q]) { localStorage.setItem('drope_store_lock', _STORE_ALIAS[q]); return _STORE_ALIAS[q]; }
+      const s0 = localStorage.getItem('drope_store_lock');
+      if (_STORE_ALIAS[s0]) return _STORE_ALIAS[s0];
+    } catch (e) {}
+    return 'sp';
+  })();
   let CLIENT_FILIAL = 'sp';
   let CLIENT_FILIAL_NAME = '';
   try { CLIENT_FILIAL = (localStorage.getItem(FILIAL_STORAGE_KEY) || 'sp').toLowerCase(); } catch(_){}
@@ -8952,7 +8962,8 @@
     const dq = window._deliveryQuote;
     const infoChips = [
       kmTxt ? `<span class="lj-hd-chip">${escapeHtml(etaTxt)} · ${escapeHtml(kmTxt)}</span>` : '',
-      (dq && dq.ok && !dq.out_of_range) ? `<span class="lj-hd-chip">entrega ${escapeHtml(dq.free ? 'grátis' : dq.fmt)}</span>` : `<span class="lj-hd-chip">2+ pods = entrega grátis (até 6 km)</span>`,
+      (typeof _storeSoRetirada === 'function' && _storeSoRetirada()) ? `<span class="lj-hd-chip">só retirada · pague pelo app</span>`
+        : (dq && dq.ok && !dq.out_of_range) ? `<span class="lj-hd-chip">entrega ${escapeHtml(dq.free ? 'grátis' : dq.fmt)}</span>` : `<span class="lj-hd-chip">2+ pods = entrega grátis (até 6 km)</span>`,
     ].filter(Boolean).join('');
     const cover = loja.cover_url
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
@@ -12072,8 +12083,13 @@
   let payWhen = 'now'; // 'now' | 'later' — só relevante quando deliveryMode === 'pickup'
   // Retirada só é possível se a loja cadastrou endereço (pickup_ok do backend).
   // Santos é caso legado (combina a retirada pelo WhatsApp) → sempre permitido.
-  const RETIRADA_ON = false; // 28/09: o Lucas tirou a retirada na loja — só entrega
+  const RETIRADA_ON = false; // 28/09: SP só entrega. Exceção: lojas "só retirada" (Drope Baixada) — _storeSoRetirada()
+  function _storeSoRetirada() {
+    const loja = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA) || {};
+    return (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') || loja.modo === 'retirada';
+  }
   function _pickupAvailable() {
+    if (_storeSoRetirada()) return true;
     if (!RETIRADA_ON) return false;
     if (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') return true;
     const loja = (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA) || {};
@@ -12116,8 +12132,8 @@
   }
   function setDeliveryMode(m) {
     // Filial Santos: só retirada (sem entrega no balcão). Força pickup.
-    if (RETIRADA_ON && typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL === 'santos') m = 'pickup';
-    if (!RETIRADA_ON) m = 'delivery';
+    if (_storeSoRetirada()) { m = 'pickup'; payWhen = 'now'; } // Baixada: só retirada, paga no app antes
+    else if (!RETIRADA_ON) m = 'delivery';
     // Retirada só se a loja cadastrou endereço.
     else if (m === 'pickup' && !_pickupAvailable()) { toast('Essa loja só faz entrega por enquanto ✦'); m = 'delivery'; }
     deliveryMode = m;
@@ -12142,7 +12158,7 @@
     if (addrWrap) {
       if (deliveryMode === 'pickup') {
         const p = _storePickup();
-        const lojaEnd = p.isSantos ? 'combina a retirada pelo whats da loja ✦' : (p.endereco || 'endereço com a loja');
+        const lojaEnd = p.isSantos ? 'depois de pagar, combine a retirada pelo WhatsApp da loja' : (p.endereco || 'endereço com a loja');
         const canRoute = !p.isSantos && (p.endereco || p.lat != null);
         addrWrap.innerHTML = `
           <div class="co-address" ${canRoute ? 'onclick="openStoreMaps()"' : 'style="cursor:default"'}>
@@ -12489,7 +12505,9 @@
     // Toggle pagar agora / na retirada — só aparece em pickup
     const pwWrap = document.getElementById('pay-when-wrap');
     if (pwWrap) {
-      if (deliveryMode === 'pickup') {
+      if (deliveryMode === 'pickup' && _storeSoRetirada()) {
+        pwWrap.style.display = 'none'; payWhen = 'now'; // paga no app e retira
+      } else if (deliveryMode === 'pickup') {
         pwWrap.style.display = 'block';
         document.getElementById('pw-now').classList.toggle('active', payWhen === 'now');
         document.getElementById('pw-later').classList.toggle('active', payWhen === 'later');

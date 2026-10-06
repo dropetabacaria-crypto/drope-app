@@ -60,8 +60,16 @@ module.exports = async function handler(req, res) {
     const status = defaultStatus;
 
     if (!order_nsu) return res.status(400).json({ error: 'missing order_nsu' });
-    // Retirada na loja DESLIGADA (28/09, Lucas): só entrega. Recusa pickup e "pagar na retirada".
-    if (delivery_mode !== 'delivery' || payment_method === 'pickup_later') {
+    // Modo de cada loja: SP = só entrega (28/09). Drope Baixada (slug santos, 06/10) = só retirada,
+    // pagando no app antes. "Pagar na retirada" (pickup_later) desligado em todas.
+    const _lojaRetirada = ['santos', 'baixada'].includes(String(body.filial_slug || '').toLowerCase());
+    if (payment_method === 'pickup_later') {
+      return res.status(409).json({ error: 'so_entrega', message: 'O pagamento é pelo app ✦ finalize de novo' });
+    }
+    if (_lojaRetirada && delivery_mode !== 'pickup') {
+      return res.status(409).json({ error: 'so_retirada', message: 'Essa loja trabalha só com retirada ✦ finalize de novo' });
+    }
+    if (!_lojaRetirada && delivery_mode !== 'delivery') {
       return res.status(409).json({ error: 'so_entrega', message: 'A DROPE agora trabalha só com entrega ✦ escolha o endereço e finalize de novo' });
     }
 
