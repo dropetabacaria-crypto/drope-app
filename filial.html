@@ -5453,7 +5453,7 @@ function renderPedidoCard(p, isEntregue) {
         actions = corr;
       } else {
         const chamar = `<button class="pf-btn sec" style="margin-top:8px;width:100%" onclick="openChamarEntregador(${p.id})"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><circle cx="5.5" cy="17.5" r="2.5"/><circle cx="17" cy="17.5" r="2.5"/><path d="M8 17.5h6.5l-3.3-8H8.2"/><path d="M11.2 9.5H15l2 5"/><path d="M3.5 9.5h3"/></svg> Chamar entregador do app</button>`;
-        actions = chamar + b('dispatched', 'Saiu pra entrega (motoboy da loja)');
+        actions = `<button class="pf-btn" style="margin-top:8px;width:100%" onclick="openDespacho(${p.id})">Saiu pra entrega 🛵</button>` + chamar;
       }
     } else {
       actions = b('ready', 'Pronto pra retirada ✦');
@@ -5462,7 +5462,11 @@ function renderPedidoCard(p, isEntregue) {
     actions = b('picked_up', 'Cliente retirou ✓');
   } else if (stage === 'dispatched') {
     // Com corrida do app, quem finaliza é o entregador (com o código do cliente).
-    actions = p.corrida ? corr : b('delivered', 'Entregue ✓');
+    const dp = p.despacho;
+    const dpInfo = dp ? `<div style="margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12.5px;color:var(--fg-dim)">
+        Saiu pela <b style="color:var(--fg)">${esc(dp.via_nome || 'entrega')}</b>${dp.eta_min ? ` · ~${dp.eta_min} min` : ''}${dp.code ? ` · código <b style="color:var(--lime);letter-spacing:2px;font-size:15px">${esc(dp.code)}</b>` : ''}
+        <div style="margin-top:6px"><span class="mini-link" onclick="despWhats(${p.id})">mandar de novo no WhatsApp ›</span></div></div>` : '';
+    actions = p.corrida ? corr : (dpInfo + b('delivered', 'Entregue ✓'));
   }
   // Cancelar pedido — some quando já foi entregue/retirado.
   const cancelBtn = (stage !== 'done')
@@ -5672,6 +5676,76 @@ function switchPanelTab(tab){
 })();
 </script>
 
+<!-- Saiu pra entrega (06/10): 99, Uber, Lalamove, motoboy próprio… + código + link + previsão → WhatsApp pronto -->
+<div id="desp-ov" onclick="if(event.target===this)closeDespacho()" style="position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center">
+  <div style="width:100%;max-width:480px;background:var(--bg2);border-radius:22px 22px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between"><div style="font-weight:800;font-size:18px">Saiu pra entrega 🛵</div><button onclick="closeDespacho()" style="background:none;border:0;color:var(--fg-dim);font-size:22px;cursor:pointer">×</button></div>
+    <div style="font-size:12.5px;color:var(--fg-dim);margin:2px 0 14px" id="desp-who"></div>
+    <div class="pf-lbl">Vai por onde?</div>
+    <div id="desp-via" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+    <label class="pf-lbl" for="desp-code">Código pro motorista <span style="color:var(--fg-dim);font-weight:400">(se o app de entrega deu)</span></label>
+    <input class="pf-input" id="desp-code" inputmode="numeric" maxlength="12" placeholder="ex: 6756" style="font-size:20px;letter-spacing:4px;font-weight:800">
+    <label class="pf-lbl" for="desp-link" style="margin-top:10px">Link de acompanhamento <span style="color:var(--fg-dim);font-weight:400">(opcional)</span></label>
+    <input class="pf-input" id="desp-link" inputmode="url" placeholder="cole o link da 99/Uber/Lalamove">
+    <div class="pf-lbl" style="margin-top:10px">Chega em quanto tempo?</div>
+    <div id="desp-eta" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
+    <button class="pf-btn" id="desp-ok" style="width:100%" onclick="despConfirm()">Avisar o cliente no WhatsApp</button>
+    <div style="font-size:11.5px;color:var(--fg-dim);text-align:center;margin-top:8px">O pedido vira "a caminho" no app do cliente, com o código e a previsão.</div>
+  </div>
+</div>
+<script>
+const _DESP_VIAS = [['99','99'],['uber','Uber'],['lalamove','Lalamove'],['proprio','Motoboy próprio'],['outro','Outro']];
+const _DESP_ETAS = [10, 15, 20, 30, 45];
+let _desp = { id: null, via: '99', eta: 15 };
+function _despChips() {
+  const chip = (on, label, fn) => `<button type="button" onclick="${fn}" style="padding:9px 14px;border-radius:999px;border:1px solid ${on ? 'var(--lime)' : 'var(--border)'};background:${on ? 'var(--lime)' : 'var(--bg3)'};color:${on ? '#0A0A14' : 'var(--fg)'};font-family:inherit;font-weight:800;font-size:13px;cursor:pointer">${label}</button>`;
+  document.getElementById('desp-via').innerHTML = _DESP_VIAS.map(([k, l]) => chip(_desp.via === k, l, `_desp.via='${k}';_despChips()`)).join('');
+  document.getElementById('desp-eta').innerHTML = _DESP_ETAS.map(m => chip(_desp.eta === m, m + ' min', `_desp.eta=${m};_despChips()`)).join('');
+}
+function _despOrder(id) { return (_pendentesAll || []).find(x => x.id === id) || null; }
+function openDespacho(id) {
+  const p = _despOrder(id); if (!p) { _toast('Não achei esse pedido — atualize o painel', 'err'); return; }
+  let last = '99'; try { last = localStorage.getItem('drope_desp_via') || '99'; } catch (e) {}
+  _desp = { id, via: last, eta: 15 };
+  document.getElementById('desp-code').value = ''; document.getElementById('desp-link').value = '';
+  document.getElementById('desp-who').textContent = `Pedido ${_pedNum(p)} · ${((p.customer || {}).name || 'cliente')}`;
+  _despChips();
+  document.getElementById('desp-ov').style.display = 'flex';
+}
+function closeDespacho() { document.getElementById('desp-ov').style.display = 'none'; }
+function _despMsg(p, dp) {
+  const nome = String((p.customer || {}).name || '').trim().split(/\s+/)[0] || '';
+  const via = dp.via_nome || ({ '99': '99', uber: 'Uber', lalamove: 'Lalamove', proprio: 'motoboy da loja' })[dp.via] || 'entregador';
+  let m = `Oi${nome ? ', ' + nome : ''}! Seu pedido da DROPE saiu 🛵\nVai pela ${via}${dp.eta_min ? ` e chega em ~${dp.eta_min} min` : ''}.`;
+  if (dp.code) m += `\nQuando o motorista chegar, passe o código *${dp.code}* pra ele.`;
+  if (dp.link) m += `\nAcompanhe aqui: ${dp.link}`;
+  return m;
+}
+function _despOpenWhats(p, dp) {
+  let ph = String((p.customer || {}).phone || '').replace(/\D/g, '');
+  if (!ph) { _toast('Esse pedido não tem telefone do cliente', 'err'); return; }
+  if (ph.length <= 11) ph = '55' + ph;
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(_despMsg(p, dp))}`, '_blank');
+}
+async function despConfirm() {
+  const p = _despOrder(_desp.id); if (!p) return;
+  const btn = document.getElementById('desp-ok'); btn.disabled = true; btn.textContent = 'avisando…';
+  const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, id: _desp.id, via: _desp.via, eta: _desp.eta,
+    code: document.getElementById('desp-code').value.trim(), link: document.getElementById('desp-link').value.trim() };
+  try { localStorage.setItem('drope_desp_via', _desp.via); } catch (e) {}
+  // Abre o WhatsApp já (no clique), antes da rede — celular bloqueia janela aberta depois de esperar
+  const dpLocal = { via: body.via, eta_min: body.eta, code: body.code.replace(/[^0-9A-Za-z]/g, '') || null, link: /^https:\/\//i.test(body.link) ? body.link : null };
+  _despOpenWhats(p, dpLocal);
+  try {
+    const r = await fetch('/api/webhook?action=filial_order_dispatch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { _toast('Pedido a caminho ✦ cliente avisado', 'ok'); closeDespacho(); try { loadData(true); } catch (e) {} }
+    else _toast(d.error || 'Não deu pra marcar como saiu', 'err');
+  } catch (e) { _toast('Sem conexão — o WhatsApp abriu, mas o pedido não mudou no app', 'err'); }
+  btn.disabled = false; btn.textContent = 'Avisar o cliente no WhatsApp';
+}
+function despWhats(id) { const p = _despOrder(id); if (p && p.despacho) _despOpenWhats(p, p.despacho); }
+</script>
 <script>
 // Auto-atualização (28/09): quando o app volta do segundo plano e tem versão nova no ar,
 // recarrega sozinho — só se a pessoa não estiver no meio de algo (digitando, pagando,

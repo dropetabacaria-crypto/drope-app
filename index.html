@@ -13449,6 +13449,7 @@
       store_whats: o.store_whats || null,
       store_slug: o.store_slug || null,
       delivery_pin: o.delivery_pin || null,
+      despacho: o.despacho || null,
       _backend: true,
     };
   }
@@ -14356,6 +14357,11 @@
           }).join('<div class="ot-line"></div>')}
         </div>
       </div>
+      ${(!isPickup && !isDone && o.despacho && o.statusCls === 'way') ? `<div class="ot-sec" style="text-align:center">
+        <div class="ot-sec-t">a caminho</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text)">Saiu pela ${escapeHtml(o.despacho.via_nome || 'entrega')}${o.despacho.eta_min ? ` · chega em ~${o.despacho.eta_min} min` : ''}</div>
+        ${o.despacho.link ? `<a href="${escapeHtml(o.despacho.link)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;color:var(--lime);font-weight:700;font-size:13.5px">acompanhar a corrida ›</a>` : ''}
+      </div>` : ''}
       ${(!isPickup && !isDone && o.delivery_pin && o.statusCls === 'way') ? `<div class="ot-sec" style="text-align:center;border:1px solid var(--store-accent,var(--lime))">
         <div class="ot-sec-t">código de entrega</div>
         <div style="font-size:34px;font-weight:800;letter-spacing:6px;font-family:'Space Grotesk',sans-serif;color:var(--store-accent,var(--lime))">${escapeHtml(String(o.delivery_pin))}</div>

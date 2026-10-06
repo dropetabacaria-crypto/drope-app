@@ -4939,6 +4939,7 @@ async function handleFilialPainel(req, res) {
         scheduled_opens_text: (o.metadata && o.metadata.scheduled_opens_text) || null,
         pickup_pin: (o.metadata && o.metadata.pickup_pin) || null,
         delivery_pin: (o.metadata && o.metadata.delivery_pin) || null,
+        despacho: (o.metadata && o.metadata.despacho) || null,
         retirada_pendente: !!(corridaByOrder[o.id] && corridaByOrder[o.id].status === 'aceita' && (corridaByOrder[o.id].metadata || {}).pickup_req),
         corrida_id: (corridaByOrder[o.id] && corridaByOrder[o.id].id) || null,
       };
@@ -5454,6 +5455,48 @@ async function _bumpTotalSold(items, sign) {
       }
     } catch (e) { console.error('[total_sold]', e.message); }
   }
+}
+
+// POST action=filial_order_dispatch (06/10) — "Saiu pra entrega" por QUALQUER meio (99, Uber, Lalamove,
+// motoboy próprio…): guarda serviço, código do motorista, link de acompanhamento e previsão;
+// muda o pedido pra "a caminho" e avisa o cliente (o painel ainda abre o WhatsApp com a mensagem pronta).
+const DESPACHO_VIAS = { '99': '99', uber: 'Uber', lalamove: 'Lalamove', proprio: 'motoboy da loja', outro: 'entregador' };
+async function handleFilialOrderDispatch(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const id = Number(body.id);
+    const ex = await sbGet('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,metadata&limit=1`);
+    if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
+    const o = ex[0];
+    if (['cancelled', 'delivered', 'picked_up', 'completed'].includes(o.status)) return res.status(400).json({ ok: false, error: 'pedido já finalizado' });
+    const via = DESPACHO_VIAS[String(body.via || '')] ? String(body.via) : 'outro';
+    const code = String(body.code || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 12);
+    let link = String(body.link || '').trim().slice(0, 400);
+    if (link && !/^https:\/\//i.test(link)) link = '';
+    const eta = Math.max(0, Math.min(180, parseInt(body.eta, 10) || 0));
+    const now = new Date().toISOString();
+    const md = { ...(o.metadata || {}) };
+    md.despacho = { via, via_nome: DESPACHO_VIAS[via], code: code || null, link: link || null, eta_min: eta || null, at: now };
+    if (code) md.delivery_pin = code; // o app do cliente já mostra o "código de entrega"
+    const hist = Array.isArray(o.status_history) ? o.status_history : [];
+    hist.push({ status: 'dispatched', at: now, via });
+    await sbUpdate('drope_orders', `id=eq.${id}&filial_id=eq.${filial.id}`, { status: 'dispatched', dispatched_at: now, status_history: hist, metadata: md });
+    try {
+      const phone = (o.customer_snapshot || {}).phone;
+      if (phone) {
+        const parts = [`Saiu pela ${DESPACHO_VIAS[via]}`];
+        if (eta) parts.push(`chega em ~${eta} min`);
+        if (code) parts.push(`código pro motorista: ${code}`);
+        _notify('customer', phone, 'order_status', 'Seu pedido saiu! 🛵', parts.join(' · ')).catch(() => {});
+      }
+    } catch (e) {}
+    return res.status(200).json({ ok: true, despacho: md.despacho });
+  } catch (e) { console.error('[filial_order_dispatch]', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
 // POST action=filial_order_status — lojista avança o status de UM pedido dele.
@@ -15951,6 +15994,7 @@ async function handleCustomerOrders(req, res) {
         store_slug: st.slug || null,
         store_whats: st.whats || null,
         delivery_pin: (o.metadata || {}).delivery_pin || null,
+        despacho: (o.metadata || {}).despacho || null,
       };
     });
     return res.status(200).json({ ok: true, orders: list });
@@ -22202,6 +22246,9 @@ async function generateAll(){
     return await handleCustomerPushSubscribe(req, res);
   }
   // action=filial_painel — GET: dados pro painel da fundadora da filial
+  if (req.url && /[?&]action=filial_order_dispatch(&|$)/.test(req.url)) {
+    return await handleFilialOrderDispatch(req, res);
+  }
   if (req.url && /[?&]action=filial_meta(&|$)/.test(req.url)) {
     return await handleFilialMeta(req, res);
   }
