@@ -15732,8 +15732,25 @@ async function handleCustomerRegister(req, res) {
     if (email) patch.email = email;
     if (birthdate) patch.birthdate = birthdate;
     if (body.whats_optin === true) patch.whats_optin_at = new Date().toISOString(); // marcou "quero ofertas no WhatsApp"
+    // De onde veio o cadastro (07/10): loja + código do QR/link (atendente, BEMVINDO10, indicação)
+    const lojaSlug = String(body.loja || 'sp').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'sp';
+    const qr = String(body.qr || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    patch.source = `app|loja=${lojaSlug}${qr ? '|qr=' + qr : ''}`;
     if (existing) await sbUpdate('drope_customers', `phone=eq.${encodeURIComponent(phone)}`, patch);
-    else await sbInsert('drope_customers', { phone, source: 'app', created_at: new Date().toISOString(), ...patch });
+    else await sbInsert('drope_customers', { phone, created_at: new Date().toISOString(), ...patch });
+    // Aviso pra loja: novo cliente no app (celular/Mac do painel)
+    try {
+      const fr = await sbGet('drope_filiais', `slug=eq.${encodeURIComponent(lojaSlug)}&select=id,metadata&limit=1`);
+      const f = fr && fr[0];
+      if (f) {
+        let via = 'direto pelo app';
+        if (qr) {
+          const at = ((f.metadata || {}).funcionarios || []).find(x => String(x.ref_code || '').toUpperCase() === qr);
+          via = at ? `veio pelo QR de ${at.nome}` : (qr === 'BEMVINDO10' ? 'veio pelo QR/link do BEMVINDO10' : `veio pelo código ${qr}`);
+        }
+        _sendStorePush(f.id, '🦎 Novo cliente no app!', `${(name || 'Cliente').split(' ')[0]} · ${via}`, '/filial').catch(() => {});
+      }
+    } catch (e) { console.warn('[register notify]', e.message); }
     return res.status(200).json({ ok: true, token, customer: { name: name || '', phone } });
   } catch (e) { console.error('[customer_register] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
@@ -19552,6 +19569,34 @@ module.exports = async function handler(req, res) {
       const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(ph)}&select=whats_optin_at&limit=1`);
       return res.status(200).json({ ok: true, on: !!(rows && rows[0] && rows[0].whats_optin_at) });
     } catch (e) { return res.status(500).json({ ok: false }); }
+  }
+  // action=filial_new_customers — GET: cadastros dos últimos 30 dias (de onde vieram + se já compraram)
+  if (req.url && /[?&]action=filial_new_customers(&|$)/.test(req.url)) {
+    res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cache-Control', 'no-store');
+    try {
+      const u = new URL(req.url, 'http://x');
+      const filial = await _filialAuthBySlug(String(u.searchParams.get('filial') || '').toLowerCase().trim(), String(u.searchParams.get('token') || '').trim());
+      if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+      const since = new Date(Date.now() - 30 * 86400000).toISOString();
+      const rows = await sbGet('drope_customers', `created_at=gte.${since}&pass_hash=not.is.null&select=id,name,phone,created_at,source&order=created_at.desc&limit=300`);
+      const mine = (Array.isArray(rows) ? rows : []).filter(c => {
+        const m = String(c.source || '').match(/loja=([a-z0-9-]+)/);
+        return (m ? m[1] : 'sp') === filial.slug;
+      });
+      const ids = mine.map(c => c.id);
+      const bought = {};
+      if (ids.length) {
+        const os = await sbGet('drope_orders', `customer_id=in.(${ids.join(',')})&status=not.in.(created,cancelled)&select=customer_id&limit=2000`);
+        (Array.isArray(os) ? os : []).forEach(o => { bought[o.customer_id] = (bought[o.customer_id] || 0) + 1; });
+      }
+      const funcs = Array.isArray((filial.metadata || {}).funcionarios) ? filial.metadata.funcionarios : [];
+      const lista = mine.map(c => {
+        const qr = (String(c.source || '').match(/qr=([A-Z0-9]+)/) || [])[1] || '';
+        const at = qr ? funcs.find(x => String(x.ref_code || '').toUpperCase() === qr) : null;
+        return { id: c.id, nome: String(c.name || 'cliente').trim(), quando: c.created_at, via: at ? at.nome : (qr || 'direto'), via_atendente: !!at, pedidos: bought[c.id] || 0 };
+      });
+      return res.status(200).json({ ok: true, lista });
+    } catch (e) { console.error('[filial_new_customers]', e.message); return res.status(500).json({ ok: false }); }
   }
   // action=filial_whats_list — GET: clientes que ACEITARAM receber ofertas no WhatsApp (painel)
   if (req.url && /[?&]action=filial_whats_list(&|$)/.test(req.url)) {

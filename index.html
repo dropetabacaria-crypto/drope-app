@@ -9820,7 +9820,8 @@
     if (pass.length < 6) { msg.textContent = 'Crie uma senha de pelo menos 6 caracteres'; return; }
     const btn = document.getElementById('creg-btn'); btn.textContent = 'Criando...'; btn.disabled = true;
     try {
-      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass, whats_optin: !!((document.getElementById('creg-whats') || {}).checked) }) });
+      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass, whats_optin: !!((document.getElementById('creg-whats') || {}).checked),
+        loja: (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL) || 'sp', qr: (function () { try { return localStorage.getItem('drope_pending_coupon') || ''; } catch (e) { return ''; } })() }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }

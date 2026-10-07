@@ -450,6 +450,11 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div id="meta-ent" style="margin-top:10px;font-size:12.5px;color:var(--fg-dim)"></div>
     </div>
   </div>
+  <!-- Novos cadastros (07/10): quem entrou no app, por onde veio (QR de qual atendente) e se já comprou -->
+  <div class="section sec-novos" id="sec-novos" style="display:none">
+    <h2>Novos cadastros <span id="nv-count" style="background:var(--lime);color:#000;padding:2px 8px;border-radius:8px;font-size:10px;margin-left:6px">0</span></h2>
+    <div id="nv-box"></div>
+  </div>
   <!-- Pagamento de domingo: comissão de cada atendente na semana (seg→dom), com Pix e "paguei" -->
   <div class="section sec-paga" id="sec-paga" style="display:none">
     <h2>Pagamento de domingo</h2>
@@ -1490,6 +1495,7 @@ function render(d) {
   try { loadVolta5(); } catch (e) {}
   try { loadMeta(); } catch (e) {}
   try { renderPagaDomingo(); } catch (e) {}
+  try { loadNovos(); } catch (e) {}
   try { renderPlanos(d); } catch (e) {}
 }
 
@@ -5017,6 +5023,51 @@ function wlCopyNumbers() {
   const nums = _wl.map(c => '+55 ' + c.phone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3')).join('\n');
   if (!nums) { _toast('Lista vazia ainda', 'err'); return; }
   try { navigator.clipboard.writeText(nums).then(() => _toast('Números copiados ✦ cole numa lista de transmissão do WhatsApp', 'ok'), () => prompt('Copie:', nums)); } catch (e) { prompt('Copie:', nums); }
+}
+
+// ===== Novos cadastros =====
+let _novos = [], _novosAt = 0, _novosAll = false;
+async function loadNovos(force) {
+  if (!force && Date.now() - _novosAt < 60000) return;
+  _novosAt = Date.now();
+  try {
+    const r = await fetch(`/api/webhook?action=filial_new_customers&filial=${encodeURIComponent(FILIAL_SLUG)}&token=${encodeURIComponent(ACCESS_CODE)}`, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    _novos = (d && d.ok && Array.isArray(d.lista)) ? d.lista : [];
+  } catch (e) { _novos = []; }
+  renderNovos();
+}
+function renderNovos() {
+  const sec = document.getElementById('sec-novos'), box = document.getElementById('nv-box'), cnt = document.getElementById('nv-count');
+  if (!sec || !box) return;
+  sec.style.display = '';
+  const now = Date.now(), dia = 86400000;
+  const hojeBR = new Date(now - 3 * 3600000).toISOString().slice(0, 10);
+  const hoje = _novos.filter(c => new Date(Date.parse(c.quando) - 3 * 3600000).toISOString().slice(0, 10) === hojeBR).length;
+  const semana = _novos.filter(c => now - Date.parse(c.quando) < 7 * dia).length;
+  const compraram = _novos.filter(c => c.pedidos > 0).length;
+  if (cnt) cnt.textContent = semana;
+  // ranking por atendente (7 dias)
+  const rk = {};
+  _novos.filter(c => now - Date.parse(c.quando) < 7 * dia && c.via_atendente).forEach(c => { rk[c.via] = (rk[c.via] || 0) + 1; });
+  const rkTxt = Object.entries(rk).sort((a, b) => b[1] - a[1]).map(([n, q]) => `${esc(n)} <b style="color:var(--fg)">${q}</b>`).join(' · ');
+  const quando = (iso) => { const m = Math.floor((now - Date.parse(iso)) / 60000); return m < 60 ? `há ${Math.max(1, m)} min` : m < 1440 ? `há ${Math.floor(m / 60)} h` : `há ${Math.floor(m / 1440)} d`; };
+  const lista = _novosAll ? _novos : _novos.slice(0, 5);
+  box.innerHTML = `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;padding:14px 16px;box-shadow:var(--card-shadow)">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+      <div style="background:var(--bg3);border-radius:12px;padding:8px"><div style="font-weight:800;font-size:20px">${hoje}</div><div style="font-size:11px;color:var(--fg-dim)">hoje</div></div>
+      <div style="background:var(--bg3);border-radius:12px;padding:8px"><div style="font-weight:800;font-size:20px">${semana}</div><div style="font-size:11px;color:var(--fg-dim)">7 dias</div></div>
+      <div style="background:var(--bg3);border-radius:12px;padding:8px"><div style="font-weight:800;font-size:20px">${compraram}</div><div style="font-size:11px;color:var(--fg-dim)">já compraram</div></div>
+    </div>
+    ${rkTxt ? `<div style="font-size:12px;color:var(--fg-dim);margin-top:10px">Por atendente (7 dias): ${rkTxt}</div>` : ''}
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+      ${lista.length ? lista.map(c => `<div style="display:flex;align-items:center;gap:10px;font-size:13px">
+        <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(c.nome.split(' ')[0])}</b> <span style="color:var(--fg-dim)">· ${c.via_atendente ? 'QR ' + esc(c.via) : esc(c.via === 'direto' ? 'direto' : c.via)} · ${quando(c.quando)}</span></div>
+        <span style="flex:0 0 auto;font-size:11.5px;font-weight:700;color:${c.pedidos ? 'var(--green)' : 'var(--fg-dim)'}">${c.pedidos ? 'comprou ✓' : 'ainda não'}</span>
+      </div>`).join('') : '<div style="font-size:12.5px;color:var(--fg-dim)">Ninguém se cadastrou nos últimos 30 dias ainda.</div>'}
+    </div>
+    ${_novos.length > 5 ? `<div style="text-align:center;margin-top:8px"><span class="mini-link" onclick="_novosAll=!_novosAll;renderNovos()">${_novosAll ? 'ver menos' : 'ver todos os ' + _novos.length}</span></div>` : ''}
+  </div>`;
 }
 
 // ===== Pagamento de domingo =====
