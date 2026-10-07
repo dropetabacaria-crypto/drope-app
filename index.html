@@ -9786,7 +9786,12 @@
     const cl = document.getElementById('clogin-code-link'); if (cl) cl.style.display = WA_LOGIN_ON ? '' : 'none';
   }
   function openCustomerLogin() {
-    if (WA_LOGIN_ON) _cloginShow('clogin-step1'); else showPwLogin();
+    // Veio de um QR/link com código e nunca entrou neste aparelho → abre direto em "Criar conta"
+    // (antes caía em "Entrar com senha" e o cliente novo travava procurando o "Criar conta").
+    let _novoPeloQR = false;
+    try { _novoPeloQR = !!localStorage.getItem('drope_pending_coupon') && !localStorage.getItem('drope_ever_logged'); } catch (e) {}
+    if (_novoPeloQR) showCreateAccount();
+    else if (WA_LOGIN_ON) _cloginShow('clogin-step1'); else showPwLogin();
     document.getElementById('clogin-ov').style.display = 'flex';
   }
   function showPwLogin() {
@@ -9861,6 +9866,7 @@
   }
   // Aplica o estado de "logado" na UI (usado pelo OTP e pelo login por senha).
   function _applyCustomerLogin(token, phone, name) {
+    try { localStorage.setItem('drope_ever_logged', '1'); } catch (e) {}
     _saveCustSession({ token, phone, name: name || '' });
     const dg = String(phone).replace(/\D/g, '');
     const fmtPhone = dg.length === 11 ? `(${dg.slice(0,2)}) ${dg.slice(2,7)}-${dg.slice(7)}` : dg.length === 10 ? `(${dg.slice(0,2)}) ${dg.slice(2,6)}-${dg.slice(6)}` : dg;
