@@ -19,6 +19,7 @@
     { "src": "manifest-lojista.json", "use": "@vercel/static" },
     { "src": "manifest-entregador.json", "use": "@vercel/static" },
     { "src": "icons/**", "use": "@vercel/static" },
+    { "src": "img/**", "use": "@vercel/static" },
     { "src": "vendor/**", "use": "@vercel/static" },
     { "src": "og/**", "use": "@vercel/static" },
     { "src": "03_Logo/**", "use": "@vercel/static" },
