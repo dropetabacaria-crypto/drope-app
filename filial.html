@@ -1122,6 +1122,15 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="wiz-step" id="wiz-3" style="display:none">
         <div class="pf-hint" id="ap-img-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
         <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
+        <div id="ap-ref-box" style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px">
+          <img id="ap-ref-img" alt="" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:10px;flex:0 0 auto">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:800">Foto de referência pra IA</div>
+            <div id="ap-ref-txt" style="font-size:11.5px;color:var(--fg-dim)">Mande uma foto do produto. A IA copia ela.</div>
+          </div>
+          <button type="button" class="pf-btn sec" id="ap-ref-btn" style="flex:0 0 auto;margin:0;padding:10px 14px" onclick="document.getElementById('ap-ref-file').click()">Enviar foto</button>
+        </div>
+        <input type="file" id="ap-ref-file" accept="image/*" style="display:none" onchange="onApRefFile(this)">
         <div style="display:flex;gap:10px">
           <button class="pf-btn" id="ap-artgen-btn" style="flex:1" onclick="apGerarArte()">Gerar arte com IA ✦</button>
           <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto da galeria</button>
@@ -2400,6 +2409,24 @@ function wizRender() {
   const back = document.getElementById('wiz-back'), next = document.getElementById('wiz-next');
   if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
   if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
+  if (_wizStep === 3) try { _apRefRender(); } catch (e) {}
+}
+// Foto de referência da arte com IA (enviada da galeria/arquivos, sem precisar tirar na hora).
+function _apRefRender() {
+  const ref = _apRefB64 || _scanRefB64;
+  const im = document.getElementById('ap-ref-img'), tx = document.getElementById('ap-ref-txt'), bt = document.getElementById('ap-ref-btn');
+  if (im) { im.style.display = ref ? 'block' : 'none'; if (ref) im.src = ref; }
+  if (tx) tx.textContent = ref ? 'A IA vai usar esta foto como base.' : 'Mande uma foto do produto. A IA copia ela.';
+  if (bt) bt.textContent = ref ? 'Trocar' : 'Enviar foto';
+}
+async function onApRefFile(input) {
+  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
+  const st = document.getElementById('ap-art-status');
+  if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+  _apRefB64 = b64; _apPhotoB64 = null;
+  _apRefRender();
+  apGerarArte(); // já gera com a foto nova
 }
 function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 // ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
@@ -2888,7 +2915,7 @@ async function onApFotoFile(input) {
   const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
   if (epoch !== _apGenEpoch) return; // já mudou de produto → descarta
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-  _apRefB64 = b64; // guarda pra arte com IA usar ESTA foto como base
+  _apRefB64 = b64; try { _apRefRender(); } catch (e) {} // guarda pra arte com IA usar ESTA foto como base
   // Acabamento DROPE (fundo escuro) na foto REAL — SEM redesenhar, produto 100% fiel.
   try {
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
