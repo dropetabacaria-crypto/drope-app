@@ -5388,7 +5388,7 @@ async function handleFilialProductSave(req, res) {
       filial_id: filial.id, slug, name,
       price_cents: priceCents,
       qty_available: _combo ? _comboStock : (Number.isInteger(stock) && stock >= 0 ? stock : 0),
-      hidden: !!body.start_hidden, image_status: 'ok', // cadastro em massa entra oculto até a arte ser aprovada
+      hidden: false, image_status: 'ok',
       barcode: barcodeVal,
       image_url: imageUrl || null,
       category: 'pod',
@@ -5733,7 +5733,6 @@ async function handleFilialProductArtFast(req, res) {
       fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. The visible brand/label text MUST match this correction EXACTLY — spell it precisely, do not alter the letters.') : '',
       'Only restyle the BACKGROUND and LIGHTING around the product into a premium dark-neon e-commerce hero scene — never touch the product itself.',
       'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
-      'If the reference photo shows ONE product box/package (like a single vape in its retail box), that box IS the retail unit: keep the SAME box, same artwork, same flavor name and same colors — do NOT take the device out of the box and do NOT draw a different device or flavor.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
       ART_QUALITY_RULES.lighting,
@@ -5768,18 +5767,15 @@ async function handleFilialProductArtFast(req, res) {
       if (lojaRef) {
         try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
-        // Com foto do lojista NUNCA cai pra imagem da web (trazia outro produto/sabor):
-        // se a IA falhar, usa a própria foto com o acabamento DROPE.
-        if (!tempUrl) { try { outBuf = await _dropeFinishPhoto(lojaRef); } catch (e) { outBuf = lojaRef; } }
       }
       // 2) busca profunda: imagem REAL do produto na web → estiliza ELA. O variant
       // rotaciona pelos resultados (gerar outra = imagem diferente do mesmo produto).
-      if (!tempUrl && !outBuf && webQ.length >= 3) {
+      if (!tempUrl && webQ.length >= 3) {
         try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox, skip: variant }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
       }
       // 3) último recurso: gera do zero por texto (variant varia o ângulo/composição).
-      if (!tempUrl && !outBuf) { try { tempUrl = await generateProductScene(subject, variant); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
+      if (!tempUrl) { try { tempUrl = await generateProductScene(subject, variant); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
     }
 
     let buf = outBuf;
@@ -5841,79 +5837,6 @@ async function handleFilialAnalyzePhoto(req, res) {
     return res.status(200).json({ ok: true, data: enriched });
   } catch (e) {
     console.error('[filial_analyze_photo] ERROR:', e.message);
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-// ===== Cadastro em massa (08/10/2026) =====
-// Data URL/base64 → source do Claude Vision
-function _visionSrc(b) {
-  const u = String(b || ''); const m = u.match(/^data:([^;]+);base64,(.+)$/);
-  if (m) return { type: 'base64', media_type: m[1], data: m[2] };
-  if (/^https?:\/\//.test(u)) return { type: 'url', url: u };
-  return u ? { type: 'base64', media_type: 'image/jpeg', data: u } : null;
-}
-function _jsonFromText(t) { try { const c = String(t || '').replace(/```json\n?/g, '').replace(/```\n?/g, '').trim(); const i = c.indexOf('{'), j = c.lastIndexOf('}'); return JSON.parse(i >= 0 ? c.slice(i, j + 1) : c); } catch (e) { return null; } }
-
-// POST action=filial_bulk_side — 1 foto → é FRENTE ou VERSO da caixa? + o que dá pra ler (pra agrupar).
-async function handleFilialBulkSide(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
-    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
-    const src = _visionSrc(body.photo); if (!src) return res.status(400).json({ ok: false, error: 'foto obrigatória' });
-    const sys = 'Voce separa fotos de caixas de produtos (pods/vapes e itens de tabacaria). Responda SO JSON valido, sem markdown.';
-    const txt = `Esta foto mostra a FRENTE ou o VERSO da embalagem?
-- "frente": lado principal, com a marca grande, a imagem do produto e o nome do sabor.
-- "verso": lado de tras/lateral, com codigo de barras, ingredientes, avisos ou dados tecnicos.
-- "outro": nao e uma embalagem de produto.
-Devolva: {"side":"frente|verso|outro","brand":"marca lida ou null","model":"modelo/linha lido (ex RC50000) ou null","flavor":"nome do sabor EXATAMENTE como impresso (ex 'Green Apple Ice') ou null","puffs":numero ou null,"barcode":"numeros do codigo de barras lidos digito a digito, ou null se duvidoso","colors":"2-3 cores principais da caixa em portugues"}
-Nunca invente: o que nao der pra ler com certeza = null.`;
-    const out = await callClaude([{ role: 'user', content: [{ type: 'image', source: src }, { type: 'text', text: txt }] }], sys, 300);
-    const d = _jsonFromText(out);
-    if (!d) return res.status(502).json({ ok: false, error: 'não consegui ler essa foto' });
-    const bc = String(d.barcode || '').replace(/\D/g, '');
-    return res.status(200).json({ ok: true, data: {
-      side: ['frente', 'verso', 'outro'].includes(d.side) ? d.side : 'frente',
-      brand: d.brand || null, model: d.model || null, flavor: d.flavor || null,
-      puffs: d.puffs ? parseInt(String(d.puffs).replace(/\D/g, ''), 10) || null : null,
-      barcode: (bc.length >= 8 && bc.length <= 14) ? bc : null, colors: d.colors || null,
-    } });
-  } catch (e) {
-    console.error('[filial_bulk_side] ERROR:', e.message);
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-// POST action=filial_art_check — a arte gerada é FIEL à foto do produto? (marca, sabor, cores, caixa)
-async function handleFilialArtCheck(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
-    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
-    const ref = _visionSrc(body.ref), art = _visionSrc(body.art_url);
-    if (!ref || !art) return res.status(400).json({ ok: false, error: 'faltou a foto ou a arte' });
-    const esperado = String(body.expected || '').slice(0, 120);
-    const sys = 'Voce e o controle de qualidade das fotos de produto da loja. Responda SO JSON valido, sem markdown.';
-    const txt = `Imagem 1 = foto REAL do produto tirada pelo lojista. Imagem 2 = arte gerada por IA para a vitrine.${esperado ? ` O produto e: "${esperado}".` : ''}
-A arte so e aprovada se mostrar O MESMO produto da foto: mesma marca escrita igual, MESMO nome de sabor impresso, mesmas cores da embalagem e mesmo formato (caixa/device). Fundo e luz diferentes sao permitidos. Texto borrado, sabor trocado, marca errada, cor diferente ou produto inventado = reprovado.
-Devolva: {"ok":true|false,"motivo":"frase curta em portugues","fix":"se reprovado: instrucao curta em ingles do que corrigir (ex: 'flavor label must read GREEN APPLE ICE, box must be green'), senao null"}`;
-    const out = await callClaude([{ role: 'user', content: [{ type: 'image', source: ref }, { type: 'image', source: art }, { type: 'text', text: txt }] }], sys, 250);
-    const d = _jsonFromText(out);
-    if (!d) return res.status(502).json({ ok: false, error: 'não consegui conferir a arte' });
-    return res.status(200).json({ ok: true, approved: d.ok === true, motivo: d.motivo || '', fix: d.fix || '' });
-  } catch (e) {
-    console.error('[filial_art_check] ERROR:', e.message);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -22459,12 +22382,6 @@ async function generateAll(){
   // action=filial_product_art — POST: lojista gera a arte (IA) de um produto dele
   if (req.url && req.url.indexOf('action=filial_product_art') >= 0) {
     return await handleFilialProductArt(req, res);
-  }
-  if (req.url && req.url.indexOf('action=filial_bulk_side') >= 0) {
-    return await handleFilialBulkSide(req, res);
-  }
-  if (req.url && req.url.indexOf('action=filial_art_check') >= 0) {
-    return await handleFilialArtCheck(req, res);
   }
   // action=filial_analyze_photo — POST: IA identifica o produto pela foto (lojista)
   if (req.url && req.url.indexOf('action=filial_analyze_photo') >= 0) {

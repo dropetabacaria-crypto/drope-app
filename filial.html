@@ -864,18 +864,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
   <div class="sheet-scroll" id="notif-list" style="padding:12px 16px"></div>
 </div>
 
-<!-- Overlay: cadastrar vários produtos de uma vez pelas fotos -->
-<div class="sheet-ov" id="bulk-ov" style="z-index:110">
-  <div class="sheet-hd">
-    <button class="sheet-x" onclick="closeBulk()">←</button>
-    <h3>Cadastrar vários</h3>
-    <span></span>
-  </div>
-  <div class="sheet-scroll" id="bulk-body" style="padding:14px 16px 130px"></div>
-  <div id="bulk-bar" style="display:none;position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--border)"></div>
-  <input type="file" id="bulk-file" accept="image/*" multiple style="display:none" onchange="onBulkFiles(this)">
-</div>
-
 <!-- Overlay: escolher produto base (novo sabor de um produto que já existe) -->
 <div class="sheet-ov" id="ap-base-ov" style="z-index:110">
   <div class="sheet-hd">
@@ -1010,7 +998,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <button id="ptab-produtos" onclick="switchProdTab('produtos')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)">Produtos</button>
       <button id="ptab-categorias" onclick="switchProdTab('categorias')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Categorias</button>
       <button id="ptab-cadastrar" onclick="switchProdTab('cadastrar')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">＋ Cadastrar</button>
-      <button id="ptab-varios" onclick="openBulk()" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">＋ Vários</button>
       <button id="ptab-balanco" onclick="switchProdTab('balanco')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Balanço</button>
       <button id="ptab-semcodigo" onclick="switchProdTab('semcodigo')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Sem código</button>
       <button id="ptab-pendentes" onclick="switchProdTab('pendentes')" style="flex:1;padding:10px 6px;border-radius:11px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;background:var(--bg2);color:var(--fg-dim);border:1px solid var(--border)">Pendentes</button>
@@ -1135,15 +1122,6 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div class="wiz-step" id="wiz-3" style="display:none">
         <div class="pf-hint" id="ap-img-hint" style="margin-bottom:8px">Gere a arte no padrão DROPE ou use a sua própria foto. Dá pra concluir sem imagem e resolver depois.</div>
         <div class="pf-hint" id="ap-combo-img-note" style="display:none;margin-bottom:8px">A imagem do combo é montada automaticamente com as <b>fotos dos produtos escolhidos</b>. Se preferir, você pode enviar uma foto própria.</div>
-        <div id="ap-ref-box" style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px">
-          <img id="ap-ref-img" alt="" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:10px;flex:0 0 auto">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:800">Foto de referência pra IA</div>
-            <div id="ap-ref-txt" style="font-size:11.5px;color:var(--fg-dim)">Mande uma foto do produto. A IA copia ela.</div>
-          </div>
-          <button type="button" class="pf-btn sec" id="ap-ref-btn" style="flex:0 0 auto;margin:0;padding:10px 14px" onclick="document.getElementById('ap-ref-file').click()">Enviar foto</button>
-        </div>
-        <input type="file" id="ap-ref-file" accept="image/*" style="display:none" onchange="onApRefFile(this)">
         <div style="display:flex;gap:10px">
           <button class="pf-btn" id="ap-artgen-btn" style="flex:1" onclick="apGerarArte()">Gerar arte com IA ✦</button>
           <button class="pf-btn sec" style="flex:1" onclick="document.getElementById('ap-foto-file').click()">Enviar foto da galeria</button>
@@ -2240,15 +2218,10 @@ async function _bgArt(id, meta) {
   try { loadData(false); } catch (e) {}
 }
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
-async function generateProductArt(id, fix) {
+function generateProductArt(id, fix) {
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
   _artVariant[id] = (_artVariant[id] || 0) + 1; // cada "gerar outra" → imagem diferente
-  // Produto com a FOTO REAL da caixa (/img/pods/…) → a IA estiliza essa foto, sem chutar sabor na web.
-  let ref = null;
-  if (String(p.image_url || '').indexOf('/img/pods/') >= 0) {
-    try { const b = await (await fetch(p.image_url)).blob(); ref = await _fileToDataUrl(b, 1280); } catch (e) { ref = null; }
-  }
-  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim(), variant: _artVariant[id], ref });
+  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim(), variant: _artVariant[id] });
 }
 // "Imagem errada? Reportar / corrigir" na edição → abre o campo e regera a arte com a correção.
 function epToggleFix(id) {
@@ -2308,7 +2281,7 @@ let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
   _apNovoSaborBase = null; _apBaseName = ''; _apNoBarcode = false; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
-  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _apRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
+  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   _apBcConfirm(false); _apBcOkFor = ''; { const _bk = document.getElementById('ap-bc-check'); if (_bk) { _bk.style.display = 'none'; _bk.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2363,13 +2336,6 @@ function _apCheckBarcode() {
   const vbRaw = String(((_scanMeta || {}).barcode) || '').replace(/\D/g, ''), vb = _gtinOk(vbRaw) ? vbRaw : '';
   const hide = () => { box.style.display = 'none'; box.innerHTML = ''; return false; };
   if (_apMode === 'combo' || bc.length < 8) return hide();
-  // Código com o mesmo prefixo de um produto da loja (ex.: outro sabor RabBeats) → copia custo e preço.
-  try {
-    const pre = _gs1Pre(bc);
-    const irmaos = pre ? (_lastProdutos || []).filter(p => !p.combo && p.cost_cents > 0 && _gs1Pre(p.barcode) === pre && (!marca || _prodBrandKey(p) === _brandKey(marca))) : [];
-    const umCusto = new Set(irmaos.map(p => p.cost_cents)).size === 1; // fabricante com 1 custo só → seguro copiar
-    _apAutoFillCusto({ brand: marca }, umCusto ? irmaos[0] : null);
-  } catch (e) {}
   const warnStyle = 'background:rgba(255,77,143,0.09);border:1px solid var(--pink)';
   const btn = (label, fn, main) => `<button type="button" class="pf-btn${main ? '' : ' sec'}" style="margin:8px 0 0;flex:1 1 auto" onclick="${fn}">${label}</button>`;
   // (1) IA leu os números na foto e NÃO bate com a câmera → aviso forte
@@ -2422,24 +2388,6 @@ function wizRender() {
   const back = document.getElementById('wiz-back'), next = document.getElementById('wiz-next');
   if (back) back.style.visibility = _wizStep > 1 ? 'visible' : 'hidden';
   if (next) next.textContent = _wizStep < 3 ? 'Avançar' : 'Concluir ✦';
-  if (_wizStep === 3) try { _apRefRender(); } catch (e) {}
-}
-// Foto de referência da arte com IA (enviada da galeria/arquivos, sem precisar tirar na hora).
-function _apRefRender() {
-  const ref = _apRefB64 || _scanRefB64;
-  const im = document.getElementById('ap-ref-img'), tx = document.getElementById('ap-ref-txt'), bt = document.getElementById('ap-ref-btn');
-  if (im) { im.style.display = ref ? 'block' : 'none'; if (ref) im.src = ref; }
-  if (tx) tx.textContent = ref ? 'A IA vai usar esta foto como base.' : 'Mande uma foto do produto. A IA copia ela.';
-  if (bt) bt.textContent = ref ? 'Trocar' : 'Enviar foto';
-}
-async function onApRefFile(input) {
-  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
-  const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
-  const st = document.getElementById('ap-art-status');
-  if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-  _apRefB64 = b64; _apPhotoB64 = null;
-  _apRefRender();
-  apGerarArte(); // já gera com a foto nova
 }
 function wizGo(delta) { let ns = _wizStep + delta; _wizStep = Math.max(1, Math.min(3, ns)); wizRender(); const m = document.getElementById('ap-msg'); if (m) m.textContent = ''; }
 // ===== Aviso de produto JÁ CADASTRADO (checa por código de barras / nome+marca) =====
@@ -2658,8 +2606,7 @@ async function apGerarArte(fix) {
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE… (pode concluir o produto, ela entra depois)'; }
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
-    const _ref = _apPhotoB64 || _apRefB64 || _scanRefB64; // a foto do lojista SEMPRE vai como referência (mesmo no "gerar outra")
-    if (_ref) body.ref_base64 = _ref;
+    if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
     if (fix && String(fix).trim()) body.fix = String(fix).trim(); // correção do lojista ("nome certo é NIKBAR")
     _apArtVariant = (_apArtVariant || 0) + 1; body.variant = _apArtVariant; // "gerar outra" → imagem diferente
     const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -2679,7 +2626,6 @@ async function apGerarArte(fix) {
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
 let _scanMeta = null;
 let _apPhotoB64 = null;
-let _apRefB64 = null; // última foto REAL que o lojista mandou (scan ou galeria) → base fixa da arte com IA
 let _scanRefB64 = null; // foto do scan → referência pra gerar a arte na etapa 3
 // Foto no INÍCIO do cadastro manual (câmera ou galeria) → IA identifica e preenche.
 // Igual ao scanner da lista, mas dentro do form e com opção de galeria. Status/thumb ficam no form.
@@ -2834,28 +2780,9 @@ function _apFindSameModel(v) {
   }
   return null;
 }
-// Mesmo modelo (ou marca com um custo só) já cadastrado → preenche custo e preço sozinho
-// (só se os campos estiverem vazios). O custo é sempre igual pro mesmo modelo.
-function _apAutoFillCusto(v, m) {
-  if (!m && v) {
-    const nb = _catNorm(v.brand || '');
-    const mesmos = nb ? (_lastProdutos || []).filter(p => !p.combo && _catNorm(p.marca) === nb && p.cost_cents > 0) : [];
-    const custos = Array.from(new Set(mesmos.map(p => p.cost_cents)));
-    if (custos.length === 1) m = mesmos[0];
-  }
-  if (!m || !(m.cost_cents > 0)) return;
-  const ce = document.getElementById('ap-custo'), pe = document.getElementById('ap-price');
-  let mudou = false;
-  if (ce && !ce.value) { ce.value = (m.cost_cents / 100).toFixed(2).replace('.', ','); mudou = true; }
-  if (pe && !pe.value && m.price_cents) { pe.value = _to99(m.price_cents / 100).toFixed(2).replace('.', ','); mudou = true; }
-  if (!mudou) return;
-  try { apCalcPreco(true); } catch (e) {}
-  try { _toast('Custo e preço copiados do ' + (m.name || 'mesmo modelo') + ' ✦'); } catch (e) {}
-}
 function _apRenderSameModel(v) {
   const el = document.getElementById('ap-samemodel'); if (!el) return;
   const m = _apFindSameModel(v);
-  try { _apAutoFillCusto(v, m); } catch (e) {}
   if (!m) { el.style.display = 'none'; el.innerHTML = ''; return; }
   const flavor = ((v.flavor_pt || v.flavor_en || '')).trim();
   el.dataset.baseId = m.id; el.dataset.sabor = flavor;
@@ -2928,7 +2855,6 @@ async function onApFotoFile(input) {
   const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
   if (epoch !== _apGenEpoch) return; // já mudou de produto → descarta
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
-  _apRefB64 = b64; try { _apRefRender(); } catch (e) {} // guarda pra arte com IA usar ESTA foto como base
   // Acabamento DROPE (fundo escuro) na foto REAL — SEM redesenhar, produto 100% fiel.
   try {
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
@@ -3727,7 +3653,7 @@ async function saveNewProduct() {
   const err = await _saveProduct(payload, (saved) => {
     _savedRef = saved; // { id, slug } deste cadastro — imune à corrida do background
     // Concluiu → limpa TUDO e FECHA o form, voltando pra lista de Meus produtos.
-    _apPhotoB64 = null; _apRefB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
+    _apPhotoB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
     // some com o balão verde do scan da lista — agora só o card com ⏳ mostra a arte gerando.
     try { const _ss = document.getElementById('scan-status'); if (_ss) { _ss.style.display = 'none'; _ss.textContent = ''; } const _sb = document.getElementById('scan-btn'); if (_sb) _sb.disabled = false; } catch (e) {}
     try { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); } catch (e) {}
@@ -3926,308 +3852,12 @@ function switchProdTab(tab) {
   tabs.forEach(t => { const b = document.getElementById(btn[t]); if (b) b.style.cssText = base + (t === active ? on : off); });
   const bcad = document.getElementById('ptab-cadastrar'); if (bcad) bcad.style.cssText = base + off; // lançador, nunca "ativo"
   const bbal = document.getElementById('ptab-balanco'); if (bbal) bbal.style.cssText = base + off;   // lançador também
-  const bvar = document.getElementById('ptab-varios'); if (bvar) bvar.style.cssText = base + off;   // lançador (cadastro em massa)
   if (active === 'categorias') { try { renderFiltros(); } catch (e) {} }
   if (active === 'semcodigo') { try { renderSemCodigo(); } catch (e) {} }
   if (active === 'pendentes') { try { renderPendCad(); } catch (e) {} }
   try { _pendTabLabel(); } catch (e) {}
   try { const ab = document.getElementById(btn[active]); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} // aba ativa sempre visível
 }
-// ===== Cadastrar vários (08/10/2026) =====
-// Fluxo: escolhe várias fotos → IA separa FRENTE e VERSO → junta o verso com a frente certa
-// (sabor escrito + horário da foto) → lê cada produto → o lojista confere numa lista →
-// cadastra oculto → gera a arte com a foto → IA confere a arte × foto → só aí aparece na loja.
-let _bulk = { fase: 'inicio', fotos: [], rows: [], lidas: 0, total: 0 };
-function openBulk() {
-  if (_bulk.fase === 'criando') { document.getElementById('bulk-ov').classList.add('open'); return; }
-  _bulk = { fase: 'inicio', fotos: [], rows: [], lidas: 0, total: 0 };
-  _bulkRender();
-  document.getElementById('bulk-ov').classList.add('open');
-}
-function closeBulk() {
-  if (_bulk.fase === 'lendo' || _bulk.fase === 'criando') { try { _toast('Continua rodando ✦ pode voltar em "＋ Vários" pra acompanhar'); } catch (e) {} }
-  document.getElementById('bulk-ov').classList.remove('open');
-}
-async function _bulkPool(list, n, fn) {
-  let i = 0; const run = async () => { while (i < list.length) { const k = i++; try { await fn(list[k], k); } catch (e) {} } };
-  await Promise.all(Array.from({ length: Math.min(n, list.length) }, run));
-}
-async function _bulkPost(action, body) {
-  const r = await fetch('/api/webhook?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ...body }) });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.ok) throw new Error((d && d.error) || 'falhou');
-  return d;
-}
-// Horário em que a foto foi TIRADA (EXIF DateTimeOriginal, com segundos). Sem EXIF → data do arquivo.
-async function _bulkFotoHora(file) {
-  try {
-    const buf = new DataView(await file.slice(0, 131072).arrayBuffer());
-    if (buf.getUint16(0) === 0xFFD8) {
-      let off = 2;
-      while (off + 4 < buf.byteLength) {
-        const mk = buf.getUint16(off), len = buf.getUint16(off + 2);
-        if (mk === 0xFFE1 && buf.getUint32(off + 4) === 0x45786966) { // "Exif"
-          const t = off + 10, le = buf.getUint16(t) === 0x4949;
-          const u16 = (o) => buf.getUint16(t + o, le), u32 = (o) => buf.getUint32(t + o, le);
-          const ler = (ifd, tag) => { const n = u16(ifd); for (let k = 0; k < n; k++) { const e = ifd + 2 + k * 12; if (u16(e) === tag) return e; } return 0; };
-          const ifd0 = u32(4);
-          const exifPtr = ler(ifd0, 0x8769);
-          let e = exifPtr ? ler(u32(exifPtr + 8), 0x9003) : 0; // DateTimeOriginal
-          if (!e) e = ler(ifd0, 0x0132); // DateTime
-          if (e) {
-            const vo = u32(e + 8); let str = '';
-            for (let k = 0; k < 19; k++) str += String.fromCharCode(buf.getUint8(t + vo + k));
-            const m = str.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
-            if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
-          }
-          break;
-        }
-        if ((mk & 0xFF00) !== 0xFF00) break;
-        off += 2 + len;
-      }
-    }
-  } catch (e) {}
-  return file.lastModified || 0;
-}
-function _bulkKey(s) { return _catNorm(s).replace(/[^a-z0-9]/g, ''); }
-
-async function onBulkFiles(input) {
-  const files = Array.from(input.files || []).slice(0, 30); input.value = '';
-  if (!files.length) return;
-  _bulk = { fase: 'lendo', fotos: [], rows: [], lidas: 0, total: files.length, etapa: 'Preparando as fotos…' };
-  _bulkRender();
-  // 1) prepara: reduz a foto + pega o horário. Ordena pelo horário (frente → verso de cada caixa).
-  const fotos = [];
-  for (const f of files) {
-    const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
-    if (b64) fotos.push({ b64, hora: await _bulkFotoHora(f), nome: f.name || '' });
-  }
-  fotos.sort((a, b) => (a.hora - b.hora) || a.nome.localeCompare(b.nome));
-  fotos.forEach((f, i) => { f.i = i; });
-  _bulk.fotos = fotos;
-  // 2) a IA olha cada foto: frente ou verso + o que dá pra ler
-  _bulk.etapa = 'Separando frente e verso…'; _bulk.lidas = 0; _bulk.total = fotos.length; _bulkRender();
-  await _bulkPool(fotos, 3, async (f) => {
-    try { const d = await _bulkPost('filial_bulk_side', { photo: f.b64 }); Object.assign(f, d.data); } catch (e) { f.side = 'frente'; }
-    _bulk.lidas++; _bulkRender();
-  });
-  // 3) agrupa pelo HORÁRIO + SABOR: as fotos vêm na ordem em que foram tiradas. Um produto pode ter
-  //    quantas fotos quiser (2, 3, 4…). Começa um produto novo quando aparece uma FRENTE de outro
-  //    sabor (ou uma frente sem sabor legível bem depois da anterior). Verso de outro sabor vai pro produto dele.
-  const rows = []; let cur = null, ult = null;
-  for (const f of fotos) {
-    if (f.side === 'outro') continue;
-    const kf = _bulkKey(f.flavor);
-    const gap = ult ? (f.hora - ult.hora) : Infinity;
-    if (cur && f.side === 'verso') {
-      const dono = kf && kf !== cur.key ? rows.find(r => r.key === kf) : null;
-      (dono || cur).fotos.push(f); if (!cur.key && kf && !dono) cur.key = kf;
-    } else if (cur && ((kf && kf === cur.key) || (!kf && gap < 30000) || (kf && !cur.key && gap < 30000))) {
-      cur.fotos.push(f); if (!cur.key && kf) cur.key = kf; // mais uma foto do mesmo produto
-    } else {
-      const ja = kf ? rows.find(r => r.key === kf) : null; // mesmo sabor que já apareceu antes → junta
-      if (ja) { ja.fotos.push(f); cur = ja; }
-      else { cur = { k: rows.length, key: kf, fotos: [f] }; rows.push(cur); }
-    }
-    ult = f;
-  }
-  // a 1ª foto de cada produto (a que vira base da arte) é sempre uma FRENTE
-  rows.forEach(r => { const fi = r.fotos.findIndex(f => f.side !== 'verso'); if (fi > 0) r.fotos.unshift(r.fotos.splice(fi, 1)[0]); });
-  _bulk.rows = rows;
-  // 4) lê cada produto com TODAS as fotos dele (frente + verso)
-  _bulk.etapa = 'Lendo os produtos…'; _bulk.lidas = 0; _bulk.total = rows.length; _bulkRender();
-  await _bulkPool(rows, 2, async (r) => { await _bulkLerRow(r); _bulk.lidas++; _bulkRender(); });
-  _bulk.fase = 'revisar'; _bulkRender();
-}
-async function _bulkLerRow(r) {
-  const fr = r.fotos[0] || {};
-  let v = null;
-  try { v = (await _bulkPost('filial_analyze_photo', { photos: r.fotos.map(f => f.b64).slice(0, 5) })).data; } catch (e) { v = null; }
-  v = v || {};
-  const bc = String(v.barcode || (r.fotos.find(f => f.barcode) || {}).barcode || '').replace(/\D/g, '');
-  r.meta = v;
-  r.marca = v.brand || fr.brand || '';
-  r.sabor = v.flavor_pt || v.flavor_en || fr.flavor || '';
-  r.puffs = v.puffs || fr.puffs || '';
-  r.barcode = bc.length >= 8 ? bc : '';
-  r.name = v.name || [r.marca, v.model || fr.model, r.sabor].filter(Boolean).join(' ');
-  r.qtd = r.qtd || 1;
-  r.alertas = Array.isArray(v.alertas) ? v.alertas.filter(Boolean) : [];
-  // já existe? (mesmo código de barras, ou mesma marca + mesmo sabor)
-  const bk = _bulkKey(r.marca), sk = _bulkKey(r.sabor);
-  r.dup = (_lastProdutos || []).find(p => !p.combo && ((r.barcode && String(p.barcode || '') === r.barcode) || (bk && sk && _bulkKey(p.marca) === bk && _bulkKey(p.sabor) === sk))) || null;
-  r.incluir = !r.dup;
-  // custo e preço do mesmo modelo (ou da marca, se ela tem um custo só)
-  let m = null;
-  try { m = _apFindSameModel({ ...v, brand: r.marca, flavor_pt: r.sabor, type: v.type || 'pod', name: r.name }); } catch (e) {}
-  if (!m) {
-    const mesmos = (_lastProdutos || []).filter(p => !p.combo && bk && _bulkKey(p.marca) === bk && p.cost_cents > 0);
-    if (new Set(mesmos.map(p => p.cost_cents)).size === 1) m = mesmos[0];
-  }
-  if (m && m.cost_cents > 0) r.custo = (m.cost_cents / 100).toFixed(2).replace('.', ',');
-  if (m && m.price_cents > 0) r.preco = _to99(m.price_cents / 100).toFixed(2).replace('.', ',');
-  const fpod = (_filtros || []).find(f => /pod/i.test(f.nome || ''));
-  r.filtro_id = (m && m.filtro_id) || (r.dup && r.dup.filtro_id) || (fpod && fpod.id) || ((_filtros || [])[0] || {}).id || '';
-  r.lido = true; r.mexeu = false;
-}
-function _bulkDuvida(r) { return !r.dup && (!r.name || !r.marca || !r.sabor || !(_num(r.preco) > 0) || !(_num(r.custo) > 0) || (r.alertas && r.alertas.length) || r.mexeu); }
-function bulkSet(k, campo, val) { const r = _bulk.rows.find(x => x.k === k); if (!r) return; r[campo] = val; if (campo === 'incluir') _bulkRender(); else _bulkBar(); }
-// Toca na foto → escolhe pra qual produto ela vai (corrige agrupamento errado)
-function bulkMove(k, idx, destino) {
-  const r = _bulk.rows.find(x => x.k === k); if (!r) return;
-  const [foto] = r.fotos.splice(idx, 1); if (!foto) return;
-  if (destino === 'novo') { const nk = Math.max(0, ..._bulk.rows.map(x => x.k)) + 1; _bulk.rows.push({ k: nk, fotos: [foto], incluir: true, qtd: 1, mexeu: true }); }
-  else { const alvo = _bulk.rows.find(x => String(x.k) === String(destino)); if (alvo) { alvo.fotos.push(foto); alvo.mexeu = true; } else r.fotos.splice(idx, 0, foto); }
-  r.mexeu = true;
-  _bulk.rows = _bulk.rows.filter(x => x.fotos.length);
-  _bulkRender();
-}
-async function bulkReler(k) {
-  const r = _bulk.rows.find(x => x.k === k); if (!r) return;
-  r.lendo = true; _bulkRender();
-  await _bulkLerRow(r); r.lendo = false; _bulkRender();
-}
-function _bulkRender() {
-  const el = document.getElementById('bulk-body'); if (!el) return;
-  const bar = document.getElementById('bulk-bar');
-  if (_bulk.fase === 'inicio') {
-    bar.style.display = 'none';
-    el.innerHTML = `<div style="font-size:22px;font-weight:800;line-height:1.15;margin:6px 0 14px">Mande as fotos dos produtos</div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
-        <div class="pf-hint" style="font-size:14px;margin:0"><b style="color:var(--lime)">Frente da caixa:</b> obrigatória.</div>
-        <div class="pf-hint" style="font-size:14px;margin:0"><b style="color:var(--lime)">Verso:</b> opcional. Ajuda no código de barras.</div>
-        <div class="pf-hint" style="font-size:14px;margin:0"><b style="color:var(--lime)">1 caixa por foto.</b> Frente e depois verso.</div>
-      </div>
-      <button class="pf-btn" style="width:100%" onclick="document.getElementById('bulk-file').click()">Escolher fotos</button>
-      <div class="pf-hint" style="margin-top:10px">Pode mandar em qualquer ordem. O app usa o horário da foto pra juntar frente e verso. Até 30 fotos.</div>`;
-    return;
-  }
-  if (_bulk.fase === 'lendo') {
-    bar.style.display = 'none';
-    const pct = _bulk.total ? Math.round(_bulk.lidas / _bulk.total * 100) : 0;
-    el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:20px 0 8px">${esc(_bulk.etapa || 'Lendo…')}</div>
-      <div style="font-size:14px;color:var(--fg-dim);margin-bottom:12px">${_bulk.lidas} de ${_bulk.total}</div>
-      <div style="height:10px;border-radius:99px;background:var(--bg3);overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--lime);transition:width .3s"></div></div>
-      <div class="pf-hint" style="margin-top:14px">Pode deixar o painel aberto. Leva uns segundos por foto.</div>`;
-    return;
-  }
-  if (_bulk.fase === 'revisar') {
-    const opts = (k) => `<option value="" selected disabled>Mover foto para…</option>` + _bulk.rows.filter(x => x.k !== k).map(x => `<option value="${x.k}">${esc(x.name || ('Produto ' + (x.k + 1)))}</option>`).join('') + `<option value="novo">Produto novo</option>`;
-    el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:4px 0 4px">Confira e cadastre</div>
-      <div class="pf-hint" style="margin-bottom:14px">Em <b style="color:var(--pink)">rosa</b>: a IA ficou na dúvida. Toque numa foto pra mudar ela de produto.</div>`
-      + _bulk.rows.map(r => {
-        const duv = r.incluir && _bulkDuvida(r);
-        const borda = r.dup ? 'var(--border)' : (duv ? 'var(--pink)' : 'var(--border)');
-        const thumbs = r.fotos.map((f, i) => `<label style="position:relative;flex:0 0 auto;cursor:pointer"><img src="${f.b64}" alt="" style="width:62px;height:62px;object-fit:cover;border-radius:10px;display:block;border:2px solid ${i === 0 ? 'var(--lime)' : 'transparent'}"><span style="position:absolute;left:3px;bottom:3px;font-size:9px;font-weight:800;background:#000a;color:#fff;padding:1px 5px;border-radius:6px">${i === 0 ? 'frente' : 'verso'}</span><select onchange="bulkMove(${r.k},${i},this.value)" style="position:absolute;inset:0;opacity:0;width:100%;height:100%">${opts(r.k)}</select></label>`).join('');
-        const inp = (campo, val, ph, extra) => `<input class="pf-input" value="${esc(val == null ? '' : val)}" placeholder="${ph}" oninput="bulkSet(${r.k},'${campo}',this.value)" style="margin:0;${extra || ''}">`;
-        return `<div style="background:var(--bg2);border:1.5px solid ${borda};border-radius:16px;padding:12px;margin-bottom:12px;${r.incluir ? '' : 'opacity:.55'}">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;overflow-x:auto">${thumbs}
-            <label style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;flex:0 0 auto"><input type="checkbox" ${r.incluir ? 'checked' : ''} onchange="bulkSet(${r.k},'incluir',this.checked)" style="width:20px;height:20px;accent-color:var(--lime)">Cadastrar</label></div>
-          ${r.dup ? `<div style="font-size:12.5px;color:var(--pink);font-weight:700;margin-bottom:8px">Já existe na loja: ${esc(r.dup.name)}</div>` : ''}
-          ${r.lendo ? '<div class="pf-hint">lendo de novo…</div>' : `
-          <div class="pf-lbl">Nome</div>${inp('name', r.name, 'ex: RabBeats RC50000 Maçã Verde 50K')}
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px">
-            <div><div class="pf-lbl">Marca</div>${inp('marca', r.marca, 'marca')}</div>
-            <div><div class="pf-lbl">Sabor</div>${inp('sabor', r.sabor, 'sabor')}</div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px">
-            <div><div class="pf-lbl">Puffs</div>${inp('puffs', r.puffs, '50000', '')}</div>
-            <div><div class="pf-lbl">Custo</div>${inp('custo', r.custo, '65,00')}</div>
-            <div><div class="pf-lbl">Preço</div>${inp('preco', r.preco, '88,99')}</div>
-            <div><div class="pf-lbl">Qtd</div>${inp('qtd', r.qtd, '1')}</div>
-          </div>
-          ${r.alertas && r.alertas.length ? `<div style="font-size:11.5px;color:var(--pink);margin-top:8px">${esc(r.alertas.join(' · '))}</div>` : ''}
-          ${r.mexeu ? `<button class="pf-btn sec" style="width:100%;margin:10px 0 0" onclick="bulkReler(${r.k})">Ler de novo com as fotos novas ✦</button>` : ''}`}
-        </div>`;
-      }).join('');
-    _bulkBar();
-    return;
-  }
-  // criando / fim
-  const st = { fila: '⏳ Na fila', salvando: '⏳ Cadastrando', arte: '🎨 Gerando a arte', conferindo: '🔍 Conferindo a arte', ok: '✅ Na loja', confira: '⚠️ Confira a foto', erro: '❌ Não deu' };
-  const linhas = _bulk.rows.filter(r => r.incluir);
-  const prontos = linhas.filter(r => ['ok', 'confira', 'erro'].includes(r.status)).length;
-  el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:4px 0 4px">${_bulk.fase === 'fim' ? 'Pronto ✦' : 'Cadastrando…'}</div>
-    <div class="pf-hint" style="margin-bottom:14px">${prontos} de ${linhas.length}. ${_bulk.fase === 'fim' ? 'Os com ⚠️ ficaram escondidos da loja até você olhar.' : 'Pode fechar: continua rodando.'}</div>`
-    + linhas.map(r => `<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border:1px solid ${r.status === 'confira' ? 'var(--pink)' : 'var(--border)'};border-radius:14px;padding:10px;margin-bottom:10px">
-        <img src="${esc(r.arte || r.fotos[0].b64)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:0 0 auto">
-        <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}</div>
-          <div style="font-size:12px;margin-top:3px">${st[r.status] || ''}</div>
-          ${r.motivo && r.status === 'confira' ? `<div style="font-size:11px;color:var(--fg-dim);margin-top:2px">${esc(r.motivo)}</div>` : ''}
-          ${r.status === 'confira' ? `<div style="display:flex;gap:6px;margin-top:8px"><button class="pf-btn" style="flex:1;margin:0;padding:8px" onclick="bulkPublicar(${r.k})">Publicar assim</button><button class="pf-btn sec" style="flex:1;margin:0;padding:8px" onclick="bulkTentar(${r.k})">Tentar de novo</button></div>` : ''}
-        </div></div>`).join('');
-  bar.style.display = _bulk.fase === 'fim' ? 'block' : 'none';
-  bar.innerHTML = `<button class="pf-btn" style="width:100%;margin:0" onclick="closeBulk();_bulk.fase='inicio'">Fechar</button>`;
-}
-function _bulkBar() {
-  const bar = document.getElementById('bulk-bar'); if (!bar || _bulk.fase !== 'revisar') return;
-  const n = _bulk.rows.filter(r => r.incluir).length;
-  bar.style.display = 'block';
-  bar.innerHTML = `<button class="pf-btn" style="width:100%;margin:0" ${n ? '' : 'disabled'} onclick="bulkCadastrar()">Cadastrar ${n} ${n === 1 ? 'produto' : 'produtos'} ✦</button>`;
-}
-async function bulkCadastrar() {
-  const linhas = _bulk.rows.filter(r => r.incluir);
-  const falta = linhas.find(r => !(r.name || '').trim() || !(_num(r.preco) > 0));
-  if (falta) { try { _toast('Falta nome ou preço em: ' + (falta.name || 'um produto')); } catch (e) {} return; }
-  _bulk.fase = 'criando'; linhas.forEach(r => { r.status = 'fila'; }); _bulkRender();
-  await _bulkPool(linhas, 2, async (r) => { await _bulkCriar(r); _bulkRender(); });
-  _bulk.fase = 'fim'; _bulkRender();
-  try { loadData(true); } catch (e) {}
-}
-async function _bulkCriar(r) {
-  const ref = r.fotos[0].b64;
-  try {
-    r.status = 'salvando'; _bulkRender();
-    if (!r.id) {
-      const custo = _num(r.custo), qtd = parseInt(r.qtd, 10);
-      const payload = { name: r.name.trim(), marca: (r.marca || '').trim(), sabor: (r.sabor || '').trim(), price: _num(r.preco), stock: isFinite(qtd) && qtd >= 0 ? qtd : 1,
-        filtro_id: r.filtro_id || '', pix_only: true, cat_global: '', start_hidden: true, meta: { ...(r.meta || {}), type: (r.meta && r.meta.type) || 'pod' } };
-      if (r.puffs) payload.puffs = String(r.puffs);
-      if (r.barcode) payload.barcode = r.barcode;
-      if (isFinite(custo) && custo > 0) payload.cost_price = custo;
-      const d = await _bulkPost('filial_product_save', payload);
-      r.id = d.id;
-    }
-    await _bulkArte(r, ref);
-  } catch (e) { r.status = 'erro'; r.motivo = e.message; }
-}
-// Gera a arte com a foto → confere → se reprovar, tenta 1x com a correção → se reprovar de novo,
-// usa a própria foto com acabamento DROPE e deixa ESCONDIDO pro lojista olhar.
-async function _bulkArte(r, ref) {
-  const base = { name: r.name, brand: r.marca || '', flavor: r.sabor || '', type: (r.meta && r.meta.type) || 'pod', ref_base64: ref };
-  let fix = '';
-  for (let tent = 1; tent <= 2; tent++) {
-    r.status = 'arte'; _bulkRender();
-    let url = null;
-    try { url = (await _bulkPost('filial_product_art_fast', { ...base, variant: tent, ...(fix ? { fix } : {}) })).image_url; } catch (e) { url = null; }
-    if (!url) continue;
-    r.arte = url; r.status = 'conferindo'; _bulkRender();
-    let ck = null;
-    try { ck = await _bulkPost('filial_art_check', { ref, art_url: url, expected: r.name }); } catch (e) { ck = null; }
-    if (ck && ck.approved) {
-      await _bulkPost('filial_product_save', { id: r.id, image_url: url, hidden: false });
-      r.status = 'ok'; r.motivo = ''; return;
-    }
-    r.motivo = (ck && ck.motivo) || 'não consegui conferir a arte';
-    fix = (ck && ck.fix) || '';
-  }
-  // reprovou 2x → foto real com fundo DROPE, escondido
-  try { const d = await _bulkPost('filial_product_art_fast', { name: r.name, photo_only: true, ref_base64: ref }); r.arte = d.image_url; } catch (e) {}
-  if (r.arte) { try { await _bulkPost('filial_product_save', { id: r.id, image_url: r.arte, hidden: true }); } catch (e) {} }
-  r.status = 'confira';
-}
-async function bulkPublicar(k) {
-  const r = _bulk.rows.find(x => x.k === k); if (!r || !r.id) return;
-  try { await _bulkPost('filial_product_save', { id: r.id, ...(r.arte ? { image_url: r.arte } : {}), hidden: false }); r.status = 'ok'; } catch (e) { try { _toast('Não deu pra publicar ✦ tenta de novo'); } catch (e2) {} }
-  _bulkRender(); try { loadData(true); } catch (e) {}
-}
-async function bulkTentar(k) {
-  const r = _bulk.rows.find(x => x.k === k); if (!r || !r.id) return;
-  const fase = _bulk.fase; _bulk.fase = 'criando';
-  await _bulkArte(r, r.fotos[0].b64);
-  _bulk.fase = fase; _bulkRender(); try { loadData(true); } catch (e) {}
-}
-
 // ===== Aba "Sem código": completa os produtos que estão sem código de barras =====
 function renderSemCodigo() {
   const el = document.getElementById('semcodigo-list'); if (!el) return;
