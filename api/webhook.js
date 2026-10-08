@@ -5733,6 +5733,7 @@ async function handleFilialProductArtFast(req, res) {
       fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. The visible brand/label text MUST match this correction EXACTLY — spell it precisely, do not alter the letters.') : '',
       'Only restyle the BACKGROUND and LIGHTING around the product into a premium dark-neon e-commerce hero scene — never touch the product itself.',
       'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
+      'If the reference photo shows ONE product box/package (like a single vape in its retail box), that box IS the retail unit: keep the SAME box, same artwork, same flavor name and same colors — do NOT take the device out of the box and do NOT draw a different device or flavor.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
       ART_QUALITY_RULES.lighting,
@@ -5767,15 +5768,18 @@ async function handleFilialProductArtFast(req, res) {
       if (lojaRef) {
         try { tempUrl = await openaiEditImage(lojaRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit foto lojista falhou:', e.message); }
+        // Com foto do lojista NUNCA cai pra imagem da web (trazia outro produto/sabor):
+        // se a IA falhar, usa a própria foto com o acabamento DROPE.
+        if (!tempUrl) { try { outBuf = await _dropeFinishPhoto(lojaRef); } catch (e) { outBuf = lojaRef; } }
       }
       // 2) busca profunda: imagem REAL do produto na web → estiliza ELA. O variant
       // rotaciona pelos resultados (gerar outra = imagem diferente do mesmo produto).
-      if (!tempUrl && webQ.length >= 3) {
+      if (!tempUrl && !outBuf && webQ.length >= 3) {
         try { const webRef = await _findProductRefImage(webQ, { avoid: _avoidBox, skip: variant }); if (webRef) tempUrl = await openaiEditImage(webRef, editPrompt, { quality: 'high' }); }
         catch (e) { console.warn('[art_fast] edit imagem web falhou:', e.message); }
       }
       // 3) último recurso: gera do zero por texto (variant varia o ângulo/composição).
-      if (!tempUrl) { try { tempUrl = await generateProductScene(subject, variant); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
+      if (!tempUrl && !outBuf) { try { tempUrl = await generateProductScene(subject, variant); } catch (e) { console.warn('[art_fast] scene falhou:', e.message); } }
     }
 
     let buf = outBuf;

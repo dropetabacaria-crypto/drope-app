@@ -2286,7 +2286,7 @@ let _apGenEpoch = 0;
 function _wizReset() {
   _apGenEpoch++;
   _apNovoSaborBase = null; _apBaseName = ''; _apNoBarcode = false; { const _bn = document.getElementById('ap-base-note'); if (_bn) _bn.style.display = 'none'; } { const _sm = document.getElementById('ap-samemodel'); if (_sm) { _sm.style.display = 'none'; _sm.innerHTML = ''; } }
-  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
+  _wizStep = 1; _apClearArt(); _scanRefB64 = null; _apRefB64 = null; _scanMeta = null; _apLastScanB64 = null; _apScanPhotos = []; _apDupDismiss = false; _apServerDup = null; _apLastBc = ''; { const _sc = document.getElementById('ap-scan-count'); if (_sc) _sc.textContent = ''; } { const _dw = document.getElementById('ap-dup-warn'); if (_dw) { _dw.style.display = 'none'; _dw.innerHTML = ''; } }
   _apBcConfirm(false); _apBcOkFor = ''; { const _bk = document.getElementById('ap-bc-check'); if (_bk) { _bk.style.display = 'none'; _bk.innerHTML = ''; } }
   const _st = document.getElementById('ap-scan-status'); if (_st) { _st.style.display = 'none'; _st.textContent = ''; }
   const _th = document.getElementById('ap-scan-thumb'); if (_th) { _th.style.display = 'none'; _th.src = ''; }
@@ -2341,6 +2341,13 @@ function _apCheckBarcode() {
   const vbRaw = String(((_scanMeta || {}).barcode) || '').replace(/\D/g, ''), vb = _gtinOk(vbRaw) ? vbRaw : '';
   const hide = () => { box.style.display = 'none'; box.innerHTML = ''; return false; };
   if (_apMode === 'combo' || bc.length < 8) return hide();
+  // Código com o mesmo prefixo de um produto da loja (ex.: outro sabor RabBeats) → copia custo e preço.
+  try {
+    const pre = _gs1Pre(bc);
+    const irmaos = pre ? (_lastProdutos || []).filter(p => !p.combo && p.cost_cents > 0 && _gs1Pre(p.barcode) === pre && (!marca || _prodBrandKey(p) === _brandKey(marca))) : [];
+    const umCusto = new Set(irmaos.map(p => p.cost_cents)).size === 1; // fabricante com 1 custo só → seguro copiar
+    _apAutoFillCusto({ brand: marca }, umCusto ? irmaos[0] : null);
+  } catch (e) {}
   const warnStyle = 'background:rgba(255,77,143,0.09);border:1px solid var(--pink)';
   const btn = (label, fn, main) => `<button type="button" class="pf-btn${main ? '' : ' sec'}" style="margin:8px 0 0;flex:1 1 auto" onclick="${fn}">${label}</button>`;
   // (1) IA leu os números na foto e NÃO bate com a câmera → aviso forte
@@ -2611,7 +2618,8 @@ async function apGerarArte(fix) {
   if (st) { st.style.color = 'var(--fg-dim)'; st.textContent = 'gerando arte no estilo DROPE… (pode concluir o produto, ela entra depois)'; }
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: name, brand: brand, flavor: flavor, type: (_scanMeta && _scanMeta.type) || '' };
-    if (_apPhotoB64) body.ref_base64 = _apPhotoB64; else if (_scanRefB64) body.ref_base64 = _scanRefB64; // usa a foto como referência
+    const _ref = _apPhotoB64 || _apRefB64 || _scanRefB64; // a foto do lojista SEMPRE vai como referência (mesmo no "gerar outra")
+    if (_ref) body.ref_base64 = _ref;
     if (fix && String(fix).trim()) body.fix = String(fix).trim(); // correção do lojista ("nome certo é NIKBAR")
     _apArtVariant = (_apArtVariant || 0) + 1; body.variant = _apArtVariant; // "gerar outra" → imagem diferente
     const r = await fetch('/api/webhook?action=filial_product_art_fast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -2631,6 +2639,7 @@ async function apGerarArte(fix) {
 // ===== Escanear produto por foto → IA identifica e preenche o form =====
 let _scanMeta = null;
 let _apPhotoB64 = null;
+let _apRefB64 = null; // última foto REAL que o lojista mandou (scan ou galeria) → base fixa da arte com IA
 let _scanRefB64 = null; // foto do scan → referência pra gerar a arte na etapa 3
 // Foto no INÍCIO do cadastro manual (câmera ou galeria) → IA identifica e preenche.
 // Igual ao scanner da lista, mas dentro do form e com opção de galeria. Status/thumb ficam no form.
@@ -2785,9 +2794,28 @@ function _apFindSameModel(v) {
   }
   return null;
 }
+// Mesmo modelo (ou marca com um custo só) já cadastrado → preenche custo e preço sozinho
+// (só se os campos estiverem vazios). O custo é sempre igual pro mesmo modelo.
+function _apAutoFillCusto(v, m) {
+  if (!m && v) {
+    const nb = _catNorm(v.brand || '');
+    const mesmos = nb ? (_lastProdutos || []).filter(p => !p.combo && _catNorm(p.marca) === nb && p.cost_cents > 0) : [];
+    const custos = Array.from(new Set(mesmos.map(p => p.cost_cents)));
+    if (custos.length === 1) m = mesmos[0];
+  }
+  if (!m || !(m.cost_cents > 0)) return;
+  const ce = document.getElementById('ap-custo'), pe = document.getElementById('ap-price');
+  let mudou = false;
+  if (ce && !ce.value) { ce.value = (m.cost_cents / 100).toFixed(2).replace('.', ','); mudou = true; }
+  if (pe && !pe.value && m.price_cents) { pe.value = _to99(m.price_cents / 100).toFixed(2).replace('.', ','); mudou = true; }
+  if (!mudou) return;
+  try { apCalcPreco(true); } catch (e) {}
+  try { _toast('Custo e preço copiados do ' + (m.name || 'mesmo modelo') + ' ✦'); } catch (e) {}
+}
 function _apRenderSameModel(v) {
   const el = document.getElementById('ap-samemodel'); if (!el) return;
   const m = _apFindSameModel(v);
+  try { _apAutoFillCusto(v, m); } catch (e) {}
   if (!m) { el.style.display = 'none'; el.innerHTML = ''; return; }
   const flavor = ((v.flavor_pt || v.flavor_en || '')).trim();
   el.dataset.baseId = m.id; el.dataset.sabor = flavor;
@@ -2860,6 +2888,7 @@ async function onApFotoFile(input) {
   const b64 = await _fileToDataUrl(f, 1280).catch(() => null);
   if (epoch !== _apGenEpoch) return; // já mudou de produto → descarta
   if (!b64) { if (st) { st.style.color = 'var(--pink)'; st.textContent = 'não consegui ler a foto'; } return; }
+  _apRefB64 = b64; // guarda pra arte com IA usar ESTA foto como base
   // Acabamento DROPE (fundo escuro) na foto REAL — SEM redesenhar, produto 100% fiel.
   try {
     const r = await fetch('/api/webhook?action=filial_product_art_fast', {
@@ -3658,7 +3687,7 @@ async function saveNewProduct() {
   const err = await _saveProduct(payload, (saved) => {
     _savedRef = saved; // { id, slug } deste cadastro — imune à corrida do background
     // Concluiu → limpa TUDO e FECHA o form, voltando pra lista de Meus produtos.
-    _apPhotoB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
+    _apPhotoB64 = null; _apRefB64 = null; _scanRefB64 = null; _scanMeta = null; _apLastScanB64 = null;
     // some com o balão verde do scan da lista — agora só o card com ⏳ mostra a arte gerando.
     try { const _ss = document.getElementById('scan-status'); if (_ss) { _ss.style.display = 'none'; _ss.textContent = ''; } const _sb = document.getElementById('scan-btn'); if (_sb) _sb.disabled = false; } catch (e) {}
     try { const sel = document.getElementById('ap-filtro'); if (sel) sel.innerHTML = _apFiltroOptions(); } catch (e) {}
