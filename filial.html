@@ -4092,7 +4092,7 @@ function _bulkRender() {
   const bar = document.getElementById('bulk-bar');
   if (_bulk.fase === 'inicio') {
     bar.style.display = 'none';
-    el.innerHTML = `<div style="font:800 22px/1.15 inherit;margin:6px 0 14px">Mande as fotos dos produtos</div>
+    el.innerHTML = `<div style="font-size:22px;font-weight:800;line-height:1.15;margin:6px 0 14px">Mande as fotos dos produtos</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
         <div class="pf-hint" style="font-size:14px;margin:0"><b style="color:var(--lime)">Frente da caixa:</b> obrigatória.</div>
         <div class="pf-hint" style="font-size:14px;margin:0"><b style="color:var(--lime)">Verso:</b> opcional. Ajuda no código de barras.</div>
@@ -4105,7 +4105,7 @@ function _bulkRender() {
   if (_bulk.fase === 'lendo') {
     bar.style.display = 'none';
     const pct = _bulk.total ? Math.round(_bulk.lidas / _bulk.total * 100) : 0;
-    el.innerHTML = `<div style="font:800 20px inherit;margin:20px 0 8px">${esc(_bulk.etapa || 'Lendo…')}</div>
+    el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:20px 0 8px">${esc(_bulk.etapa || 'Lendo…')}</div>
       <div style="font-size:14px;color:var(--fg-dim);margin-bottom:12px">${_bulk.lidas} de ${_bulk.total}</div>
       <div style="height:10px;border-radius:99px;background:var(--bg3);overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--lime);transition:width .3s"></div></div>
       <div class="pf-hint" style="margin-top:14px">Pode deixar o painel aberto. Leva uns segundos por foto.</div>`;
@@ -4113,7 +4113,7 @@ function _bulkRender() {
   }
   if (_bulk.fase === 'revisar') {
     const opts = (k) => `<option value="" selected disabled>Mover foto para…</option>` + _bulk.rows.filter(x => x.k !== k).map(x => `<option value="${x.k}">${esc(x.name || ('Produto ' + (x.k + 1)))}</option>`).join('') + `<option value="novo">Produto novo</option>`;
-    el.innerHTML = `<div style="font:800 20px inherit;margin:4px 0 4px">Confira e cadastre</div>
+    el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:4px 0 4px">Confira e cadastre</div>
       <div class="pf-hint" style="margin-bottom:14px">Em <b style="color:var(--pink)">rosa</b>: a IA ficou na dúvida. Toque numa foto pra mudar ela de produto.</div>`
       + _bulk.rows.map(r => {
         const duv = r.incluir && _bulkDuvida(r);
@@ -4147,7 +4147,7 @@ function _bulkRender() {
   const st = { fila: '⏳ Na fila', salvando: '⏳ Cadastrando', arte: '🎨 Gerando a arte', conferindo: '🔍 Conferindo a arte', ok: '✅ Na loja', confira: '⚠️ Confira a foto', erro: '❌ Não deu' };
   const linhas = _bulk.rows.filter(r => r.incluir);
   const prontos = linhas.filter(r => ['ok', 'confira', 'erro'].includes(r.status)).length;
-  el.innerHTML = `<div style="font:800 20px inherit;margin:4px 0 4px">${_bulk.fase === 'fim' ? 'Pronto ✦' : 'Cadastrando…'}</div>
+  el.innerHTML = `<div style="font-size:20px;font-weight:800;margin:4px 0 4px">${_bulk.fase === 'fim' ? 'Pronto ✦' : 'Cadastrando…'}</div>
     <div class="pf-hint" style="margin-bottom:14px">${prontos} de ${linhas.length}. ${_bulk.fase === 'fim' ? 'Os com ⚠️ ficaram escondidos da loja até você olhar.' : 'Pode fechar: continua rodando.'}</div>`
     + linhas.map(r => `<div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border:1px solid ${r.status === 'confira' ? 'var(--pink)' : 'var(--border)'};border-radius:14px;padding:10px;margin-bottom:10px">
         <img src="${esc(r.arte || r.fotos[0].b64)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:0 0 auto">
