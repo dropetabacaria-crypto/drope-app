@@ -2212,7 +2212,7 @@ async function _bgArt(id, meta) {
       const pp = (_lastProdutos || []).find(x => x.id === id);
       if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
       try { renderProdutos(); } catch (e) {}
-      try { _toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e) {}
+      try { _artPronta(id, nm, d.image_url); } catch (e) { try { _toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e2) {} }
     } else {
       try { renderProdutos(); } catch (e) {}
       try { _toast((d && d.error) || 'não rolou gerar a arte ✦ toca no <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto pra tentar de novo'); } catch (e) {}
@@ -2224,6 +2224,36 @@ async function _bgArt(id, meta) {
   try { loadData(false); } catch (e) {}
 }
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
+// Arte pronta → aviso que FICA na tela (com a miniatura e "Ver") + aviso do celular/Mac
+// se o painel estiver em segundo plano. Tocar abre o produto já com a arte nova.
+function _artPronta(id, nome, url) {
+  let box = document.getElementById('arte-avisos');
+  if (!box) { box = document.createElement('div'); box.id = 'arte-avisos'; box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:450;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none'; document.body.appendChild(box); }
+  const old = document.getElementById('arte-aviso-' + id); if (old) old.remove();
+  const c = document.createElement('div'); c.id = 'arte-aviso-' + id;
+  c.style.cssText = 'pointer-events:auto;width:100%;max-width:420px;display:flex;align-items:center;gap:10px;background:#12261a;border:1px solid rgba(74,222,128,.5);border-radius:14px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.5)';
+  c.innerHTML = `<img src="${esc(url)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:0 0 auto"><div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:#8ff0b6;line-height:1.25">Arte pronta ✦<div style="font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nome || 'produto')}</div></div><button class="pf-btn" style="margin:0;padding:9px 14px;flex:0 0 auto" onclick="abrirArteProduto(${id})">Ver</button><button aria-label="Fechar" style="background:none;border:0;color:var(--fg-dim);font-size:18px;padding:4px 6px;cursor:pointer" onclick="this.parentNode.remove()">✕</button>`;
+  box.appendChild(c);
+  // painel em segundo plano → aviso do sistema (mesma permissão dos avisos de pedido)
+  try {
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      _lojaSW().then(reg => reg && reg.showNotification('Arte pronta ✦', { body: (nome || 'produto') + ' — toque pra ver', icon: url, tag: 'arte-' + id, data: { url: '/filial?arte=' + id } })).catch(() => {});
+    }
+  } catch (e) {}
+}
+function abrirArteProduto(id) {
+  const c = document.getElementById('arte-aviso-' + id); if (c) c.remove();
+  const p = (_lastProdutos || []).find(x => x.id === id); if (!p) { try { openProdutos(); } catch (e) {} return; }
+  try { const sb = document.getElementById('prod-search'); if (sb) sb.value = ''; } catch (e) {}
+  try { _prodCatOpen.add(p.filtro_id != null ? String(p.filtro_id) : '__none'); } catch (e) {}
+  try { openProdutos(); } catch (e) {}
+  setTimeout(() => {
+    const ed = document.getElementById('edit-' + id);
+    if (ed) { ed.classList.add('open'); ed.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  }, 60);
+}
+// Tocou no aviso do sistema (abre /filial?arte=ID) → vai direto pro produto
+try { const _a = new URLSearchParams(location.search).get('arte'); if (_a) { const _t = setInterval(() => { if ((_lastProdutos || []).length) { clearInterval(_t); abrirArteProduto(Number(_a)); try { history.replaceState(null, '', location.pathname); } catch (e) {} } }, 500); setTimeout(() => clearInterval(_t), 20000); } } catch (e) {}
 async function generateProductArt(id, fix, refazer) {
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
   _artVariant[id] = (_artVariant[id] || 0) + 1; // cada "gerar outra" → imagem diferente
