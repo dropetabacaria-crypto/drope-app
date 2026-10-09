@@ -4889,7 +4889,7 @@ async function handleFilialPainel(req, res) {
     const _pOrders = sbGet('drope_orders',
       `filial_id=eq.${filial.id}&status=in.(paid,accepted,confirmed,preparing,ready,prepared,dispatched,pending_pickup,delivered,picked_up,completed)&created_at=gte.${monthStart}&select=id,order_nsu,status,total_cents,items,customer_snapshot,address,delivery_mode,created_at,delivered_at,picked_up_at,metadata&order=created_at.desc&limit=80`).catch(() => []);
     const _pProds = sbGet('drope_products',
-      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`).catch(() => []);
+      `filial_id=eq.${filial.id}&select=id,slug,name,price_cents,qty_available,hidden,image_url,image_status,box_photo_url,category,metadata,barcode,barcodes,total_sold,created_at&order=name.asc&limit=300`).catch(() => []);
     const _pSettle = sbGet('drope_corridas', `filial_id=eq.${filial.id}&payer=eq.loja&status=eq.entregue&settled_at=is.null&select=entregador_id,valor_motoboy_cents&limit=500`).catch(() => []);
 
     // Pedidos ATIVOS da filial no mês (inclui pending_pickup = pagar na retirada, e
@@ -4963,6 +4963,7 @@ async function handleFilialPainel(req, res) {
       id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents,
       stock: p.qty_available, hidden: !!p.hidden,
       image_url: p.image_url || null, image_status: p.image_status || null,
+      box_photo_url: p.box_photo_url || null, // foto REAL da caixa → referência da arte com IA
       category: p.category || 'pod',
       marca: ((p.metadata || {}).marca) || null,
       sabor: ((p.metadata || {}).sabor) || null,

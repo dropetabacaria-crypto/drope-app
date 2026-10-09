@@ -2218,10 +2218,13 @@ async function _bgArt(id, meta) {
   try { loadData(false); } catch (e) {}
 }
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
-function generateProductArt(id, fix) {
+async function generateProductArt(id, fix) {
   const p = (_lastProdutos || []).find(x => x.id === id) || {};
   _artVariant[id] = (_artVariant[id] || 0) + 1; // cada "gerar outra" → imagem diferente
-  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim(), variant: _artVariant[id] });
+  // Produto com a FOTO REAL da caixa (box_photo_url) → a IA estiliza essa foto, sem buscar na web.
+  let ref = null;
+  if (p.box_photo_url) { try { ref = await _fileToDataUrl(await (await fetch(p.box_photo_url)).blob(), 1280); } catch (e) { ref = null; } }
+  _bgArt(id, { name: p.name || '', brand: p.marca || '', flavor: p.sabor || '', hidden: !!p.hidden, fix: (fix || '').trim(), variant: _artVariant[id], ref });
 }
 // "Imagem errada? Reportar / corrigir" na edição → abre o campo e regera a arte com a correção.
 function epToggleFix(id) {
