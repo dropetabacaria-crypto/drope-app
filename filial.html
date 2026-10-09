@@ -1900,7 +1900,7 @@ function renderProdutos(list) {
         ${cb}
         <div class="prod-thumb">${thumb}</div>
         <div class="prod-info">
-          <div class="prod-name">${p.featured ? '<span style="color:var(--yellow)">★</span> ' : ''}${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}</div>
+          <div class="prod-name">${p.featured ? '<span style="color:var(--yellow)">★</span> ' : ''}${esc(p.name)}${p.hidden ? ' <span style="font-size:10px;color:var(--fg-dim)">(oculto)</span>' : ''}${_artConf[p.id] ? ' <span style="font-size:10px;color:var(--fg-dim)">🔍 IA conferindo…</span>' : p.art_review === 'aprovada' ? ' <span style="font-size:10px;font-weight:800;color:var(--lime)">✓ Aprovada pela IA</span>' : p.art_review === 'revisar' ? ' <span style="font-size:10px;font-weight:800;color:var(--pink)">⚠ Precisa do seu olho</span>' : ''}</div>
           <div class="prod-sub">${priceHtml}${lucroHtml}${(p.total_sold || 0) > 0 ? ' · ' + p.total_sold + ' vendido' + (p.total_sold > 1 ? 's' : '') : ''}</div>
         </div>
       </div>
@@ -2192,7 +2192,7 @@ async function _bgArt(id, meta) {
   _artBusy[id] = true;
   try { renderProdutos(); } catch (e) {}
   const nm = meta.name || '';
-  try { _toast('Gerando arte' + (nm ? ' de ' + nm : '') + ' em segundo plano ✦ pode seguir cadastrando'); } catch (e) {}
+  if (!meta.tentativa || meta.tentativa === 1) { try { _toast('Gerando arte' + (nm ? ' de ' + nm : '') + ' em segundo plano ✦ pode seguir cadastrando'); } catch (e) {} }
   try {
     const body = { filial: FILIAL_SLUG, token: ACCESS_CODE, name: nm, brand: meta.brand || '', flavor: meta.flavor || '', type: meta.type || '' };
     if (meta.ref) body.ref_base64 = meta.ref; // foto do lojista como referência
@@ -2212,6 +2212,7 @@ async function _bgArt(id, meta) {
       const pp = (_lastProdutos || []).find(x => x.id === id);
       if (pp) { pp.image_url = d.image_url; pp.image_status = 'ok'; }
       try { renderProdutos(); } catch (e) {}
+      if (meta.ref) { _artConferir(id, meta, d.image_url); return; } // tem foto base → a IA confere sozinha antes de te avisar
       try { _artPronta(id, nm, d.image_url); } catch (e) { try { _toast('Arte' + (nm ? ' de ' + nm : '') + ' pronta ✦'); } catch (e2) {} }
     } else {
       try { renderProdutos(); } catch (e) {}
@@ -2226,18 +2227,45 @@ async function _bgArt(id, meta) {
 // Botão <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:0 0 auto"><path d="M11 3.5 12.6 8 17 9.6 12.6 11.2 11 15.6 9.4 11.2 5 9.6 9.4 8 11 3.5Z"/><path d="M18 14.2l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg> do produto na lista → gera em segundo plano.
 // Arte pronta → aviso que FICA na tela (com a miniatura e "Ver") + aviso do celular/Mac
 // se o painel estiver em segundo plano. Tocar abre o produto já com a arte nova.
-function _artPronta(id, nome, url) {
+// Conferência automática: a IA compara a arte com a foto base. Errou → refaz sozinha com a
+// correção (até 3 tentativas). Só chama o lojista se errar 3 vezes ("Precisa do seu olho").
+const _artConf = {};
+async function _artConferir(id, meta, url) {
+  const tent = meta.tentativa || 1, nm = meta.name || '';
+  _artBusy[id] = true; _artConf[id] = 'conferindo'; try { renderProdutos(); } catch (e) {}
+  let ck = null;
+  try {
+    const r = await fetch('/api/webhook?action=filial_art_check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, ref: meta.ref, art_url: url, expected: nm }) });
+    const d = await r.json().catch(() => ({})); if (r.ok && d.ok) ck = d;
+  } catch (e) {}
+  _artBusy[id] = false; delete _artConf[id];
+  if (ck && ck.approved) {
+    await _saveProduct({ id, art_review: 'aprovada', ...(typeof meta.hidden === 'boolean' ? { hidden: meta.hidden } : {}) });
+    try { _artPronta(id, nm, url, 'aprovada'); } catch (e) {}
+    return;
+  }
+  if (ck && tent < 3) { // refaz sozinha com o que a IA viu de errado
+    _bgArt(id, { ...meta, fix: ck.fix || ck.motivo || '', variant: (meta.variant || 1) + 1, tentativa: tent + 1, prev_url: null });
+    return;
+  }
+  const motivo = (ck && ck.motivo) || 'não consegui conferir a arte agora';
+  await _saveProduct({ id, art_review: 'revisar', art_motivo: motivo, ...(typeof meta.hidden === 'boolean' ? { hidden: meta.hidden } : {}) });
+  try { _artPronta(id, nm, url, 'revisar', motivo); } catch (e) {}
+}
+function _artPronta(id, nome, url, status, motivo) {
   let box = document.getElementById('arte-avisos');
   if (!box) { box = document.createElement('div'); box.id = 'arte-avisos'; box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:450;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none'; document.body.appendChild(box); }
   const old = document.getElementById('arte-aviso-' + id); if (old) old.remove();
   const c = document.createElement('div'); c.id = 'arte-aviso-' + id;
   c.style.cssText = 'pointer-events:auto;width:100%;max-width:420px;display:flex;align-items:center;gap:10px;background:#12261a;border:1px solid rgba(74,222,128,.5);border-radius:14px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.5)';
-  c.innerHTML = `<img src="${esc(url)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:0 0 auto"><div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:#8ff0b6;line-height:1.25">Arte pronta ✦<div style="font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nome || 'produto')}</div></div><button class="pf-btn" style="margin:0;padding:9px 14px;flex:0 0 auto" onclick="abrirArteProduto(${id})">Ver</button><button aria-label="Fechar" style="background:none;border:0;color:var(--fg-dim);font-size:18px;padding:4px 6px;cursor:pointer" onclick="this.parentNode.remove()">✕</button>`;
+  const rev = status === 'revisar';
+  if (rev) { c.style.background = '#3a1020'; c.style.borderColor = 'rgba(255,77,143,.6)'; }
+  c.innerHTML = `<img src="${esc(url)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:0 0 auto"><div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:${rev ? '#ff9bb5' : '#8ff0b6'};line-height:1.25">${status === 'aprovada' ? '✓ Aprovada pela IA' : rev ? '⚠ Precisa do seu olho' : 'Arte pronta ✦'}<div style="font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nome || 'produto')}</div></div><button class="pf-btn" style="margin:0;padding:9px 14px;flex:0 0 auto" onclick="abrirArteProduto(${id})">Ver</button><button aria-label="Fechar" style="background:none;border:0;color:var(--fg-dim);font-size:18px;padding:4px 6px;cursor:pointer" onclick="this.parentNode.remove()">✕</button>`;
   box.appendChild(c);
   // painel em segundo plano → aviso do sistema (mesma permissão dos avisos de pedido)
   try {
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      _lojaSW().then(reg => reg && reg.showNotification('Arte pronta ✦', { body: (nome || 'produto') + ' — toque pra ver', icon: url, tag: 'arte-' + id, data: { url: '/filial?arte=' + id } })).catch(() => {});
+      _lojaSW().then(reg => reg && reg.showNotification(status === 'aprovada' ? '✓ Arte aprovada pela IA' : status === 'revisar' ? '⚠ Arte precisa do seu olho' : 'Arte pronta ✦', { body: (nome || 'produto') + ' — toque pra ver', icon: url, tag: 'arte-' + id, data: { url: '/filial?arte=' + id } })).catch(() => {});
     }
   } catch (e) {}
 }

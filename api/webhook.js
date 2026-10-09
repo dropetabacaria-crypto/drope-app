@@ -4964,6 +4964,8 @@ async function handleFilialPainel(req, res) {
       stock: p.qty_available, hidden: !!p.hidden,
       image_url: p.image_url || null, image_status: p.image_status || null,
       box_photo_url: p.box_photo_url || null, // foto REAL da caixa → referência da arte com IA
+      art_review: ((p.metadata || {}).art_review || {}).status || null, // 'aprovada' | 'revisar' (IA × foto)
+      art_motivo: ((p.metadata || {}).art_review || {}).motivo || null,
       category: p.category || 'pod',
       marca: ((p.metadata || {}).marca) || null,
       sabor: ((p.metadata || {}).sabor) || null,
@@ -5327,6 +5329,13 @@ async function handleFilialProductSave(req, res) {
             } catch (e) { console.error('[combo-edit-art]', e.message); }
           }
         }
+      }
+      // conferência automática da arte (IA × foto base): guarda o selo e, se aprovada, publica
+      // os produtos que estavam esperando a arte (metadata.publicar_apos_ia).
+      if (body.art_review === 'aprovada' || body.art_review === 'revisar') {
+        md.art_review = { status: body.art_review, motivo: String(body.art_motivo || '').slice(0, 200), at: new Date().toISOString() };
+        if (body.art_review === 'aprovada' && md.publicar_apos_ia) { upd.hidden = false; delete md.publicar_apos_ia; }
+        mdChanged = true;
       }
       if (mdChanged) upd.metadata = md;
       await sbUpdate('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}`, upd);
@@ -5718,6 +5727,34 @@ List precisely what the render got wrong compared to the real photo, and state t
 Answer with ONE paragraph in English, max 70 words, written as direct instructions to an image generator (e.g. "The box background must be golden yellow like the photo, not dark navy. Flavor label must read 'Banana Ice'..."). No preamble.`;
   const out = await callClaude([{ role: 'user', content: [{ type: 'image', source: ref }, { type: 'image', source: prev }, { type: 'text', text: txt }] }], 'You are a meticulous product-photo QA reviewer.', 220);
   return out ? String(out).replace(/\s+/g, ' ').trim().slice(0, 600) : '';
+}
+// POST action=filial_art_check — a arte é FIEL à foto base? Se não, devolve a correção exata (inglês)
+// pro gerador refazer. Usado no ciclo automático: gera → confere → refaz (até 3x).
+async function handleFilialArtCheck(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method not allowed' });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const filial = await _filialAuthBySlug(String(body.filial || '').toLowerCase().trim(), String(body.token || '').trim());
+    if (!filial) { await new Promise(r => setTimeout(r, 800)); return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+    const m = String(body.ref || '').match(/^data:([^;]+);base64,(.+)$/);
+    if (!m || !body.art_url) return res.status(400).json({ ok: false, error: 'faltou a foto ou a arte' });
+    const ref = { type: 'base64', media_type: m[1], data: m[2] };
+    const art = { type: 'url', url: String(body.art_url).split('?')[0] };
+    const txt = `Image 1 = REAL photo of the product (the truth). Image 2 = AI render for the online store.
+APPROVE only if image 2 clearly shows THE SAME product: same brand name, same model, the SAME flavor name printed, the same package/box background colors and the same device color/shape. Background scene and lighting may differ. Tiny unreadable micro-text may be imperfect. REJECT if: box colors differ, flavor name is wrong/misspelled, brand/logo wrong, product invented or a different item.
+Reply ONLY JSON: {"ok":true|false,"motivo":"short reason in Portuguese","fix":"if rejected: direct instructions in English to the image generator stating the exact correct details from the photo (colors, flavor text, etc), max 60 words; else null"}`;
+    const out = await callClaude([{ role: 'user', content: [{ type: 'image', source: ref }, { type: 'image', source: art }, { type: 'text', text: txt }] }], 'You are a strict product-photo QA reviewer. Output only JSON.', 260);
+    let d = null; try { const c = String(out || '').replace(/```json\n?/g, '').replace(/```\n?/g, ''); d = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1)); } catch (e) { d = null; }
+    if (!d) return res.status(502).json({ ok: false, error: 'não consegui conferir a arte agora' });
+    return res.status(200).json({ ok: true, approved: d.ok === true, motivo: String(d.motivo || ''), fix: String(d.fix || '') });
+  } catch (e) {
+    console.error('[filial_art_check] ERROR:', e.message);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
 }
 // POST action=filial_product_art_fast — gera a arte DROPE do produto (motor rápido,
 // mesmo dos filtros) SEM salvar em produto: devolve image_url pra PRÉ-VISUALIZAR.
@@ -22407,6 +22444,9 @@ async function generateAll(){
   // action=filial_product_art — POST: lojista gera a arte (IA) de um produto dele
   if (req.url && req.url.indexOf('action=filial_product_art') >= 0) {
     return await handleFilialProductArt(req, res);
+  }
+  if (req.url && req.url.indexOf('action=filial_art_check') >= 0) {
+    return await handleFilialArtCheck(req, res);
   }
   // action=filial_analyze_photo — POST: IA identifica o produto pela foto (lojista)
   if (req.url && req.url.indexOf('action=filial_analyze_photo') >= 0) {
