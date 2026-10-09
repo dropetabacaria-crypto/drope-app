@@ -5703,6 +5703,22 @@ async function _dropeFinishPhoto(refBuf) {
   const prod = await sharp(refBuf).rotate().resize(box, box, { fit: 'inside', withoutEnlargement: false }).png().toBuffer();
   return await sharp(bg).composite([{ input: prod, gravity: 'center' }]).png().toBuffer();
 }
+// Compara a arte anterior (reprovada pelo lojista) com a foto REAL e devolve, em inglês,
+// os detalhes exatos que o gerador precisa reforçar (cores da caixa, sabor, textos, formato).
+async function _artDiffFix(refB64, prevUrl) {
+  const m = String(refB64).match(/^data:([^;]+);base64,(.+)$/);
+  const ref = m ? { type: 'base64', media_type: m[1], data: m[2] } : { type: 'base64', media_type: 'image/jpeg', data: String(refB64) };
+  const prev = { type: 'url', url: String(prevUrl).split('?')[0] };
+  const txt = `Image 1 = REAL photo of the product (the truth). Image 2 = previous AI render that the store owner REJECTED.
+List precisely what the render got wrong compared to the real photo, and state the exact correct details from the photo:
+- box/package background colors (be specific, e.g. "golden yellow gradient", "bright red")
+- device color and shape
+- brand text, model text and the EXACT flavor name as printed
+- any wrong, misspelled or invented text or icon
+Answer with ONE paragraph in English, max 70 words, written as direct instructions to an image generator (e.g. "The box background must be golden yellow like the photo, not dark navy. Flavor label must read 'Banana Ice'..."). No preamble.`;
+  const out = await callClaude([{ role: 'user', content: [{ type: 'image', source: ref }, { type: 'image', source: prev }, { type: 'text', text: txt }] }], 'You are a meticulous product-photo QA reviewer.', 220);
+  return out ? String(out).replace(/\s+/g, ' ').trim().slice(0, 600) : '';
+}
 // POST action=filial_product_art_fast — gera a arte DROPE do produto (motor rápido,
 // mesmo dos filtros) SEM salvar em produto: devolve image_url pra PRÉ-VISUALIZAR.
 // O save do produto (image_url) anexa a arte confirmada. Usado no wizard de cadastro.
@@ -5722,7 +5738,15 @@ async function handleFilialProductArtFast(req, res) {
     const type = String(body.type || '').trim();
     if (!name && !brand && !body.photo_only) return res.status(400).json({ ok: false, error: 'sem dados do produto' });
     // Correção enviada pelo lojista ("a arte saiu com o nome errado: é NIKBAR, não NIQBAR").
-    const fix = String(body.fix || '').trim();
+    let fix = String(body.fix || '').trim();
+    // REFAZER a partir da foto base: o lojista só refaz se algo saiu errado. Antes de gerar,
+    // a IA compara a arte anterior × a foto real e escreve as correções exatas pro gerador.
+    if (body.ref_base64 && body.prev_url) {
+      try {
+        const auto = await _artDiffFix(String(body.ref_base64), String(body.prev_url));
+        if (auto) fix = (fix ? fix + '. ' : '') + auto;
+      } catch (e) { console.warn('[art_fast] diff falhou:', e.message); }
+    }
     const subject = ([brand, name, flavor].filter(Boolean).join(' ').trim() || name) + (fix ? ' (' + fix + ')' : '');
     // Estilo DROPE (Andrade) + FIDELIDADE: preserva a embalagem e o texto nítidos.
     // Usado tanto na foto do lojista quanto na imagem real buscada na web.
