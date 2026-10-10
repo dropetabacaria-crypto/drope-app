@@ -1970,6 +1970,9 @@ function renderProdutos(list) {
           <button class="pf-btn sec" style="margin-top:6px;width:100%" onclick="epCriarCatArte(${p.id})">Criar categoria com arte por IA ✦</button>
           <div id="ep-newcat-status-${p.id}" style="font-size:11px;color:var(--fg-dim);margin-top:4px;min-height:12px"></div>
         </div>
+        <label class="pf-lbl" style="margin-top:10px">Subcategoria <span style="color:var(--fg-dim);font-weight:400">(opcional · ex: Essências, Carvão, Cabos)</span></label>
+        <input class="pf-input" id="ep-subcat-${p.id}" list="ep-subcat-list-${p.id}" value="${esc(p.subcat || '')}" placeholder="deixe vazio se não tiver" maxlength="30" style="margin-bottom:0">
+        <datalist id="ep-subcat-list-${p.id}">${Array.from(new Set((_lastProdutos || []).filter(x => x.subcat && x.filtro_id === p.filtro_id).map(x => x.subcat))).map(v => `<option value="${esc(v)}">`).join('')}</datalist>
         <label class="pf-lbl" style="margin-top:10px">Vitrine do DROPE <span style="color:var(--fg-dim);font-weight:400">(busca geral da home)</span></label>
         <select class="pf-input" id="ep-catglobal-${p.id}" style="margin-bottom:0">${_catGlobalOptions(p.cat_global)}</select>
         <label class="pf-lbl" style="margin-top:10px">Formas de pagamento</label>
@@ -3811,6 +3814,8 @@ async function saveEditProduct(id) {
     }
     payload.filtro_id = fval || null; // categoria/filtro da loja
   }
+  const scEl = document.getElementById('ep-subcat-' + id);
+  if (scEl) payload.subcat = (scEl.value || '').trim(); // subcategoria (vazio limpa)
   if (payEl) payload.pix_only = (payEl.value === 'pix'); // forma de pagamento do produto
   const cgEl = document.getElementById('ep-catglobal-' + id);
   if (cgEl) payload.cat_global = cgEl.value || ''; // vitrine global da home ('' = automático)

@@ -10935,6 +10935,7 @@
       }
       // Nível 2 — filtro/categoria da loja (o TIPO: Seda, Tabaco…) — Nível 1 na UI
       if (homeState.filtroId && (p.filtro_id || null) !== homeState.filtroId) return false;
+      if (homeState.subcat && (p.subcat || null) !== homeState.subcat) return false; // subcategoria (ex.: Narguilé → Essências)
       if (homeState.quick) { const q = _quickDef(homeState.quick); if (q && !q.test(p)) return false; }
       if (typeof podF !== 'undefined' && podFActive() && !_pfMatch(p, podF)) return false;
     }
@@ -11043,6 +11044,7 @@
   }
   function setLojaFiltro(id) {
     homeState.filtroId = id || null;
+    homeState.subcat = null;             // trocar de categoria zera a subcategoria
     homeState.selectedBrand = null;      // trocar de categoria zera a marca (Nível 2)
     renderLojaFiltros();
     try { renderBrandsCarousel(); } catch (e) {} // Nível 2 (marcas da categoria)
@@ -11497,7 +11499,7 @@
   }
 
   // DROPE HOME v2 (04/06/2026) — Estado de busca/marca selecionada
-  const homeState = { searchText: '', selectedBrand: null, filtroId: null, quick: null };
+  const homeState = { searchText: '', selectedBrand: null, filtroId: null, quick: null, subcat: null };
   // Atalhos da vitrine (na ordem que o cliente pergunta: sabor → puffs → preço; marca vem no carrossel)
   const QUICK_CHIPS = [
     { key: 'gelado', label: 'Gelados', test: p => _podInfo(p).tags.includes('gelado') },
@@ -11549,7 +11551,7 @@
   // Estado vazio da busca (UX R8): um toque volta a mostrar tudo.
   function resetAllFilters() {
     try { const inp = document.getElementById('home-search'); if (inp) inp.value = ''; } catch (e) {}
-    homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null; homeState.quick = null;
+    homeState.searchText = ''; homeState.selectedBrand = null; homeState.filtroId = null; homeState.quick = null; homeState.subcat = null;
     try { podF = { sabores: [], puffs: '', preco: '', marca: '', modelo: '' }; } catch (e) {}
     try { const hi = document.getElementById('hs-input'); if (hi) hi.value = ''; const hc = document.getElementById('hs-clear'); if (hc) hc.style.display = 'none'; } catch (e) {}
     filterState = { perfil: 'tudo', puffs: '', sabor: '', marca: '', modelo: '', priceMax: '' };
@@ -11566,6 +11568,12 @@
     searchProducts('');
   }
 
+  // Toca numa subcategoria (Essências, Carvão…) → filtra e passa a mostrar as marcas dela.
+  function selectSubcat(sc) {
+    homeState.subcat = sc || null; homeState.selectedBrand = null;
+    try { renderBrandsCarousel(); } catch (e) {}
+    renderGrid();
+  }
   function selectBrand(brand) {
     if (homeState.selectedBrand === brand) {
       homeState.selectedBrand = null;
@@ -11593,7 +11601,27 @@
     // senão os chips da loja anterior vazam pra essa (bug: Drope Santos mostrava marcas da SP).
     if (!products || products.length === 0) { wrap.style.display = 'none'; scroll.innerHTML = ''; return; }
     // NÍVEL 2 = marcas. Só as marcas dos produtos da categoria (Nível 1) selecionada.
-    const inCat = p => !homeState.filtroId || (p.filtro_id || null) === homeState.filtroId;
+    const inCat0 = p => !homeState.filtroId || (p.filtro_id || null) === homeState.filtroId;
+    // SUBCATEGORIAS (10/10/2026): categoria escolhida tem subcategorias (ex.: Narguilé → Essências, Carvão)
+    // e nenhuma foi escolhida ainda → as bolinhas mostram as SUBCATEGORIAS em vez das marcas.
+    if (homeState.filtroId && !homeState.subcat) {
+      const subs = {};
+      products.forEach(p => { if (inCat0(p) && p.subcat) { const k = p.subcat; if (!subs[k]) subs[k] = { n: 0, img: null }; subs[k].n++; if (!subs[k].img && p.img) subs[k].img = p.img; } });
+      const keys = Object.keys(subs);
+      if (keys.length) {
+        wrap.style.display = '';
+        let h = '';
+        keys.sort((a, b) => subs[b].n - subs[a].n).forEach(k => {
+          const im = subs[k].img;
+          h += `<div class="brand-bubble" onclick="selectSubcat('${escapeHtml(k).replace(/'/g, "&#39;")}')">
+            <div class="brand-bubble-circle"${im ? ' style="padding:0"' : ''}>${im ? `<img src="${escapeHtml(_thumb(im, 160))}" alt="" draggable="false" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : escapeHtml(k.slice(0, 2).toUpperCase())}</div>
+            <div class="brand-bubble-name">${escapeHtml(k)}</div></div>`;
+        });
+        scroll.innerHTML = h;
+        return;
+      }
+    }
+    const inCat = p => inCat0(p) && (!homeState.subcat || (p.subcat || null) === homeState.subcat);
     // Conta produtos por marca, ignora vazias
     const brandMap = {};
     products.forEach(p => {
@@ -11625,10 +11653,18 @@
     const tudoInner = tudoImg
       ? `<img src="${escapeHtml(tudoImg)}" alt="tudo" draggable="false" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent=''">`
       : '';
+    // Dentro de uma subcategoria: 1ª bolinha volta pras subcategorias ("‹ Essências")
+    if (homeState.subcat) {
+      scroll.innerHTML = '';
+    }
     let html = `<div class="brand-bubble ${!homeState.selectedBrand ? 'active' : ''}" data-brand="" onclick="selectBrand('')">
       <div class="brand-bubble-circle"${tudoImg ? ' style="padding:0"' : ' style="background:linear-gradient(135deg,#b026ff,#ff2d95);"'}>${tudoInner}</div>
       <div class="brand-bubble-name">Todas</div>
     </div>`;
+    if (homeState.subcat) html = `<div class="brand-bubble" onclick="selectSubcat('')">
+      <div class="brand-bubble-circle" style="background:var(--bg3,#1A1625);font-size:22px;font-weight:800">‹</div>
+      <div class="brand-bubble-name">${escapeHtml(homeState.subcat)}</div>
+    </div>` + html;
     brands.forEach(([brand, count]) => {
       const initials = brand.length >= 2 ? brand.slice(0, brand.length >= 6 ? 4 : 2).toUpperCase() : brand;
       const cover = brandCover[brand] || (brandImg[brand] && brandImg[brand].url);

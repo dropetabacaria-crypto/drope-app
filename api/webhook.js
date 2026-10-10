@@ -4972,6 +4972,7 @@ async function handleFilialPainel(req, res) {
       sabor: ((p.metadata || {}).sabor) || null,
       offer_cents: ((p.metadata || {}).offer_cents) || null,
       filtro_id: ((p.metadata || {}).filtro_id) || null,
+      subcat: ((p.metadata || {}).subcat) || null,
       cat_global: ((p.metadata || {}).cat_global) || null, // vitrine global do DROPE (home)
       combo: !!((p.metadata || {}).combo),
       combo_items: Array.isArray((p.metadata || {}).combo_items) ? (p.metadata || {}).combo_items : null,
@@ -5337,6 +5338,11 @@ async function handleFilialProductSave(req, res) {
         md.art_review = { status: body.art_review, motivo: String(body.art_motivo || '').slice(0, 200), at: new Date().toISOString() };
         if (body.art_review === 'aprovada' && md.publicar_apos_ia) { upd.hidden = false; delete md.publicar_apos_ia; }
         if (body.art_review === 'aprovada') delete md.tarefa; // tarefa cumprida
+        mdChanged = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'subcat')) { // subcategoria (vazio limpa)
+        const sc = String(body.subcat || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+        if (sc) md.subcat = sc.charAt(0).toUpperCase() + sc.slice(1); else delete md.subcat;
         mdChanged = true;
       }
       if (mdChanged) upd.metadata = md;
@@ -16435,6 +16441,7 @@ async function handleCatalog(req, res) {
         created_via: p.created_via,
         brand_cover: !!(p.metadata && p.metadata.brand_cover), // capa do filtro da marca (escolhida no admin)
         filtro_id: (p.metadata && p.metadata.filtro_id) || null, // filtro/categoria da loja
+        subcat: (p.metadata && p.metadata.subcat) || null, // subcategoria dentro da categoria (ex.: Narguilé → Essências)
         featured: !!(p.metadata && p.metadata.featured), // destaque na vitrine (manual)
         pix_only: (typeof meta.pix_only === 'boolean') ? meta.pix_only : ((p.category || 'pod') === 'pod'), // só Pix x Pix+cartão
         combo: !!meta.combo, // é um combo (composto por outros produtos)
