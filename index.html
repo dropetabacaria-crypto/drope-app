@@ -9853,11 +9853,20 @@
     try {
       const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
       const d = await r.json().catch(() => ({}));
-      if (st) st.textContent = (r.ok && d.ok) ? 'Mandamos no seu WhatsApp. Digite e toque em Criar conta.' : (d.error || 'Não consegui mandar agora ✦ tenta de novo');
-    } catch (e) { if (st) st.textContent = 'Sem conexão agora ✦ tenta de novo'; }
+      if (r.ok && d.ok) { if (st) st.textContent = 'Mandamos no seu WhatsApp. Digite e toque em Criar conta.'; }
+      else _cregSemCodigo(phone);
+    } catch (e) { _cregSemCodigo(phone); }
     try { document.getElementById('creg-code').focus(); } catch (e) {}
   }
   let _cregCodePhone = '';
+  // Código não saiu (WhatsApp da loja fora do ar) → o cliente chama a loja com 1 toque e a gente libera.
+  function _cregSemCodigo(phone) {
+    const st = document.getElementById('creg-code-st'); if (!st) return;
+    let w = ''; try { w = String((_currentStore() || {}).whats || '').replace(/\D/g, ''); } catch (e) {}
+    const num = w ? (w.length <= 11 ? '55' + w : w) : '';
+    const msg = encodeURIComponent(`Oi! Quero criar minha conta no app DROPE com o número ${phone}, mas o código não chegou.`);
+    st.innerHTML = 'Não consegui mandar o código agora.' + (num ? ` <a href="https://wa.me/${num}?text=${msg}" target="_blank" style="color:var(--lime);font-weight:800">Chamar a loja no WhatsApp</a> que a gente libera rapidinho.` : ' Tenta de novo daqui a pouco.');
+  }
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
   // Lojista entra pelo painel da loja (/filial resolve a loja pelo email na hora do login).
   function goLojistaLogin() { window.location.href = '/filial'; }
