@@ -1694,7 +1694,7 @@ function toggleFeatured(id) {
   try { renderProdutos(); } catch (e) {}
   fetch('/api/webhook?action=filial_product_save', {  // salva por trás (sem loadData bloqueante)
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, featured: !!p.featured, price: (p.price_cents || 0) / 100, stock: (p.stock || 0), hidden: !!p.hidden }),
+    body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, featured: !!p.featured }), // só o destaque (não regrava preço/estoque)
   }).catch(() => {});
 }
 // Edição de produto: categoria SEMPRE obrigatória (sem opção "sem categoria").
@@ -2123,11 +2123,27 @@ function _stockPersist(id, immediate, confirmMsg) {
   };
   if (immediate) doSave(); else _stockTimers[id] = setTimeout(doSave, 700);
 }
+// +/−: junta os toques e manda só a DIFERENÇA (o servidor soma em cima do número atual do banco).
+const _stockDelta = {};
 function bumpStock(id, delta) {
   const p = (_lastProdutos || []).find(x => x.id === id); if (!p) return;
-  p.stock = Math.max(0, (p.stock || 0) + delta);
+  if ((p.stock || 0) + delta < 0) return;
+  p.stock = (p.stock || 0) + delta;
   _stockSync(id);
-  _stockPersist(id, false);
+  _stockDelta[id] = (_stockDelta[id] || 0) + delta;
+  clearTimeout(_stockTimers[id]);
+  _stockTimers[id] = setTimeout(async () => {
+    const d0 = _stockDelta[id] || 0; _stockDelta[id] = 0; if (!d0) return;
+    try {
+      const r = await fetch('/api/webhook?action=filial_product_save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, id, stock_delta: d0 }) });
+      const d = await r.json().catch(() => ({}));
+      if (!(r.ok && d.ok)) throw new Error('save');
+      if (typeof d.stock === 'number' && !_stockDelta[id]) { p.stock = d.stock; _stockSync(id); } // número real do banco
+    } catch (e) {
+      _stockDelta[id] = (_stockDelta[id] || 0) + d0; // devolve pra tentar no próximo toque
+      try { _toast('Não salvou o estoque de ' + (p.name || 'um produto') + ' ✦ confere a internet e tenta de novo', 'err'); } catch (e2) {}
+    }
+  }, 700);
 }
 // Digitar o estoque direto (aceita só número; salva na hora).
 function setStock(id, val) {

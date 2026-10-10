@@ -5247,7 +5247,16 @@ async function handleFilialProductSave(req, res) {
       // editar — só se o produto pertence à loja
       const ex = await sbGet('drope_products', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,metadata&limit=1`);
       if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'produto não é da sua loja' });
-      const upd = { hidden };
+      // +/− do estoque (10/10/2026): soma/tira no banco em cima do número ATUAL — antes o painel
+      // regravava o estoque antigo por cima e "desfazia" vendas feitas pelo app nesse meio tempo.
+      if (Number.isInteger(body.stock_delta) && Object.keys(body).filter(k => !['filial', 'token', 'id', 'stock_delta'].includes(k)).length === 0) {
+        const rr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_adjust_stock`, { method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: Number(id), p_filial: filial.id, p_delta: body.stock_delta }) });
+        const nv = await rr.json().catch(() => null);
+        if (!rr.ok) return res.status(502).json({ ok: false, error: 'não salvou o estoque' });
+        return res.status(200).json({ ok: true, id, stock: typeof nv === 'number' ? nv : null });
+      }
+      const upd = {};
+      if (Object.prototype.hasOwnProperty.call(body, 'hidden')) upd.hidden = hidden; // só mexe no "oculto" se veio no pedido
       // corrigir o NOME do produto (slug fica estável pra não quebrar pedidos/combos)
       if (typeof body.name === 'string' && body.name.trim().length >= 2) upd.name = body.name.trim().slice(0, 80);
       if (isFinite(priceCents) && priceCents >= 0) upd.price_cents = priceCents;
