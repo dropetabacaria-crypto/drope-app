@@ -7076,7 +7076,7 @@
       saveOrders();
     } catch (e) { console.error('[pago] registrar pedido:', e && e.message); }
     try { cart = []; saveCart(); renderCart(); renderGrid(); } catch (e) {}
-    try { appliedCoupon = null; } catch (e) {}
+    try { appliedCoupon = null; localStorage.removeItem('drope_pending_coupon'); } catch (e) {} // pago → cupom usado
     try {
       const so = document.getElementById('success-order');
       if (so) so.textContent = orderNum ? ('#dr-' + orderNum) : ('#' + (nsu || ''));
@@ -7102,6 +7102,7 @@
   }
   function removeCoupon() {
     appliedCoupon = null;
+    try { localStorage.removeItem('drope_pending_coupon'); } catch (e) {}
     const ci = document.getElementById('cart-coupon-input'); if (ci) ci.value = '';
     const oi = document.getElementById('co-coupon-input'); if (oi) oi.value = '';
     if (typeof renderCart === 'function') { try { renderCart(); } catch (e) {} }
@@ -7125,12 +7126,13 @@
     if (!d || !d.ok) {
       appliedCoupon = null;
       if (msg) { msg.className = 'co-coupon-msg err'; msg.textContent = (d && d.message) || 'não consegui conferir o cupom agora — tenta de novo'; }
-      after && after(); return;
+      after && after(d); return;
     }
     appliedCoupon = { code: d.code, discount: (d.discount_cents || 0) / 100, isTest: false, freeShipping: false, label: d.label || '' };
+    try { localStorage.setItem('drope_pending_coupon', d.code); } catch (e) {} // guarda até pagar (volta sozinho se a página recarregar)
     _syncCouponMsg(msgId);
     toast('cupom aplicado ✦ -' + money(appliedCoupon.discount));
-    after && after();
+    after && after(d);
   }
   function applyCoupon() {
     const inp = document.getElementById('co-coupon-input');
@@ -7813,9 +7815,16 @@
     let code = null; try { code = localStorage.getItem('drope_pending_coupon'); } catch (e) {}
     if (!code) return;
     _pendingTried = true;
-    _applyCouponCode(code, 'cart-coupon-msg', () => {
-      try { localStorage.removeItem('drope_pending_coupon'); if (appliedCoupon) { const w = document.getElementById('cart-coupon-wrap'); if (w) w.style.display = 'block'; } } catch (e) {}
+    // O código fica guardado ATÉ o pedido ser pago (10/10/2026: antes sumia em falha de rede,
+    // na volta da InfinitePay sem pagar ou quando o app se atualizava → cliente perdia os R$ 10).
+    _applyCouponCode(code, 'cart-coupon-msg', (d) => {
+      try {
+        if (appliedCoupon) { const w = document.getElementById('cart-coupon-wrap'); if (w) w.style.display = 'block'; }
+        else if (d && /^cupom_(invalido|primeira|proprio|segunda)$/.test(String(d.error || ''))) localStorage.removeItem('drope_pending_coupon'); // erro definitivo → esquece
+        else _pendingTried = false; // falha passageira (rede) → tenta de novo depois
+      } catch (e) {}
       renderCart();
+      try { if (typeof renderCheckout === 'function' && document.getElementById('checkout') && document.getElementById('checkout').classList.contains('active')) renderCheckout(); } catch (e) {}
     });
   }
   function closeInstallGuide() { const ov = document.getElementById('inst-ov'); if (ov) ov.classList.remove('show'); }
@@ -12033,7 +12042,7 @@
     if (screen === 'success') { try { _renderSuccessPush(); } catch (e) {} try { _renderInstallSpots(); } catch (e) {} }
     if (screen === 'profile') { try { _renderInstallSpots(); } catch (e) {} try { _loadWhatsOptin(); } catch (e) {} }
     if (screen === 'cart' || screen === 'checkout') {
-      try { _loadReferral().then(() => { try { if (screen === 'cart') { _tryPendingCoupon(); renderCart(); } else renderCheckout(); } catch (e) {} }); } catch (e) {}
+      try { _loadReferral().then(() => { try { if (screen === 'cart') { _tryPendingCoupon(); renderCart(); } else { _tryPendingCoupon(); renderCheckout(); } } catch (e) {} }); } catch (e) {}
     }
     if (screen === 'checkout') {
       // Sempre entra no passo 1 (entrega). Pagamento é o passo 2.
@@ -14539,7 +14548,7 @@
       return true;
     }
     if (status === 409 && data && /^cupom_|^credito_|^total_invalido$/.test(String(data.error || ''))) {
-      if (String(data.error).startsWith('cupom_')) appliedCoupon = null;
+      if (String(data.error).startsWith('cupom_')) { appliedCoupon = null; if (/^cupom_(invalido|primeira|proprio|segunda)$/.test(String(data.error))) { try { localStorage.removeItem('drope_pending_coupon'); } catch (e) {} } }
       if (String(data.error).startsWith('credito_') || data.error === 'total_invalido') { try { _loadReferral(); } catch (e) {} }
       try { renderCart(); } catch (e) {}
       toast(data.message || 'Conferimos o valor ✦ confere e tenta de novo');
@@ -15012,6 +15021,7 @@
       if (sWhats) sWhats.style.display = '';
     }
     appliedCoupon = null;
+    try { localStorage.removeItem('drope_pending_coupon'); } catch (e) {} // pedido feito → cupom usado
     document.getElementById('success-order').textContent = `#dr-${orderNum}`;
     // OSSO 21 — invalida cache da home personalizada pra próximo render puxar fresh
     __personalizedHomeCache = null;
