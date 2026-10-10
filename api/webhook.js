@@ -18563,16 +18563,28 @@ async function handleInfinitePayWebhook(req, res) {
           if (_cph2) _notify('customer', _cph2, 'order_status', 'Pagamento aprovado ✦', 'Seu pedido foi confirmado e já está sendo preparado.').catch(() => {});
           // ✅ Pagamento confirmado → AGORA baixa o estoque (só na transição created→paid).
           const _its = Array.isArray(updated[0].items) ? updated[0].items : [];
+          const _semEstoque = []; // itens pagos que NÃO tinham mais estoque (2 clientes na última unidade)
           for (const it of _its) {
             if (it && it.slug && it.qty) {
               try {
-                await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {
+                const _cr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/drope_consume_stock`, {
                   method: 'POST',
                   headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
                   body: JSON.stringify({ p_slug: it.slug, p_qty: it.qty }),
                 });
+                const _cj = await _cr.json().catch(() => null);
+                const _c0 = Array.isArray(_cj) ? _cj[0] : _cj;
+                if (_c0 && _c0.ok === false && _c0.reason === 'out_of_stock') _semEstoque.push({ slug: it.slug, name: it.name || it.slug, qty: it.qty, tinha: _c0.qty_after });
               } catch (eStock) { console.error('[InfinitePay Webhook] stock consume err:', eStock.message); }
             }
+          }
+          if (_semEstoque.length) {
+            try {
+              await sbUpdate('drope_orders', `id=eq.${updated[0].id}`, { metadata: { ...(updated[0].metadata || {}), sem_estoque: _semEstoque } });
+              const _lst = _semEstoque.map(x => `• ${x.name} (pediu ${x.qty}, tinha ${x.tinha || 0})`).join('\n');
+              const _txt = `⚠️ DROPE: pedido #${updated[0].id} PAGO, mas acabou o estoque:\n${_lst}\nConsiga o produto ou estorne o cliente.`;
+              if (updated[0].filial_id) { await _ownerWhatsAlert(updated[0].filial_id, _txt).catch(() => {}); _notify('filial', updated[0].filial_id, 'order_new', '⚠️ Pedido pago sem estoque', `#${updated[0].id} · ${_semEstoque[0].name}`, null, {}).catch(() => {}); }
+            } catch (e) { console.error('[InfinitePay Webhook] sem_estoque:', e.message); }
           }
           await _bumpTotalSold(_its, 1); // venda confirmada conta no "Mais pedidos"
         }
