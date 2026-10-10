@@ -9803,8 +9803,9 @@
   function openCustomerLogin() {
     // Veio de um QR/link com código e nunca entrou neste aparelho → abre direto em "Criar conta"
     // (antes caía em "Entrar com senha" e o cliente novo travava procurando o "Criar conta").
+    // 10/10/2026: qualquer aparelho que NUNCA entrou numa conta abre em "Criar conta" (com link pra quem já tem)
     let _novoPeloQR = false;
-    try { _novoPeloQR = !!localStorage.getItem('drope_pending_coupon') && !localStorage.getItem('drope_ever_logged'); } catch (e) {}
+    try { _novoPeloQR = !localStorage.getItem('drope_ever_logged'); } catch (e) {}
     if (_novoPeloQR) showCreateAccount();
     else if (WA_LOGIN_ON) _cloginShow('clogin-step1'); else showPwLogin();
     document.getElementById('clogin-ov').style.display = 'flex';
