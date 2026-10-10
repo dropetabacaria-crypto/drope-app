@@ -5794,7 +5794,10 @@ async function handleFilialProductArtFast(req, res) {
       'CRITICAL: Do NOT write the word "DROPE" — or any store/app name — anywhere on the product, packaging, or scene. "DROPE" is ONLY the name of the lighting/background style here; it must NEVER appear as text or as a brand on the item.',
       fix ? ('CORRECTION FROM THE STORE OWNER (a previous render was wrong): ' + fix + '. The visible brand/label text MUST match this correction EXACTLY — spell it precisely, do not alter the letters.') : '',
       'Only restyle the BACKGROUND and LIGHTING around the product into a premium dark-neon e-commerce hero scene — never touch the product itself.',
-      'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
+      body.ref_base64
+        // Com FOTO do lojista: o que está na foto é a verdade. Nunca troca a embalagem por outra.
+        ? 'Keep EXACTLY the items shown in the reference photo — if it shows a display box together with a booklet/pack, keep BOTH, with the SAME artwork, illustrations, colors and printed names (e.g. "PITEIRA LARGE", "CONTÉM 45 PITEIRAS"). NEVER replace the packaging with a different design, NEVER invent new illustrations. Remove only the table/background. Centered, tilted 3-5 degrees, on a matte black reflective surface with a crisp mirror reflection below.'
+        : 'Show a SINGLE RETAIL UNIT/pack only — NOT a display box, carton, expositor or bulk pack of multiple units. One single item, centered, tilted 3-5 degrees, standing on a matte black reflective surface with a crisp mirror reflection below.',
       ART_QUALITY_RULES.background,
       ART_QUALITY_RULES.vapor,
       ART_QUALITY_RULES.lighting,
