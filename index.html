@@ -9825,15 +9825,39 @@
     if (pass.length < 6) { msg.textContent = 'Crie uma senha de pelo menos 6 caracteres'; return; }
     const btn = document.getElementById('creg-btn'); btn.textContent = 'Criando...'; btn.disabled = true;
     try {
-      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass, whats_optin: !!((document.getElementById('creg-whats') || {}).checked),
+      const _code = ((document.getElementById('creg-code') || {}).value || '').replace(/\D/g, '');
+      const r = await fetch('/api/webhook?action=customer_register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, email, birthdate: pb.iso, password: pass, code: _code || undefined, whats_optin: !!((document.getElementById('creg-whats') || {}).checked),
         loja: (typeof CLIENT_FILIAL !== 'undefined' && CLIENT_FILIAL) || 'sp', qr: (function () { try { return localStorage.getItem('drope_pending_coupon') || ''; } catch (e) { return ''; } })() }) });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok && d.token) { document.getElementById('creg-pass').value = ''; if (name) profile.name = name; if (email) profile.email = email; profile.birthdate = pb.iso; _applyCustomerLogin(d.token, phone, name); }
       else if (r.status === 409) { msg.textContent = d.error || 'Já existe conta — entre com sua senha'; setTimeout(showPwLogin, 1400); }
+      else if (d.need_code) { msg.textContent = d.error || ''; if (!_code) _cregPedirCodigo(phone); }
       else { msg.textContent = d.error || 'Não deu pra criar a conta'; }
     } catch (e) { msg.textContent = 'Sem conexão agora ✦ confere a internet e tenta de novo'; }
     finally { btn.textContent = 'Criar conta ✦'; btn.disabled = false; }
   }
+  // Número que já comprou antes → confirma que é o dono com o código do WhatsApp (6 dígitos).
+  async function _cregPedirCodigo(phone, reenviar) {
+    let box = document.getElementById('creg-code-box');
+    if (!box) {
+      box = document.createElement('div'); box.id = 'creg-code-box';
+      box.style.cssText = 'margin:10px 0;padding:12px;border-radius:14px;background:rgba(212,255,46,.08);border:1px solid var(--lime)';
+      box.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:6px">Código do WhatsApp</div>
+        <input id="creg-code" inputmode="numeric" maxlength="6" placeholder="6 números" autocomplete="one-time-code" style="width:100%;font-size:22px;letter-spacing:6px;text-align:center;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+        <div id="creg-code-st" style="font-size:12px;color:var(--text-dim);margin-top:6px"></div>
+        <div style="font-size:12px;margin-top:6px"><span style="color:var(--lime);cursor:pointer;font-weight:700" onclick="_cregPedirCodigo(_cregCodePhone, true)">mandar de novo</span></div>`;
+      const btn = document.getElementById('creg-btn'); btn.parentNode.insertBefore(box, btn);
+    }
+    _cregCodePhone = phone;
+    const st = document.getElementById('creg-code-st'); if (st) st.textContent = 'enviando…';
+    try {
+      const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      const d = await r.json().catch(() => ({}));
+      if (st) st.textContent = (r.ok && d.ok) ? 'Mandamos no seu WhatsApp. Digite e toque em Criar conta.' : (d.error || 'Não consegui mandar agora ✦ tenta de novo');
+    } catch (e) { if (st) st.textContent = 'Sem conexão agora ✦ tenta de novo'; }
+    try { document.getElementById('creg-code').focus(); } catch (e) {}
+  }
+  let _cregCodePhone = '';
   function closeCustomerLogin() { document.getElementById('clogin-ov').style.display = 'none'; }
   // Lojista entra pelo painel da loja (/filial resolve a loja pelo email na hora do login).
   function goLojistaLogin() { window.location.href = '/filial'; }

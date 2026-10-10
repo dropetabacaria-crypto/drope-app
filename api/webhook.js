@@ -15706,7 +15706,7 @@ async function handleOtpRequest(req, res) {
     if (ex && ex[0]) await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, rec);
     else await sbInsert('drope_otp', rec);
     let sent = false;
-    try { const r = await sendText(_phone55(phone), `DROPE ✦ seu código é ${code}\n\nVale por 10 minutos. Não compartilhe com ninguém.`); sent = !!(r && r.ok); if (!sent) console.warn('[otp_request] whats HTTP', r && r.status); }
+    try { const r = await sendText(_phone55(phone), `DROPE ✦ seu código é ${code}\n\nVale por 10 minutos. Não compartilhe com ninguém.`, { provider: 'uazapi' }); sent = !!(r && r.ok); if (!sent) console.warn('[otp_request] whats HTTP', r && r.status); }
     catch (e) { console.warn('[otp_request] whats falhou:', e.message); }
     if (!sent) return res.status(502).json({ ok: false, error: 'não conseguimos enviar o código pelo WhatsApp agora. Tente de novo em instantes.' });
     return res.status(200).json({ ok: true }); // NUNCA devolve o código
@@ -15768,6 +15768,21 @@ async function handleCustomerLoginPassword(req, res) {
   } catch (e) { console.error('[customer_login_password] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
 
+// Confere (e consome) o código de 6 dígitos mandado no WhatsApp. Devolve null se OK, ou {status, error}.
+async function _otpConsume(phone, codeRaw) {
+  const code = String(codeRaw || '').replace(/\D/g, '');
+  const rows = await sbGet('drope_otp', `phone=eq.${encodeURIComponent(phone)}&select=*&limit=1`);
+  const otp = rows && rows[0];
+  if (!otp || !otp.code_hash) return { status: 400, error: 'peça um código primeiro' };
+  if (new Date(otp.expires_at).getTime() < Date.now()) return { status: 400, error: 'código expirado — toque em "mandar de novo"' };
+  if ((otp.attempts || 0) >= 5) return { status: 429, error: 'muitas tentativas — toque em "mandar de novo"' };
+  if (_sha256hex(code) !== otp.code_hash) {
+    await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { attempts: (otp.attempts || 0) + 1 });
+    return { status: 401, error: 'código incorreto' };
+  }
+  await sbUpdate('drope_otp', `phone=eq.${encodeURIComponent(phone)}`, { code_hash: '', expires_at: new Date(Date.now() - 1000).toISOString() });
+  return null;
+}
 // POST action=customer_register { phone, name, email, password } → cria conta com SENHA
 // e emite sessão, SEM OTP. É o que permite conta persistente sem depender do WhatsApp.
 // Se já existe conta COM senha nesse telefone, NÃO sobrescreve (manda entrar) — protege
@@ -15790,6 +15805,13 @@ async function handleCustomerRegister(req, res) {
     const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id,pass_hash&limit=1`);
     const existing = rows && rows[0];
     if (existing && existing.pass_hash) return res.status(409).json({ ok: false, error: 'já existe uma conta com esse telefone — entre com sua senha' });
+    // Telefone que JÁ existe (comprou antes, sem senha) → só cria a conta com o código do WhatsApp
+    // (10/10/2026: antes qualquer um "assumia" a conta de um comprador só sabendo o número).
+    if (existing) {
+      if (!body.code) return res.status(428).json({ ok: false, need_code: true, error: 'Esse número já comprou com a gente. Pra sua segurança, confirme com o código que vamos mandar no WhatsApp.' });
+      const bad = await _otpConsume(phone, body.code);
+      if (bad) return res.status(bad.status).json({ ok: false, need_code: true, error: bad.error });
+    }
     const p = _ljHashPassword(password);
     const token = crypto.randomBytes(24).toString('hex');
     const th = _sha256hex(token);
