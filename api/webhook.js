@@ -4966,6 +4966,7 @@ async function handleFilialPainel(req, res) {
       box_photo_url: p.box_photo_url || null, // foto REAL da caixa → referência da arte com IA
       art_review: ((p.metadata || {}).art_review || {}).status || null, // 'aprovada' | 'revisar' (IA × foto)
       art_motivo: ((p.metadata || {}).art_review || {}).motivo || null,
+      tarefa: ((p.metadata || {}).tarefa) || null, // 'refazer_arte' → cartão 'Pra fazer' no painel
       category: p.category || 'pod',
       marca: ((p.metadata || {}).marca) || null,
       sabor: ((p.metadata || {}).sabor) || null,
@@ -5335,6 +5336,7 @@ async function handleFilialProductSave(req, res) {
       if (body.art_review === 'aprovada' || body.art_review === 'revisar') {
         md.art_review = { status: body.art_review, motivo: String(body.art_motivo || '').slice(0, 200), at: new Date().toISOString() };
         if (body.art_review === 'aprovada' && md.publicar_apos_ia) { upd.hidden = false; delete md.publicar_apos_ia; }
+        if (body.art_review === 'aprovada') delete md.tarefa; // tarefa cumprida
         mdChanged = true;
       }
       if (mdChanged) upd.metadata = md;

@@ -1161,6 +1161,7 @@ textarea.pf-input { resize: vertical; font-family: inherit; min-height: 64px; }
       <div style="text-align:center;margin-top:8px"><span onclick="toggleAddProduct()" style="color:var(--fg-dim);font-size:12px;cursor:pointer">cancelar</span></div>
       <div id="ap-msg" style="font-size:12px;color:var(--pink);margin-top:8px;min-height:14px"></div>
     </div>
+    <div id="prafazer-card" style="display:none"></div>
     <input class="prod-search" id="prod-search" placeholder="Buscar produto (nome, marca, sabor)" oninput="renderProdutos()">
     <div class="prod-filters" id="prod-filters">
       <button class="fchip active" data-f="todos" onclick="setProdFilter('todos',this)">Todos</button>
@@ -1845,6 +1846,7 @@ async function epCriarCatArte(id) {
 function renderProdutos(list) {
   _lastProdutos = list || _lastProdutos;
   try { renderDestaqueBar(); } catch (e) {}
+  try { _renderPraFazer(); } catch (e) {}
   const el = document.getElementById('produtos-list');
   if (!el) return;
   const all = _lastProdutos || [];
@@ -2280,6 +2282,43 @@ function abrirArteProduto(id) {
     if (ed) { ed.classList.add('open'); ed.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
   }, 60);
 }
+// Link pronto de tarefa (/filial.html?refazer=521,523,…): o painel abre e pergunta
+// "Refazer a arte destes N?" → um toque gera todas a partir da foto base (a IA confere sozinha).
+function _tarefaRefazer(ids) {
+  const prods = ids.map(id => (_lastProdutos || []).find(p => p.id === id)).filter(Boolean);
+  if (!prods.length) return;
+  let ov = document.getElementById('tarefa-ov');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'tarefa-ov'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="width:100%;max-width:420px;max-height:90vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:18px">
+    <div style="font-size:20px;font-weight:800;margin-bottom:4px">Refazer ${prods.length === 1 ? 'esta arte' : 'estas ' + prods.length + ' artes'}?</div>
+    <div style="font-size:13px;color:var(--fg-dim);margin-bottom:12px">A IA usa a foto base e confere sozinha. Você só olha se aparecer ⚠.</div>
+    ${prods.map(p => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><img src="${esc(p.box_photo_url || p.image_url || '')}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:0 0 auto"><div style="font-size:14px;font-weight:700">${esc(p.name)}</div></div>`).join('')}
+    <button class="pf-btn full" style="margin-top:14px" onclick="_tarefaGo([${prods.map(p => p.id).join(',')}])">Sim, refazer ${prods.length === 1 ? '' : 'as ' + prods.length + ' '}✦</button>
+    <button class="pf-btn sec full" style="margin-top:8px" onclick="document.getElementById('tarefa-ov').remove()">Agora não</button>
+  </div>`;
+}
+// Cartão "Pra fazer" no topo de Meus produtos: o que está marcado pra você (arte pra refazer).
+function _renderPraFazer() {
+  const box = document.getElementById('prafazer-card'); if (!box) return;
+  const lista = (_lastProdutos || []).filter(p => !_artBusy[p.id] && (p.tarefa === 'refazer_arte' || p.art_review === 'revisar'));
+  if (!lista.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.cssText = 'display:block;background:rgba(212,255,46,.07);border:1.5px solid var(--lime);border-radius:16px;padding:12px 14px;margin-bottom:12px';
+  box.innerHTML = `<div style="font-size:15px;font-weight:800;color:var(--lime)">Pra fazer ✦</div>
+    <div style="font-size:13px;margin:4px 0 8px">${lista.length} ${lista.length === 1 ? 'arte' : 'artes'} pra refazer</div>
+    <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px">${lista.map(p => `<img src="${esc(p.box_photo_url || p.image_url || '')}" alt="" title="${esc(p.name)}" style="width:40px;height:40px;border-radius:9px;object-fit:cover;background:var(--bg3);flex:0 0 auto">`).join('')}</div>
+    <button class="pf-btn full" style="margin:0" onclick="_tarefaRefazer([${lista.map(p => p.id).join(',')}])">Refazer ${lista.length === 1 ? 'a arte' : 'todas'} ✦</button>`;
+}
+async function _tarefaGo(ids) {
+  const ov = document.getElementById('tarefa-ov'); if (ov) ov.remove();
+  try { openProdutos(); } catch (e) {}
+  for (const id of ids) { try { generateProductArt(id, '', true); } catch (e) {} await new Promise(r => setTimeout(r, 400)); }
+  try { _toast(ids.length + (ids.length === 1 ? ' arte sendo refeita' : ' artes sendo refeitas') + ' ✦ a IA confere sozinha'); } catch (e) {}
+}
+try {
+  const _rf = (new URLSearchParams(location.search).get('refazer') || '').split(',').map(Number).filter(n => n > 0);
+  if (_rf.length) { const _t = setInterval(() => { if ((_lastProdutos || []).length) { clearInterval(_t); try { history.replaceState(null, '', location.pathname); } catch (e) {} _tarefaRefazer(_rf); } }, 500); }
+} catch (e) {}
 // Tocou no aviso do sistema (abre /filial?arte=ID) → vai direto pro produto
 try { const _a = new URLSearchParams(location.search).get('arte'); if (_a) { const _t = setInterval(() => { if ((_lastProdutos || []).length) { clearInterval(_t); abrirArteProduto(Number(_a)); try { history.replaceState(null, '', location.pathname); } catch (e) {} } }, 500); setTimeout(() => clearInterval(_t), 20000); } } catch (e) {}
 async function generateProductArt(id, fix, refazer) {
