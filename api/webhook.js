@@ -18523,6 +18523,7 @@ async function handleInfinitePayWebhook(req, res) {
     let updatedOrderId = null;
     let updatedAmbassadorId = null;
     let updatedAmbassadorRef = '';
+    let _updFalhou = false; // erro ao gravar "pago" → responde 500 pra InfinitePay reenviar (10/10/2026)
     if (SUPABASE_URL && SUPABASE_KEY && orderNsu) {
       try {
         // Só confirma se ainda estiver 'created' → idempotente (2º webhook não reprocessa)
@@ -18545,7 +18546,8 @@ async function handleInfinitePayWebhook(req, res) {
             }),
           }
         );
-        const updated = await updateRes.json();
+        if (!updateRes.ok) _updFalhou = true;
+        const updated = await updateRes.json().catch(() => null);
         console.log('[InfinitePay Webhook] Supabase update status:', updateRes.status, 'rows:', Array.isArray(updated) ? updated.length : 'n/a');
         if (Array.isArray(updated) && updated[0]) {
           updatedCustomerId = updated[0].customer_id || null;
@@ -18576,10 +18578,26 @@ async function handleInfinitePayWebhook(req, res) {
         }
       } catch (e) {
         console.error('[InfinitePay Webhook] Supabase update error:', e.message);
+        if (!updatedOrderId) _updFalhou = true;
       }
     }
-    // Já estava pago (2º aviso, ou o app confirmou antes): não repete comissão/avisos.
-    if (!updatedOrderId) return res.status(200).json({ ok: true, paid: true, already: true, orderNsu });
+    // Não conseguiu gravar → 500: a InfinitePay tenta de novo (antes respondia 200 e o pedido pago ficava "não pago").
+    if (_updFalhou && !updatedOrderId) return res.status(500).json({ ok: false, error: 'falha_ao_gravar_tente_de_novo' });
+    if (!updatedOrderId) {
+      // Nenhuma linha mudou: confere o status atual. Pago/andando = 2º aviso normal.
+      // Cancelado/expirado = cliente PAGOU um pedido que já tinha sido cancelado → avisa o dono pra estornar ou reativar.
+      let _st = '', _row = null;
+      try { const rr = await sbGet('drope_orders', `order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,status,filial_id,metadata,customer_snapshot,total_cents&limit=1`); _row = rr && rr[0]; _st = (_row && _row.status) || ''; } catch (e) {}
+      if (_row && ['cancelled', 'expired'].includes(_st) && !((_row.metadata || {}).late_payment)) {
+        try {
+          await sbUpdate('drope_orders', `id=eq.${_row.id}`, { metadata: { ...(_row.metadata || {}), late_payment: { at: new Date().toISOString(), amount_cents: amountCents, transaction_id: transactionId, status_antes: _st } } });
+          const _nm = String((_row.customer_snapshot || {}).name || 'cliente').split(' ')[0];
+          const _txt = `⚠️ DROPE: pagamento chegou num pedido ${_st === 'cancelled' ? 'CANCELADO' : 'EXPIRADO'}\nPedido #${_row.id} · ${_nm} · R$ ${(amountCents / 100).toFixed(2).replace('.', ',')}\nO dinheiro entrou na InfinitePay. Estorne ou entregue o pedido.`;
+          if (_row.filial_id) { await _ownerWhatsAlert(_row.filial_id, _txt).catch(() => {}); _notify('filial', _row.filial_id, 'order_new', '⚠️ Pagamento em pedido cancelado', `#${_row.id} · ${_nm} · estorne ou entregue`, null, {}).catch(() => {}); }
+        } catch (e) { console.error('[InfinitePay Webhook] late_payment:', e.message); }
+      }
+      return res.status(200).json({ ok: true, paid: true, already: true, status: _st || null, orderNsu });
+    }
 
     // ===== PROGRAMA EMBAIXADOR ✦ comissão =====
     // 1) Resolve ambassador_id: prioridade ordem → query ref → null
