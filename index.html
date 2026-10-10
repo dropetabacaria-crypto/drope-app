@@ -8876,17 +8876,10 @@
   // LOJA ÚNICA (Drope SP) — set/2026: o cliente entra direto na loja; sem home
   // multi-loja e sem escolher loja. Reverter pra false quando voltar o SaaS multi-loja.
   const SINGLE_STORE = true;
-  // 06/10: "Drope Baixada" (slug santos) — quem entra pelo link ?loja=baixada fica nela (o app lembra).
-  const _STORE_ALIAS = { sp: 'sp', baixada: 'santos', santos: 'santos' };
-  const SINGLE_STORE_SLUG = (function () {
-    try {
-      const q = (new URLSearchParams(location.search).get('loja') || '').toLowerCase().trim();
-      if (_STORE_ALIAS[q]) { localStorage.setItem('drope_store_lock', _STORE_ALIAS[q]); return _STORE_ALIAS[q]; }
-      const s0 = localStorage.getItem('drope_store_lock');
-      if (_STORE_ALIAS[s0]) return _STORE_ALIAS[s0];
-    } catch (e) {}
-    return 'sp';
-  })();
+  // 10/10/2026: Drope Baixada (retirada) PAUSADA — por enquanto só a Drope SP, só entrega.
+  // (Pra voltar: recolocar o ?loja=baixada → santos e reativar a filial 2.)
+  try { localStorage.removeItem('drope_store_lock'); } catch (e) {}
+  const SINGLE_STORE_SLUG = 'sp';
   let CLIENT_FILIAL = 'sp';
   let CLIENT_FILIAL_NAME = '';
   try { CLIENT_FILIAL = (localStorage.getItem(FILIAL_STORAGE_KEY) || 'sp').toLowerCase(); } catch(_){}
