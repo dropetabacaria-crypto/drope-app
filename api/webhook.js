@@ -5562,6 +5562,9 @@ async function handleFilialOrderStatus(req, res) {
     if (!id || !ALLOWED.includes(next)) return res.status(400).json({ ok: false, error: 'status inválido' });
     const ex = await sbGet('drope_orders', `id=eq.${encodeURIComponent(id)}&filial_id=eq.${filial.id}&select=id,status,status_history,customer_snapshot,order_nsu,items,payment_confirmed_at,metadata&limit=1`);
     if (!ex || !ex[0]) return res.status(404).json({ ok: false, error: 'pedido não é da sua loja' });
+    // Pedido cancelado/expirado não "ressuscita" (10/10/2026: outro aparelho com a tela velha marcava
+    // "Entregue" num pedido já cancelado e ele voltava pro faturamento).
+    if (['cancelled', 'expired', 'refunded'].includes(ex[0].status)) return res.status(409).json({ ok: false, error: 'Esse pedido já foi cancelado ✦ atualiza a tela' });
     const now = new Date().toISOString();
     const upd = { status: next };
     // Pagou na loja (sem pagamento online) → a venda conta quando sai da loja
