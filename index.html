@@ -5496,8 +5496,21 @@
           <span onclick="togglePw('clogin-pw-pass', this)" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--lime);font-size:12px;font-weight:600;user-select:none">mostrar</span>
         </div>
         <button class="btn-primary" id="clogin-pw-btn" onclick="loginWithPassword()" style="width:100%;margin-top:16px">entrar ✦</button>
-        <div style="text-align:center;margin-top:12px"><span onclick="showCreateAccount()" style="color:var(--lime);font-size:13px;cursor:pointer">Criar conta ›</span><span id="clogin-code-link" style="display:none">&nbsp; · &nbsp;<span onclick="showCodeLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">usar código no WhatsApp</span></span></div>
+        <div style="text-align:center;margin-top:12px"><span onclick="showForgot()" style="color:var(--text-dim);font-size:13px;cursor:pointer">Esqueci a senha</span> &nbsp;·&nbsp; <span onclick="showCreateAccount()" style="color:var(--lime);font-size:13px;cursor:pointer">Criar conta ›</span><span id="clogin-code-link" style="display:none">&nbsp; · &nbsp;<span onclick="showCodeLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">usar código no WhatsApp</span></span></div>
         <div id="clogin-msg-pw" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
+      </div>
+      <div id="clogin-step-forgot" style="display:none">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Nova senha</div>
+        <div id="fg-sub" style="color:var(--text-dim);font-size:13px;margin:6px 0 18px">Mandamos um código no seu WhatsApp pra confirmar que é você.</div>
+        <input id="fg-phone" class="card-input" type="tel" inputmode="tel" placeholder="(11) 91234-5678" oninput="formatLoginPhone(this)" style="width:100%;font-size:16px;padding:15px">
+        <button class="btn-primary" id="fg-send" onclick="forgotSend()" style="width:100%;margin-top:12px">mandar código ✦</button>
+        <div id="fg-step2" style="display:none;margin-top:14px">
+          <input id="fg-code" class="card-input" type="tel" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="código (6 números)" style="width:100%;font-size:20px;text-align:center;letter-spacing:6px;padding:14px">
+          <input id="fg-pass" class="card-input" type="password" placeholder="nova senha (mín. 6)" style="width:100%;font-size:16px;padding:15px;margin-top:10px" onkeydown="if(event.key==='Enter')forgotSave()">
+          <button class="btn-primary" id="fg-save" onclick="forgotSave()" style="width:100%;margin-top:12px">salvar e entrar ✦</button>
+        </div>
+        <div style="text-align:center;margin-top:12px"><span onclick="showPwLogin()" style="color:var(--text-dim);font-size:13px;cursor:pointer">‹ voltar</span></div>
+        <div id="clogin-msg-forgot" style="font-size:12px;color:var(--pink);margin-top:10px;min-height:16px;text-align:center"></div>
       </div>
       <div id="clogin-step2" style="display:none">
         <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:800;color:var(--text)">Código</div>
@@ -9790,8 +9803,8 @@
   // Com false: abre direto no login por senha, esconde o código, e mostra "Criar conta".
   var WA_LOGIN_ON = false;
   function _cloginShow(stepId) {
-    ['clogin-step1', 'clogin-step2', 'clogin-step-pw', 'clogin-step-create'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = (id === stepId) ? 'block' : 'none'; });
-    ['clogin-msg1', 'clogin-msg2', 'clogin-msg-pw', 'clogin-msg-create'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+    ['clogin-step1', 'clogin-step2', 'clogin-step-pw', 'clogin-step-create', 'clogin-step-forgot'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = (id === stepId) ? 'block' : 'none'; });
+    ['clogin-msg1', 'clogin-msg2', 'clogin-msg-pw', 'clogin-msg-create', 'clogin-msg-forgot'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
     const cl = document.getElementById('clogin-code-link'); if (cl) cl.style.display = WA_LOGIN_ON ? '' : 'none';
   }
   function openCustomerLogin() {
@@ -9811,6 +9824,43 @@
     const tg = document.querySelector("[onclick=\"togglePw('clogin-pw-pass', this)\"]"); if (tg) tg.textContent = 'mostrar';
   }
   function showCodeLogin() { _cloginShow('clogin-step1'); }
+  // "Esqueci a senha" (10/10/2026): código no WhatsApp + senha nova → já entra.
+  function showForgot() {
+    _cloginShow('clogin-step-forgot');
+    const f = document.getElementById('fg-phone'), src = document.getElementById('clogin-pw-phone');
+    if (f && src && src.value && !f.value) f.value = src.value;
+    document.getElementById('fg-step2').style.display = 'none';
+    document.getElementById('fg-send').style.display = 'block';
+  }
+  async function forgotSend() {
+    const phone = ((document.getElementById('fg-phone') || {}).value || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+    const msg = document.getElementById('clogin-msg-forgot');
+    if (phone.length < 10) { msg.textContent = 'Põe seu número com DDD'; return; }
+    const b = document.getElementById('fg-send'); b.textContent = 'enviando…'; b.disabled = true;
+    try {
+      const r = await fetch('/api/webhook?action=otp_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { msg.style.color = 'var(--lime)'; msg.textContent = 'Código enviado no seu WhatsApp ✦'; b.style.display = 'none'; document.getElementById('fg-step2').style.display = 'block'; try { document.getElementById('fg-code').focus(); } catch (e) {} }
+      else { msg.style.color = 'var(--pink)'; msg.textContent = d.error || 'Não consegui mandar agora ✦ tenta de novo'; }
+    } catch (e) { msg.style.color = 'var(--pink)'; msg.textContent = 'Sem conexão agora ✦ tenta de novo'; }
+    finally { b.textContent = 'mandar código ✦'; b.disabled = false; }
+  }
+  async function forgotSave() {
+    const phone = ((document.getElementById('fg-phone') || {}).value || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+    const code = ((document.getElementById('fg-code') || {}).value || '').replace(/\D/g, '');
+    const password = (document.getElementById('fg-pass') || {}).value || '';
+    const msg = document.getElementById('clogin-msg-forgot'); msg.style.color = 'var(--pink)';
+    if (code.length !== 6) { msg.textContent = 'O código tem 6 números'; return; }
+    if (password.length < 6) { msg.textContent = 'A senha precisa de pelo menos 6 caracteres'; return; }
+    const b = document.getElementById('fg-save'); b.textContent = 'salvando…'; b.disabled = true;
+    try {
+      const r = await fetch('/api/webhook?action=customer_reset_password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code, password }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok && d.token) { document.getElementById('fg-pass').value = ''; _applyCustomerLogin(d.token, phone, (d.customer && d.customer.name) || ''); toast('senha nova salva ✦ você já entrou'); }
+      else msg.textContent = d.error || 'Não deu certo ✦ tenta de novo';
+    } catch (e) { msg.textContent = 'Sem conexão agora ✦ tenta de novo'; }
+    finally { b.textContent = 'salvar e entrar ✦'; b.disabled = false; }
+  }
   function showCreateAccount() {
     _cloginShow('clogin-step-create');
     const n = document.getElementById('creg-name'), p = document.getElementById('creg-phone'), e = document.getElementById('creg-email');
