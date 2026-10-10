@@ -208,24 +208,27 @@ module.exports = async function handler(req, res) {
     }
     let discountCents = 0, couponApplied = null, refCustomerId = null, creditUsedCents = 0, couponEmployeeId = null;
     const sbFetch = (path) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }).then(r => r.ok ? r.json() : []);
+    // Sessão do app (token) bate com o telefone do pedido? Vale pra cupom e pra crédito (10/10/2026:
+    // antes o cupom de 1ª compra valia com QUALQUER telefone digitado → R$ 10 em todo pedido).
+    let sessOk = false;
+    try {
+      const ph = String((customer && customer.phone) || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+      const th = require('crypto').createHash('sha256').update(String(body.customer_token || '')).digest('hex');
+      const cr2 = body.customer_token ? await sbFetch(`drope_customers?phone=eq.${encodeURIComponent(ph)}&select=id,session_hash,session_exp,sessions&limit=1`) : [];
+      const cc = Array.isArray(cr2) && cr2[0];
+      if (cc && (!customerId || cc.id === customerId) && !(cc.session_exp && Date.parse(cc.session_exp) < Date.now())) {
+        sessOk = (cc.session_hash === th) || (Array.isArray(cc.sessions) && cc.sessions.some(x => x && x.h === th));
+      }
+    } catch (e) { sessOk = false; }
     if (body.coupon_code) {
+      if (!sessOk) return res.status(409).json({ error: 'cupom_login', coupon: String(body.coupon_code).toUpperCase(), message: 'Entre de novo na sua conta pra usar o cupom ✦' });
       const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents, filialSlug: body.filial_slug || 'sp' }, sbFetch);
       if (!cr.ok) return res.status(409).json({ error: cr.error || 'cupom_invalido', coupon: String(body.coupon_code).toUpperCase(), message: cr.message + ' ✦ tiramos o cupom, confere o valor e tenta de novo' });
       discountCents = cr.discount_cents; couponApplied = cr.code; refCustomerId = cr.ref_customer_id || null; couponEmployeeId = cr.employee_id || null;
     }
     // Crédito de indicação (R$ 5 por amigo que comprou) — o servidor calcula quanto tem
     if (body.use_credit && customerId) {
-      // Só o DONO usa o crédito: confere a sessão logada (token do app) contra o cadastro
-      let sessOk = false;
-      try {
-        const ph = String((customer && customer.phone) || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
-        const th = require('crypto').createHash('sha256').update(String(body.customer_token || '')).digest('hex');
-        const cr2 = body.customer_token ? await sbFetch(`drope_customers?phone=eq.${encodeURIComponent(ph)}&select=id,session_hash,session_exp,sessions&limit=1`) : [];
-        const cc = Array.isArray(cr2) && cr2[0];
-        if (cc && cc.id === customerId && !(cc.session_exp && Date.parse(cc.session_exp) < Date.now())) {
-          sessOk = (cc.session_hash === th) || (Array.isArray(cc.sessions) && cc.sessions.some(x => x && x.h === th));
-        }
-      } catch (e) { sessOk = false; }
+      // Só o DONO usa o crédito: sessão logada (conferida acima) contra o cadastro
       if (!sessOk) return res.status(409).json({ error: 'credito_login', message: 'Entre de novo na sua conta pra usar o crédito ✦' });
       try {
         const rc = await referralCredit(customerId, sbFetch);

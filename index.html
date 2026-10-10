@@ -6824,7 +6824,7 @@
           order_nsu: orderNsu, payment_method: 'infinitepay',
           coupon_code: (appliedCoupon && appliedCoupon.code) || undefined, filial_slug: (typeof CLIENT_LOJA !== 'undefined' && CLIENT_LOJA && CLIENT_LOJA.slug) || undefined,
           subtotal, delivery_fee: deliveryFeeReais, total: total + deliveryFeeReais - _creditFor(total + deliveryFeeReais),
-          use_credit: _creditFor(total + deliveryFeeReais) > 0 || undefined, customer_token: _creditFor(total + deliveryFeeReais) > 0 ? _custToken() : undefined,
+          use_credit: _creditFor(total + deliveryFeeReais) > 0 || undefined, customer_token: _custToken() || undefined, // sessão: vale pra cupom e crédito
           items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
           delivery_mode: deliveryMode,
           address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
@@ -14876,7 +14876,7 @@
             delivery_fee: deliveryFeeReais,
             total: Math.max(0, subtotal - discount) + deliveryFeeReais - _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais),
             use_credit: _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais) > 0 || undefined,
-            customer_token: _creditFor(Math.max(0, subtotal - discount) + deliveryFeeReais) > 0 ? _custToken() : undefined,
+            customer_token: _custToken() || undefined, // sessão: vale pra cupom e crédito
             items: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price, slug: i.slug || undefined })),
             delivery_mode: deliveryMode,
             address: (deliveryMode === 'delivery' && addr) ? { ...addr, geo: _lastCheckoutGeo || addr.geo || null } : null,
