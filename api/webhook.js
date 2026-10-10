@@ -16010,7 +16010,7 @@ async function _sendStorePush(filialId, title, body, url, badge) {
     const dead = [];
     await Promise.all(subs.map(async (s) => {
       const kind = /fcm\.googleapis/.test(s.endpoint || '') ? 'android/chrome' : (/apple/.test(s.endpoint || '') ? 'apple' : 'outro');
-      try { await wp.sendNotification(s, payload, { TTL: 300, urgency: 'high' }); stats.sent++; }
+      try { await wp.sendNotification(s, payload, { TTL: 4 * 3600, urgency: 'high' }); stats.sent++; } // celular sem sinal até 4h ainda recebe (antes 5 min)
       catch (e) {
         if (e && (e.statusCode === 404 || e.statusCode === 410)) { dead.push(s.endpoint); stats.dead++; }
         else { stats.errors.push(`${kind}: ${e && e.statusCode || ''} ${String((e && (e.body || e.message)) || '').slice(0, 120)}`); console.error('[sendStorePush]', kind, e && e.statusCode, e && (e.body || e.message)); }

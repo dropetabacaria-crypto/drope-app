@@ -5591,6 +5591,20 @@ function _lojaSW() {
     .catch(() => null);
 }
 try { _lojaSW(); } catch (e) {}
+// Re-registra o aparelho SOZINHO toda vez que o painel abre (10/10/2026): se a permissão já foi dada,
+// renova a inscrição em silêncio — o lojista não precisa ficar tocando em "Ativar no cel".
+async function _pushAutoRenew() {
+  try {
+    if (!ACCESS_CODE || !FILIAL_SLUG || !('Notification' in window) || Notification.permission !== 'granted' || !('PushManager' in window)) return;
+    const reg = await _lojaSW(); if (!reg || !reg.pushManager) return;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _urlB64ToUint8(_VAPID_PUBLIC) });
+    const r = await fetch('/api/webhook?action=filial_push_subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filial: FILIAL_SLUG, token: ACCESS_CODE, subscription: sub.toJSON() }) });
+    if (r.ok) { try { localStorage.setItem('drope_push_on_v2', '1'); } catch (e) {} try { _renderPushBtn(); } catch (e) {} }
+  } catch (e) {}
+}
+setTimeout(_pushAutoRenew, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) _pushAutoRenew(); });
 function _renderPushBtn() {
   const b = document.getElementById('hd-push'); if (!b) return;
   const on = _pushOn();
