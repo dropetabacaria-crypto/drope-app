@@ -6206,7 +6206,7 @@ async function handleDashboardData(req, res) {
 
     // 1. Pedidos de hoje (pagos)
     const todayOrders = await sbGet('drope_orders',
-      `created_at=gte.${todayStart}&select=id,order_nsu,status,amount_paid_cents,delivery_type,delivery_address,delivery_neighborhood,delivery_fee_cents,created_at,payment_confirmed_at,customer_snapshot,items,ambassador_ref&order=created_at.desc&limit=50`);
+      `created_at=gte.${todayStart}&select=id,order_nsu,status,amount_paid_cents,delivery_mode,address,delivery_fee_cents,created_at,payment_confirmed_at,customer_snapshot,items,ambassador_ref&order=created_at.desc&limit=50`);
 
     // 2. Estoque crítico (≤2 unidades, não escondido)
     const lowStock = await sbGet('drope_products',
@@ -15820,6 +15820,11 @@ async function handleCustomerRegister(req, res) {
     if (password.length < 6) return res.status(400).json({ ok: false, error: 'a senha precisa de pelo menos 6 caracteres' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'email inválido' });
     if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) return res.status(400).json({ ok: false, error: 'data de nascimento inválida' });
+    if (birthdate) { // 18+ conferido no servidor também (dia e mês)
+      const [by, bm, bd] = birthdate.split('-').map(Number), hj = new Date(); let idade = hj.getFullYear() - by;
+      if (hj.getMonth() + 1 < bm || (hj.getMonth() + 1 === bm && hj.getDate() < bd)) idade--;
+      if (idade < 18) return res.status(400).json({ ok: false, error: 'só maiores de 18 anos' });
+    }
     const rows = await sbGet('drope_customers', `phone=eq.${encodeURIComponent(phone)}&select=id,pass_hash&limit=1`);
     const existing = rows && rows[0];
     if (existing && existing.pass_hash) return res.status(409).json({ ok: false, error: 'já existe uma conta com esse telefone — entre com sua senha' });
@@ -18756,19 +18761,21 @@ async function handleInfinitePayWebhook(req, res) {
           try {
             // 1) Pega o pedido pra ler delivery_type + endereco + items (se item tiver no próprio order)
             const orderRes = await fetch(
-              `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,delivery_type,delivery_address,delivery_neighborhood,delivery_city,delivery_fee_cents,items`,
+              `${SUPABASE_URL}/rest/v1/drope_orders?order_nsu=eq.${encodeURIComponent(orderNsu)}&select=id,delivery_mode,address,delivery_fee_cents,items`, // colunas reais (antes pedia colunas que não existem → alerta sem itens/endereço)
               { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
             );
             const orderRows = await orderRes.json();
             const ord = Array.isArray(orderRows) && orderRows[0];
             if (ord) {
-              if (ord.delivery_type === 'pickup') {
+              const _ad = (ord.address && typeof ord.address === 'object') ? ord.address : {};
+              if (ord.delivery_mode === 'pickup') {
                 deliveryLine = `🏪 *RETIRADA na loja*`;
-              } else if (ord.delivery_type === 'delivery') {
+              } else if (ord.delivery_mode === 'delivery') {
                 const parts = [];
-                if (ord.delivery_address) parts.push(ord.delivery_address);
-                if (ord.delivery_neighborhood) parts.push(ord.delivery_neighborhood);
-                if (ord.delivery_city) parts.push(ord.delivery_city);
+                const _rua = [_ad.street, _ad.num].filter(Boolean).join(', ') + (_ad.comp ? ' — ' + _ad.comp : '');
+                if (_rua.trim()) parts.push(_rua);
+                if (_ad.neigh) parts.push(_ad.neigh);
+                if (_ad.city) parts.push(_ad.city);
                 const addr = parts.join(' · ') || 'endereço n/a';
                 const feeBRL = ord.delivery_fee_cents ? (ord.delivery_fee_cents/100).toFixed(2).replace('.',',') : '?';
                 deliveryLine = `🛵 *ENTREGA* · taxa R$ ${feeBRL}\n📍 ${addr}`;

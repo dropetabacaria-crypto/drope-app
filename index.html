@@ -9790,7 +9790,7 @@
   function _saveCustSession(s) { if (PREVIEW_MODE) return; _custSession = s; try { localStorage.setItem(CUST_SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
   function _clearCustSession() { _custSession = null; try { localStorage.removeItem(CUST_SESSION_KEY); } catch (e) {} }
   let _otpPhone = '';
-  function formatLoginPhone(el) { let d = el.value.replace(/\D/g, '').slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
+  function formatLoginPhone(el) { let d = el.value.replace(/\D/g, ''); if (d.length > 11 && d.startsWith('55')) d = d.slice(2); /* autopreenchimento com +55 */ d = d.slice(0, 11); let o = d; if (d.length >= 8) o = '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); else if (d.length >= 3) o = '(' + d.slice(0, 2) + ') ' + d.slice(2); else if (d.length) o = '(' + d; el.value = o; }
   function _loginPhoneDigits() { return (document.getElementById('clogin-phone').value || '').replace(/\D/g, ''); }
   // Login por WhatsApp (OTP): desligado enquanto o número oficial (Meta) não está no ar.
   // Com false: abre direto no login por senha, esconde o código, e mostra "Criar conta".
@@ -10055,7 +10055,8 @@
     if (!m) return { err: 'data de nascimento: use dd/mm/aaaa ✦' };
     const dd = +m[1], mm = +m[2], yy = +m[3];
     if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > new Date().getFullYear()) return { err: 'data de nascimento inválida ✦' };
-    if (new Date().getFullYear() - yy < 18) return { err: 'só maiores de 18 ✦' };
+    const _hj = new Date(); let _id = _hj.getFullYear() - yy; if (_hj.getMonth() + 1 < mm || (_hj.getMonth() + 1 === mm && _hj.getDate() < dd)) _id--; // idade pelo dia e mês (antes só o ano)
+    if (_id < 18) return { err: 'só maiores de 18 ✦' };
     return { iso: `${m[3]}-${m[2]}-${m[1]}` };
   }
   function saveProfile() {
