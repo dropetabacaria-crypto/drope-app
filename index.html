@@ -10496,7 +10496,9 @@
     if (status !== 409 || !data) return false;
     if (data.error === 'frete_mudou' && data.fee_cents) {
       const q = window._deliveryQuote || {};
-      window._deliveryQuote = { ...q, ok: true, out_of_range: false, fee_cents: data.fee_cents, fmt: data.fmt, km: data.km != null ? data.km : q.km };
+      // Usa EXATAMENTE a taxa do servidor (10/10/2026: antes o zone_fee_cents antigo ficava por cima → loop infinito de "frete mudou")
+      window._deliveryQuote = { ...q, ok: true, out_of_range: false, fee_cents: data.fee_cents, zone_fee_cents: data.fee_cents, server_fee: true, fmt: data.fmt, km: data.km != null ? data.km : q.km };
+      try { if (q.key) _saveQuoteCache(q.key, window._deliveryQuote); } catch (e) {}
       try { renderCheckout(); } catch (e) {}
       toast(data.message || 'taxa de entrega atualizada ✦ confere e paga de novo');
       return true;
@@ -12051,6 +12053,7 @@
     if (appliedCoupon && appliedCoupon.freeShipping) return 0; // cupom FRETEGRATIS zera o frete
     const q = window._deliveryQuote;
     if (!q || !q.ok || q.out_of_range) return 0;
+    if (q.server_fee) return (q.fee_cents || 0) / 100; // taxa que o servidor mandou (já com a regra dos 2 pods)
     if (_freteGratisPods(q)) return 0; // 2+ pods até 6 km → grátis (mesma regra do servidor)
     return ((q.zone_fee_cents != null ? q.zone_fee_cents : q.fee_cents) || 0) / 100;
   }
