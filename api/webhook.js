@@ -16666,11 +16666,8 @@ async function handleHomePersonalized(req, res) {
     // Personalização só com sessão válida do cliente (senão cai no genérico 'new').
     // Fecha o vetor de puxar o "último pedido" de alguém só sabendo o telefone.
     const _authed = await _customerSessionOk(params.customer_phone, params.token);
-    if (params.customer_id) {
-      const rows = await sbGet('drope_customers',
-        `id=eq.${encodeURIComponent(params.customer_id)}&select=id,phone,name,flavor_profile,favorite_flavor,favorite_brand,total_orders,last_order_date,last_product_id,last_delivery_address&limit=1`);
-      customer = rows[0] || null;
-    } else if (params.customer_phone && _authed) {
+    // customer_id NÃO é aceito (LGPD 10/10/2026): devolvia nome+endereço de qualquer id sem login.
+    if (params.customer_phone && _authed) {
       const phoneClean = String(params.customer_phone).replace(/\D/g, '');
       if (phoneClean) {
         const rows = await sbGet('drope_customers',
@@ -16832,18 +16829,14 @@ async function handleCustomerProfile(req, res) {
     if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
   });
 
-  // Segurança: perfil do cliente só com sessão válida (não vaza por telefone).
-  if (params.customer_phone && !(await _customerSessionOk(params.customer_phone, params.token))) {
+  // Segurança: perfil do cliente só com sessão válida — e SÓ por telefone+sessão (customer_id não é aceito).
+  if (!params.customer_phone || !(await _customerSessionOk(params.customer_phone, params.token))) {
     await new Promise(r => setTimeout(r, 400));
     return res.status(401).json({ ok: false, error: 'unauthorized' });
   }
   try {
     let customer = null;
-    if (params.customer_id) {
-      const rows = await sbGet('drope_customers',
-        `id=eq.${encodeURIComponent(params.customer_id)}&limit=1`);
-      customer = rows[0] || null;
-    } else if (params.customer_phone) {
+    if (params.customer_phone) {
       const phoneClean = String(params.customer_phone).replace(/\D/g, '');
       if (phoneClean) {
         const rows = await sbGet('drope_customers',
