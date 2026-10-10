@@ -70,7 +70,7 @@
   var P = new URLSearchParams(location.search);
   var CODE = (P.get('c') || 'BEMVINDO10').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) || 'BEMVINDO10';
   var NOME = (P.get('n') || '').replace(/[<>&"]/g, '').slice(0, 30);
-  var URL_QR = 'https://drope-app.vercel.app/?c=' + CODE;
+  var URL_QR = 'https://www.dropedelivery.com.br/?c=' + CODE;
   document.title = NOME ? ('QR ' + NOME + ' · DROPE') : 'DROPE QR para imprimir';
   if (NOME) document.getElementById('who').innerHTML = 'QR de <b>' + NOME + '</b> · código <b>' + CODE + '</b> · cada cliente novo que comprar por aqui conta pra ' + NOME + '.';
   var q = qrcode(0, 'M'); q.addData(URL_QR); q.make();
@@ -80,7 +80,7 @@
     + '<div class="qr-tile">' + svg + '</div>'
     + '<div class="offer">R$ 10 na 1ª compra</div>'
     + '<div class="steps">Aponte a câmera do celular pro código<br><b>2 pods = entrega grátis</b> (até 6 km)</div>'
-    + '<div class="disp-bot"><span>' + (CODE === 'BEMVINDO10' ? 'drope-app.vercel.app' : 'código ' + CODE) + '</span><span class="age">18+</span></div></div>';
+    + '<div class="disp-bot"><span>' + (CODE === 'BEMVINDO10' ? 'dropedelivery.com.br' : 'código ' + CODE) + '</span><span class="age">18+</span></div></div>';
   document.getElementById('displays').innerHTML = disp + disp;
   var stk = '<div class="stk"><div class="stk-top"><img src="' + LOGO + '" alt=""><div class="stk-t">DROPE</div></div><div class="qr-tile">' + svg + '</div><div class="stk-o">R$ 10 na 1ª compra</div><div class="stk-a">18+ · entrega em minutos</div></div>';
   var h = ''; for (var i = 0; i < 12; i++) h += stk;

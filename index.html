@@ -7804,7 +7804,7 @@
   function closeReferral() { const ov = document.getElementById('ref-ov'); if (ov) ov.classList.remove('show'); }
   function _refText() {
     const i = _refInfo || {};
-    return `Pede seu pod no DROPE e ganha R$ 10 na primeira compra 🦎 Chega em minutos, e com 2 pods a entrega é grátis. Entra por aqui que o desconto já vem: ${i.link || 'https://drope-app.vercel.app'} (código ${i.code || ''})`;
+    return `Pede seu pod no DROPE e ganha R$ 10 na primeira compra 🦎 Chega em minutos, e com 2 pods a entrega é grátis. Entra por aqui que o desconto já vem: ${i.link || 'https://www.dropedelivery.com.br'} (código ${i.code || ''})`;
   }
   function refShareWhats() { window.open('https://wa.me/?text=' + encodeURIComponent(_refText()), '_blank'); }
   function refShare() {
@@ -14425,7 +14425,7 @@
     // Footer / call-to-action
     ctx.fillStyle = '#ff2d6f';
     ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('drope-app.vercel.app', W/2, H - 180);
+    ctx.fillText('dropedelivery.com.br', W/2, H - 180);
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '28px sans-serif';
     ctx.fillText('seu sabor, seu drop', W/2, H - 130);
@@ -15203,7 +15203,7 @@
   }
 
   function shareDrope() {
-    const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://drope-app.vercel.app/';
+    const url = (location.origin && location.origin !== 'null') ? location.origin + location.pathname : 'https://www.dropedelivery.com.br/';
     const msg = `mano, achei esse app aqui ✦ Drope\n\ndrops em minutos, paga com Pix, chega rápido\n\n${url}\n\n(só 18+)`;
     // Usa Web Share API nativa quando dá (Android/iOS) — melhor UX
     if (navigator.share) {

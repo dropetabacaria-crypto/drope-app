@@ -27,7 +27,7 @@ const { checkCoupon, referralCredit } = require('../lib/cupons');
 
 module.exports = async function handler(req, res) {
   // CORS restrito aos domínios Drope
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -520,7 +520,7 @@ module.exports = async function handler(req, res) {
       customer_id: customerId,
       track_token: savedOrder?.customer_track_token || null,
       track_url: savedOrder?.customer_track_token
-        ? `https://drope-app.vercel.app/#track/${savedOrder.customer_track_token}`
+        ? `https://www.dropedelivery.com.br/#track/${savedOrder.customer_track_token}`
         : null,
     });
   } catch (err) {

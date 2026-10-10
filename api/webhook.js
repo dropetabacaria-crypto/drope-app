@@ -6243,7 +6243,7 @@ async function handleDashboardData(req, res) {
       pending_cents: byAmb[a.id]?.pending_cents || 0,
       paid_cents: byAmb[a.id]?.paid_cents || 0,
       sales_count_pending: byAmb[a.id]?.sales_count_pending || 0,
-      share_url: `https://drope-app.vercel.app/?ref=${a.ref_code}`,
+      share_url: `https://www.dropedelivery.com.br/?ref=${a.ref_code}`,
     }));
 
     // 5. Vendas últimos 7 dias agrupadas por dia (pra mini-gráfico)
@@ -9199,7 +9199,7 @@ function _orderAlertText(o, amountCents) {
   const c = o.customer_snapshot || {};
   const its = (Array.isArray(o.items) ? o.items : []).map(i => `${i.qty || 1}× ${String(i.name || 'item').replace(/\s+\d+(,\d)?K$/i, '')}`).join(', ');
   const nome = String(c.name || 'cliente').split(' ')[0];
-  return `🦎 *Pedido novo na DROPE!*\n#${o.order_nsu || o.id} · R$ ${((amountCents || o.total_cents || 0) / 100).toFixed(2).replace('.', ',')} · ${nome}\n${its}\nAbra o painel: https://drope-app.vercel.app/filial`;
+  return `🦎 *Pedido novo na DROPE!*\n#${o.order_nsu || o.id} · R$ ${((amountCents || o.total_cents || 0) / 100).toFixed(2).replace('.', ',')} · ${nome}\n${its}\nAbra o painel: https://www.dropedelivery.com.br/filial`;
 }
 
 async function sendText(phone, text, body = {}) {
@@ -9928,14 +9928,14 @@ async function handleAdminLucas(phone, msg, body) {
       const okProducts = await sbGet('drope_products', 'hidden=eq.false&image_status=eq.ok&select=id&limit=200');
       const count = okProducts.length;
       const countLine = count > 0 ? `${count} drops disponíveis no app agora.` : `pede pelo app, chega na sua mão:`;
-      await sendText(phone, `🦎 *Drope — tabacaria com entrega*\n\nos melhores pods com o melhor preço de SP.\n${countLine}\n\n👉 drope-app.vercel.app\n\nou manda um oi que a gente te atende`, body);
+      await sendText(phone, `🦎 *Drope — tabacaria com entrega*\n\nos melhores pods com o melhor preço de SP.\n${countLine}\n\n👉 dropedelivery.com.br\n\nou manda um oi que a gente te atende`, body);
       // 2ª msg só com o link puro (clicável e fácil de encaminhar isolado)
-      await sendText(phone, "drope-app.vercel.app", body);
+      await sendText(phone, "dropedelivery.com.br", body);
       return;
     }
     if (!pending && (lower === 'divulgar 2' || lower === 'divulga 2')) {
-      await sendText(phone, "fala, tô vendendo pod com preço bom e entrega rápida.\n\nda uma olhada: drope-app.vercel.app 🦎", body);
-      await sendText(phone, "drope-app.vercel.app", body);
+      await sendText(phone, "fala, tô vendendo pod com preço bom e entrega rápida.\n\nda uma olhada: dropedelivery.com.br 🦎", body);
+      await sendText(phone, "dropedelivery.com.br", body);
       return;
     }
     // Lucas tentou começar novo cadastro mas tem arte pendente — avisa
@@ -10693,7 +10693,7 @@ async function processProductRegistration(phone, caixaUrl, podUrl, preComputedDa
       : `\nobs: arte falhou e foto original tbm não rolou ✦ regera pelo /admin`;
   }
 
-  const adminLink = `https://drope-app.vercel.app/admin#products/${inserted.id}`;
+  const adminLink = `https://www.dropedelivery.com.br/admin#products/${inserted.id}`;
   await sendText(phone,
     `✅ *${fullName}* tá no app\n\nfalta só o preço.\n\n${adminLink}${alertSuffix}`,
     body);
@@ -11551,7 +11551,7 @@ NAO usa menu numerado. NAO lista 1, 2, 3.
 MENSAGENS SEGUINTES:
 - Tem historico, NAO repete saudacao.
 - Responde direto a duvida.
-- Se cliente quer pedir: manda link https://drope-app.vercel.app
+- Se cliente quer pedir: manda link https://www.dropedelivery.com.br
 - Pagamento: Pix antecipado (delivery) ou Pix/cartao (retirada na loja Vila Prudente).
 - Se nao souber: "vou confirmar com a equipe e ja te respondo"
 - Se mandar audio/imagem: "por enquanto so leio texto, manda escrito"
@@ -11571,7 +11571,7 @@ REGRAS:
    1. [Nome] — R$ [preco]
    2. [Nome] — R$ [preco]
    qual te interessa?"
-4. Se cliente escolher 1: "fechado! pra finalizar: drope-app.vercel.app ou retira na loja Vila Prudente?"
+4. Se cliente escolher 1: "fechado! pra finalizar: dropedelivery.com.br ou retira na loja Vila Prudente?"
 5. Se nao tem nada parecido na lista: "🦎 nao tenho esse agora. quer que eu te avise quando chegar?"
 6. Tom: lo-fi authentic, Gen Z favela Vila Prudente. Minusculas. Max 1-2 emojis. Curto (2-4 linhas WhatsApp).
 7. Se a primeira mensagem da sessao tiver historico do cliente, USA: "fala {nome}! da ultima vez voce dropou {ultimo}. quer de novo ou algo diferente?"
@@ -14909,7 +14909,7 @@ function _storeOpenNow(hours) {
 
 // GET /api/webhook?action=filiais_list → lojas ativas pro seletor de região do cliente
 async function handleFiliaisList(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15474,7 +15474,7 @@ async function handleFilialProductsFiltro(req, res) {
 }
 
 async function handleFilialRegister(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15557,7 +15557,7 @@ async function handleFilialRegister(req, res) {
 // { slug, name, token } pro painel usar. NOTA[segurança]: endurecer depois
 // (rate-limit por IP/email, expiração de sessão).
 async function handleFilialLogin(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16150,7 +16150,7 @@ async function handleNotificationsRead(req, res) {
 // Retorna os pedidos do cliente (casados por telefone) com o status real do backend.
 // Segurança: exige token de sessão do próprio cliente (OTP) — sem lookup anônimo por telefone.
 async function handleCustomerOrders(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -16309,7 +16309,7 @@ function _inferCatGlobal(category, name) {
 // GET /api/webhook?action=home_feed[&cat=<key>]
 // Sem cat: { categories, mais_vendidos, promocoes }. Com cat: { categories, cat, produtos }.
 async function handleHomeFeed(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16357,7 +16357,7 @@ async function handleHomeFeed(req, res) {
 
 async function handleCatalog(req, res) {
   // CORS — pode vir do próprio domínio ou localhost de dev
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -16713,7 +16713,7 @@ async function handleBackfillFlavors(req, res) {
 //        OR &customer_id=uuid
 // Retorna { type: 'new'|'returning', last_order, recommendations, vibe_options }
 async function handleHomePersonalized(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -16887,7 +16887,7 @@ async function handleHomePersonalized(req, res) {
 // Retorna o flavor_profile pra tela /perfil do app. Diferente do home_personalized,
 // SEMPRE recalcula antes de devolver — garante consistência após pagamento.
 async function handleCustomerProfile(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -17143,7 +17143,7 @@ async function handleRunDropNotifications(req, res) {
           try { await sendImage(customer.phone, products[0].image_url, '', {}); } catch(e) {}
         }
         // Mensagem 2 com link clicável
-        await sendText(customer.phone, 'drope-app.vercel.app', {});
+        await sendText(customer.phone, 'dropedelivery.com.br', {});
         // Marca todos como enviados
         for (const n of notifs) {
           await sbUpdate('drope_drop_notifications', `id=eq.${n.id}`,
@@ -17213,7 +17213,7 @@ function customersHtml(customers, token) {
     const phone = String(c.phone || '').replace(/\D/g, '');
     const phoneDisplay = phone ? `+${phone.slice(0, 2)} ${phone.slice(2, 4)} ${phone.slice(4, 9)}-${phone.slice(9)}` : '—';
     const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent('fala, tudo bem? 🦎')}` : '#';
-    const reorderText = encodeURIComponent('e aí 🦎 tá precisando dropar de novo?\n\ndrope-app.vercel.app');
+    const reorderText = encodeURIComponent('e aí 🦎 tá precisando dropar de novo?\n\ndropedelivery.com.br');
     const reorderLink = phone ? `https://wa.me/${phone}?text=${reorderText}` : '#';
     const name = escapeHtml(c.name || '(sem nome)');
     const email = escapeHtml(c.email || '');
@@ -17410,7 +17410,7 @@ async function buildCatalogMessage() {
   const lines = products.map(p => `✦ ${p.name} — R$ ${formatBRL(p.price_cents)}`);
   return {
     items: `🦎 o que a gente tem agora:\n\n${lines.join('\n')}`,
-    footer: `pra pedir: drope-app.vercel.app\nou manda aqui o nome do que quer 😉`,
+    footer: `pra pedir: dropedelivery.com.br\nou manda aqui o nome do que quer 😉`,
   };
 }
 
@@ -17597,7 +17597,7 @@ async function handleRunReorder(req, res) {
     try {
       // 2 mensagens: a 2ª com só o link fica clicável no WhatsApp
       await sendText(phone, "faz 15 dias que você dropou 🦎\n\nseu pod deve tá acabando.\n\nbora dropar de novo?", {});
-      await sendText(phone, "drope-app.vercel.app", {});
+      await sendText(phone, "dropedelivery.com.br", {});
       const newMeta = { ...meta, reorder_sent: true, reorder_sent_at: new Date().toISOString() };
       await sbUpdate('drope_orders', `id=eq.${order.id}`, { metadata: newMeta });
       sent++;
@@ -18452,7 +18452,7 @@ async function _ipPaymentCheck(orderNsu, transactionNsu, slug) {
 // O VALOR vem do pedido salvo no banco (conferido contra o preço real dos produtos), nunca
 // do celular. Na tela da InfinitePay aparece só "Pedido Drope #xxxx" (sem nome de produto).
 async function handleInfinitePayCheckout(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -18876,7 +18876,7 @@ async function handleInfinitePayWebhook(req, res) {
 
 async function handleMPCreatePix(req, res) {
   // CORS
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -18999,7 +18999,7 @@ async function handleMPCreatePix(req, res) {
 // webhook (mp_webhook) confirma o pedido por external_reference = order_nsu.
 // Cartão: autorização em segundos → pedido cai como pago na hora (igual iFood).
 async function handleMPCreateCheckout(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -19202,7 +19202,7 @@ async function _orderIsPixOnly(orderId) {
 // NUNCA passa aqui). Recebemos só o token + método e criamos o pagamento /v1/payments
 // COM split (application_fee) na conta da LOJA. Sem redirect, sem conta MP do cliente.
 async function handleMPProcessCard(req, res) {
-  const allowedOrigins = ['https://drope-app.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://drope-app.vercel.app', 'https://www.dropedelivery.com.br', 'https://dropedelivery.com.br', 'http://localhost:3000'];
   const origin = req.headers?.origin || '';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : allowedOrigins[0]);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -19786,7 +19786,7 @@ module.exports = async function handler(req, res) {
       const { referralCode, referralCredit } = require('../lib/cupons');
       const code = referralCode(c);
       const cred = await referralCredit(c.id, (path) => sbGet(path.split('?')[0], path.split('?').slice(1).join('?')));
-      return res.status(200).json({ ok: true, code, link: `https://drope-app.vercel.app/?c=${code}`, credit_cents: cred.credit_cents, earned_count: cred.earned_count });
+      return res.status(200).json({ ok: true, code, link: `https://www.dropedelivery.com.br/?c=${code}`, credit_cents: cred.credit_cents, earned_count: cred.earned_count });
     } catch (e) { console.error('[customer_referral]', e.message); return res.status(500).json({ ok: false }); }
   }
 
@@ -22017,7 +22017,7 @@ async function generateAll(){
       // timeout pra liberar essa invocação rápido — a tarefa real continua na invocação child.
       const baseUrl = (req.headers['x-forwarded-host'] && req.headers['x-forwarded-proto'])
         ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
-        : `https://${req.headers.host || 'drope-app.vercel.app'}`;
+        : `https://${req.headers.host || 'dropedelivery.com.br'}`;
       let dispatched = 0;
       const products = [];
       for (const p of filtered) {
@@ -23672,7 +23672,7 @@ async function generateAll(){
         const lp = lpRows[0];
         if (lp && (lp.qty_available || 0) > 0) {
           const price = ((lp.price_cents || 0) / 100).toFixed(2).replace('.', ',');
-          const reorderMsg = `🦎 beleza! ${lp.name} — R$ ${price}\n\nretirada na loja ou entrega?\nou paga direto: drope-app.vercel.app`;
+          const reorderMsg = `🦎 beleza! ${lp.name} — R$ ${price}\n\nretirada na loja ou entrega?\nou paga direto: dropedelivery.com.br`;
           await sendText(phone, reorderMsg, body);
           if (lp.image_url) { try { await sendImage(phone, lp.image_url, '', body); } catch(e) {} }
           return res.status(200).send("reorder");
