@@ -5084,6 +5084,7 @@ async function handleFilialPainel(req, res) {
         pendentes_cadastro: (filial.metadata || {}).pendentes_cadastro || [], // códigos bipados no balanço, "cadastrar depois"
         funcionarios: (filial.metadata || {}).funcionarios || [],
         parceiros: (filial.metadata || {}).parceiros || [],
+        sugestoes: ((filial.metadata || {}).sugestoes || []).slice(0, 50),
         entregadores_fixos: entregadoresFixos,
         entrega: (filial.metadata || {}).entrega || { base: 6, km: 1.5 },
         plan: _planFor(filial),
@@ -8503,6 +8504,33 @@ function _parcMapaSlug(prods, filtros) {
 }
 function _parcComissaoPedido(o, mapa) {
   return (Array.isArray(o.items) ? o.items : []).reduce((t, it) => t + (mapa[it.slug] || 0) * (parseInt(it.qty || it.quantity) || 1), 0);
+}
+
+// POST action=parceiro_sugestao {t, texto} — parceiro manda ideia de produto/melhoria pro dono (13/10/2026)
+async function handleParceiroSugestao(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ ok: false });
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const t = String(body.t || '').trim(), texto = String(body.texto || '').trim().replace(/\s+/g, ' ').slice(0, 500);
+    if (!/^[a-f0-9]{24}$/.test(t)) return res.status(401).json({ ok: false, error: 'link inválido' });
+    if (texto.length < 3) return res.status(400).json({ ok: false, error: 'escreve sua ideia' });
+    const fr = await sbGet('drope_filiais', `status=eq.active&select=id,name,metadata&limit=20`);
+    let filial = null, p = null;
+    for (const f of (fr || [])) { const x = ((f.metadata || {}).parceiros || []).find(y => y && y.token === t && y.status === 'approved'); if (x) { filial = f; p = x; break; } }
+    if (!p) return res.status(401).json({ ok: false, error: 'link inválido' });
+    const md = filial.metadata || {};
+    const lista = Array.isArray(md.sugestoes) ? md.sugestoes : [];
+    const hoje = lista.filter(x => x.parceiro_id === p.id && Date.now() - Date.parse(x.at) < 864e5).length;
+    if (hoje >= 5) return res.status(429).json({ ok: false, error: 'já recebemos suas ideias de hoje ✦ manda mais amanhã' });
+    lista.unshift({ id: 'sg-' + Date.now().toString(36), parceiro_id: p.id, nome: p.nome, texto, at: new Date().toISOString() });
+    md.sugestoes = lista.slice(0, 200);
+    await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
+    _ownerWhatsAlert(filial.id, `💡 *Ideia de parceiro DROPE*\n${p.nome}: "${texto}"`).catch(() => {});
+    _notify('filial', filial.id, 'partner_request', '💡 Ideia de parceiro', `${String(p.nome || '').split(' ')[0]}: ${texto.slice(0, 80)}`).catch(() => {});
+    return res.status(200).json({ ok: true });
+  } catch (e) { console.error('[parceiro_sugestao]', e.message); return res.status(500).json({ ok: false, error: 'erro ao enviar' }); }
 }
 
 // GET action=parceiro_painel&t=TOKEN — página do PARCEIRO: clientes do link dele + quanto recebe no domingo.
@@ -22677,6 +22705,9 @@ async function generateAll(){
   // action=filial_funcionario_save — POST: lojista cria/edita/apaga funcionário
   if (req.url && req.url.indexOf('action=filial_funcionario_save') >= 0) {
     return await handleFilialFuncionarioSave(req, res);
+  }
+  if (req.url && /[?&]action=parceiro_sugestao(&|$)/.test(req.url)) {
+    return await handleParceiroSugestao(req, res);
   }
   if (req.url && /[?&]action=parceiro_painel(&|$)/.test(req.url)) {
     return await handleParceiroPainel(req, res);

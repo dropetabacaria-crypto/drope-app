@@ -113,6 +113,14 @@ input:focus{border-color:var(--lime)}
   <div class="sec">Seus clientes</div>
   <div class="card" id="p-lista"></div>
 
+  <div class="sec">💡 Sua ideia pra DROPE</div>
+  <div class="card">
+    <p class="note" style="margin:0 0 10px">O que a galera tá procurando? Que produto a gente devia vender? Sua opinião vai direto pro dono.</p>
+    <textarea id="s-txt" maxlength="500" rows="4" placeholder="Ex: o pessoal tá pedindo muito energético e gelo…" style="width:100%;background:#0f0d18;border:1px solid var(--line);border-radius:14px;padding:14px;color:var(--txt);font:600 15px Inter;outline:none;resize:vertical"></textarea>
+    <button class="btn" id="s-btn" onclick="sugerir()">Enviar ideia</button>
+    <div class="msg" id="s-msg"></div>
+  </div>
+
   <div class="sec">Quanto você ganha por item</div>
   <div class="card"><table class="tab" id="tab-p"></table></div>
   <p class="foot" id="p-pix"></p>
@@ -123,6 +131,7 @@ input:focus{border-color:var(--lime)}
 <p class="foot">DROPE · dropedelivery.com.br · venda só para maiores de 18 anos</p>
 </div>
 <script>
+const T = new URLSearchParams(location.search).get('t');
 const TABELA = [{ label: 'Pod', cents: 500 }, { label: 'Carregador, fone e cabo', cents: 400 }, { label: 'Tabaco e essência', cents: 200 }, { label: 'Seda e piteira', cents: 50 }];
 const brl = c => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
 const $ = id => document.getElementById(id);
@@ -146,6 +155,18 @@ async function cadastrar() {
   b.disabled = false; b.textContent = 'Quero ser parceiro ✦';
 }
 let LINK = '';
+async function sugerir() {
+  const texto = $('s-txt').value.trim(), m = $('s-msg'); m.style.color = 'var(--pink)';
+  if (texto.length < 3) { m.textContent = 'Escreve sua ideia'; return; }
+  const b = $('s-btn'); b.disabled = true; b.textContent = 'Enviando…';
+  try {
+    const r = await fetch('/api/webhook?action=parceiro_sugestao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, texto }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) { $('s-txt').value = ''; m.style.color = 'var(--lime)'; m.textContent = 'Valeu! Sua ideia chegou pro dono ✦'; }
+    else m.textContent = d.error || 'Não deu certo agora ✦ tenta de novo';
+  } catch (e) { m.textContent = 'Sem conexão ✦ tenta de novo'; }
+  b.disabled = false; b.textContent = 'Enviar ideia';
+}
 function compartilhar() { const t = `Pede pelo DROPE e ganha R$ 10 na 1ª compra 🦎 chega em minutos aqui na região: ${LINK}`; window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); }
 function copiar() { try { navigator.clipboard.writeText(LINK); $('p-copy').textContent = 'Copiado ✓'; setTimeout(() => $('p-copy').textContent = 'Copiar link', 1600); } catch (e) { prompt('Copie o link:', LINK); } }
 async function painel(t) {
@@ -165,7 +186,7 @@ async function painel(t) {
   } catch (e) { $('erro-txt').textContent = 'Sem conexão agora ✦ tenta de novo'; show('v-erro'); }
 }
 tabela('tab-cad');
-const T = new URLSearchParams(location.search).get('t');
+
 if (T) painel(T); else show('v-cad');
 </script>
 </body></html>

@@ -3493,6 +3493,10 @@ function renderParceiros() {
         <button class="pf-btn sec" style="margin:0" onclick="rejectParceiro('${p.id}')">Recusar</button>
       </div>
     </div>`).join('')) : '';
+  const sg = (_painelData && _painelData.filial && _painelData.filial.sugestoes) || [];
+  let sgEl = document.getElementById('parc-sugestoes');
+  if (!sgEl) { sgEl = document.createElement('div'); sgEl.id = 'parc-sugestoes'; aprovWrap.parentNode.insertBefore(sgEl, aprovWrap.nextSibling); }
+  sgEl.innerHTML = sg.length ? ('<div style="font-size:12px;font-weight:800;color:var(--lime);margin:14px 0 6px">💡 IDEIAS DOS PARCEIROS</div>' + sg.map(x => `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:6px"><div style="font-size:13.5px">${esc(x.texto)}</div><div style="font-size:11px;color:var(--fg-dim);margin-top:4px">${esc(String(x.nome || '').split(' ')[0])} · ${new Date(x.at).toLocaleDateString('pt-BR')}</div></div>`).join('')) : '';
   aprovWrap.innerHTML = aprov.length ? ('<div style="font-size:12px;font-weight:800;color:var(--fg-dim);margin-bottom:6px">PARCEIROS ATIVOS</div>' + aprov.map(p => {
     const regra = p.tipo === 'categoria' ? 'Tabela DROPE: pod R$ 5 · celular R$ 4 · tabaco R$ 2 · seda R$ 0,50 por item' : p.tipo === 'fixo' ? ('R$ ' + Number(p.valor || 0).toFixed(2).replace('.', ',') + ' por venda') : (String(p.valor || 0).replace('.', ',') + (p.tipo === 'pct_venda' ? '% da venda' : '% do lucro'));
     const c = (_comissoes || []).find(x => x.id === p.id);
