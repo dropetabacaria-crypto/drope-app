@@ -8962,7 +8962,7 @@
     const statusChip = unavailable
       ? `<span class="lj-hd-chip closed">● indisponível</span>`
       : (on === true)
-        ? `<span class="lj-hd-chip open">● aberta${lh.close ? ` até ${escapeHtml(String(lh.close).replace(/:00$/, 'h'))}` : ''}</span>`
+        ? `<span class="lj-hd-chip open">● aberta${lh.close ? ` até ${String(lh.close).startsWith('00:00') ? 'meia-noite' : escapeHtml(String(lh.close).replace(/:00$/, 'h'))}` : ''}</span>`
         : (on === false)
           ? `<span class="lj-hd-chip closed">● fechada${lh.open ? ` · abre ${escapeHtml(lh.open)}` : ''}</span>`
           : `<span class="lj-hd-chip open">● aberta</span>`;
