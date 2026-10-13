@@ -5002,6 +5002,7 @@ async function handleFilialPainel(req, res) {
       if (!Array.isArray(commOrders)) commOrders = [];
     }
     const _payments = Array.isArray((filial.metadata || {}).commission_payments) ? (filial.metadata || {}).commission_payments : [];
+    let _parcMapa = null;
     const comissoes = _funcs.concat(_parcAprov).map(f => {
       // funcionário: pedidos que ele registrou (employee_id).
       // indicador/parceiro: pedidos que vieram pelo link dele (?ref= → metadata.parceiro_ref).
@@ -5011,7 +5012,10 @@ async function handleFilialPainel(req, res) {
       });
       let comissaoCents = 0;
       const podsQtd = myOrders.reduce((t, o) => t + (Array.isArray(o.items) ? o.items : []).reduce((a, it) => a + (parseInt(it.qty || it.quantity) || 1), 0), 0);
-      if (f.tipo === 'pod') {
+      if (f.tipo === 'categoria') {
+        if (!_parcMapa) _parcMapa = _parcMapaSlug(prods, (filial.metadata || {}).filtros);
+        for (const o of myOrders) comissaoCents += _parcComissaoPedido(o, _parcMapa); // tabela fixa por categoria (Parceiro DROPE)
+      } else if (f.tipo === 'pod') {
         comissaoCents = podsQtd * Math.round((Number(f.valor) || 0) * 100); // R$ por pod vendido pros clientes dele (vitalício)
       } else if (f.tipo === 'fixo') {
         comissaoCents = myOrders.length * Math.round((Number(f.valor) || 0) * 100); // R$ fixo por venda
@@ -8477,6 +8481,72 @@ async function _pixPayout(pixKey, amountCents, description) {
   }
 }
 
+// ===== Parceiro DROPE (13/10/2026): comissão FIXA por categoria, por item vendido =====
+// Valor por item (centavos) conforme o NOME da categoria da loja. Ordem importa (1ª que bater).
+const PARCEIRO_TABELA = [
+  { re: /pod/i, cents: 500, label: 'Pod' },
+  { re: /celular|carregador|cabo|fone|acess/i, cents: 400, label: 'Celular' },
+  { re: /tabaco|narguil|ess[eê]ncia/i, cents: 200, label: 'Tabaco e essência' },
+  { re: /seda|piteira/i, cents: 50, label: 'Seda e piteira' },
+];
+function _parcTabelaTexto() { return PARCEIRO_TABELA.map(t => `${t.label} R$ ${(t.cents / 100).toFixed(2).replace('.', ',')}`).join(' · '); }
+// slug → centavos de comissão por unidade, a partir dos produtos + categorias da loja
+function _parcMapaSlug(prods, filtros) {
+  const catNome = {}; (Array.isArray(filtros) ? filtros : []).forEach(f => { if (f && f.id) catNome[String(f.id)] = String(f.nome || ''); });
+  const m = {};
+  (Array.isArray(prods) ? prods : []).forEach(p => {
+    const nome = catNome[String(((p.metadata || {}).filtro_id) || '')] || '';
+    const t = PARCEIRO_TABELA.find(x => x.re.test(nome));
+    m[p.slug] = t ? t.cents : 0;
+  });
+  return m;
+}
+function _parcComissaoPedido(o, mapa) {
+  return (Array.isArray(o.items) ? o.items : []).reduce((t, it) => t + (mapa[it.slug] || 0) * (parseInt(it.qty || it.quantity) || 1), 0);
+}
+
+// GET action=parceiro_painel&t=TOKEN — página do PARCEIRO: clientes do link dele + quanto recebe no domingo.
+async function handleParceiroPainel(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cache-Control', 'no-store');
+  try {
+    const t = String((new URL(req.url, 'http://x')).searchParams.get('t') || '').trim();
+    if (!/^[a-f0-9]{24}$/.test(t)) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'link inválido' }); }
+    const fr = await sbGet('drope_filiais', `status=eq.active&select=id,name,slug,metadata&limit=20`);
+    let filial = null, p = null;
+    for (const f of (fr || [])) { const x = ((f.metadata || {}).parceiros || []).find(y => y && y.token === t && y.status === 'approved'); if (x) { filial = f; p = x; break; } }
+    if (!p) { await new Promise(r => setTimeout(r, 600)); return res.status(401).json({ ok: false, error: 'link inválido ou parceria encerrada' }); }
+    const md = filial.metadata || {};
+    const PAGOS = 'paid,accepted,confirmed,preparing,ready,prepared,dispatched,delivered,picked_up,completed';
+    const [orders, prods] = await Promise.all([
+      sbGet('drope_orders', `filial_id=eq.${filial.id}&metadata->>employee_id=eq.${encodeURIComponent(p.id)}&status=in.(${PAGOS})&select=id,created_at,items,customer_id,customer_snapshot&order=created_at.desc&limit=1000`),
+      sbGet('drope_products', `filial_id=eq.${filial.id}&select=slug,metadata&limit=1000`),
+    ]);
+    const mapa = _parcMapaSlug(prods, md.filtros);
+    const win = _commissionWindow({ ...md, commission_period: 'week' }, new Date());
+    const clientes = {};
+    let totalCents = 0, semanaCents = 0, semanaItens = 0;
+    for (const o of (orders || [])) {
+      const c = _parcComissaoPedido(o, mapa); totalCents += c;
+      if ((o.created_at || '') >= win.startISO) { semanaCents += c; semanaItens += (o.items || []).reduce((a, it) => a + (parseInt(it.qty) || 1), 0); }
+      const k = o.customer_id || ((o.customer_snapshot || {}).phone) || o.id;
+      const nm = String((o.customer_snapshot || {}).name || 'Cliente').trim().split(/\s+/);
+      if (!clientes[k]) clientes[k] = { nome: nm[0] + (nm[1] ? ' ' + nm[1][0] + '.' : ''), pedidos: 0, ganho_cents: 0, ultimo: o.created_at };
+      clientes[k].pedidos++; clientes[k].ganho_cents += c;
+    }
+    const pagos = (Array.isArray(md.commission_payments) ? md.commission_payments : []).filter(x => x && x.person_id === p.id);
+    const pagoSemana = pagos.filter(x => x.period === win.key).reduce((a, x) => a + (Number(x.amount_cents) || 0), 0);
+    return res.status(200).json({ ok: true,
+      nome: String(p.nome || '').split(' ')[0], loja: filial.name, ref_code: p.ref_code,
+      link: `https://www.dropedelivery.com.br/?c=${p.ref_code}`,
+      tabela: PARCEIRO_TABELA.map(x => ({ label: x.label, cents: x.cents })),
+      semana: { comissao_cents: semanaCents, itens: semanaItens, pago_cents: pagoSemana, a_receber_cents: Math.max(0, semanaCents - pagoSemana), desde: win.startISO },
+      total_cents: totalCents, total_pago_cents: pagos.reduce((a, x) => a + (Number(x.amount_cents) || 0), 0),
+      clientes: Object.values(clientes).sort((a, b) => String(b.ultimo).localeCompare(String(a.ultimo))),
+      pix: p.pix_key ? String(p.pix_key).replace(/^(.{3}).*(.{3})$/, '$1•••$2') : null,
+    });
+  } catch (e) { console.error('[parceiro_painel] ERROR:', e.message); return res.status(500).json({ ok: false, error: 'erro ao carregar' }); }
+}
+
 // POST action=filial_parceiro_request — CLIENTE pede pra ser parceiro/indicador da loja.
 // Cria um pedido 'pending' em drope_filiais.metadata.parceiros; a loja aprova depois.
 async function handleFilialParceiroRequest(req, res) {
@@ -8504,6 +8574,7 @@ async function handleFilialParceiroRequest(req, res) {
     md.parceiros = parceiros;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });
     _notify('filial', filial.id, 'partner_request', 'Novo pedido de parceria ✦', `${nome} quer divulgar a sua loja`).catch(() => {});
+    _ownerWhatsAlert(filial.id, `🤝 *Novo pedido de PARCEIRO DROPE*\n${nome} · ${phone}${pixKey ? '\nPix: ' + pixKey : ''}\nAprove no painel: Config → Parceiros`).catch(() => {});
     return res.status(200).json({ ok: true, status: 'pending' });
   } catch (e) { console.error('[filial_parceiro_request] ERROR:', e.message); return res.status(500).json({ ok: false, error: e.message }); }
 }
@@ -8568,7 +8639,7 @@ async function handleFilialParceiroManage(req, res) {
       parceiros = parceiros.filter(x => x.id !== body.id);
     } else if (op === 'approve' || op === 'save') {
       if (!p) return res.status(404).json({ ok: false, error: 'parceiro não encontrado' });
-      p.tipo = ['fixo', 'pct_venda', 'pct_lucro'].includes(body.tipo) ? body.tipo : 'pct_lucro';
+      p.tipo = ['categoria', 'fixo', 'pct_venda', 'pct_lucro'].includes(body.tipo) ? body.tipo : 'categoria';
       let valor = Number(body.valor); p.valor = (isFinite(valor) && valor >= 0) ? valor : 0;
       if (typeof body.pix_key === 'string') p.pix_key = body.pix_key.trim().slice(0, 80) || null;
       if (op === 'approve') {
@@ -8580,7 +8651,17 @@ async function handleFilialParceiroManage(req, res) {
           while (taken(code) && guard++ < 20) code = base + Math.floor(Math.random() * 900 + 100);
           p.ref_code = code;
         }
+        if (!p.token) p.token = crypto.randomBytes(12).toString('hex'); // acesso à página do parceiro
       }
+    }
+    // Aprovou → manda o link no WhatsApp do parceiro (UazAPI)
+    if (op === 'approve' && p) {
+      const site = 'https://www.dropedelivery.com.br';
+      const txt = `🦎 Parabéns, ${String(p.nome || '').split(' ')[0]}! Você agora é *PARCEIRO DROPE* ✦\n\n` +
+        `*Seu link pra divulgar:*\n${site}/?c=${p.ref_code}\n\n` +
+        `Quem entrar pelo seu link ganha R$ 10 na 1ª compra (com pod). E você ganha em TODA compra dessa pessoa, pra sempre:\n${_parcTabelaTexto()} (por item)\n\n` +
+        `*Seus clientes e quanto você recebe no domingo:*\n${site}/parceiro?t=${p.token}\n\nO pagamento cai todo domingo no seu Pix.`;
+      try { const r = await sendText(_phone55(p.phone), txt, { provider: 'uazapi' }); p.link_sent = !!(r && r.ok); } catch (e) { p.link_sent = false; }
     }
     if (op === 'approve' && p) _notify('customer', p.phone, 'partner_result', 'Parceria aprovada! ✦', `Você virou parceiro da ${filial.name}. Pega seu link de indicação no app.`).catch(() => {});
     if (op === 'reject' && p) _notify('customer', p.phone, 'partner_result', 'Parceria não aprovada', `Seu pedido de parceria com a ${filial.name} não foi aceito dessa vez.`).catch(() => {});
@@ -19717,7 +19798,7 @@ module.exports = async function handler(req, res) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
       const { checkCoupon } = require('../lib/cupons');
-      const r = await checkCoupon({ code: body.code, phone: body.phone, subtotalCents: body.subtotal_cents, filialSlug: body.filial || 'sp' }, (path) => sbGet(path.split('?')[0], path.split('?')[1] || ''));
+      const r = await checkCoupon({ code: body.code, phone: body.phone, subtotalCents: body.subtotal_cents, filialSlug: body.filial || 'sp', slugs: Array.isArray(body.slugs) ? body.slugs : undefined }, (path) => sbGet(path.split('?')[0], path.split('?')[1] || ''));
       return res.status(200).json(r);
     } catch (e) { return res.status(200).json({ ok: false, message: 'não consegui conferir o cupom agora' }); }
   }
@@ -22596,6 +22677,9 @@ async function generateAll(){
   // action=filial_funcionario_save — POST: lojista cria/edita/apaga funcionário
   if (req.url && req.url.indexOf('action=filial_funcionario_save') >= 0) {
     return await handleFilialFuncionarioSave(req, res);
+  }
+  if (req.url && /[?&]action=parceiro_painel(&|$)/.test(req.url)) {
+    return await handleParceiroPainel(req, res);
   }
   // action=filial_parceiro_request — POST: cliente pede pra ser parceiro/indicador
   if (req.url && req.url.indexOf('action=filial_parceiro_request') >= 0) {

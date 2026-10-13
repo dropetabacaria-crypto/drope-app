@@ -222,7 +222,7 @@ module.exports = async function handler(req, res) {
     } catch (e) { sessOk = false; }
     if (body.coupon_code) {
       if (!sessOk) return res.status(409).json({ error: 'cupom_login', coupon: String(body.coupon_code).toUpperCase(), message: 'Entre de novo na sua conta pra usar o cupom ✦' });
-      const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents, filialSlug: body.filial_slug || 'sp' }, sbFetch);
+      const cr = await checkCoupon({ code: body.coupon_code, phone: customer && customer.phone, subtotalCents: itemsSubCents, filialSlug: body.filial_slug || 'sp', slugs: items.map(i => i && i.slug) }, sbFetch);
       if (!cr.ok) return res.status(409).json({ error: cr.error || 'cupom_invalido', coupon: String(body.coupon_code).toUpperCase(), message: cr.message + ' ✦ tiramos o cupom, confere o valor e tenta de novo' });
       discountCents = cr.discount_cents; couponApplied = cr.code; refCustomerId = cr.ref_customer_id || null; couponEmployeeId = cr.employee_id || null;
     }
