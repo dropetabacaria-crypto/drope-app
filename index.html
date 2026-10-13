@@ -7804,7 +7804,7 @@
   function closeReferral() { const ov = document.getElementById('ref-ov'); if (ov) ov.classList.remove('show'); }
   function _refText() {
     const i = _refInfo || {};
-    return `Pede seu pod no DROPE e ganha R$ 10 na primeira compra 🦎 Chega em minutos, e com 2 pods a entrega é grátis. Entra por aqui que o desconto já vem: ${i.link || 'https://www.dropedelivery.com.br'} (código ${i.code || ''})`;
+    return `Pede seu pod no DROPE e ganha R$ 10 na primeira compra 🦎 Chega em minutos. Entra por aqui que o desconto já vem: ${i.link || 'https://www.dropedelivery.com.br'} (código ${i.code || ''})`;
   }
   function refShareWhats() { window.open('https://wa.me/?text=' + encodeURIComponent(_refText()), '_blank'); }
   function refShare() {
@@ -8978,7 +8978,7 @@
     const infoChips = [
       kmTxt ? `<span class="lj-hd-chip">${escapeHtml(etaTxt)} · ${escapeHtml(kmTxt)}</span>` : '',
       (typeof _storeSoRetirada === 'function' && _storeSoRetirada()) ? `<span class="lj-hd-chip">só retirada · pague pelo app</span>`
-        : (dq && dq.ok && !dq.out_of_range) ? `<span class="lj-hd-chip">entrega ${escapeHtml(dq.free ? 'grátis' : dq.fmt)}</span>` : `<span class="lj-hd-chip">2+ pods = entrega grátis (até 6 km)</span>`,
+        : (dq && dq.ok && !dq.out_of_range) ? `<span class="lj-hd-chip">entrega ${escapeHtml(dq.free ? 'grátis' : dq.fmt)}</span>` : `<span class="lj-hd-chip">entrega em minutos ✦</span>`,
     ].filter(Boolean).join('');
     const cover = loja.cover_url
       ? `<div class="lj-hd-cover" style="background-image:url('${escapeHtml(loja.cover_url)}')"></div>`
@@ -10572,7 +10572,7 @@
     if (data.out_of_range) {
       el.innerHTML = `<div style="padding:12px 14px;background:rgba(255,45,111,0.1);border:1px solid rgba(255,45,111,0.3);border-radius:10px;color:var(--pink);font-size:13px;line-height:1.5"><b>${data.message}</b></div>`;
     } else {
-      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.zone_fmt || data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ${String(data.km).replace('.', ',')} km de trajeto${data.km <= (data.free_km || 6) ? ' · grátis com 2 pods' : ''}</span></div>`;
+      el.innerHTML = `<div style="padding:12px 14px;background:rgba(212,255,46,0.08);border:1px solid rgba(212,255,46,0.3);border-radius:10px;color:var(--lime);font-size:14px;font-weight:600">taxa de entrega: <b>${data.zone_fmt || data.fmt}</b> <span style="font-size:11px;color:var(--text-dim);font-weight:400">· ${String(data.km).replace('.', ',')} km de trajeto${(FRETE_GRATIS_ON && data.km <= (data.free_km || 6)) ? ' · grátis com 2 pods' : ''}</span></div>`;
     }
   }
 
@@ -12149,7 +12149,10 @@
   }
   // Regra aprovada 27/09: pedido com 2+ pods até 6 km sai com entrega grátis.
   function _cartPods() { return (cart || []).reduce((t, i) => t + (Number(i && i.qty) || 0), 0); }
+  // 13/10/2026: entrega grátis DESLIGADA (dava prejuízo: 2 itens baratos = corrida paga pela loja).
+  const FRETE_GRATIS_ON = false;
   function _freteGratisPods(q) {
+    if (!FRETE_GRATIS_ON) return false;
     q = q || window._deliveryQuote;
     const minPods = (q && q.free_pods) || 2, maxKm = (q && q.free_km) || 6;
     return !!(q && q.ok && !q.out_of_range && typeof q.km === 'number' && q.km <= maxKm && _cartPods() >= minPods);
@@ -12166,9 +12169,9 @@
       const km = String(q.km).replace('.', ',');
       const zf = q.zone_fmt || q.fmt;
       if (_freteGratisPods(q)) html = `<span style="${lime}">✓ entrega grátis</span> · ${km} km · pedido com ${pods} pods`;
-      else if (q.km <= ((q.free_km) || 6)) html = `entrega <b>${escapeHtml(zf)}</b> · ${km} km<br><span style="${lime}">leve mais ${Math.max(1, ((q.free_pods) || 2) - pods)} pod e a entrega sai grátis ✦</span>`;
+      else if (FRETE_GRATIS_ON && q.km <= ((q.free_km) || 6)) html = `entrega <b>${escapeHtml(zf)}</b> · ${km} km<br><span style="${lime}">leve mais ${Math.max(1, ((q.free_pods) || 2) - pods)} pod e a entrega sai grátis ✦</span>`;
       else html = `entrega <b>${escapeHtml(zf)}</b> · ${km} km de trajeto`;
-    } else html = `entrega a partir de <b>R$ 7,99</b> · <span style="${lime}">grátis com 2 pods (até 6 km)</span>`;
+    } else html = `entrega a partir de <b>R$ 7,99</b> · <span style="${lime}">chega em minutos ✦</span>`;
     el.innerHTML = html;
   }
   function finalTotal() {
@@ -12343,7 +12346,7 @@
       if (q && q.ok && !q.out_of_range) {
         // Valor da entrega já aparece no resumo; aqui só a dica que faz a entrega sair grátis
         const faltam = Math.max(0, (q.free_pods || 2) - _cartPods());
-        const dica = (!_freteGratisPods(q) && q.km <= (q.free_km || 6) && faltam > 0);
+        const dica = (FRETE_GRATIS_ON && !_freteGratisPods(q) && q.km <= (q.free_km || 6) && faltam > 0);
         info.innerHTML = dica ? `
           <div class="dfn-icon"></div>
           <div class="dfn-body">
