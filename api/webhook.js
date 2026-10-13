@@ -8506,6 +8506,49 @@ function _parcComissaoPedido(o, mapa) {
   return (Array.isArray(o.items) ? o.items : []).reduce((t, it) => t + (mapa[it.slug] || 0) * (parseInt(it.qty || it.quantity) || 1), 0);
 }
 
+// Cartão com o QR do parceiro (imagem pro status + PDF pra imprimir) — 13/10/2026.
+// Fundo pronto em /img/parceiro-card-base.png (1080×1350, caixa branca do QR em x250 y430, 580×580).
+async function _parcQrKit(p) {
+  const sharp = require('sharp'), QR = require('qrcode'), PDFDocument = require('pdfkit');
+  const link = `https://www.dropedelivery.com.br/?c=${p.ref_code}`;
+  const baseResp = await fetch('https://www.dropedelivery.com.br/img/parceiro-card-base.png');
+  if (!baseResp.ok) throw new Error('fundo do cartão indisponível');
+  const base = Buffer.from(await baseResp.arrayBuffer());
+  const qrPng = await QR.toBuffer(link, { type: 'png', width: 480, margin: 0, errorCorrectionLevel: 'M', color: { dark: '#0A0A14', light: '#FFFFFF' } });
+  const card = await sharp(base).composite([{ input: qrPng, left: 300, top: 480 }]).png().toBuffer();
+  const slug = 'parceiro-qr-' + String(p.ref_code).toLowerCase();
+  const imgUrl = await uploadToStorage(slug, card, 'image/png');
+  // PDF A4 pra imprimir: cartão grande + código
+  const pdf = await new Promise((ok, bad) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 36 }); const chunks = [];
+    doc.on('data', c => chunks.push(c)); doc.on('end', () => ok(Buffer.concat(chunks))); doc.on('error', bad);
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill('#0A0A14');
+    const w = 460, h = w * 1350 / 1080, x = (doc.page.width - w) / 2;
+    doc.image(card, x, 50, { width: w });
+    doc.fillColor('#D4FF2E').font('Helvetica-Bold').fontSize(20).text(`Código ${p.ref_code}`, 0, 50 + h + 24, { align: 'center', width: doc.page.width });
+    doc.fillColor('#B9B4D0').font('Helvetica').fontSize(12).text(link.replace('https://', ''), { align: 'center', width: doc.page.width });
+    doc.end();
+  });
+  const pdfPath = `pods/${slug}.pdf`;
+  const up = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${pdfPath}`, { method: 'POST', headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/pdf', 'x-upsert': 'true' }, body: pdf });
+  const pdfUrl = up.ok ? `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${pdfPath}` : null;
+  return { imgUrl, pdfUrl };
+}
+async function _parcSendKit(phone55, p) {
+  const out = { img: false, pdf: false };
+  try {
+    const kit = await _parcQrKit(p);
+    if (kit.imgUrl) { const r = await sendImage(phone55, kit.imgUrl, `Seu QR de parceiro ✦ código ${p.ref_code}\nPosta no status ou mostra pros amigos 📲`, { provider: 'uazapi' }); out.img = !!(r && r.ok); }
+    if (kit.pdfUrl) {
+      const r = await fetch(`${UAZAPI_SERVER}/send/media`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'token': UAZAPI_TOKEN },
+        body: JSON.stringify({ number: phone55, type: 'document', file: kit.pdfUrl, docName: `QR-DROPE-${p.ref_code}.pdf`, caption: 'PDF pra imprimir 🖨️' }) });
+      out.pdf = r.ok;
+    }
+    out.img_url = kit.imgUrl; out.pdf_url = kit.pdfUrl;
+  } catch (e) { console.error('[parceiro kit]', e.message); out.error = e.message; }
+  return out;
+}
+
 // POST action=parceiro_sugestao {t, texto} — parceiro manda ideia de produto/melhoria pro dono (13/10/2026)
 async function handleParceiroSugestao(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Cache-Control', 'no-store');
@@ -8690,6 +8733,7 @@ async function handleFilialParceiroManage(req, res) {
         `Quem entrar pelo seu link ganha R$ 10 na 1ª compra (com pod). E você ganha em TODA compra dessa pessoa, pra sempre:\n${_parcTabelaTexto()} (por item)\n\n` +
         `*Seus clientes e quanto você recebe no domingo:*\n${site}/parceiro?t=${p.token}\n\nO pagamento cai todo domingo no seu Pix.`;
       try { const r = await sendText(_phone55(p.phone), txt, { provider: 'uazapi' }); p.link_sent = !!(r && r.ok); } catch (e) { p.link_sent = false; }
+      const kit = await _parcSendKit(_phone55(p.phone), p); p.kit_sent = !!(kit.img || kit.pdf); if (kit.img_url) p.qr_img = kit.img_url; if (kit.pdf_url) p.qr_pdf = kit.pdf_url;
     }
     if (op === 'approve' && p) _notify('customer', p.phone, 'partner_result', 'Parceria aprovada! ✦', `Você virou parceiro da ${filial.name}. Pega seu link de indicação no app.`).catch(() => {});
     if (op === 'reject' && p) _notify('customer', p.phone, 'partner_result', 'Parceria não aprovada', `Seu pedido de parceria com a ${filial.name} não foi aceito dessa vez.`).catch(() => {});
