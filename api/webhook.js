@@ -8706,6 +8706,7 @@ async function handleFilialParceiroManage(req, res) {
     let parceiros = Array.isArray(md.parceiros) ? md.parceiros : [];
     const op = body.op || 'approve';
     const p = parceiros.find(x => x.id === body.id);
+    const jaAprovado = !!(p && p.status === 'approved'); // clique repetido não reenvia o WhatsApp
     if (op === 'delete' || op === 'reject') {
       parceiros = parceiros.filter(x => x.id !== body.id);
     } else if (op === 'approve' || op === 'save') {
@@ -8726,7 +8727,7 @@ async function handleFilialParceiroManage(req, res) {
       }
     }
     // Aprovou → manda o link no WhatsApp do parceiro (UazAPI)
-    if (op === 'approve' && p) {
+    if (op === 'approve' && p && !jaAprovado) {
       const site = 'https://www.dropedelivery.com.br';
       const txt = `🦎 Parabéns, ${String(p.nome || '').split(' ')[0]}! Você agora é *PARCEIRO DROPE* ✦\n\n` +
         `*Seu link pra divulgar:*\n${site}/?c=${p.ref_code}\n\n` +
@@ -8735,7 +8736,7 @@ async function handleFilialParceiroManage(req, res) {
       try { const r = await sendText(_phone55(p.phone), txt, { provider: 'uazapi' }); p.link_sent = !!(r && r.ok); } catch (e) { p.link_sent = false; }
       const kit = await _parcSendKit(_phone55(p.phone), p); p.kit_sent = !!(kit.img || kit.pdf); if (kit.img_url) p.qr_img = kit.img_url; if (kit.pdf_url) p.qr_pdf = kit.pdf_url;
     }
-    if (op === 'approve' && p) _notify('customer', p.phone, 'partner_result', 'Parceria aprovada! ✦', `Você virou parceiro da ${filial.name}. Pega seu link de indicação no app.`).catch(() => {});
+    if (op === 'approve' && p && !jaAprovado) _notify('customer', p.phone, 'partner_result', 'Parceria aprovada! ✦', `Você virou parceiro da ${filial.name}. Pega seu link de indicação no app.`).catch(() => {});
     if (op === 'reject' && p) _notify('customer', p.phone, 'partner_result', 'Parceria não aprovada', `Seu pedido de parceria com a ${filial.name} não foi aceito dessa vez.`).catch(() => {});
     md.parceiros = parceiros;
     await sbUpdate('drope_filiais', `id=eq.${filial.id}`, { metadata: md });

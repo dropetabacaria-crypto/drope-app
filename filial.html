@@ -3471,7 +3471,7 @@ function renderParceiros() {
         <input class="pf-input" id="pcap-valor-${p.id}" inputmode="decimal" placeholder="10" style="width:80px;margin-bottom:0;display:none">
       </div>
       <div style="display:flex;gap:8px">
-        <button class="pf-btn" style="flex:1;margin:0" onclick="approveParceiro('${p.id}')">Aprovar ✦</button>
+        <button class="pf-btn" style="flex:1;margin:0" onclick="approveParceiro('${p.id}', this)">Aprovar ✦</button>
         <button class="pf-btn sec" style="margin:0" onclick="rejectParceiro('${p.id}')">Recusar</button>
       </div>
     </div>`).join('')) : '';
@@ -3493,12 +3493,15 @@ function renderParceiros() {
     </div>`;
   }).join('')) : (pend.length ? '' : '<div style="font-size:13px;color:var(--fg-dim)">Nenhum parceiro ainda. Quando um cliente pedir pra ser parceiro pelo app, o pedido aparece aqui pra você aprovar.</div>');
 }
-async function approveParceiro(id) {
+async function approveParceiro(id, btn) {
+  if (btn && btn.disabled) return;
   const tipo = ((document.getElementById('pcap-tipo-' + id) || {}).value) || 'categoria';
   let valor = _num((document.getElementById('pcap-valor-' + id) || {}).value);
   if (tipo === 'categoria') valor = 0;
   else if (!isFinite(valor) || valor < 0) { alert('põe a comissão do parceiro (número)'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Aprovando… mandando no WhatsApp'; }
   await _parceiroManage({ op: 'approve', id, tipo, valor });
+  if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Aprovar ✦'; }
 }
 async function rejectParceiro(id) { if (!confirm('Recusar esse pedido de parceria?')) return; await _parceiroManage({ op: 'reject', id }); }
 async function deleteParceiro(id) { if (!confirm('Remover esse parceiro?')) return; await _parceiroManage({ op: 'delete', id }); }
